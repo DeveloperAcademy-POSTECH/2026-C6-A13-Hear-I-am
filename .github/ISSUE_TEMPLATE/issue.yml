@@ -1,0 +1,30 @@
+name: ISSUE
+description: simple ver.
+title: "ISSUE 제목을 넣으세요"
+labels: ["basic"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: ⚽️ 어떤 기능인가요?
+      description: 추가하려는 기능에 대해 간결하게 설명해주세요.
+      placeholder: ex) 로그인 시 biometric 인증 기능을 추가하고 싶습니다.
+    validations:
+      required: true
+
+  - type: textarea
+    id: tasks
+    attributes:
+      label: 🏀 작업 상세 내용
+      description: 기능 구현에 필요한 작업을 항목별로 나열해 주세요.
+      placeholder: |
+        - [ ] UI 레이아웃 구성
+        - [ ] API 연동
+        - [ ] 단위 테스트 작성
+      value: |
+        - [ ] TODO
+        - [ ] TODO
+        - [ ] TODO
+    validations:
+      required: false
+
