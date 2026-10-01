@@ -1,0 +1,44 @@
+name: HapticLab
+options:
+  bundleIdPrefix: com.c6research
+  createIntermediateGroups: true
+  deploymentTarget:
+    iOS: "18.0"
+    watchOS: "11.0"
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "0.1"
+    CURRENT_PROJECT_VERSION: "1"
+    DEVELOPMENT_TEAM: C5P7V9S6NT
+    CODE_SIGN_STYLE: Automatic
+targets:
+  HapticLab:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources/iOS
+      - path: Sources/Shared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.c6research.HapticLab
+        INFOPLIST_FILE: Sources/iOS/Info.plist
+        TARGETED_DEVICE_FAMILY: "1"
+    # 공유 스킴을 만들어 둔다 — 없으면 xcodegen 을 다시 돌릴 때마다 명령줄 빌드가 스킴을 못 찾는다
+    scheme: {}
+    dependencies:
+      - target: HapticLabWatch
+        embed: true
+        codeSign: false
+  HapticLabWatch:
+    type: application
+    platform: watchOS
+    sources:
+      - path: Sources/Watch
+      - path: Sources/Shared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.c6research.HapticLab.watchkitapp
+        INFOPLIST_FILE: Sources/Watch/Info.plist
+        TARGETED_DEVICE_FAMILY: "4"
+    scheme: {}
