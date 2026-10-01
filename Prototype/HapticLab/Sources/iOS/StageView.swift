@@ -44,6 +44,9 @@ final class StageTracker: NSObject, ObservableObject, ARSessionDelegate {
     /// 지나온 길(폰 기준 바닥 좌표). 3cm 넘게 움직였을 때만 점을 더한다.
     @Published private(set) var trail: [SIMD2<Float>] = []
     @Published private(set) var trailLiDAR: [SIMD2<Float>] = []
+    /// 걷는 중에 바뀌기 전의 목표들(지도에 흐리게 남긴다)
+    @Published private(set) var previousTargets: [SIMD2<Float>] = []
+    func clearPreviousTargets() { previousTargets.removeAll() }
     /// 카메라 화면 속 바닥에 띄우는 사람 표시
     private var personMarker: AnchorEntity?
     /// 바닥 높이. 목표를 찍으면 그 바닥 높이를 쓴다.
@@ -118,6 +121,10 @@ final class StageTracker: NSObject, ObservableObject, ARSessionDelegate {
             return
         }
         let p = hit.worldTransform.columns.3
+        if let old = target {
+            previousTargets.append(old)
+            if previousTargets.count > 6 { previousTargets.removeFirst() }
+        }
         target = SIMD2(p.x, -p.z)
         floorY = p.y
         targetAnchor.map { arView.scene.removeAnchor($0) }
@@ -226,92 +233,144 @@ private struct ARViewContainer: UIViewRepresentable {
     }
 }
 
-/// 위에서 내려다본 동선 지도. 폰은 아래 가운데, 카메라가 보는 쪽이 위.
-/// 보이는 범위는 사람·목표·지나온 길이 다 들어오게 저절로 넓어진다(가로세로 같은 비율).
+/// 위에서 내려다본 동선 지도. 아래 가운데가 폰(카메라), 위쪽이 카메라가 보는 쪽(무대 안쪽).
+/// 한눈에 읽히도록: 사람 = 걷는 사람 표시, 목표 = 깃발과 도착 범위, 지나온 길 = 파란 선(옛길일수록 흐림),
+/// 사람→목표 = 점선과 남은 거리. 보이는 범위는 다 들어오게 저절로 넓어진다(가로세로 같은 비율).
 private struct StageMap: View {
+    let path: [SIMD2<Float>]
+    let comparePath: [SIMD2<Float>]?
     let person: SIMD2<Float>?
-    let personLiDAR: SIMD2<Float>?
+    let comparePerson: SIMD2<Float>?
     let target: SIMD2<Float>?
-    let trail: [SIMD2<Float>]
-    let trailLiDAR: [SIMD2<Float>]
+    let oldTargets: [SIMD2<Float>]
     let tracking: Bool
     let arriveRadius: Float
 
     var body: some View {
         Canvas { ctx, size in
-            let pts = trail + trailLiDAR + [person, personLiDAR, target].compactMap { $0 }
+            var pts = path + oldTargets + [person, target].compactMap { $0 }
+            if let comparePath { pts += comparePath }
             var forward: Float = 4, side: Float = 2
             for p in pts {
-                forward = max(forward, p.y * 1.15 + 0.5)
-                side = max(side, abs(p.x) * 1.15 + 0.5)
+                forward = max(forward, p.y * 1.15 + 0.6)
+                side = max(side, abs(p.x) * 1.2 + 0.6)
             }
-            let scale = min(size.width / CGFloat(side * 2), (size.height - 28) / CGFloat(forward))
-            let origin = CGPoint(x: size.width / 2, y: size.height - 18)
+            let top: CGFloat = 26, bottom: CGFloat = 40
+            let scale = min(size.width / CGFloat(side * 2), (size.height - top - bottom) / CGFloat(forward))
+            let origin = CGPoint(x: size.width / 2, y: size.height - bottom)
             func pt(_ p: SIMD2<Float>) -> CGPoint {
                 CGPoint(x: origin.x + CGFloat(p.x) * scale, y: origin.y - CGFloat(p.y) * scale)
             }
 
-            // 1m 격자와 거리 글자
+            // 바닥 격자(1m 칸)
+            let grid = Color.secondary.opacity(0.12)
             var m = 1
-            while CGFloat(m) * scale < origin.y {
+            while origin.y - CGFloat(m) * scale > top - 4 {
                 let y = origin.y - CGFloat(m) * scale
                 ctx.stroke(Path { $0.move(to: CGPoint(x: 0, y: y)); $0.addLine(to: CGPoint(x: size.width, y: y)) },
-                           with: .color(.secondary.opacity(0.18)), lineWidth: 1)
-                ctx.draw(Text("\(m)m").font(.caption2).foregroundStyle(.secondary),
-                         at: CGPoint(x: 16, y: y - 8))
+                           with: .color(grid))
+                ctx.draw(Text("\(m)m").font(.caption2.weight(.medium)).foregroundStyle(.tertiary),
+                         at: CGPoint(x: 6, y: y - 2), anchor: .bottomLeading)
                 m += 1
             }
-            ctx.stroke(Path { $0.move(to: origin); $0.addLine(to: CGPoint(x: origin.x, y: 0)) },
-                       with: .color(.secondary.opacity(0.18)), style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
+            var k = 1
+            while CGFloat(k) * scale < size.width / 2 {
+                for sx in [-1.0, 1.0] {
+                    let x = origin.x + CGFloat(sx) * CGFloat(k) * scale
+                    ctx.stroke(Path { $0.move(to: CGPoint(x: x, y: top - 4)); $0.addLine(to: CGPoint(x: x, y: origin.y)) },
+                               with: .color(grid))
+                }
+                k += 1
+            }
 
-            // 목표: 점 + 도착 범위
+            // 방향 글자
+            ctx.draw(Text("무대 안쪽 (카메라가 보는 쪽) ↑").font(.caption2).foregroundStyle(.secondary),
+                     at: CGPoint(x: size.width / 2, y: 4), anchor: .top)
+
+            // 이전 목표: 회색 깃발
+            for old in oldTargets {
+                var flag = ctx.resolve(Image(systemName: "flag.fill"))
+                flag.shading = .color(.gray.opacity(0.5))
+                ctx.draw(flag, at: pt(old), anchor: .bottomLeading)
+            }
+
+            // 비교용 LiDAR 길(얇은 보라 점선)
+            if let comparePath, comparePath.count > 1 {
+                ctx.stroke(Path { p in p.addLines(comparePath.map(pt)) },
+                           with: .color(.purple.opacity(0.55)),
+                           style: StrokeStyle(lineWidth: 2, lineCap: .round, dash: [3, 4]))
+            }
+
+            // 지나온 길: 두꺼운 파란 선, 옛길일수록 흐리게
+            if path.count > 1 {
+                for i in 1..<path.count {
+                    let alpha = 0.2 + 0.8 * Double(i) / Double(path.count)
+                    ctx.stroke(Path { $0.move(to: pt(path[i - 1])); $0.addLine(to: pt(path[i])) },
+                               with: .color(.blue.opacity(alpha)),
+                               style: StrokeStyle(lineWidth: 5, lineCap: .round, lineJoin: .round))
+                }
+                // 출발점
+                let s0 = pt(path[0])
+                ctx.fill(Path(ellipseIn: CGRect(x: s0.x - 5, y: s0.y - 5, width: 10, height: 10)), with: .color(.gray))
+                ctx.draw(Text("출발").font(.caption2).foregroundStyle(.secondary), at: CGPoint(x: s0.x, y: s0.y + 8), anchor: .top)
+            }
+
+            // 목표: 도착 범위 + 깃발
             if let target {
                 let c = pt(target)
                 let r = CGFloat(arriveRadius) * scale
-                ctx.fill(Path(ellipseIn: CGRect(x: c.x - r, y: c.y - r, width: r * 2, height: r * 2)),
-                         with: .color(.green.opacity(0.15)))
-                ctx.stroke(Path(ellipseIn: CGRect(x: c.x - r, y: c.y - r, width: r * 2, height: r * 2)),
-                           with: .color(.green.opacity(0.6)), lineWidth: 1.5)
-                ctx.fill(Path(ellipseIn: CGRect(x: c.x - 7, y: c.y - 7, width: 14, height: 14)), with: .color(.green))
+                let ring = Path(ellipseIn: CGRect(x: c.x - r, y: c.y - r, width: r * 2, height: r * 2))
+                ctx.fill(ring, with: .color(.green.opacity(0.18)))
+                ctx.stroke(ring, with: .color(.green), style: StrokeStyle(lineWidth: 2, dash: [5, 4]))
+                var flag = ctx.resolve(Image(systemName: "flag.checkered"))
+                flag.shading = .color(.green)
+                ctx.draw(flag, in: CGRect(x: c.x - 2, y: c.y - 24, width: 22, height: 22))
+                ctx.draw(Text("목표").font(.caption.weight(.bold)).foregroundStyle(.green),
+                         at: CGPoint(x: c.x, y: c.y + r + 3), anchor: .top)
             }
 
-            // 지나온 길: 오래된 쪽일수록 흐리게
-            func drawTrail(_ path: [SIMD2<Float>], _ color: Color, _ width: CGFloat) {
-                guard path.count > 1 else { return }
-                for i in 1..<path.count {
-                    let alpha = 0.12 + 0.88 * Double(i) / Double(path.count)
-                    ctx.stroke(Path { $0.move(to: pt(path[i - 1])); $0.addLine(to: pt(path[i])) },
-                               with: .color(color.opacity(alpha)),
-                               style: StrokeStyle(lineWidth: width, lineCap: .round))
-                }
+            // 사람 → 목표: 점선 + 남은 거리
+            if let person, let target {
+                let a = pt(person), b = pt(target)
+                ctx.stroke(Path { $0.move(to: a); $0.addLine(to: b) },
+                           with: .color(.green.opacity(0.8)), style: StrokeStyle(lineWidth: 2, dash: [6, 5]))
+                let mid = CGPoint(x: (a.x + b.x) / 2, y: (a.y + b.y) / 2)
+                let label = ctx.resolve(Text(String(format: "%.1fm", simd_distance(person, target)))
+                    .font(.caption.weight(.bold)).foregroundStyle(.white))
+                let sz = label.measure(in: size)
+                let box = CGRect(x: mid.x - sz.width / 2 - 6, y: mid.y - sz.height / 2 - 3,
+                                 width: sz.width + 12, height: sz.height + 6)
+                ctx.fill(Path(roundedRect: box, cornerRadius: box.height / 2), with: .color(.green))
+                ctx.draw(label, at: mid)
             }
-            drawTrail(trailLiDAR, .purple, 2)
-            drawTrail(trail, .blue, 3.5)
 
-            // 지금 위치
-            if let personLiDAR {
-                let c = pt(personLiDAR)
-                ctx.fill(Path(ellipseIn: CGRect(x: c.x - 6, y: c.y - 6, width: 12, height: 12)), with: .color(.purple))
+            // 비교용 LiDAR 위치
+            if let comparePerson {
+                let c = pt(comparePerson)
+                ctx.fill(Path(ellipseIn: CGRect(x: c.x - 5, y: c.y - 5, width: 10, height: 10)), with: .color(.purple))
             }
+
+            // 사람
             if let person {
                 let c = pt(person)
-                ctx.fill(Path(ellipseIn: CGRect(x: c.x - 10, y: c.y - 10, width: 20, height: 20)),
-                         with: .color(tracking ? .blue : .gray))
-                ctx.stroke(Path(ellipseIn: CGRect(x: c.x - 10, y: c.y - 10, width: 20, height: 20)),
-                           with: .color(.white), lineWidth: 2.5)
+                let circle = Path(ellipseIn: CGRect(x: c.x - 15, y: c.y - 15, width: 30, height: 30))
+                ctx.fill(circle, with: .color(tracking ? .blue : .gray))
+                ctx.stroke(circle, with: .color(.white), lineWidth: 3)
+                var walker = ctx.resolve(Image(systemName: tracking ? "figure.walk" : "questionmark"))
+                walker.shading = .color(.white)
+                ctx.draw(walker, in: CGRect(x: c.x - 9, y: c.y - 9, width: 18, height: 18))
             }
 
-            // 폰
-            let phone = CGRect(x: origin.x - 9, y: origin.y - 4, width: 18, height: 12)
-            ctx.fill(Path(roundedRect: phone, cornerRadius: 3), with: .color(.primary))
-            ctx.fill(Path { p in
-                p.move(to: CGPoint(x: origin.x, y: origin.y - 14))
-                p.addLine(to: CGPoint(x: origin.x - 6, y: origin.y - 6))
-                p.addLine(to: CGPoint(x: origin.x + 6, y: origin.y - 6))
-            }, with: .color(.primary.opacity(0.6)))
+            // 폰(카메라)
+            var phone = ctx.resolve(Image(systemName: "iphone.gen3"))
+            phone.shading = .color(.primary)
+            ctx.draw(phone, in: CGRect(x: origin.x - 8, y: origin.y - 2, width: 16, height: 24))
+            ctx.draw(Text("폰 (카메라)").font(.caption2).foregroundStyle(.secondary),
+                     at: CGPoint(x: origin.x, y: size.height - 2), anchor: .bottom)
         }
-        .background(RoundedRectangle(cornerRadius: 12).fill(Color(.tertiarySystemBackground)))
-        .accessibilityLabel("위에서 본 동선 지도. 파란 점과 선이 사람과 지나온 길, 보라는 LiDAR로 잰 위치, 초록이 목표, 아래가 폰")
+        .background(RoundedRectangle(cornerRadius: 14).fill(Color(.systemBackground)))
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.secondary.opacity(0.2)))
+        .accessibilityLabel("위에서 본 동선. 파란 사람 표시가 지금 위치, 파란 선이 지나온 길, 초록 깃발이 목표, 회색 깃발이 바뀌기 전 목표, 아래가 폰")
     }
 }
 
@@ -374,6 +433,9 @@ struct StageView: View {
     @State private var step: Step = .camera
     @State private var recognizing = false
     @State private var seenSince: Date?
+    @State private var showCompare = false
+    /// 걷는 중에 목표를 바꾼 횟수
+    @State private var retargets = 0
 
     var body: some View {
         VStack(spacing: 0) {
@@ -413,6 +475,13 @@ struct StageView: View {
         .onAppear {
             if withSound { beacon.prepare() }
         }
+        .onChange(of: tracker.target) { old, new in
+            // 걷는 중에 목표가 바뀌면 알림음 — 새 목표로 다시 안내한다
+            guard walking, old != nil, new != nil else { return }
+            retargets += 1
+            nearSince = nil
+            beacon.announceTargetChange()
+        }
         .onDisappear {
             stopWalk(result: nil)
             beacon.shutdown()
@@ -425,7 +494,7 @@ struct StageView: View {
     private var mapCard: some View {
         Card {
             HStack {
-                Text("위에서 본 동선").font(.headline)
+                Text("동선").font(.headline)
                 Spacer()
                 Button {
                     tracker.clearTrail()
@@ -436,33 +505,53 @@ struct StageView: View {
             }
             TimelineView(.periodic(from: .now, by: 0.1)) { ctx in
                 let on = tracker.isTracking(at: ctx.date)
-                VStack(spacing: 10) {
-                    StageMap(person: tracker.person, personLiDAR: tracker.personLiDAR, target: tracker.target,
-                             trail: tracker.trail, trailLiDAR: tracker.trailLiDAR, tracking: on, arriveRadius: 0.4)
-                        .frame(height: 340)
-                    HStack(spacing: 14) {
-                        legend(.blue, "사람 추적")
-                        legend(.purple, "LiDAR")
+                let path = useLiDAR ? tracker.trailLiDAR : tracker.trail
+                VStack(alignment: .leading, spacing: 10) {
+                    // 한 줄 요약
+                    HStack(alignment: .firstTextBaseline) {
+                        if let d = zip(currentPerson, tracker.target).map({ simd_distance($0, $1) }) {
+                            Text(d <= 0.4 ? "도착 범위 안" : String(format: "목표까지 %.1fm", d))
+                                .font(.title2.weight(.bold).monospacedDigit())
+                                .foregroundStyle(d <= 0.4 ? .green : .primary)
+                        } else {
+                            Text(on ? "목표를 정해 주세요" : "사람을 찾는 중")
+                                .font(.title3.weight(.semibold)).foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Text(String(format: "걸은 길 %.1fm", Self.length(of: path)))
+                            .font(.subheadline.monospacedDigit()).foregroundStyle(.secondary)
+                    }
+                    StageMap(path: path,
+                             comparePath: showCompare ? (useLiDAR ? tracker.trail : tracker.trailLiDAR) : nil,
+                             person: currentPerson,
+                             comparePerson: showCompare ? (useLiDAR ? tracker.person : tracker.personLiDAR) : nil,
+                             target: tracker.target, oldTargets: tracker.previousTargets,
+                             tracking: on, arriveRadius: 0.4)
+                        .frame(height: 380)
+                    HStack(spacing: 12) {
+                        legend(.blue, "지나온 길")
                         legend(.green, "목표 · 도착 범위")
+                        if !tracker.previousTargets.isEmpty { legend(.gray, "바뀌기 전 목표") }
+                        if showCompare { legend(.purple, useLiDAR ? "사람 추적" : "LiDAR") }
                     }
                     .font(.caption)
+                    Toggle("다른 방식(\(useLiDAR ? "사람 추적" : "LiDAR"))과 겹쳐 보기", isOn: $showCompare)
+                        .font(.subheadline)
                     HStack(spacing: 8) {
                         StatTile(title: "폰에서", value: currentPerson.map { String(format: "%.2fm", simd_length($0)) } ?? "—")
-                        StatTile(title: "목표까지",
-                                 value: zip(currentPerson, tracker.target).map { String(format: "%.2fm", simd_distance($0, $1)) } ?? "—",
-                                 tint: zip(currentPerson, tracker.target).map { simd_distance($0, $1) <= 0.4 ? .green : .primary } ?? .primary)
                         StatTile(title: "두 방식 차이",
                                  value: zip(tracker.person, tracker.personLiDAR).map { String(format: "%.2fm", simd_distance($0, $1)) } ?? "—",
                                  tint: zip(tracker.person, tracker.personLiDAR).map { simd_distance($0, $1) <= 0.2 ? .green : .orange } ?? .primary)
-                    }
-                    if let p = currentPerson {
-                        Text(String(format: "%@ 위치 · 앞 %.2fm · %@ %.2fm",
-                                    useLiDAR ? "LiDAR" : "사람 추적", p.y, p.x >= 0 ? "오른쪽" : "왼쪽", abs(p.x)))
-                            .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                        StatTile(title: "목표 바뀜", value: "\(retargets)번")
                     }
                 }
             }
         }
+    }
+
+    private static func length(of path: [SIMD2<Float>]) -> Float {
+        guard path.count > 1 else { return 0 }
+        return (1..<path.count).reduce(0) { $0 + simd_distance(path[$1 - 1], path[$1]) }
     }
 
     private func legend(_ color: Color, _ text: String) -> some View {
@@ -512,7 +601,8 @@ struct StageView: View {
                     Text(String(format: "목표: 앞 %.2fm · %@ %.2fm", t.y, t.x >= 0 ? "오른쪽" : "왼쪽", abs(t.x)))
                         .font(.caption.monospacedDigit())
                     Button(withSound ? "이 목표로 정하기" : "이 목표로 정하고 재기") {
-                        tracker.allowTargetTap = false
+                        // S2 는 정면 맞추기 동안 목표가 바뀌지 않게 잠그고, 걷기 단계에서 다시 연다
+                        tracker.allowTargetTap = !withSound
                         step = withSound ? .front : .walk
                     }
                 } else {
@@ -525,6 +615,7 @@ struct StageView: View {
                     if beacon.headReady {
                         Button("지금 폰을 보고 있어요 — 정면 맞추기") {
                             beacon.calibrate()
+                            tracker.allowTargetTap = true   // 걷는 중에도 바닥을 누르면 목표가 바뀐다
                             step = .walk
                         }
                     } else {
@@ -533,7 +624,7 @@ struct StageView: View {
                     }
                 }
                 stepRow(.walk, "걷기",
-                        "눈 감고 ‘쏴’ 소리 나는 쪽으로 걸어가요. 가까울수록 커지고, 40cm 안에 1초 있으면 “도착”") {
+                        "눈 감고 ‘쏴’ 소리 나는 쪽으로 걸어가요. 가까울수록 커지고, 40cm 안에 1초 있으면 ‘딩동댕’ 알림음과 “도착”. 걷는 중에 카메라 화면 바닥을 누르면 목표가 바뀌고 ‘삐삐’ 하고 알려요") {
                     Picker("위치는 무엇으로", selection: $useLiDAR) {
                         Text("위치: 사람 추적").tag(false)
                         Text("위치: LiDAR").tag(true)
@@ -624,6 +715,7 @@ struct StageView: View {
         stopWalk(result: nil)
         tracker.allowTargetTap = false
         tracker.clearTrail()
+        tracker.clearPreviousTargets()
         recognizing = false
         step = .person
     }
@@ -636,6 +728,8 @@ struct StageView: View {
     private func startWalk() {
         guard let target = tracker.target else { return }
         walking = true
+        retargets = 0
+        tracker.clearPreviousTargets()
         walkStart = Date()
         nearSince = nil
         startDistance = currentPerson.map { simd_distance($0, target) }
@@ -644,7 +738,7 @@ struct StageView: View {
             while !Task.isCancelled {
                 let now = Date()
                 let tracking = tracker.isTracking(at: now)
-                if tracking, let person = currentPerson {
+                if tracking, let person = currentPerson, let target = tracker.target {
                     lostNow = false
                     beacon.update(listener: person, source: target)
                     beacon.muted = false
@@ -680,8 +774,8 @@ struct StageView: View {
         let seconds = Date().timeIntervalSince(walkStart)
         let final = zip(currentPerson, tracker.target).map { simd_distance($0, $1) }
         if result == "도착" { beacon.announceArrival() }
-        let text = String(format: "%@ · %.1f초 · 시작 거리 %@ · 끝 거리 %@",
-                          result, seconds,
+        let text = String(format: "%@ · %.1f초 · 목표 바뀜 %d번 · 시작 거리 %@ · 끝 거리 %@",
+                          result, seconds, retargets,
                           startDistance.map { String(format: "%.2fm", $0) } ?? "—",
                           final.map { String(format: "%.2fm", $0) } ?? "—")
         beacon.lastResult = text
@@ -717,6 +811,11 @@ final class StageBeaconAudio: ObservableObject {
     private let motion = CMHeadphoneMotionManager()
     private let speech = AVSpeechSynthesizer()
     private var ping: AVAudioPCMBuffer?
+    /// 목표가 바뀌었다는 알림. 3D 가 아니라 양쪽 귀에 똑같이 낸다 — 방향이 아니라 “바뀌었다”만 알리려고
+    private let alertPlayer = AVAudioPlayerNode()
+    private var beep: AVAudioPCMBuffer?
+    /// 도착 알림음: 올라가는 세 음(도-미-솔 느낌). 목표가 바뀔 때의 삐삐와 헷갈리지 않게 높이가 올라간다
+    private var chime: AVAudioPCMBuffer?
     private var headYaw: Double = 0
     private var yawOffset: Double = 0
     private var pingTask: Task<Void, Never>?
@@ -729,6 +828,11 @@ final class StageBeaconAudio: ObservableObject {
             let format = AVAudioFormat(standardFormatWithSampleRate: 48_000, channels: 1)!
             ping = Self.makeNoise(format: format, seconds: 0.25)
             engine.attach(player)
+            engine.attach(alertPlayer)
+            let stereo = AVAudioFormat(standardFormatWithSampleRate: 48_000, channels: 2)!
+            beep = Self.makeTones([(1200, 0.09), (nil, 0.09), (1200, 0.09)], format: stereo)
+            chime = Self.makeTones([(660, 0.14), (880, 0.14), (1320, 0.32)], format: stereo)
+            engine.connect(alertPlayer, to: engine.mainMixerNode, format: stereo)
             engine.attach(environment)
             engine.connect(player, to: environment, format: format)   // 모노여야 공간화된다
             engine.connect(environment, to: engine.mainMixerNode, format: nil)
@@ -740,6 +844,7 @@ final class StageBeaconAudio: ObservableObject {
             att.rolloffFactor = 1
             try engine.start()
             player.play()
+            alertPlayer.play()
         } catch {
             lastResult = "소리 준비 실패: \(error.localizedDescription)"
         }
@@ -778,10 +883,43 @@ final class StageBeaconAudio: ObservableObject {
         pingTask = nil
     }
 
+    func announceTargetChange() {
+        guard let beep else { return }
+        alertPlayer.scheduleBuffer(beep, at: nil, options: [.interrupts], completionHandler: nil)
+    }
+
+    /// (주파수, 초) 목록으로 양쪽 귀에 같은 소리를 만든다. 주파수가 nil 이면 쉼.
+    private static func makeTones(_ parts: [(Double?, Double)], format: AVAudioFormat) -> AVAudioPCMBuffer? {
+        let rate = format.sampleRate
+        let total = Int(parts.reduce(0) { $0 + $1.1 } * rate)
+        guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(total)),
+              let l = buffer.floatChannelData?[0], let r = buffer.floatChannelData?[1] else { return nil }
+        buffer.frameLength = AVAudioFrameCount(total)
+        var i = 0
+        for (f, sec) in parts {
+            let n = Int(sec * rate), fade = Int(rate * 0.005)
+            for k in 0..<n {
+                var v: Double = 0
+                if let f {
+                    v = sin(2 * .pi * f * Double(k) / rate) * 0.5
+                    if k < fade { v *= Double(k) / Double(fade) }
+                    if k > n - fade { v *= Double(n - k) / Double(fade) }
+                }
+                l[i] = Float(v); r[i] = Float(v); i += 1
+            }
+        }
+        return buffer
+    }
+
+    /// 도착: 알림음(올라가는 세 음)을 먼저 내고, 이어서 “도착”이라고 말한다.
     func announceArrival() {
-        let u = AVSpeechUtterance(string: "도착")
-        u.voice = AVSpeechSynthesisVoice(language: "ko-KR")
-        speech.speak(u)
+        if let chime { alertPlayer.scheduleBuffer(chime, at: nil, options: [.interrupts], completionHandler: nil) }
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 700_000_000)
+            let u = AVSpeechUtterance(string: "도착")
+            u.voice = AVSpeechSynthesisVoice(language: "ko-KR")
+            speech.speak(u)
+        }
     }
 
     func shutdown() {
