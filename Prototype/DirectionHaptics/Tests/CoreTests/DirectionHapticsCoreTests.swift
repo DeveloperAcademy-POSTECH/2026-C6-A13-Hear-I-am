@@ -155,6 +155,74 @@ final class DirectionHapticsCoreTests: XCTestCase {
         XCTAssertEqual(compiled.pulses[1].envelope, .rise)
     }
 
+    func testResizePreservesRhythmAndCompilesTheNewPulseLengths() throws {
+        let original = HapticPattern(steps: [.tap(), .rest(0.2), .buzz(0.4, intensity: 0.6, sharpness: 0.9, envelope: .rise)], repetitions: 2, repeatGap: 0.3)
+        let resized = original.resized(to: original.duration * 2)
+        XCTAssertNil(resized.validationIssue)
+        XCTAssertEqual(resized.duration, original.duration * 2, accuracy: 0.000_001)
+        XCTAssertEqual(resized.steps.map(\.id), original.steps.map(\.id))
+        XCTAssertEqual(resized.repetitions, 2)
+        XCTAssertEqual(resized.repeatGap, 0.6, accuracy: 0.000_001)
+        for (before, after) in zip(original.steps, resized.steps) {
+            XCTAssertEqual(after.duration, before.scheduledDuration * 2, accuracy: 0.000_001)
+            XCTAssertEqual(after.intensity, before.intensity)
+            XCTAssertEqual(after.sharpness, before.sharpness)
+            XCTAssertEqual(after.envelope, before.envelope)
+        }
+        let compiled = try PatternCompiler.compile(resized)
+        XCTAssertEqual(compiled.pulses[0].kind, .continuous)
+        XCTAssertEqual(compiled.pulses[0].duration, 0.14, accuracy: 0.000_001)
+        XCTAssertEqual(compiled.pulses[1].start, 0.54, accuracy: 0.000_001)
+        XCTAssertEqual(compiled.pulses[1].duration, 0.8, accuracy: 0.000_001)
+        XCTAssertEqual(compiled.pulses[2].start, 1.94, accuracy: 0.000_001)
+        XCTAssertEqual(original.steps[0].kind, .tap)
+        XCTAssertEqual(try JSONDecoder().decode(HapticPattern.self, from: JSONEncoder().encode(resized)), resized)
+    }
+
+    func testEveryPresetCanResizeWithinLimitsWithoutFlatteningTiming() throws {
+        for set in Presets.all {
+            for direction in Direction.allCases {
+                let original = set.pattern(for: direction)
+                let range = try XCTUnwrap(original.adjustableDurationRange)
+                for requested in [-1.0, range.lowerBound, original.duration * 1.5, range.upperBound, 100] {
+                    let resized = original.resized(to: requested)
+                    XCTAssertNil(resized.validationIssue, "\(set.code) \(direction) \(requested)")
+                    let expected = min(range.upperBound, max(range.lowerBound, requested))
+                    XCTAssertEqual(resized.duration, expected, accuracy: 0.000_001)
+                    let ratio = resized.duration / original.duration
+                    for (before, after) in zip(original.steps, resized.steps) {
+                        XCTAssertEqual(after.scheduledDuration, before.scheduledDuration * ratio, accuracy: 0.000_001)
+                    }
+                    XCTAssertNoThrow(try PatternCompiler.compile(resized))
+                }
+                XCTAssertEqual(original.resized(to: original.duration), original, "Opening a length control must not convert taps")
+                XCTAssertEqual(original.resized(to: .nan), original)
+                XCTAssertEqual(original.resized(to: .infinity), original)
+            }
+        }
+    }
+
+    func testResizingCanRecoverTooLongPatternAndEditATapIndividually() throws {
+        let tooLong = HapticPattern(steps: [.buzz(2), .rest(1)], repetitions: 5, repeatGap: 2)
+        XCTAssertNotNil(tooLong.validationIssue)
+        let fixed = tooLong.resized(to: 12)
+        XCTAssertNil(fixed.validationIssue)
+        XCTAssertEqual(fixed.duration, 12, accuracy: 0.000_001)
+        XCTAssertLessThanOrEqual(fixed.duration, 12)
+        var tap = HapticStep.tap(0.7, sharpness: 0.8)
+        let originalID = tap.id
+        tap.setLength(0.5)
+        XCTAssertEqual(tap.kind, .continuous)
+        XCTAssertEqual(tap.duration, 0.5)
+        XCTAssertEqual(tap.intensity, 0.7)
+        XCTAssertEqual(tap.sharpness, 0.8)
+        XCTAssertEqual(tap.id, originalID)
+        XCTAssertEqual(try PatternCompiler.compile(.init(steps: [tap])).pulses[0].duration, 0.5)
+        tap.setLength(-1); XCTAssertEqual(tap.duration, 0.03)
+        tap.setLength(10); XCTAssertEqual(tap.duration, 2)
+        tap.setLength(.nan); XCTAssertEqual(tap.duration, 2)
+    }
+
     func testInvalidPatternsAndNonFiniteValuesCannotReachEngine() {
         let invalid: [HapticPattern] = [
             .init(steps: []), .init(steps: [.rest(0.5)]), .init(steps: [.buzz(.nan)]),

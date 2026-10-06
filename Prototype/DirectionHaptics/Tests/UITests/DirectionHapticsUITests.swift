@@ -20,6 +20,23 @@ final class DirectionHapticsUITests: XCTestCase {
         let predicate = NSPredicate(format: "exists == true AND enabled == true")
         XCTAssertEqual(XCTWaiter.wait(for: [expectation(for: predicate, evaluatedWith: element)], timeout: timeout), .completed)
     }
+    private func revealBelowEditorPreview(_ element: XCUIElement) {
+        // XCTest can report a scrolled-out Form control as hittable underneath the pinned preview.
+        for _ in 0..<10 {
+            let top = app.buttons["previewAfter"].frame.maxY + 12
+            let bottom = app.frame.maxY - 30
+            if element.exists {
+                let frame = element.frame
+                if element.isHittable && frame.minY >= top && frame.maxY <= bottom { return }
+                let center = CGPoint(x: app.frame.midX, y: (top + bottom) / 2)
+                let offset: CGFloat = frame.minY < top ? 140 : -140
+                let origin = app.coordinate(withNormalizedOffset: .zero)
+                origin.withOffset(CGVector(dx: center.x, dy: center.y)).press(forDuration: 0.05,
+                    thenDragTo: origin.withOffset(CGVector(dx: center.x, dy: center.y + offset)))
+            } else { app.swipeUp() }
+        }
+        XCTFail("Editor control remains covered by the preview: \(element)")
+    }
     private func capture(_ name: String) {
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = name; attachment.lifetime = .keepAlways; add(attachment)
@@ -117,7 +134,7 @@ final class DirectionHapticsUITests: XCTestCase {
         reveal(app.buttons["editSet"]); app.buttons["editSet"].tap()
         let name = app.textFields["setName"]
         XCTAssertTrue(name.waitForExistence(timeout: 5))
-        name.tap()
+        reveal(name); name.tap()
         let old = name.value as? String ?? ""
         name.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: old.count) + "무대 실험")
         app.buttons["완료"].tap()
@@ -154,6 +171,63 @@ final class DirectionHapticsUITests: XCTestCase {
         app.tabBars.buttons["편집"].tap()
         XCTAssertTrue(app.staticTexts["무대 실험"].waitForExistence(timeout: 5))
         XCTAssertTrue(version.exists)
+    }
+
+    func testHapticLengthUpdatesGraphPlaybackAndPersistsPerDirection() {
+        app.buttons["preset_B"].tap()
+        reveal(app.buttons["editSet"]); app.buttons["editSet"].tap()
+        let length = app.textFields["전체 햅틱 길이 값"]
+        XCTAssertTrue(length.waitForExistence(timeout: 5))
+        XCTAssertEqual(length.value as? String, "70")
+        let timeline = app.descendants(matching: .any).matching(identifier: "liveTimeline").firstMatch
+        app.buttons["전체 햅틱 길이 늘리기"].tap()
+        XCTAssertEqual(length.value as? String, "80")
+        XCTAssertTrue(timeline.isHittable)
+        XCTAssertTrue((timeline.value as? String ?? "").contains("연속 진동 100% / 50% / 80ms"))
+        XCTAssertTrue(app.staticTexts["patternDurationSummary"].label.contains("0.08초"))
+        capture("length-control-and-live-graph")
+        app.buttons["previewAfter"].tap()
+        enabled(app.buttons["previewAfter"])
+        XCTAssertFalse(app.alerts["확인해 주세요"].exists)
+        app.navigationBars.buttons["저장"].tap()
+        app.tabBars.buttons["편집"].tap()
+        app.buttons["editUserSet"].tap()
+        XCTAssertTrue(length.waitForExistence(timeout: 5))
+        XCTAssertEqual(length.value as? String, "80")
+        app.segmentedControls["directionPicker"].buttons["↓ 뒤"].tap()
+        XCTAssertEqual(length.value as? String, "880", "Editing front must not change back")
+        app.navigationBars.buttons["저장"].tap()
+        app.terminate(); app.launchArguments.removeAll { $0 == "--ui-reset" }; app.launch()
+        app.tabBars.buttons["편집"].tap(); app.buttons["editUserSet"].tap()
+        XCTAssertTrue(length.waitForExistence(timeout: 5))
+        XCTAssertEqual(length.value as? String, "80")
+        app.segmentedControls["directionPicker"].buttons["↓ 뒤"].tap()
+        XCTAssertEqual(length.value as? String, "880")
+    }
+
+    func testIndividualTapCanBecomeAnAdjustableLengthPulse() {
+        app.buttons["preset_B"].tap()
+        reveal(app.buttons["editSet"]); app.buttons["editSet"].tap()
+        let timeline = app.descendants(matching: .any).matching(identifier: "liveTimeline").firstMatch
+        let advanced = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "상세 편집")).firstMatch
+        revealBelowEditorPreview(advanced); advanced.tap()
+        let tapLength = app.buttons["enableTapLength_0"]
+        revealBelowEditorPreview(tapLength); tapLength.tap()
+        let converted = expectation(for: NSPredicate(format: "value CONTAINS %@", "연속 진동 100% / 50% / 70ms"), evaluatedWith: timeline)
+        XCTAssertEqual(XCTWaiter.wait(for: [converted], timeout: 3), .completed)
+        let increase = app.buttons["stepLength_0_increase"]
+        revealBelowEditorPreview(increase); increase.tap()
+        XCTAssertTrue(timeline.isHittable)
+        XCTAssertTrue((timeline.value as? String ?? "").contains("연속 진동 100% / 50% / 80ms"), "\(timeline.value ?? "missing timeline")")
+        capture("individual-tap-length")
+        app.buttons["previewAfter"].tap()
+        enabled(app.buttons["previewAfter"])
+        XCTAssertFalse(app.alerts["확인해 주세요"].exists)
+        app.navigationBars.buttons["저장"].tap()
+        app.tabBars.buttons["편집"].tap(); app.buttons["editUserSet"].tap()
+        let length = app.textFields["전체 햅틱 길이 값"]
+        XCTAssertTrue(length.waitForExistence(timeout: 5))
+        XCTAssertEqual(length.value as? String, "80")
     }
 
     func testRotationConfirmationAutoAdvancePauseAndNoHistory() {

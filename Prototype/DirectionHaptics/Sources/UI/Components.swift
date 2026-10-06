@@ -118,6 +118,7 @@ struct ParameterControl: View {
     let step: Double
     var scale: Double = 1
     var unit = ""
+    var identifier = ""
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
@@ -135,6 +136,7 @@ struct ParameterControl: View {
                 Slider(value: $value, in: range, step: step).accessibilityLabel(title)
                 Button { value = min(range.upperBound, value + step) } label: { Image(systemName: "plus").frame(width: 44, height: 44) }
                     .accessibilityLabel("\(title) 늘리기")
+                    .accessibilityIdentifier(identifier.isEmpty ? "" : "\(identifier)_increase")
             }.buttonStyle(.borderless)
         }
     }

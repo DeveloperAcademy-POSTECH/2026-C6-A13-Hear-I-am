@@ -28,6 +28,19 @@ struct EditorView: View {
     var body: some View {
         NavigationStack {
             Form {
+                if let range = current.adjustableDurationRange {
+                    Section {
+                        if range.upperBound - range.lowerBound > 0.000_001 {
+                            ParameterControl(title: "전체 햅틱 길이", value: totalDuration, range: range,
+                                             step: 0.01, scale: 1000, unit: "ms")
+                        } else {
+                            Text("현재 비율에서는 전체 길이를 더 바꿀 수 없어요. 상세 편집에서 개별 블록의 길이를 조절해 주세요.")
+                                .foregroundStyle(.secondary)
+                        }
+                    } header: { Text("\(direction.title) 방향 · 길이 조절") } footer: {
+                        Text("진동·쉼·반복 간격을 같은 비율로 조절합니다. 1,000ms는 1초입니다. 짧은 탭도 길이를 바꿀 수 있으며, 촉감이 달라질 수 있습니다.")
+                    }.disabled(haptics.isPlaying)
+                }
                 Section {
                     TextField("세트 이름", text: $draft.name).accessibilityIdentifier("setName")
                     TextField("세트 설명", text: $draft.detail, axis: .vertical)
@@ -119,6 +132,7 @@ struct EditorView: View {
             DirectionSelector(selection: $direction).disabled(haptics.isPlaying)
             HStack {
                 Text("\(direction.title) · 전체 \(String(format: "%.2f", current.duration))초 · \(current.repetitions)회")
+                    .accessibilityIdentifier("patternDurationSummary")
                 Spacer()
                 Text("1주기 · 0–\(Int(timelineRange))초")
             }.font(.caption).foregroundStyle(.secondary)
@@ -153,6 +167,9 @@ struct EditorView: View {
             for index in p.steps.indices where p.steps[index].kind != .pause { p.steps[index][keyPath: key] = value }
             draft.patterns[direction] = p
         })
+    }
+    private var totalDuration: Binding<Double> {
+        Binding(get: { current.duration }, set: { draft.patterns[direction] = current.resized(to: $0) })
     }
     private func duration(of kind: StepKind) -> Binding<Double> {
         Binding(get: { current.steps.first(where: { $0.kind == kind })?.duration ?? 0.2 }, set: { value in
@@ -193,8 +210,12 @@ private struct StepEditor: View {
                 Button(role: .destructive, action: delete) { Image(systemName: "trash").frame(width: 44, height: 44) }.accessibilityLabel("블록 삭제")
             }
             Picker("블록 종류", selection: $step.kind) { ForEach(StepKind.allCases) { Text($0.title).tag($0) } }.pickerStyle(.segmented)
-            if step.kind != .tap {
-                ParameterControl(title: "길이", value: $step.duration, range: 0.03...2, step: 0.01, scale: 1000, unit: "ms")
+            if step.kind == .tap {
+                Button("이 탭의 길이 조절", systemImage: "timer") { step.setLength(step.scheduledDuration) }
+                    .accessibilityIdentifier("enableTapLength_\(index)")
+                Text("길이를 조절하면 짧은 탭이 연속 진동으로 바뀝니다.").font(.caption).foregroundStyle(.secondary)
+            } else {
+                ParameterControl(title: "길이", value: $step.duration, range: 0.03...2, step: 0.01, scale: 1000, unit: "ms", identifier: "stepLength_\(index)")
             }
             if step.kind != .pause {
                 ParameterControl(title: "강도", value: $step.intensity, range: 0.1...1, step: 0.05, scale: 100, unit: "%")
