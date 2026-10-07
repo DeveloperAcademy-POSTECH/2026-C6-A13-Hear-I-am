@@ -1,0 +1,11 @@
+# Xcode / Swift
+.DS_Store
+.build/
+.swiftpm/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+*.ipa
+*.dSYM
+.build-results/
+*.xcodeproj/project.xcworkspace/
