@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>NSLocalNetworkUsageDescription</key><string>운영자 기기와 착용 아이폰을 연결해 무대 위치와 목적지를 전달합니다.</string>
+<key>NSBonjourServices</key><array><string>_poc3-guide._tcp</string></array>
+</dict></plist>
