@@ -48,13 +48,39 @@ enum DirectionSpeechStyle: String, CaseIterable {
     }
 }
 
+enum DistanceSpeechStyle: String, CaseIterable {
+    case meters, steps
+    var title: String { self == .meters ? "미터" : "걸음 수" }
+}
+
+enum StepLengthUnit: String, CaseIterable {
+    case cm, m
+    func meters(_ value: Double) -> Double { self == .cm ? value / 100 : value }
+    func value(meters: Double) -> Double { self == .cm ? meters * 100 : meters }
+}
+
+enum StepGuidance {
+    static func validLength(_ meters: Double) -> Bool { meters.isFinite && (0.1...2).contains(meters) }
+    static func parse(_ text: String, unit: StepLengthUnit) -> Double? {
+        guard let value = Double(text.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: ",", with: ".")) else { return nil }
+        let meters = unit.meters(value)
+        return validLength(meters) ? meters : nil
+    }
+    static func forward(distance: Double, stepLength: Double) -> String {
+        guard distance.isFinite, distance >= 0, distance <= 600, validLength(stepLength) else { return "거리와 보폭을 확인해주세요" }
+        if distance < stepLength { return "앞으로 작게 한 걸음" }
+        let steps = max(1, Int(floor(distance / stepLength + 1e-9)))
+        return "앞으로 약 \(steps)걸음"
+    }
+}
+
 struct BodyInstruction: Equatable {
     enum Kind: String { case left, right, forward, arrived }
     let kind: Kind
     let degrees: Double
     let distance: Double
     var spoken: String { spoken(style: .angle) }
-    func spoken(style: DirectionSpeechStyle) -> String {
+    func spoken(style: DirectionSpeechStyle, distanceStyle: DistanceSpeechStyle = .meters, stepLength: Double = 0.6) -> String {
         if style == .clock, kind == .left || kind == .right {
             let hour = DirectionSpeechStyle.hour(degrees: degrees)
             if hour == 12 { return "12시 방향에 가깝습니다. \(kind == .left ? "왼쪽" : "오른쪽")으로 조금 돌아주세요" }
@@ -62,7 +88,8 @@ struct BodyInstruction: Equatable {
         }
         switch kind {
         case .arrived: return "도착했습니다. 멈추세요."
-        case .forward: return String(format: "앞으로 %.1f미터", distance)
+        case .forward:
+            return distanceStyle == .steps ? StepGuidance.forward(distance: distance, stepLength: stepLength) : String(format: "앞으로 %.1f미터", distance)
         case .left, .right:
             let rounded = max(15, Int((abs(degrees) / 15).rounded()) * 15)
             return "\(kind == .left ? "왼쪽" : "오른쪽")으로 \(rounded)도 돌아주세요"

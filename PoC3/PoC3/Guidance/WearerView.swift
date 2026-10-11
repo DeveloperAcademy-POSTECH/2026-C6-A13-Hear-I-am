@@ -43,6 +43,7 @@ private struct WearerDeviceStatus: View {
     var body: some View {
         VStack(spacing: 10) {
             SpeechStylePicker(speaker: speaker)
+            StepGuidanceSettings(speaker: speaker)
             AudioOutputPicker(speaker: speaker)
             Text(motion.status).font(.caption)
             Text(speaker.status).font(.caption).foregroundStyle(speaker.ready ? .mint : .orange)
@@ -85,7 +86,8 @@ struct BodyDemoView: View {
                     if GuidanceMath.routeInside(position, next, polygon: polygon) { position = next }
                 }.buttonStyle(.bordered)
                 SpeechStylePicker(speaker: speaker)
-            AudioOutputPicker(speaker: speaker)
+                StepGuidanceSettings(speaker: speaker)
+                AudioOutputPicker(speaker: speaker)
                 Button("음성 출력 준비 · 소리 확인") { speaker.prepare() }.buttonStyle(.bordered)
                 Text(speaker.status).font(.caption)
                 HStack {
@@ -100,7 +102,7 @@ struct BodyDemoView: View {
                 guard active, phase == .active else { return }
                 speaker.validateOutput()
                 guard speaker.ready, let instruction, GuidanceMath.routeInside(position, target, polygon: polygon) else { stop("출력 또는 경로 확인 필요"); return }
-                status = instruction.spoken(style: speaker.speechStyle)
+                status = speaker.phrase(instruction)
                 let now = ProcessInfo.processInfo.systemUptime
                 if instruction.kind == .arrived {
                     speaker.stop()
@@ -158,4 +160,47 @@ private struct SystemAudioRoutePicker: UIViewRepresentable {
         return view
     }
     func updateUIView(_ uiView: AVRoutePickerView, context: Context) {}
+}
+
+
+private struct StepGuidanceSettings: View {
+    @ObservedObject var speaker: SpeakerGuide
+    @State private var unit = StepLengthUnit.cm
+    @State private var draft = ""
+    @State private var feedback = ""
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Picker("거리 안내 단위", selection: $speaker.distanceStyle) {
+                ForEach(DistanceSpeechStyle.allCases, id: \.self) { Text($0.title).tag($0) }
+            }.pickerStyle(.segmented)
+            if speaker.distanceStyle == .steps {
+                Text(String(format: "적용된 한 걸음: %.1fcm", speaker.stepLength * 100))
+                    .font(.subheadline.bold())
+                HStack {
+                    TextField("한 걸음 길이", text: $draft)
+                        .keyboardType(.decimalPad).textFieldStyle(.roundedBorder)
+                        .accessibilityLabel("한 걸음 길이, \(unit.rawValue)")
+                    Picker("보폭 입력 단위", selection: $unit) {
+                        ForEach(StepLengthUnit.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                    }.pickerStyle(.segmented).frame(width: 110)
+                    Button("적용") {
+                        guard let meters = StepGuidance.parse(draft, unit: unit) else {
+                            feedback = "10~200cm 또는 0.1~2m를 입력하세요. 기존 보폭이 유지됩니다."
+                            return
+                        }
+                        speaker.setStepLength(meters)
+                        feedback = "보폭을 저장했습니다."
+                    }.buttonStyle(.bordered)
+                }
+                if !feedback.isEmpty { Text(feedback).font(.caption) }
+                Text("한쪽 발을 한 번 내딛는 거리입니다. 초기값은 60cm이며 실제 보폭에 맞춰 적용하세요. 남은 걸음 수는 추정값이고 도착은 카메라 위치로 판단합니다.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+        .onAppear { refreshDraft() }
+        .onChange(of: unit) { _, _ in refreshDraft(); feedback = "적용된 보폭을 선택한 단위로 표시합니다." }
+    }
+    private func refreshDraft() {
+        draft = String(format: "%.3f", unit.value(meters: speaker.stepLength))
+    }
 }

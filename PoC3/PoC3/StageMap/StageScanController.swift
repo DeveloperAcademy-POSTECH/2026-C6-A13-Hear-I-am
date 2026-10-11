@@ -326,9 +326,18 @@ final class StageScanController: NSObject, ObservableObject, ARSessionDelegate {
             geometry.firstMaterial = tint
             stageOverlayNode.addChildNode(SCNNode(geometry: geometry))
         }
-        for (a,b) in StageOverlayMath.grid(polygon) {
-            stageOverlayNode.addChildNode(line(world(a,elevation: 0.02), world(b,elevation: 0.02),
-                                               color: .systemMint.withAlphaComponent(0.65), radius: 0.006))
+        // Batch the fine dashed grid into one geometry; line primitives stay one pixel wide.
+        let gridVertices = StageOverlayMath.grid(polygon, spacing: 0.25).flatMap { a, b in
+            dashSegments(world(a, elevation: 0.02), world(b, elevation: 0.02), dash: 0.06, gap: 0.04)
+                .flatMap { [SCNVector3($0.0), SCNVector3($0.1)] }
+        }
+        if !gridVertices.isEmpty {
+            let grid = SCNGeometry(sources: [SCNGeometrySource(vertices: gridVertices)],
+                elements: [SCNGeometryElement(indices: gridVertices.indices.map { Int32($0) }, primitiveType: .line)])
+            let gray = material(UIColor(white: 0.58, alpha: 0.8))
+            gray.writesToDepthBuffer = false
+            grid.firstMaterial = gray
+            stageOverlayNode.addChildNode(SCNNode(geometry: grid))
         }
     }
     /// Uses the SAME scan frame and ARSession as the camera, never camera-relative coordinates.
@@ -338,11 +347,18 @@ final class StageScanController: NSObject, ObservableObject, ARSessionDelegate {
         for (point, title, color) in [(start, "S", UIColor.systemMint), (target, "D", UIColor.systemOrange)] {
             guard let point else { continue }
             let at = world(point, elevation: 0.035)
-            let ring = SCNTorus(ringRadius: 0.18, pipeRadius: 0.015)
-            ring.firstMaterial = material(color)
-            let ringNode = SCNNode(geometry: ring); ringNode.simdPosition = at
-            routeOverlayNode.addChildNode(ringNode)
-            routeOverlayNode.addChildNode(line(at, at + SIMD3(0,0.35,0), color: color, radius: 0.008))
+            // Broken arcs keep the S/D ground markers consistent with the dashed route.
+            for index in 0..<16 {
+                let begin = Float(index) * 2 * .pi / 16
+                for part in 0..<3 {
+                    let a = begin + Float(part) * (2 * .pi / 16) * 0.6 / 3
+                    let b = begin + Float(part + 1) * (2 * .pi / 16) * 0.6 / 3
+                    routeOverlayNode.addChildNode(line(at + SIMD3(cos(a)*0.18, 0, sin(a)*0.18),
+                        at + SIMD3(cos(b)*0.18, 0, sin(b)*0.18), color: color, radius: 0.009))
+                }
+            }
+            routeOverlayNode.addChildNode(dashedLine(at, at + SIMD3(0,0.35,0), color: color,
+                                                    radius: 0.006, dash: 0.05, gap: 0.035))
             let text = SCNText(string: title, extrusionDepth: 0.2)
             text.font = .boldSystemFont(ofSize: 18); text.firstMaterial = material(color)
             let textNode = SCNNode(geometry: text)
@@ -354,7 +370,7 @@ final class StageScanController: NSObject, ObservableObject, ARSessionDelegate {
             routeOverlayNode.addChildNode(textNode)
         }
         if let start, let target {
-            routeOverlayNode.addChildNode(line(world(start,elevation: 0.025), world(target,elevation: 0.025),
+            routeOverlayNode.addChildNode(dashedLine(world(start,elevation: 0.025), world(target,elevation: 0.025),
                                                color: .systemOrange, radius: 0.009))
         }
     }
@@ -392,6 +408,25 @@ final class StageScanController: NSObject, ObservableObject, ARSessionDelegate {
     private func dot(_ p: SIMD3<Float>, color: UIColor, radius: CGFloat) -> SCNNode {
         let sphere = SCNSphere(radius: radius); sphere.firstMaterial = material(color)
         let node = SCNNode(geometry: sphere); node.simdPosition = p
+        return node
+    }
+    private func dashSegments(_ a: SIMD3<Float>, _ b: SIMD3<Float>, dash: Float, gap: Float) -> [(SIMD3<Float>, SIMD3<Float>)] {
+        let delta = b - a, length = simd_length(delta)
+        guard length.isFinite, length > 0.0001 else { return [] }
+        // Bound segment count for unusually large stage maps.
+        let step = max(dash + gap, length / 512)
+        let visible = step * dash / (dash + gap)
+        let direction = delta / length
+        return stride(from: Float(0), to: length, by: step).map { offset in
+            (a + direction * offset, a + direction * min(offset + visible, length))
+        }
+    }
+    private func dashedLine(_ a: SIMD3<Float>, _ b: SIMD3<Float>, color: UIColor, radius: CGFloat,
+                            dash: Float = 0.12, gap: Float = 0.08) -> SCNNode {
+        let node = SCNNode()
+        for (start, end) in dashSegments(a, b, dash: dash, gap: gap) {
+            node.addChildNode(line(start, end, color: color, radius: radius))
+        }
         return node
     }
     private func line(_ a: SIMD3<Float>, _ b: SIMD3<Float>, color: UIColor, radius: CGFloat) -> SCNNode {

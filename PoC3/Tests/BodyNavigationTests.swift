@@ -158,6 +158,23 @@ struct BodyNavigationTests {
         check(StageOverlayMath.grid([], spacing: 0.5).isEmpty && StageOverlayMath.grid(square, spacing: 0).isEmpty, "invalid grid rejected")
         let narrow = [MapPoint(0.1,0.1),MapPoint(0.3,0.1),MapPoint(0.3,0.3),MapPoint(0.1,0.3)]
         check(StageOverlayMath.grid(narrow).isEmpty, "polygon between grid lines does not form inverted range")
+        check(StepGuidance.parse("60", unit: .cm) == 0.6, "centimeters to meters")
+        check(StepGuidance.parse("0.6", unit: .m) == 0.6, "meter input")
+        check(StepGuidance.parse("0,6", unit: .m) == 0.6, "decimal comma input")
+        for invalid in ["0", "-1", "nan", "inf", "hello", "", "201"] {
+            check(StepGuidance.parse(invalid, unit: .cm) == nil, "invalid step length rejected")
+        }
+        check(StepGuidance.parse("10", unit: .cm) == 0.1 && StepGuidance.parse("2", unit: .m) == 2, "step length limits accepted")
+        let forward = BodyInstruction(kind: .forward, degrees: 0, distance: 1.8)
+        check(forward.spoken(style: .angle, distanceStyle: .steps, stepLength: 0.6) == "앞으로 약 3걸음", "60cm stride produces three steps without floating point undercount")
+        check(forward.spoken(style: .clock, distanceStyle: .steps, stepLength: 0.6) == "앞으로 약 3걸음", "step speech independent of angle format")
+        check(StepGuidance.forward(distance: 1.7, stepLength: 0.6) == "앞으로 약 2걸음", "does not round up remaining full steps")
+        check(StepGuidance.forward(distance: 0.4, stepLength: 0.6) == "앞으로 작게 한 걸음", "fractional final stride")
+        check(StepGuidance.forward(distance: .infinity, stepLength: 0.6).contains("확인"), "invalid distance rejected")
+        check(StepGuidance.forward(distance: 1, stepLength: 0).contains("확인"), "invalid stride cannot divide by zero")
+        check(BodyInstruction(kind: .arrived, degrees: 0, distance: 0.2).spoken(style: .clock, distanceStyle: .steps, stepLength: 0.6) == "도착했습니다. 멈추세요.", "arrival still stops in steps mode")
+        check(BodyInstruction(kind: .right, degrees: 90, distance: 1.8).spoken(style: .clock, distanceStyle: .steps) == "3시 방향으로 돌아주세요", "rotation precedes forward steps")
+        check(forward.spoken(style: .angle) == "앞으로 1.8미터", "meter speech preserved")
         print("PoC3 body navigation: \(count) checks passed")
     }
 }

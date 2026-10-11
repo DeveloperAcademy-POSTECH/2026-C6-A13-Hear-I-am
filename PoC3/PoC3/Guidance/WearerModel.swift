@@ -151,7 +151,7 @@ final class WearerModel: ObservableObject {
         } else {
             if previousKind == .arrived { speaker.stop() }
             _ = arrival.update(inside: false, now: now)
-            status = next.spoken(style: speaker.speechStyle)
+            status = speaker.phrase(next)
             speaker.update(next, now: now)
         }
     }

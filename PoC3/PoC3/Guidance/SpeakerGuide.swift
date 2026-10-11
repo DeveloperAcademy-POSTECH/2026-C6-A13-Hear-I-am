@@ -10,6 +10,25 @@ final class SpeakerGuide: ObservableObject {
             stop()
         }
     }
+    @Published var distanceStyle = DistanceSpeechStyle(rawValue: UserDefaults.standard.string(forKey: "PoC3.distanceStyle") ?? "") ?? .meters {
+        didSet {
+            UserDefaults.standard.set(distanceStyle.rawValue, forKey: "PoC3.distanceStyle")
+            stop()
+        }
+    }
+    @Published private(set) var stepLength: Double = {
+        let saved = UserDefaults.standard.double(forKey: "PoC3.stepLengthMeters")
+        return StepGuidance.validLength(saved) ? saved : 0.6
+    }()
+    func setStepLength(_ meters: Double) {
+        guard StepGuidance.validLength(meters) else { return }
+        stop()
+        stepLength = meters
+        UserDefaults.standard.set(meters, forKey: "PoC3.stepLengthMeters")
+    }
+    func phrase(_ instruction: BodyInstruction) -> String {
+        instruction.spoken(style: speechStyle, distanceStyle: distanceStyle, stepLength: stepLength)
+    }
     @Published var outputMode = AudioOutputMode(rawValue: UserDefaults.standard.string(forKey: "PoC3.outputMode") ?? "") ?? .speaker {
         didSet {
             guard outputMode != oldValue else { return }
@@ -119,7 +138,7 @@ final class SpeakerGuide: ObservableObject {
         guard changed || now - lastTime >= 3 else { return }
         if !changed && synthesizer.isSpeaking { return }
         lastKind = instruction.kind; lastTime = now
-        announce(instruction.spoken(style: speechStyle))
+        announce(phrase(instruction))
     }
     func announce(_ text: String) {
         validateOutput()
