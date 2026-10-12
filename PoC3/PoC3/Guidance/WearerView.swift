@@ -126,7 +126,9 @@ struct SpeechStylePicker: View {
             Picker("음성 안내 방식", selection: $speaker.speechStyle) {
                 ForEach(DirectionSpeechStyle.allCases, id: \.self) { Text($0.title).tag($0) }
             }.pickerStyle(.segmented)
-            Text("이동 안내: 현재 몸 정면이 12시 · 오른쪽 1~5시 · 뒤 6시 · 왼쪽 7~11시")
+            Text(speaker.speechStyle == .compass8
+                 ? "이동 안내: 현재 몸 정면이 북 · 오른쪽 동 · 뒤 남 · 왼쪽 서. 실제 나침반 방위가 아닙니다. ‘현재 몸 방향 듣기’는 무대 정면을 북으로 삼습니다."
+                 : "이동 안내: 현재 몸 정면이 12시 · 오른쪽 1~5시 · 뒤 6시 · 왼쪽 7~11시")
                 .font(.caption).foregroundStyle(.secondary)
         }
     }

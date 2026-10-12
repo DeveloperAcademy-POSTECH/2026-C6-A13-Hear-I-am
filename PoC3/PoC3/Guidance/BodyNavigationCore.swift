@@ -39,8 +39,19 @@ enum BodyNavigationMath {
 }
 
 enum DirectionSpeechStyle: String, CaseIterable {
-    case angle, clock
-    var title: String { self == .angle ? "각도" : "시계 방향" }
+    case angle, clock, compass8
+    var title: String {
+        switch self {
+        case .angle: return "각도"
+        case .clock: return "시계 방향"
+        case .compass8: return "8방위"
+        }
+    }
+    static func compassDirection(degrees: Double) -> String {
+        guard degrees.isFinite else { return "북" }
+        let index = (Int((BodyNavigationMath.wrap(degrees) / 45).rounded()) % 8 + 8) % 8
+        return ["북", "북동", "동", "남동", "남", "남서", "서", "북서"][index]
+    }
     static func hour(degrees: Double) -> Int {
         guard degrees.isFinite else { return 12 }
         let index = (Int((BodyNavigationMath.wrap(degrees) / 30).rounded()) % 12 + 12) % 12
@@ -86,10 +97,16 @@ struct BodyInstruction: Equatable {
             if hour == 12 { return "12시 방향에 가깝습니다. \(kind == .left ? "왼쪽" : "오른쪽")으로 조금 돌아주세요" }
             return "\(hour)시 방향으로 돌아주세요"
         }
+        if style == .compass8, kind == .left || kind == .right {
+            let direction = DirectionSpeechStyle.compassDirection(degrees: degrees)
+            if direction == "북" { return "북쪽에 가깝습니다. \(kind == .left ? "왼쪽" : "오른쪽")으로 조금 돌아주세요" }
+            return "\(direction)쪽으로 돌아주세요"
+        }
         switch kind {
         case .arrived: return "도착했습니다. 멈추세요."
         case .forward:
-            return distanceStyle == .steps ? StepGuidance.forward(distance: distance, stepLength: stepLength) : String(format: "앞으로 %.1f미터", distance)
+            let movement = distanceStyle == .steps ? StepGuidance.forward(distance: distance, stepLength: stepLength) : String(format: "앞으로 %.1f미터", distance)
+            return style == .compass8 ? "북쪽, " + movement : movement
         case .left, .right:
             let rounded = max(15, Int((abs(degrees) / 15).rounded()) * 15)
             return "\(kind == .left ? "왼쪽" : "오른쪽")으로 \(rounded)도 돌아주세요"

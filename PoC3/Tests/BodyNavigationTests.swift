@@ -175,6 +175,18 @@ struct BodyNavigationTests {
         check(BodyInstruction(kind: .arrived, degrees: 0, distance: 0.2).spoken(style: .clock, distanceStyle: .steps, stepLength: 0.6) == "도착했습니다. 멈추세요.", "arrival still stops in steps mode")
         check(BodyInstruction(kind: .right, degrees: 90, distance: 1.8).spoken(style: .clock, distanceStyle: .steps) == "3시 방향으로 돌아주세요", "rotation precedes forward steps")
         check(forward.spoken(style: .angle) == "앞으로 1.8미터", "meter speech preserved")
+        for (degrees, name) in [(0.0,"북"),(45,"북동"),(90,"동"),(135,"남동"),(180,"남"),(-135,"남서"),(-90,"서"),(-45,"북서")] {
+            check(DirectionSpeechStyle.compassDirection(degrees: degrees) == name, "eight-way direction \(name)")
+        }
+        check(DirectionSpeechStyle.compassDirection(degrees: 22.49) == "북" && DirectionSpeechStyle.compassDirection(degrees: 22.5) == "북동", "northeast sector boundary")
+        check(DirectionSpeechStyle.compassDirection(degrees: -22.5) == "북서", "northwest sector boundary")
+        check(DirectionSpeechStyle.compassDirection(degrees: 359) == "북" && DirectionSpeechStyle.compassDirection(degrees: -180) == "남", "compass wraparound")
+        check(BodyInstruction(kind: .left, degrees: -13, distance: 2).spoken(style: .compass8).contains("왼쪽"), "north rounding preserves required correction")
+        check(BodyInstruction(kind: .right, degrees: 135, distance: 2).spoken(style: .compass8) == "남동쪽으로 돌아주세요", "southeast turn speech")
+        check(forward.spoken(style: .compass8, distanceStyle: .steps, stepLength: 0.6) == "북쪽, 앞으로 약 3걸음", "compass with step cue")
+        check(forward.spoken(style: .compass8) == "북쪽, 앞으로 1.8미터", "compass with meter cue")
+        check(BodyInstruction(kind: .arrived, degrees: 0, distance: 0.2).spoken(style: .compass8) == "도착했습니다. 멈추세요.", "compass retains arrival stop")
+        check(DirectionSpeechStyle(rawValue: "compass8") == .compass8, "compass setting persistence")
         print("PoC3 body navigation: \(count) checks passed")
     }
 }

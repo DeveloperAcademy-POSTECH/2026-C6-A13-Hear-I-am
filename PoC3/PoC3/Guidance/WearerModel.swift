@@ -44,6 +44,10 @@ final class WearerModel: ObservableObject {
             speaker.announce("무대 정면을 12시로 볼 때 현재 몸은 \(DirectionSpeechStyle.hour(degrees: relativeDegrees))시 방향입니다")
             return
         }
+        if speaker.speechStyle == .compass8 {
+            speaker.announce("무대 정면을 북쪽으로 볼 때 현재 몸은 \(DirectionSpeechStyle.compassDirection(degrees: relativeDegrees))쪽 방향입니다")
+            return
+        }
         let angle = Int(abs(relativeDegrees).rounded())
         speaker.announce(angle < 5 ? "현재 몸은 무대 정면을 향합니다" : "무대 정면에서 \(relativeDegrees < 0 ? "왼쪽" : "오른쪽") \(angle)도 방향입니다")
     }
