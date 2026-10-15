@@ -23,6 +23,10 @@
 		F0337A0322CCD1CD318B02E6 /* AppStyle.swift */ = {isa = PBXBuildFile; fileRef = 8EE708C775BDF747FDD10095; };
 		E6C8C84DAA055E0F4535D744 /* StageMap.swift */ = {isa = PBXBuildFile; fileRef = 0F3C56EEE04E1FD38128D7D0; };
 		CA427B54455795CD2C32FE5A /* Assets.xcassets */ = {isa = PBXBuildFile; fileRef = FE10186D885F066A55011CC5; };
+		F03ED278267957C804D59D9F /* GuidanceSpeech.swift */ = {isa = PBXBuildFile; fileRef = D08F34DC278C7E0009938309; };
+		8B4BD3A94CEC3355500D48CB /* GuidanceModel.swift */ = {isa = PBXBuildFile; fileRef = 7F148E1CEB5FC456B91B0C33; };
+		77BA3C1E44E395D4CAF87115 /* GuidanceView.swift */ = {isa = PBXBuildFile; fileRef = B0C48F23D9410CA6C2BC3F0A; };
+		9C23B772192B924A7B0A5615 /* GuidanceRecordsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED3856521F7DCEA5AB4F72DE; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -43,6 +47,10 @@
 		8EE708C775BDF747FDD10095 /* AppStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStyle.swift; sourceTree = "<group>"; };
 		0F3C56EEE04E1FD38128D7D0 /* StageMap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StageMap.swift; sourceTree = "<group>"; };
 		FE10186D885F066A55011CC5 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		D08F34DC278C7E0009938309 /* GuidanceSpeech.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuidanceSpeech.swift; sourceTree = "<group>"; };
+		7F148E1CEB5FC456B91B0C33 /* GuidanceModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuidanceModel.swift; sourceTree = "<group>"; };
+		B0C48F23D9410CA6C2BC3F0A /* GuidanceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuidanceView.swift; sourceTree = "<group>"; };
+		ED3856521F7DCEA5AB4F72DE /* GuidanceRecordsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuidanceRecordsView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -86,6 +94,8 @@
 				3F28A0AB91584B0F4F4173F8 /* Library */,
 				6C8851DD676035C83A28DE97 /* Planning */,
 				E9F796B6A447416B8F86F2EF /* Preparation */,
+				F411E7F351E979432BB579C4 /* Guidance */,
+				2A4734DD1E555A4555705690 /* Records */,
 				5CD1A383A7404637B55B9754 /* Shared */,
 				B3D57D810E8D9169C02AFD20 /* Resources */,
 			);
@@ -122,6 +132,8 @@
 		E9F796B6A447416B8F86F2EF /* Preparation */ = {isa = PBXGroup; children = (19157E729513422BD5A316CB /* PreparationIntro.swift */, 21A7A66388F62A44AC3C6675 /* PreparationView.swift */,); path = Preparation; sourceTree = "<group>"; };
 		5CD1A383A7404637B55B9754 /* Shared */ = {isa = PBXGroup; children = (8EE708C775BDF747FDD10095 /* AppStyle.swift */, 0F3C56EEE04E1FD38128D7D0 /* StageMap.swift */,); path = Shared; sourceTree = "<group>"; };
 		B3D57D810E8D9169C02AFD20 /* Resources */ = {isa = PBXGroup; children = (FE10186D885F066A55011CC5 /* Assets.xcassets */,); path = Resources; sourceTree = "<group>"; };
+		F411E7F351E979432BB579C4 /* Guidance */ = {isa = PBXGroup; children = (D08F34DC278C7E0009938309 /* GuidanceSpeech.swift */, 7F148E1CEB5FC456B91B0C33 /* GuidanceModel.swift */, B0C48F23D9410CA6C2BC3F0A /* GuidanceView.swift */,); path = Guidance; sourceTree = "<group>"; };
+		2A4734DD1E555A4555705690 /* Records */ = {isa = PBXGroup; children = (ED3856521F7DCEA5AB4F72DE /* GuidanceRecordsView.swift */,); path = Records; sourceTree = "<group>"; };
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -190,9 +202,13 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				9C23B772192B924A7B0A5615 /* GuidanceRecordsView.swift in Sources */,
 				BD2548A4567739DAFA84992F /* ARSupport.swift in Sources */,
 				3A505E36C22B5E617C1C72A1 /* PoC4App.swift in Sources */,
 				90F310DA900B0BE49401F870 /* ScanLabModel.swift in Sources */,
+				77BA3C1E44E395D4CAF87115 /* GuidanceView.swift */,
+				8B4BD3A94CEC3355500D48CB /* GuidanceModel.swift */,
+				F03ED278267957C804D59D9F /* GuidanceSpeech.swift */,
 				2AD56B762095EF23B59D5D5C /* ScanLabView.swift in Sources */,
 				68A2754DDC0DD4950D54094C /* StagePreviewView.swift in Sources */,
 				A4FAC8C85F6657EDF3CF56DA /* HomeView.swift */,
