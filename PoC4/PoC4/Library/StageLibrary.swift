@@ -1,0 +1,39 @@
+import Foundation
+import SwiftUI
+import PoC4Core
+
+@MainActor final class StageLibrary: ObservableObject {
+    @Published private(set) var records: [ScanManifest] = []
+    @Published private(set) var plans: [PerformancePlan] = []
+    @Published private(set) var pins = LibraryPins()
+    @Published private(set) var loading = false
+    @Published var error: String?
+    let scans: ScanStore
+    let planStore: PerformancePlanStore
+    private let pinURL: URL
+    var groups: (pinned: [ScanManifest], recent: [ScanManifest]) { pins.groups(records) }
+    init() {
+        let docs=FileManager.default.urls(for:.documentDirectory,in:.userDomainMask)[0]
+        scans=ScanStore(root:docs.appendingPathComponent("Scans",isDirectory:true))
+        planStore=PerformancePlanStore(root:docs.appendingPathComponent("PerformancePlans",isDirectory:true))
+        pinURL=docs.appendingPathComponent("stage-pins.json")
+        if FileManager.default.fileExists(atPath:pinURL.path) {
+            do {pins=try JSONDecoder().decode(LibraryPins.self,from:Data(contentsOf:pinURL))}
+            catch {self.error="고정한 무대 정보를 읽지 못했습니다: \(error.localizedDescription)"}
+        }
+    }
+    func refresh() async {
+        loading=true; defer {loading=false}
+        do {records=try await scans.list()} catch {self.error="무대 목록: \(error.localizedDescription)"}
+        do {plans=try await planStore.list()} catch {self.error="공연 사전 저장: \(error.localizedDescription)"}
+    }
+    func togglePin(_ id: UUID) {
+        var updated=pins; updated.toggle(id)
+        do {try JSONEncoder().encode(updated).write(to:pinURL,options:.atomic); pins=updated}
+        catch {self.error="고정 상태를 저장하지 못했습니다: \(error.localizedDescription)"}
+    }
+    func savePlan(_ value: PerformancePlan) async throws {
+        var plan=value; plan.updatedAt=Date(); plan.name=plan.name.trimmingCharacters(in:.whitespacesAndNewlines)
+        try await planStore.save(plan); plans=try await planStore.list()
+    }
+}

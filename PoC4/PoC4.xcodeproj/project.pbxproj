@@ -13,6 +13,16 @@
 		90F310DA900B0BE49401F870 /* ScanLabModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B383537827418DEF7A97268F /* ScanLabModel.swift */; };
 		BD2548A4567739DAFA84992F /* ARSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDFC75AA514403E4AEC74D39 /* ARSupport.swift */; };
 		E324AC7911F41DCFD817E1E0 /* PoC4Core in Frameworks */ = {isa = PBXBuildFile; productRef = 6413B9958B9F9A53858B916A /* PoC4Core */; };
+		A4FAC8C85F6657EDF3CF56DA /* HomeView.swift */ = {isa = PBXBuildFile; fileRef = 12F5F13B82525333061E567D; };
+		014D0EDBF0E17F10FB459E22 /* SavedStagePreview.swift */ = {isa = PBXBuildFile; fileRef = 4C5A0EB8337CB8DDE851629B; };
+		EF3E3EFD14503B9B2AF42C91 /* StageLibrary.swift */ = {isa = PBXBuildFile; fileRef = 7358AA12B4B4FA8E8E1FC10F; };
+		0B4F7A3FA4C7C4C648788FEB /* PlanEditorView.swift */ = {isa = PBXBuildFile; fileRef = 58BCE9883B552380217285B8; };
+		229B43B6A4EB383931E0FB20 /* PlanLibraryView.swift */ = {isa = PBXBuildFile; fileRef = 2B2754BA2288C4ECA6C22C0C; };
+		DBEDA19B240D10193CD50D3B /* PreparationIntro.swift */ = {isa = PBXBuildFile; fileRef = 19157E729513422BD5A316CB; };
+		963856F8A9A111180664B099 /* PreparationView.swift */ = {isa = PBXBuildFile; fileRef = 21A7A66388F62A44AC3C6675; };
+		F0337A0322CCD1CD318B02E6 /* AppStyle.swift */ = {isa = PBXBuildFile; fileRef = 8EE708C775BDF747FDD10095; };
+		E6C8C84DAA055E0F4535D744 /* StageMap.swift */ = {isa = PBXBuildFile; fileRef = 0F3C56EEE04E1FD38128D7D0; };
+		CA427B54455795CD2C32FE5A /* Assets.xcassets */ = {isa = PBXBuildFile; fileRef = FE10186D885F066A55011CC5; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -23,6 +33,16 @@
 		CDFC75AA514403E4AEC74D39 /* ARSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ARSupport.swift; sourceTree = "<group>"; };
 		E734B11F6A636DB192451A33 /* PoC4App.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PoC4App.swift; sourceTree = "<group>"; };
 		FA88B8B99550EA38E460CC82 /* PoC4Core */ = {isa = PBXFileReference; lastKnownFileType = folder; name = PoC4Core; path = Packages/PoC4Core; sourceTree = SOURCE_ROOT; };
+		12F5F13B82525333061E567D /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
+		4C5A0EB8337CB8DDE851629B /* SavedStagePreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedStagePreview.swift; sourceTree = "<group>"; };
+		7358AA12B4B4FA8E8E1FC10F /* StageLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StageLibrary.swift; sourceTree = "<group>"; };
+		58BCE9883B552380217285B8 /* PlanEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanEditorView.swift; sourceTree = "<group>"; };
+		2B2754BA2288C4ECA6C22C0C /* PlanLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanLibraryView.swift; sourceTree = "<group>"; };
+		19157E729513422BD5A316CB /* PreparationIntro.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreparationIntro.swift; sourceTree = "<group>"; };
+		21A7A66388F62A44AC3C6675 /* PreparationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreparationView.swift; sourceTree = "<group>"; };
+		8EE708C775BDF747FDD10095 /* AppStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStyle.swift; sourceTree = "<group>"; };
+		0F3C56EEE04E1FD38128D7D0 /* StageMap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StageMap.swift; sourceTree = "<group>"; };
+		FE10186D885F066A55011CC5 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -62,6 +82,12 @@
 			children = (
 				5311AAD1566AF83567402390 /* App */,
 				1441EC96C0632DD6D7E6BE9A /* Scanning */,
+				EE8158DF3B623BE6594F0C92 /* Home */,
+				3F28A0AB91584B0F4F4173F8 /* Library */,
+				6C8851DD676035C83A28DE97 /* Planning */,
+				E9F796B6A447416B8F86F2EF /* Preparation */,
+				5CD1A383A7404637B55B9754 /* Shared */,
+				B3D57D810E8D9169C02AFD20 /* Resources */,
 			);
 			path = PoC4;
 			sourceTree = "<group>";
@@ -90,6 +116,12 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
+		EE8158DF3B623BE6594F0C92 /* Home */ = {isa = PBXGroup; children = (12F5F13B82525333061E567D /* HomeView.swift */,); path = Home; sourceTree = "<group>"; };
+		3F28A0AB91584B0F4F4173F8 /* Library */ = {isa = PBXGroup; children = (4C5A0EB8337CB8DDE851629B /* SavedStagePreview.swift */, 7358AA12B4B4FA8E8E1FC10F /* StageLibrary.swift */,); path = Library; sourceTree = "<group>"; };
+		6C8851DD676035C83A28DE97 /* Planning */ = {isa = PBXGroup; children = (58BCE9883B552380217285B8 /* PlanEditorView.swift */, 2B2754BA2288C4ECA6C22C0C /* PlanLibraryView.swift */,); path = Planning; sourceTree = "<group>"; };
+		E9F796B6A447416B8F86F2EF /* Preparation */ = {isa = PBXGroup; children = (19157E729513422BD5A316CB /* PreparationIntro.swift */, 21A7A66388F62A44AC3C6675 /* PreparationView.swift */,); path = Preparation; sourceTree = "<group>"; };
+		5CD1A383A7404637B55B9754 /* Shared */ = {isa = PBXGroup; children = (8EE708C775BDF747FDD10095 /* AppStyle.swift */, 0F3C56EEE04E1FD38128D7D0 /* StageMap.swift */,); path = Shared; sourceTree = "<group>"; };
+		B3D57D810E8D9169C02AFD20 /* Resources */ = {isa = PBXGroup; children = (FE10186D885F066A55011CC5 /* Assets.xcassets */,); path = Resources; sourceTree = "<group>"; };
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -99,6 +131,7 @@
 			buildPhases = (
 				F62747E680CDF9D9E7BDA220 /* Sources */,
 				16867F250F780BB23B5B4A3E /* Frameworks */,
+				D6C9E8A172005E68A1DD674F /* Resources */,
 			);
 			buildRules = (
 			);
@@ -148,6 +181,10 @@
 		};
 /* End PBXProject section */
 
+/* Begin PBXResourcesBuildPhase section */
+		D6C9E8A172005E68A1DD674F = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (CA427B54455795CD2C32FE5A /* Assets.xcassets */,); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXResourcesBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
 		F62747E680CDF9D9E7BDA220 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
@@ -158,6 +195,16 @@
 				90F310DA900B0BE49401F870 /* ScanLabModel.swift in Sources */,
 				2AD56B762095EF23B59D5D5C /* ScanLabView.swift in Sources */,
 				68A2754DDC0DD4950D54094C /* StagePreviewView.swift in Sources */,
+				A4FAC8C85F6657EDF3CF56DA /* HomeView.swift */,
+				014D0EDBF0E17F10FB459E22 /* SavedStagePreview.swift */,
+				EF3E3EFD14503B9B2AF42C91 /* StageLibrary.swift */,
+				0B4F7A3FA4C7C4C648788FEB /* PlanEditorView.swift */,
+				229B43B6A4EB383931E0FB20 /* PlanLibraryView.swift */,
+				DBEDA19B240D10193CD50D3B /* PreparationIntro.swift */,
+				963856F8A9A111180664B099 /* PreparationView.swift */,
+				F0337A0322CCD1CD318B02E6 /* AppStyle.swift */,
+				E6C8C84DAA055E0F4535D744 /* StageMap.swift */,
+
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -212,13 +259,13 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "PoC4 스캔 실험";
+				INFOPLIST_KEY_CFBundleDisplayName = "Hear I am";
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "무대 메시 스캔과 착용 위치 추적을 위해 카메라를 사용합니다.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIFileSharingEnabled = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MARKETING_VERSION = 0.1.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
@@ -235,7 +282,6 @@
 		4E198449D6F546B8EBE426B6 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -243,14 +289,13 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = org.heariam.poc4.scanlab;
 				SDKROOT = iphoneos;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Debug;
 		};
 		60C857A5122078D97AC2AF22 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -258,7 +303,7 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = org.heariam.poc4.scanlab;
 				SDKROOT = iphoneos;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Release;
 		};
@@ -316,13 +361,13 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "PoC4 스캔 실험";
+				INFOPLIST_KEY_CFBundleDisplayName = "Hear I am";
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "무대 메시 스캔과 착용 위치 추적을 위해 카메라를 사용합니다.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIFileSharingEnabled = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MARKETING_VERSION = 0.1.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
