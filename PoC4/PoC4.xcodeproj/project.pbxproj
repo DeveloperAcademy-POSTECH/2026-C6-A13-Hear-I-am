@@ -1,0 +1,378 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		2AD56B762095EF23B59D5D5C /* ScanLabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B66B78A9F105B51584BBBF5A /* ScanLabView.swift */; };
+		3A505E36C22B5E617C1C72A1 /* PoC4App.swift in Sources */ = {isa = PBXBuildFile; fileRef = E734B11F6A636DB192451A33 /* PoC4App.swift */; };
+		68A2754DDC0DD4950D54094C /* StagePreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 501B31AB3486F429ABBA69A4 /* StagePreviewView.swift */; };
+		90F310DA900B0BE49401F870 /* ScanLabModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B383537827418DEF7A97268F /* ScanLabModel.swift */; };
+		BD2548A4567739DAFA84992F /* ARSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDFC75AA514403E4AEC74D39 /* ARSupport.swift */; };
+		E324AC7911F41DCFD817E1E0 /* PoC4Core in Frameworks */ = {isa = PBXBuildFile; productRef = 6413B9958B9F9A53858B916A /* PoC4Core */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		501B31AB3486F429ABBA69A4 /* StagePreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StagePreviewView.swift; sourceTree = "<group>"; };
+		9788EE12C5D1770F2347D965 /* PoC4.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = PoC4.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B383537827418DEF7A97268F /* ScanLabModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanLabModel.swift; sourceTree = "<group>"; };
+		B66B78A9F105B51584BBBF5A /* ScanLabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanLabView.swift; sourceTree = "<group>"; };
+		CDFC75AA514403E4AEC74D39 /* ARSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ARSupport.swift; sourceTree = "<group>"; };
+		E734B11F6A636DB192451A33 /* PoC4App.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PoC4App.swift; sourceTree = "<group>"; };
+		FA88B8B99550EA38E460CC82 /* PoC4Core */ = {isa = PBXFileReference; lastKnownFileType = folder; name = PoC4Core; path = Packages/PoC4Core; sourceTree = SOURCE_ROOT; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		16867F250F780BB23B5B4A3E /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E324AC7911F41DCFD817E1E0 /* PoC4Core in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		1441EC96C0632DD6D7E6BE9A /* Scanning */ = {
+			isa = PBXGroup;
+			children = (
+				CDFC75AA514403E4AEC74D39 /* ARSupport.swift */,
+				B383537827418DEF7A97268F /* ScanLabModel.swift */,
+				B66B78A9F105B51584BBBF5A /* ScanLabView.swift */,
+				501B31AB3486F429ABBA69A4 /* StagePreviewView.swift */,
+			);
+			path = Scanning;
+			sourceTree = "<group>";
+		};
+		1B37270D92A178C60199F4B4 = {
+			isa = PBXGroup;
+			children = (
+				B9D878406686ADC662BB75FE /* Packages */,
+				262E0B51FA67A293F8EAAE90 /* PoC4 */,
+				F12FFA6D47FD944CFCD5B973 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		262E0B51FA67A293F8EAAE90 /* PoC4 */ = {
+			isa = PBXGroup;
+			children = (
+				5311AAD1566AF83567402390 /* App */,
+				1441EC96C0632DD6D7E6BE9A /* Scanning */,
+			);
+			path = PoC4;
+			sourceTree = "<group>";
+		};
+		5311AAD1566AF83567402390 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				E734B11F6A636DB192451A33 /* PoC4App.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		B9D878406686ADC662BB75FE /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				FA88B8B99550EA38E460CC82 /* PoC4Core */,
+			);
+			path = Packages;
+			sourceTree = "<group>";
+		};
+		F12FFA6D47FD944CFCD5B973 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				9788EE12C5D1770F2347D965 /* PoC4.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		ADEC61A850A1FF7389B8EAAB /* PoC4 */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D44F67A08EB83196BE6D9F24 /* Build configuration list for PBXNativeTarget "PoC4" */;
+			buildPhases = (
+				F62747E680CDF9D9E7BDA220 /* Sources */,
+				16867F250F780BB23B5B4A3E /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = PoC4;
+			packageProductDependencies = (
+				6413B9958B9F9A53858B916A /* PoC4Core */,
+			);
+			productName = PoC4;
+			productReference = 9788EE12C5D1770F2347D965 /* PoC4.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		2D7042EF25A54053F153D707 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					ADEC61A850A1FF7389B8EAAB = {
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = AF298E78F72607C49671DFC2 /* Build configuration list for PBXProject "PoC4" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 1B37270D92A178C60199F4B4;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				D41CD4890AA806524C2A588C /* XCLocalSwiftPackageReference "Packages/PoC4Core" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = F12FFA6D47FD944CFCD5B973 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				ADEC61A850A1FF7389B8EAAB /* PoC4 */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		F62747E680CDF9D9E7BDA220 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				BD2548A4567739DAFA84992F /* ARSupport.swift in Sources */,
+				3A505E36C22B5E617C1C72A1 /* PoC4App.swift in Sources */,
+				90F310DA900B0BE49401F870 /* ScanLabModel.swift in Sources */,
+				2AD56B762095EF23B59D5D5C /* ScanLabView.swift in Sources */,
+				68A2754DDC0DD4950D54094C /* StagePreviewView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		20B25CB8942E4F3DAACD5C1E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "PoC4 스캔 실험";
+				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = "무대 메시 스캔과 착용 위치 추적을 위해 카메라를 사용합니다.";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIFileSharingEnabled = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		4E198449D6F546B8EBE426B6 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = org.heariam.poc4.scanlab;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		60C857A5122078D97AC2AF22 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = org.heariam.poc4.scanlab;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		BC0B127ED51552D2DE5BD332 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "PoC4 스캔 실험";
+				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = "무대 메시 스캔과 착용 위치 추적을 위해 카메라를 사용합니다.";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIFileSharingEnabled = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		AF298E78F72607C49671DFC2 /* Build configuration list for PBXProject "PoC4" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				BC0B127ED51552D2DE5BD332 /* Debug */,
+				20B25CB8942E4F3DAACD5C1E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		D44F67A08EB83196BE6D9F24 /* Build configuration list for PBXNativeTarget "PoC4" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4E198449D6F546B8EBE426B6 /* Debug */,
+				60C857A5122078D97AC2AF22 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		D41CD4890AA806524C2A588C /* XCLocalSwiftPackageReference "Packages/PoC4Core" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/PoC4Core;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		6413B9958B9F9A53858B916A /* PoC4Core */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = PoC4Core;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 2D7042EF25A54053F153D707 /* Project object */;
+}
