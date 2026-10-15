@@ -7,7 +7,7 @@ struct HearRootView: View {
         TabView {
             HomeView(library:library).tabItem {Label("홈",systemImage:"house.fill")}
             PlanLibraryView(library:library).tabItem {Label("공연 사전 저장",systemImage:"map")}
-            NavigationStack {UnavailableFeature(title:"기록",symbol:"clock").navigationTitle("기록")}
+            GuidanceRecordsView(library:library)
                 .tabItem {Label("기록",systemImage:"clock")}
         }.tint(.hearInk).preferredColorScheme(.light)
             .task {await library.refresh()}
@@ -20,6 +20,7 @@ struct HearRootView: View {
 struct HomeView: View {
     @ObservedObject var library: StageLibrary
     @State private var preparing=false
+    @State private var guiding=false
     @State private var notice: String?
     var body: some View {
         NavigationStack {
@@ -36,7 +37,7 @@ struct HomeView: View {
                     }
                     HStack(spacing:12) {
                         homeAction("무대 준비하기",subtitle:"공간과 경로 저장",image:"ScanAction",dark:true) {preparing=true}
-                        homeAction("안내 사용하기",subtitle:"저장한 무대 선택",image:"BeltAction",dark:false) {notice="안내 사용하기는 기획 중입니다. 무대 준비와 저장 기능을 먼저 이용해주세요."}
+                        homeAction("안내 사용하기",subtitle:"저장한 무대 선택",image:"BeltAction",dark:false) {guiding=true}
                     }
                     if !library.groups.pinned.isEmpty {
                         stageSection("고정한 무대",records:library.groups.pinned)
@@ -58,6 +59,7 @@ struct HomeView: View {
             }.background(Color(.systemBackground)).toolbar(.hidden,for:.navigationBar)
                 .refreshable {await library.refresh()}
                 .fullScreenCover(isPresented:$preparing,onDismiss:{Task {await library.refresh()}}) {PreparationView()}
+                .fullScreenCover(isPresented:$guiding) {GuidanceView(library:library)}
                 .alert("Hear I am",isPresented:Binding(get:{notice != nil},set:{if !$0 {notice=nil}})) {Button("확인",role:.cancel) {notice=nil}} message: {Text(notice ?? "")}
         }
     }

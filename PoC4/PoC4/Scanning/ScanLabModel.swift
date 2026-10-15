@@ -115,6 +115,14 @@ final class ScanLabModel: ObservableObject {
     private var sequence=0
     private var active=true
     private var wearTask: Task<Void,Never>?
+    private let isGuidanceSession: Bool
+    private(set) var guidancePoseTime: Double?
+    private var visibleGuidanceTarget: Int?
+    private var guidanceCompleted=false
+    func setGuidanceTarget(_ index: Int, completed: Bool = false) {
+        guard visibleGuidanceTarget != index || guidanceCompleted != completed else { return }
+        visibleGuidanceTarget=index;guidanceCompleted=completed;redrawReferences()
+    }
     private let cameraQueue=DispatchQueue(label:"PoC4.AR",qos:.userInitiated)
     var now: Double { ProcessInfo.processInfo.systemUptime }
     var referencePrefix: String { "PoC4.reference."+scanID.uuidString }
@@ -129,7 +137,8 @@ final class ScanLabModel: ObservableObject {
     var canConfirmScan: Bool { mode == .scanning && !busy && !meshes.isEmpty && latest?.mapped == true && latest?.normal == true && now-(latest?.time ?? 0) < 0.5 }
     var canPlacePoint: Bool { mode == .scanning && !busy && !preparationInterrupted && latest?.normal == true && now-(latest?.time ?? 0) < 0.5 }
 
-    init(preparing: Bool = false) {
+    init(preparing: Bool = false, guidanceSession: Bool = false) {
+        isGuidanceSession=guidanceSession
         preparation = preparing ? PreparationDraft() : nil
         let docs=FileManager.default.urls(for:.documentDirectory,in:.userDomainMask)[0]
         store=ScanStore(root:docs.appendingPathComponent("Scans",isDirectory:true))
@@ -140,12 +149,12 @@ final class ScanLabModel: ObservableObject {
         }
         previewScene.rootNode.addChildNode(previewRoot)
         previewScene.rootNode.addChildNode(previewAnnotations)
-        if !preparing { installRemoteCommands() }
-        NotificationCenter.default.addObserver(forName: AVAudioSession.interruptionNotification, object:nil, queue:.main) { [weak self] notification in
+        if !preparing && !guidanceSession { installRemoteCommands() }
+        if !guidanceSession { NotificationCenter.default.addObserver(forName: AVAudioSession.interruptionNotification, object:nil, queue:.main) { [weak self] notification in
             guard let raw=notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
                   AVAudioSession.InterruptionType(rawValue:raw) == .began else { return }
             Task { @MainActor in self?.audioInterrupted() }
-        }
+        } }
         refreshFiles()
         watchdog=Timer.scheduledTimer(withTimeInterval:0.2,repeats:true) { [weak self] _ in
             Task { @MainActor in self?.tick() }
@@ -156,6 +165,7 @@ final class ScanLabModel: ObservableObject {
         view=arView; arView.scene=SCNScene()
         arView.scene.rootNode.addChildNode(overlay)
         arView.scene.rootNode.addChildNode(referenceOverlay)
+        if let session { arView.session=session }
     }
     func refreshFiles() {
         Task {
@@ -201,7 +211,8 @@ final class ScanLabModel: ObservableObject {
         let operation=token
         Task {
             defer { if token==operation {busy=false} }
-            guard supported, await permission(), active else { return }
+            guard supported else { errorMessage="이 기기는 저장한 공간의 AR 안내를 지원하지 않습니다."; return }
+            guard await permission(), active else { return }
             do {
                 let loaded=try await store.load(item.id)
                 guard token==operation, active else { return }
@@ -243,7 +254,7 @@ final class ScanLabModel: ObservableObject {
         session?.delegate=nil; session?.pause()
         token=UUID(); gate=TrackingGate(); latest=nil
         if preparation != nil { preparation=PreparationDraft(); scanConfirmed=false; savedID=nil; pendingObjectWorld=[]; editingObjectID=nil }
-        position=nil; heading=nil; ready=false; canVerify=false; canSave=false
+        position=nil; heading=nil; guidancePoseTime=nil; ready=false; canVerify=false; canSave=false
         previewRoot.childNodes.forEach { $0.removeFromParentNode() }
         previewNodes.removeAll(); previewDirty.removeAll()
         previewAnnotations.childNodes.forEach {$0.removeFromParentNode()}
@@ -330,6 +341,7 @@ final class ScanLabModel: ObservableObject {
                     }
                 }
             } else { position=nil; heading=nil }
+            guidancePoseTime=sample.time
             if mode == .restoring {
                 let candidate=sample.normal && referenceAnchorsPresent(sample)
                 overlay.isHidden = !candidate || !showMesh; referenceOverlay.isHidden = !candidate
@@ -394,7 +406,7 @@ final class ScanLabModel: ObservableObject {
         if let preparation { routeConflicts=preparation.errors; canSave=false; redrawReferences(); return }
         guard let area, routePoints.count >= 2 else {routeConflicts=[]; canSave=false; redrawReferences(); return}
         do {
-            let route=try StageRoute(area:area,points:routePoints,obstacles:obstacles)
+            let route=try StageRoute(area:area,points:routePoints,obstacles:obstacles,allowsOutsideEndpoints:manifest?.route?.version == 2)
             routeConflicts=route.conflicts(boundaryMargin:settings.boundaryMargin,obstacleClearance:settings.obstacleClearance)
         } catch { routeConflicts=[error.localizedDescription] }
         canSave=false
@@ -541,7 +553,7 @@ final class ScanLabModel: ObservableObject {
     private func redrawReferences() {
         referenceOverlay.childNodes.forEach {$0.removeFromParentNode()}
         previewAnnotations.childNodes.forEach {$0.removeFromParentNode()}
-        let referenceLabels: [(String,Point3?)] = preparation == nil ? [("O",origin),("F",front),("C",checkpoint)] : [("확인점",checkpoint)]
+        let referenceLabels: [(String,Point3?)] = (preparation == nil && !isGuidanceSession) ? [("O",origin),("F",front),("C",checkpoint)] : [("확인점",checkpoint)]
         for (label,p) in referenceLabels {
             guard let p else { continue }
             let node=SCNNode(geometry:SCNSphere(radius:0.04)); node.geometry?.firstMaterial?.diffuse.contents=UIColor.systemYellow
@@ -570,9 +582,16 @@ final class ScanLabModel: ObservableObject {
             let edge=[FloorPoint(0,0),FloorPoint(area.width,0),FloorPoint(area.width,area.depth),FloorPoint(0,area.depth)]
             for i in 0..<4 { line(area.world(edge[i]),area.world(edge[(i+1)%4]),color:.systemCyan) }
             for (i,p) in routePoints.enumerated() {
-                let label=preparation == nil ? "p\(i)" : (i == 0 ? "출발" : (preparation?.routeFinished == true && i == routePoints.count-1 ? "도착" : "P\(i)"))
-                marker(area.world(p),label:label,color:.systemGreen)
-                if i>0 {line(area.world(routePoints[i-1]),area.world(p),color:.systemGreen)}
+                let active=isGuidanceSession && !guidanceCompleted && i == visibleGuidanceTarget
+                let label=(preparation == nil && !isGuidanceSession) ? "p\(i)" : (i == 0 ? "출발" : ((isGuidanceSession || preparation?.routeFinished == true) && i == routePoints.count-1 ? "도착" : "P\(i)"))
+                let color: UIColor=active ? .systemOrange : .systemGreen
+                marker(area.world(p),label:label+(active ? " · 현재 목표" : ""),color:color)
+                if active {
+                    let ring=SCNNode(geometry:SCNTorus(ringRadius:0.12,pipeRadius:0.015))
+                    let world=area.world(p);ring.position=SCNVector3(Float(world.x),Float(world.y)+0.02,Float(world.z))
+                    ring.geometry?.firstMaterial?.diffuse.contents=color;referenceOverlay.addChildNode(ring)
+                }
+                if i>0 {line(area.world(routePoints[i-1]),area.world(p),color:active ? .systemOrange : .systemGreen)}
             }
             for o in obstacles {
                 for i in o.vertices.indices {line(area.world(o.vertices[i]),area.world(o.vertices[(i+1)%o.vertices.count]),color:.systemRed)}
@@ -625,6 +644,7 @@ final class ScanLabModel: ObservableObject {
         n.position=SCNVector3(Float(p.x),Float(p.y)+0.05,Float(p.z))
         referenceOverlay.addChildNode(n); if previewVisible {previewAnnotations.addChildNode(n.clone())}
         let text=SCNText(string:label,extrusionDepth:0); text.font = .boldSystemFont(ofSize:10)
+        text.firstMaterial?.diffuse.contents=color; text.firstMaterial?.lightingModel = .constant
         let t=SCNNode(geometry:text); t.scale=SCNVector3(0.015,0.015,0.015)
         t.position=SCNVector3(Float(p.x),Float(p.y)+0.14,Float(p.z)); t.constraints=[SCNBillboardConstraint()]
         referenceOverlay.addChildNode(t); if previewVisible {previewAnnotations.addChildNode(t.clone())}
@@ -857,7 +877,7 @@ final class ScanLabModel: ObservableObject {
         ]
     }
     private func clearNowPlaying() {
-        guard preparation == nil else { return }
+        guard preparation == nil, !isGuidanceSession else { return }
         MPNowPlayingInfoCenter.default().nowPlayingInfo=nil
         try? AVAudioSession.sharedInstance().setActive(false,options:.notifyOthersOnDeactivation)
     }
@@ -896,7 +916,8 @@ final class ScanLabModel: ObservableObject {
         autoResumePending=false
         pauseGuide(message); cancelCountdown()
         if recordOn { event("wear_invalidated",detail:message) }
-        recordOn=false; ready=false; position=nil; heading=nil; status=message
+        recordOn=false; ready=false; position=nil; heading=nil; guidancePoseTime=nil; status=message
+        if isGuidanceSession {referenceOverlay.isHidden=true}
     }
     func interrupt(_ message: String, token incoming: UUID) {
         guard incoming==token else { return }
