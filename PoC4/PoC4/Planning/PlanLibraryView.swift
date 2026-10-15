@@ -41,8 +41,8 @@ struct PlanLibraryView: View {
                 .safeAreaInset(edge:.bottom) {
                     if selecting {LibrarySelectionBar(count:selectedIDs.count,busy:deleting,cancel:{selecting=false;selectedIDs=[]},delete:{confirmingDelete=true})}
                 }
-                .confirmationDialog("선택한 공연 동선 \(selectedIDs.count)개를 삭제할까요?",isPresented:$confirmingDelete,titleVisibility:.visible) {
-                    Button("공연 동선 삭제",role:.destructive) {deleteSelectedPlans()}
+                .alert("선택한 공연 동선 \(selectedIDs.count)개를 삭제할까요?",isPresented:$confirmingDelete) {
+                    Button("삭제",role:.destructive) {deleteSelectedPlans()}
                     Button("취소",role:.cancel) {}
                 } message: {Text("저장한 사전 도면이 삭제되며 되돌릴 수 없어요. 실제 스캔 무대와 안내 기록은 유지돼요.")}
                 .refreshable {await library.refresh()}

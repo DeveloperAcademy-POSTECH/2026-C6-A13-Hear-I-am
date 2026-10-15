@@ -64,8 +64,8 @@ struct HomeView: View {
                 .safeAreaInset(edge:.bottom) {
                     if selecting {LibrarySelectionBar(count:selectedIDs.count,busy:deleting,cancel:{selecting=false;selectedIDs=[]},delete:{confirmingDelete=true})}
                 }
-                .confirmationDialog("선택한 무대 \(selectedIDs.count)개를 삭제할까요?",isPresented:$confirmingDelete,titleVisibility:.visible) {
-                    Button("무대 삭제",role:.destructive) {deleteSelectedStages()}
+                .alert("선택한 무대 \(selectedIDs.count)개를 삭제할까요?",isPresented:$confirmingDelete) {
+                    Button("삭제",role:.destructive) {deleteSelectedStages()}
                     Button("취소",role:.cancel) {}
                 } message: {Text("스캔 공간과 동선이 삭제되며 되돌릴 수 없어요. 고정도 해제됩니다. 완료한 안내 기록은 유지돼요.")}
                 .refreshable {await library.refresh()}
