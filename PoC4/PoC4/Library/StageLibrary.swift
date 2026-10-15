@@ -45,6 +45,10 @@ import PoC4Core
         do {try JSONEncoder().encode(updated).write(to:pinURL,options:.atomic); pins=updated}
         catch {self.error="고정 상태를 저장하지 못했습니다: \(error.localizedDescription)"}
     }
+    func renameStage(_ id: UUID, to name: String) async throws {
+        let updated=try await scans.rename(id,to:name)
+        if let index=records.firstIndex(where:{$0.id==id}) {records[index]=updated}
+    }
     func deleteStage(_ id: UUID) async throws {
         try await scans.delete(id)
         records.removeAll {$0.id == id}

@@ -137,6 +137,56 @@ final class PreparationTests: XCTestCase {
         let retained=try await store.load(retainedID)
         XCTAssertEqual(retained.meshes,[mesh])
     }
+    func testScanRenamePersistsWithoutChangingAssetsPinsOrSaveOrder() async throws {
+        let root=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer {try? FileManager.default.removeItem(at:root)}
+        let store=ScanStore(root:root)
+        var d=draft()
+        try d.addRoutePoint(.init(-1,0,-2));try d.addRoutePoint(.init(2,0,-2))
+        try d.addRoutePoint(.init(13,0,-2),asDestination:true)
+        let route=try d.stageRoute()
+        let frame=try StageFrame(origin:.init(0,0,0),front:.init(0,0,1))
+        let mesh=MeshSnapshot(id:UUID(),transform:[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1],
+            vertices:[.init(0,0,0),.init(1,0,0),.init(0,0,-1)],indices:[0,1,2])
+        let id=UUID()
+        for scanID in [id,UUID()] {
+            _=try await store.save(id:scanID,name:"원래 무대",frame:frame,checkpoint:.init(6,0,-4),
+                worldMap:Data([1,2,3]),meshes:[mesh],device:"test",appVersion:"1",route:route)
+        }
+        let directory=root.appendingPathComponent(id.uuidString)
+        let manifestURL=directory.appendingPathComponent("manifest.json")
+        var expected=try XCTUnwrap(JSONSerialization.jsonObject(with:Data(contentsOf:manifestURL)) as? [String:Any])
+        let assets=try ["worldmap.bin","mesh.json"].map {try Data(contentsOf:directory.appendingPathComponent($0))}
+        let original=try await store.list()
+        var pins=LibraryPins();pins.toggle(id)
+        let originalGroups=pins.groups(original)
+
+        let renamed=try await store.rename(id,to:"  새 공연장 · 리허설 동선 \n")
+        XCTAssertEqual(renamed.name,"새 공연장 · 리허설 동선")
+        expected["name"]=renamed.name
+        let actual=try XCTUnwrap(JSONSerialization.jsonObject(with:Data(contentsOf:manifestURL)) as? [String:Any])
+        XCTAssertEqual(actual as NSDictionary,expected as NSDictionary)
+        XCTAssertEqual(try ["worldmap.bin","mesh.json"].map {try Data(contentsOf:directory.appendingPathComponent($0))},assets)
+        let reopened=ScanStore(root:root)
+        let reloaded=try await reopened.load(id)
+        XCTAssertEqual(reloaded.manifest.name,renamed.name)
+        XCTAssertEqual(reloaded.manifest.route,route)
+        let updated=try await reopened.list()
+        XCTAssertEqual(updated.map(\.id),original.map(\.id))
+        XCTAssertEqual(pins.groups(updated).pinned.map(\.id),originalGroups.pinned.map(\.id))
+        XCTAssertEqual(pins.groups(updated).recent.map(\.id),originalGroups.recent.map(\.id))
+
+        let savedData=try Data(contentsOf:manifestURL)
+        for invalid in ["", " \n\t ", String(repeating:"가",count:81)] {
+            do {_=try await store.rename(id,to:invalid);XCTFail("Invalid name accepted")}
+            catch {}
+            XCTAssertEqual(try Data(contentsOf:manifestURL),savedData)
+        }
+        let missingID=UUID()
+        do {_=try await store.rename(missingID,to:"없는 무대");XCTFail("Missing scan recreated")}
+        catch {}
+        XCTAssertFalse(FileManager.default.fileExists(atPath:root.appendingPathComponent(missingID.uuidString).path))
+    }
     func testPinsRoundTripAndNoDuplicates() throws {
         let area = PerformancePlan.area
         let frame = try StageFrame(origin: area.world(FloorPoint(0,0)), front: area.world(FloorPoint(0,-1)))
