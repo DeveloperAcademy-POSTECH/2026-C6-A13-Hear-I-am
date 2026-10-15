@@ -42,7 +42,11 @@ private struct SavedMeshView: UIViewRepresentable {
         v.defaultCameraController.worldUp=SCNVector3(0,1,0)
         let mesh=context.coordinator.mesh
         scene.rootNode.addChildNode(mesh)
-        for part in scan.meshes {mesh.addChildNode(part.node(saved:true,solid:true))}
+        for part in scan.meshes {
+            let node=part.node(saved:true,solid:true)
+            node.geometry?.firstMaterial?.diffuse.contents=UIColor(white:0.72,alpha:1)
+            mesh.addChildNode(node)
+        }
         func marker(_ p:Point3,_ color:UIColor) {
             let n=SCNNode(geometry:SCNSphere(radius:0.07)); n.position=SCNVector3(p.x,p.y+0.06,p.z)
             n.geometry?.firstMaterial?.diffuse.contents=color; scene.rootNode.addChildNode(n)

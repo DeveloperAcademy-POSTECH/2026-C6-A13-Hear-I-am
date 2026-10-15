@@ -27,7 +27,7 @@ struct HomeView: View {
                 VStack(alignment:.leading,spacing:26) {
                     VStack(alignment:.leading,spacing:8) {
                         HStack {
-                            Image(systemName:"sparkle").font(.title2).foregroundStyle(.white).frame(width:44,height:44).background(.black,in:RoundedRectangle(cornerRadius:12))
+                            BrandMark().frame(width:44,height:44)
                             Text("Hear I am").font(.largeTitle.bold())
                             Spacer()
                             Button {notice="설정은 준비 중입니다."} label: {Image(systemName:"gearshape").font(.title3).frame(width:44,height:44)}.accessibilityLabel("설정")
@@ -85,12 +85,12 @@ private struct StageRow: View {
     var body: some View {
         VStack(alignment:.leading,spacing:12) {
             HStack(alignment:.top,spacing:12) {
-                StageMap(width:record.route?.area.width ?? 12,depth:record.route?.area.depth ?? 8,points:record.route?.points ?? [],objects:record.route?.obstacles ?? [])
+                StageMap(showsLabels:false,width:record.route?.area.width ?? 12,depth:record.route?.area.depth ?? 8,points:record.route?.points ?? [],objects:record.route?.obstacles ?? [])
                     .frame(width:92,height:92).accessibilityHidden(true)
                 VStack(alignment:.leading,spacing:6) {
                     Text(record.name).font(.headline).lineLimit(2)
                     Text("내부 지점 \(max(0,(record.route?.points.count ?? 2)-2))개 · 기물 \(record.route?.obstacles.count ?? 0)개").font(.caption).foregroundStyle(.secondary)
-                    Text(record.date,format:.dateTime.month().day().hour().minute()).font(.caption).foregroundStyle(.secondary)
+                    Text(record.date,format:.dateTime.locale(Locale(identifier:"ko_KR")).month().day().hour().minute()).font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer(minLength:0)
                 Button {library.togglePin(record.id)} label: {Image(systemName:library.pins.ids.contains(record.id) ? "star.fill" : "star").font(.title3).frame(width:32,height:44)}

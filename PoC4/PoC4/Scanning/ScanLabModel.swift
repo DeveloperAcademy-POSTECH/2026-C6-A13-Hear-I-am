@@ -52,6 +52,8 @@ final class ScanLabModel: ObservableObject {
     private var bridge: SessionBridge?
     private var token=UUID()
     private var scanID=UUID()
+    private var saveAttempt=UUID()
+    private var archiveWriteInProgress=false
     private var manifest: ScanManifest?
     private var meshes: [UUID:MeshSnapshot]=[:]
     let previewScene = SCNScene()
@@ -132,6 +134,10 @@ final class ScanLabModel: ObservableObject {
         let docs=FileManager.default.urls(for:.documentDirectory,in:.userDomainMask)[0]
         store=ScanStore(root:docs.appendingPathComponent("Scans",isDirectory:true))
         logDirectory=docs.appendingPathComponent("Trials",isDirectory:true)
+        if preparing {
+            settings.boundaryMargin=PreparationDraft.boundaryMargin
+            settings.obstacleClearance=PreparationDraft.obstacleClearance
+        }
         previewScene.rootNode.addChildNode(previewRoot)
         previewScene.rootNode.addChildNode(previewAnnotations)
         if !preparing { installRemoteCommands() }
@@ -145,6 +151,7 @@ final class ScanLabModel: ObservableObject {
             Task { @MainActor in self?.tick() }
         }
     }
+    deinit { watchdog?.invalidate() }
     func attach(_ arView: ARSCNView) {
         view=arView; arView.scene=SCNScene()
         arView.scene.rootNode.addChildNode(overlay)
@@ -534,7 +541,8 @@ final class ScanLabModel: ObservableObject {
     private func redrawReferences() {
         referenceOverlay.childNodes.forEach {$0.removeFromParentNode()}
         previewAnnotations.childNodes.forEach {$0.removeFromParentNode()}
-        for (label,p) in [("O",origin),("F",front),("C",checkpoint)] {
+        let referenceLabels: [(String,Point3?)] = preparation == nil ? [("O",origin),("F",front),("C",checkpoint)] : [("확인점",checkpoint)]
+        for (label,p) in referenceLabels {
             guard let p else { continue }
             let node=SCNNode(geometry:SCNSphere(radius:0.04)); node.geometry?.firstMaterial?.diffuse.contents=UIColor.systemYellow
             node.position=SCNVector3(Float(p.x),Float(p.y)+0.04,Float(p.z)); referenceOverlay.addChildNode(node)
@@ -544,7 +552,13 @@ final class ScanLabModel: ObservableObject {
             referenceOverlay.addChildNode(n)
         }
         for (i,p) in corners.enumerated() {
-            guard let p else {continue}; cornerMarker(p,label:"E\(i+1)")
+            guard let p else {continue}; cornerMarker(p,label:preparation == nil ? "E\(i+1)" : ["앞 왼쪽","앞 오른쪽","뒤 오른쪽","뒤 왼쪽"][i])
+        }
+        if preparation != nil {
+            let order=PreparationDraft.captureOrder
+            for i in 1..<4 {
+                if let a=corners[order[i-1]], let b=corners[order[i]] {line(a,b,color:.systemGreen)}
+            }
         }
         if area == nil, let first=corners[0], let second=corners[1],
            let guide=try? FrontEdgeGuide(frontLeft:first,frontRight:second) {
@@ -556,7 +570,8 @@ final class ScanLabModel: ObservableObject {
             let edge=[FloorPoint(0,0),FloorPoint(area.width,0),FloorPoint(area.width,area.depth),FloorPoint(0,area.depth)]
             for i in 0..<4 { line(area.world(edge[i]),area.world(edge[(i+1)%4]),color:.systemCyan) }
             for (i,p) in routePoints.enumerated() {
-                marker(area.world(p),label:"p\(i)",color:.systemGreen)
+                let label=preparation == nil ? "p\(i)" : (i == 0 ? "출발" : (preparation?.routeFinished == true && i == routePoints.count-1 ? "도착" : "P\(i)"))
+                marker(area.world(p),label:label,color:.systemGreen)
                 if i>0 {line(area.world(routePoints[i-1]),area.world(p),color:.systemGreen)}
             }
             for o in obstacles {
@@ -644,9 +659,17 @@ final class ScanLabModel: ObservableObject {
         catch { errorMessage=error.localizedDescription; return }
         busy=true; canSave=false
         let operation=token
+        saveAttempt=UUID(); let attempt=saveAttempt
+        Task { [weak self] in
+            try? await Task.sleep(for:.seconds(15))
+            guard let self, self.token==operation, self.saveAttempt==attempt, self.busy, !self.archiveWriteInProgress else {return}
+            self.saveAttempt=UUID(); self.busy=false
+            self.errorMessage="공간 지도를 가져오는 데 시간이 걸립니다. 주변을 비추고 다시 저장해주세요."
+        }
         session.getCurrentWorldMap { [weak self] map,error in
             Task { @MainActor in
-                guard let self, self.token==operation, self.active else { return }
+                guard let self, self.token==operation, self.saveAttempt==attempt else { return }
+                guard self.active else {self.busy=false; return}
                 guard let map, error==nil, let sample=self.latest, sample.normal,
                       sample.mapped, self.now-sample.time<=0.5,
                       self.referenceAnchorsPresent(sample) else {
@@ -662,6 +685,7 @@ final class ScanLabModel: ObservableObject {
                 self.cancelCountdown(); self.position=nil; self.heading=nil; self.recordOn=false
                 do {
                     let data=try NSKeyedArchiver.archivedData(withRootObject:map,requiringSecureCoding:true)
+                    self.archiveWriteInProgress=true
                     let result=try await self.store.save(id:id,name:name,frame:stage,checkpoint:checkpoint,
                         worldMap:data,meshes:parts,device:UIDevice.current.model+" / "+UIDevice.current.systemVersion,
                         appVersion:Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown",
@@ -674,12 +698,13 @@ final class ScanLabModel: ObservableObject {
                     self.errorMessage="저장 실패: "+error.localizedDescription; self.status="입력은 유지됩니다. 다시 저장해주세요."
                     if let configuration=self.session?.configuration, self.active { self.session?.run(configuration) }
                 }
-                self.busy=false; UIApplication.shared.isIdleTimerDisabled = self.mode == .scanning
+                self.archiveWriteInProgress=false; self.busy=false; UIApplication.shared.isIdleTimerDisabled = self.mode == .scanning
             }
         }
     }
     func confirmSpace() { if canConfirmScan { scanConfirmed=true } }
     func resumePreparation() {
+        guard vertexCount<=800_000 else {errorMessage="스캔 범위가 너무 큽니다. 준비를 종료하고 더 작은 영역으로 다시 스캔해주세요."; return}
         guard active, mode == .scanning, let configuration=session?.configuration else { return }
         latest=nil; preparationInterrupted=false; session?.run(configuration)
         status="주변을 천천히 비추며 추적을 다시 확인해주세요."
@@ -876,7 +901,8 @@ final class ScanLabModel: ObservableObject {
     func interrupt(_ message: String, token incoming: UUID) {
         guard incoming==token else { return }
         if preparation != nil, mode == .scanning, message != "측정 종료" {
-            session?.pause(); preparationInterrupted=true; busy=false; canSave=false
+            session?.pause(); preparationInterrupted=true; canSave=false
+            if !archiveWriteInProgress {saveAttempt=UUID(); busy=false}
             latest=nil; status="추적이 중단됐습니다. 같은 공간에서 추적을 다시 시작해주세요."
             return
         }
@@ -892,7 +918,10 @@ final class ScanLabModel: ObservableObject {
     func setActive(_ value: Bool) {
         active=value
         if preparation != nil {
-            if !value { session?.pause(); latest=nil; canSave=false; preparationInterrupted=true }
+            if !value {
+                session?.pause(); latest=nil; canSave=false; preparationInterrupted=true
+                if !archiveWriteInProgress {saveAttempt=UUID(); busy=false}
+            }
             return
         }
         if !value { interrupt("앱 비활성화 · 저장 공간을 다시 불러오거나 새 스캔을 시작하세요",token:token) }

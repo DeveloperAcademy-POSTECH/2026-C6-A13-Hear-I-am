@@ -3,6 +3,7 @@ import PoC4Core
 
 /// Audience-facing floor plan. World +Y (backstage) is up on screen.
 struct StageMap: View {
+    var showsLabels = true
     var width = 12.0
     var depth = 8.0
     var points: [FloorPoint] = []
@@ -31,8 +32,8 @@ struct StageMap: View {
                 let rect=CGRect(x:topLeft.x,y:topLeft.y,width:bottomRight.x-topLeft.x,height:bottomRight.y-topLeft.y)
                 context.fill(Path(rect), with: .color(.white))
                 context.stroke(Path(rect), with: .color(.gray.opacity(0.4)), lineWidth: 1.5)
-                context.draw(Text("무대").font(.caption.bold()).foregroundColor(.secondary), at: CGPoint(x:rect.midX,y:rect.minY+13))
-                context.draw(Text("객석 ↓").font(.system(size:10)).foregroundColor(.secondary), at: CGPoint(x:rect.midX,y:rect.maxY+14))
+                if showsLabels { context.draw(Text("무대").font(.caption.bold()).foregroundColor(.secondary), at: CGPoint(x:rect.midX,y:rect.minY+13))
+                context.draw(Text("객석 ↓").font(.system(size:10)).foregroundColor(.secondary), at: CGPoint(x:rect.midX,y:rect.maxY+14)) }
                 for object in objects {
                     var polygon=Path(); polygon.addLines(object.vertices.map(project)); polygon.closeSubpath()
                     context.fill(polygon, with:.color(object.id == selectedObject ? .orange.opacity(0.3) : .gray.opacity(0.3)))
@@ -47,7 +48,7 @@ struct StageMap: View {
                     }
                     context.fill(Path(ellipseIn:CGRect(x:p.x-5,y:p.y-5,width:10,height:10)),with:.color(.hearGreen))
                     let label=i == 0 ? "출발" : (finished && i == points.count-1 ? "도착" : "P\(i)")
-                    context.draw(Text(label).font(.system(size:11,weight:.bold)).foregroundColor(.hearGreen),at:CGPoint(x:p.x,y:p.y-13))
+                    if showsLabels { context.draw(Text(label).font(.system(size:11,weight:.bold)).foregroundColor(.hearGreen),at:CGPoint(x:p.x,y:p.y-13)) }
                 }
                 if let states=cornerStates {
                     let corners=[FloorPoint(0,0),FloorPoint(width,0),FloorPoint(width,depth),FloorPoint(0,depth)]

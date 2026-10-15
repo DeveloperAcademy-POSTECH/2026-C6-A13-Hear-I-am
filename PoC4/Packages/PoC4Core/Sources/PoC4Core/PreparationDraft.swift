@@ -4,6 +4,8 @@ import Foundation
 /// Re-project only for display/validation, never overwrite downstream world locations.
 public struct PreparationDraft: Sendable {
     public static let captureOrder = [1, 0, 3, 2]
+    public static let boundaryMargin = 0.01
+    public static let obstacleClearance = 0.35
     public var corners: [Point3?] = Array(repeating: nil, count: 4)
     public var route: [Point3] = []
     public var routeFinished = false
@@ -27,7 +29,7 @@ public struct PreparationDraft: Sendable {
         if asDestination {
             guard route.count >= 2 else { throw LabError.invalid("출발점과 내부 지점을 먼저 지정해주세요.") }
         } else if !route.isEmpty {
-            guard route.count < 5, area.contains(area.floor(point), margin: 0.01) else {
+            guard route.count < 5, area.contains(area.floor(point), margin: Self.boundaryMargin) else {
                 throw LabError.invalid("내부 지점은 무대 안에 최대 4개까지 지정할 수 있습니다.")
             }
         }
@@ -57,7 +59,7 @@ public struct PreparationDraft: Sendable {
         }
     }
     public var routeErrors: [String] {
-        do { return try stageRoute().conflicts(boundaryMargin: 0.01, obstacleClearance: 0.35) }
+        do { return try stageRoute().conflicts(boundaryMargin: Self.boundaryMargin, obstacleClearance: Self.obstacleClearance) }
         catch { return [error.localizedDescription] }
     }
     public var checkpointErrors: [String] {
