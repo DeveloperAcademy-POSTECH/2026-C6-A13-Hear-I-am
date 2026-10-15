@@ -161,11 +161,14 @@ struct ScanLabView: View {
                             Stepper("도착 체류 시간",value:$model.settings.arrivalDwell,in:0.3...3.0,step:0.1).disabled(model.mode != .scanning)
                             Text("도착 반경 \(model.settings.arrivalRadius,format:.number.precision(.fractionLength(2)))m · 체류 \(model.settings.arrivalDwell,format:.number.precision(.fractionLength(1)))초").font(.caption)
                             HStack {
-                                Button(model.guideState == .paused ? "명시적 재개" : "안내 시작",action:model.startGuide)
-                                    .disabled(!model.canGuide)
+                                Button(model.autoResumePending ? "자동 재개 대기" : (model.guideState == .paused ? "명시적 재개" : "안내 시작"),action:model.startGuide)
+                                    .disabled(!model.canGuide || model.autoResumePending)
                                 Button("일시정지") {model.pauseGuide()}.disabled(model.guideState != .guiding)
                             }
                             Text(model.guideMessage).font(.headline)
+                            if model.autoResumePending {
+                                Text("무대 안쪽에서 추적이 안정되면 버튼 없이 안내가 이어집니다.").font(.caption)
+                            }
                             Text("에어팟 재생/일시정지 명령은 실기기 실험 대상입니다. 화면 버튼을 대안으로 사용하세요.").font(.caption)
                             Button("착용 종료",action:model.stopWear).disabled(!model.recordOn && model.wearCountdown == nil)
                             TextField("실측 위치·회전·조명 메모",text:$model.note).textFieldStyle(.roundedBorder)
