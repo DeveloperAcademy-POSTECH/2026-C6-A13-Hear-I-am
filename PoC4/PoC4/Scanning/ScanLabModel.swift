@@ -35,6 +35,7 @@ final class ScanLabModel: ObservableObject {
     @Published var settings=GuideSettings() { didSet { updateRouteStatus() } }
     @Published private(set) var routeConflicts: [String] = []
     @Published private(set) var guideState: GuideState = .idle
+    @Published private(set) var guideTargetIndex: Int?
     @Published private(set) var autoResumePending=false
     @Published private(set) var guideMessage="경로를 저장하고 C를 검증하세요"
     @Published private(set) var exports: [URL]=[]
@@ -204,6 +205,7 @@ final class ScanLabModel: ObservableObject {
                     if suspendedScanID == item.id, let suspendedGuide, suspendedGuide.route == route {
                         guide=suspendedGuide; guideState = .paused; guideMessage="C·착용 위치 재검증 후 명시적 재개"
                     } else { guide=RouteGuide(route:route,settings:settings) }
+                    guideTargetIndex=guide?.targetIndex
                 }
                 mode = .restoring
                 for part in loaded.meshes { meshes[part.id]=part }
@@ -234,7 +236,7 @@ final class ScanLabModel: ObservableObject {
         overlay.isHidden = !showMesh; referenceOverlay.isHidden=false
         manifest=nil; origin=nil; front=nil; checkpoint=nil; stage=nil; area=nil
         corners=Array(repeating:nil,count:4); routePoints=[]; obstacles=[]; obstacleDraft=[]; routeConflicts=[]
-        guide=nil; guideState = .idle; autoResumePending=false; speech.stopSpeaking(at:.immediate); clearNowPlaying()
+        guide=nil; guideState = .idle; guideTargetIndex=nil; autoResumePending=false; speech.stopSpeaking(at:.immediate); clearNowPlaying()
         recordOn=false; lastErrorMeters=nil; references="앞왼쪽 → 앞오른쪽 → 뒤오른쪽 → 뒤왼쪽 → C"
         restoreStarted=nil; updateCounts(); lastUI = -.infinity; lastPoseLog = -.infinity
     }
@@ -272,12 +274,25 @@ final class ScanLabModel: ObservableObject {
             if let stage, ready {
                 position=stagePosition(sample.world)
                 heading=stage.heading(cameraForward:sample.forward)
-                if heading == nil && recordOn { gate.invalidate(); invalidateWear("카메라 수평 방향 불명확 · 착용 자세와 C를 다시 확인하세요") }
+                if heading == nil, recordOn, var guide, guide.state == .guiding {
+                    guide.pauseForUnclearHeading()
+                    self.guide=guide; guideState=guide.state; autoResumePending=true
+                    speech.stopSpeaking(at:.immediate); updateNowPlaying(active:false)
+                    guideMessage="카메라가 거의 바닥·천장을 향함 · 렌즈를 전방으로 고정하면 자동 재개"
+                    let forward=sample.forward
+                    let length=sqrt(forward.x*forward.x+forward.y*forward.y+forward.z*forward.z)
+                    let horizontalRatio=length > 0 ? hypot(forward.x,forward.z)/length : 0
+                    event("guide_paused",detail:String(format:"unclearHeading:p%d:horizontalRatio=%.3f",guide.targetIndex,horizontalRatio))
+                }
                 if recordOn, let position, let heading, var guide {
                     let floor=FloorPoint(position.x,position.y)
                     if guide.state == .guiding {
+                        let previousTarget=guide.targetIndex
                         let update=guide.observe(time:sample.time,position:floor,headingDegrees:heading,trackingValid:ready)
-                        self.guide=guide; guideState=update.state
+                        self.guide=guide; guideState=update.state; guideTargetIndex=update.targetIndex
+                        if update.targetIndex != previousTarget {
+                            event("guide_target_advanced",detail:"p\(previousTarget)→p\(update.targetIndex)/p\(routePoints.count-1)")
+                        }
                         if let spoken=update.announcement { announce(spoken); event("guide_announcement",detail:spoken,position:position,heading:heading) }
                         if update.state == .completed { updateNowPlaying(active:false); event("guide_complete",detail:"p\(update.targetIndex)") }
                         if update.state == .paused {
@@ -289,7 +304,7 @@ final class ScanLabModel: ObservableObject {
                             event("guide_paused",detail:"\(guide.pauseReason.map { String(describing:$0) } ?? "unknown")")
                         }
                     } else if guide.state == .paused && autoResumePending {
-                        if guide.observeAutomaticRecovery(time:sample.time,position:floor,trackingValid:ready) {
+                        if guide.observeAutomaticRecovery(time:sample.time,position:floor,headingDegrees:heading,trackingValid:ready) {
                             self.guide=guide; guideState=guide.state; autoResumePending=false
                             updateNowPlaying(active:true); guideMessage="p\(guide.targetIndex) 안내 재개"
                             event("guide_auto_resumed",detail:"p\(guide.targetIndex)")
@@ -686,7 +701,8 @@ final class ScanLabModel: ObservableObject {
             ? guide.start(position:floor,headingDegrees:heading,trackingValid:true)
             : guide.resume(position:floor,trackingValid:true)
         guard success else {return}
-        self.guide=guide; guideState=guide.state; autoResumePending=false; guideMessage="p\(guide.targetIndex) 안내 중"
+        self.guide=guide; guideState=guide.state; guideTargetIndex=guide.targetIndex
+        autoResumePending=false; guideMessage="p\(guide.targetIndex) 안내 중"
         updateNowPlaying(active:true); event("guide_start",detail:"p\(guide.targetIndex)")
         announce("안내를 시작합니다.")
     }

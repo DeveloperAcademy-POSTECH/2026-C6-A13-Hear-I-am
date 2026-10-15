@@ -17,6 +17,8 @@ final class CoordinatesTests: XCTestCase {
         XCTAssertEqual(frame.position(Point3(1,2,0)),Point3(0,-1,1))
         XCTAssertEqual(frame.heading(cameraForward:Point3(1,0.4,0))!,0,accuracy:1e-8)
         XCTAssertNil(frame.heading(cameraForward:Point3(0,1,0)))
+        XCTAssertNil(frame.heading(cameraForward:Point3(0,1,0.1)))
+        XCTAssertNotNil(frame.heading(cameraForward:Point3(0,1,0.3)))
         XCTAssertNil(frame.heading(cameraForward:Point3(.nan,0,0)))
         XCTAssertNil(frame.heading(cameraForward:Point3(0,0,0)))
     }
