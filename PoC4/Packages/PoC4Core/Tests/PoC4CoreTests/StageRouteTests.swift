@@ -144,7 +144,7 @@ final class RouteGuideTests: XCTestCase {
         _=g.observe(time:1.6,position:FloorPoint(3,1),headingDegrees:0,trackingValid:true)
         _=g.observe(time:1.9,position:FloorPoint(3,1),headingDegrees:0,trackingValid:true)
         let last=g.observe(time:2.01,position:FloorPoint(3,1),headingDegrees:0,trackingValid:true)
-        XCTAssertEqual(last.announcement,"2번째 지점 도착. 안내를 종료합니다.")
+        XCTAssertEqual(last.announcement,GuidanceCopy.completed)
         XCTAssertEqual(g.state,.completed)
     }
     func testFiveDestinationsNeverStopAtSecondPoint() throws {
@@ -156,11 +156,12 @@ final class RouteGuideTests: XCTestCase {
             var arrival: String?
             for _ in 0..<5 {
                 let update=g.observe(time:time,position:points[target],headingDegrees:0,trackingValid:true)
-                if update.announcement?.contains("번째 지점 도착") == true { arrival=update.announcement }
+                if update.announcement?.contains("번째 지점 도착") == true || update.announcement == GuidanceCopy.completed { arrival=update.announcement }
                 time += 0.25
             }
             XCTAssertNotNil(arrival)
-            XCTAssertTrue(arrival?.hasPrefix("\(target)번째 지점 도착.") == true)
+            if target == 5 { XCTAssertEqual(arrival,GuidanceCopy.completed) }
+            else { XCTAssertTrue(arrival?.hasPrefix("\(target)번째 지점 도착.") == true) }
             XCTAssertEqual(g.targetIndex,target == 5 ? 5 : target+1)
             XCTAssertEqual(g.state,target == 5 ? .completed : .guiding)
         }
