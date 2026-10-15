@@ -223,7 +223,7 @@ public struct GuideSettings: Codable, Equatable, Sendable {
     }
 }
 public enum GuideState: Equatable, Sendable { case idle, guiding, paused, completed }
-public enum GuidePauseReason: Equatable, Sendable { case manual, invalidSample, sampleGap, outsideStage, unclearHeading }
+public enum GuidePauseReason: Equatable, Sendable { case manual, invalidSample, sampleGap, outsideStage, unclearHeading, offRoute, obstacleProximity }
 public struct GuideUpdate: Equatable, Sendable {
     public let state: GuideState
     public let targetIndex: Int
@@ -237,15 +237,23 @@ public struct RouteGuide: Sendable {
     public var canAutomaticallyRecover: Bool { state == .paused && (pauseReason == .outsideStage || pauseReason == .sampleGap || pauseReason == .unclearHeading) }
     public let route: StageRoute
     public let settings: GuideSettings
+    /// Opt in for the portrait guidance flow. The legacy experiment keeps its original rules.
+    public let usesRouteCorridor: Bool
+    public static let corridorRadius = 0.60
     private var arrivedSince: Double?
     private var lastTime: Double?
     private var lastSpeech: Double = -.infinity
     private var reentrySince: Double?
     private var lastReentryTime: Double?
     private var sector: Int?
-    public init(route: StageRoute, settings: GuideSettings) { self.route=route; self.settings=settings }
+    public init(route: StageRoute, settings: GuideSettings, usesRouteCorridor: Bool = false) {
+        self.route=route; self.settings=settings; self.usesRouteCorridor=usesRouteCorridor
+    }
     public func ready(position: FloorPoint, headingDegrees: Double, trackingValid: Bool) -> Bool {
-        guard route.version == 1, trackingValid, position.distance(to:route.points[0]) <= settings.startRadius else { return false }
+        guard route.version == 1 || usesRouteCorridor, trackingValid, position.valid, headingDegrees.isFinite,
+              (try? route.validate()) != nil, !usesRouteCorridor || (try? settings.validate()) != nil,
+              position.distance(to:route.points[0]) <= settings.startRadius,
+              !usesRouteCorridor || positionIssue(position) == nil else { return false }
         let angle=atan2(sin(headingDegrees * .pi/180),cos(headingDegrees * .pi/180))*180 / .pi
         return abs(angle) <= settings.frontToleranceDegrees &&
             route.conflicts(boundaryMargin:settings.boundaryMargin,obstacleClearance:settings.obstacleClearance).isEmpty
@@ -262,16 +270,35 @@ public struct RouteGuide: Sendable {
         state = .paused; pauseReason=reason; arrivedSince=nil; reentrySince=nil; lastReentryTime=nil
     }
     @discardableResult public mutating func resume(position: FloorPoint, trackingValid: Bool) -> Bool {
-        guard state == .paused, trackingValid, position.valid,
-              route.area.contains(position,margin:settings.boundaryMargin),
-              route.conflicts(boundaryMargin:settings.boundaryMargin,obstacleClearance:settings.obstacleClearance).isEmpty else { return false }
+        guard canResume(position:position,trackingValid:trackingValid) else { return false }
         state = .guiding; pauseReason=nil; arrivedSince=nil; lastTime=nil; lastSpeech = -.infinity
         reentrySince=nil; lastReentryTime=nil; sector=nil
         return true
     }
+    public func canResume(position: FloorPoint, trackingValid: Bool) -> Bool {
+        state == .paused && trackingValid && position.valid &&
+        (usesRouteCorridor ? positionIssue(position) == nil : route.area.contains(position,margin:settings.boundaryMargin)) &&
+        route.conflicts(boundaryMargin:settings.boundaryMargin,obstacleClearance:settings.obstacleClearance).isEmpty
+    }
+    /// Only the active entry/exit segment may extend outside the stage. This is not obstacle detection.
+    public func positionIssue(_ position: FloorPoint) -> GuidePauseReason? {
+        guard position.valid, route.points.indices.contains(targetIndex), targetIndex > 0 else { return .invalidSample }
+        let externalSegment=route.version == 2 && (targetIndex == 1 || targetIndex == route.points.count-1)
+        if !route.area.contains(position) && !externalSegment { return .outsideStage }
+        let a=route.points[targetIndex-1], b=route.points[targetIndex]
+        if position.distance(toSegmentFrom:a,to:b) > Self.corridorRadius { return .offRoute }
+        if route.obstacles.contains(where: { $0.passage == .prohibited && $0.overlaps(position,b,clearance:settings.obstacleClearance) }) {
+            return .obstacleProximity
+        }
+        return nil
+    }
+    public func cue(position: FloorPoint, headingDegrees: Double) -> GuidanceCue? {
+        guard route.points.indices.contains(targetIndex) else { return nil }
+        return GuidanceCue(position:position,goal:route.points[targetIndex],headingDegrees:headingDegrees,sector:sector)
+    }
     /// Recoverable pauses resume after one second of fresh, verified in-bounds samples and a valid heading.
     @discardableResult public mutating func observeAutomaticRecovery(time: Double, position: FloorPoint, headingDegrees: Double, trackingValid: Bool) -> Bool {
-        guard canAutomaticallyRecover else { return false }
+        guard !usesRouteCorridor, canAutomaticallyRecover else { return false }
         guard time.isFinite, position.valid, headingDegrees.isFinite, trackingValid,
               route.area.contains(position,margin:settings.boundaryMargin),
               lastReentryTime.map({time > $0 && time-$0 <= 0.5}) ?? true else {
@@ -290,8 +317,9 @@ public struct RouteGuide: Sendable {
         guard lastTime.map({time > $0 && time-$0 <= 0.5}) ?? true else {
             pause(reason:.sampleGap); return GuideUpdate(state:state,targetIndex:targetIndex,announcement:nil)
         }
-        guard route.area.contains(position) else {
-            pause(reason:.outsideStage); return GuideUpdate(state:state,targetIndex:targetIndex,announcement:nil)
+        let issue=usesRouteCorridor ? positionIssue(position) : (route.area.contains(position) ? nil : GuidePauseReason.outsideStage)
+        if let issue {
+            pause(reason:issue); return GuideUpdate(state:state,targetIndex:targetIndex,announcement:nil)
         }
         lastTime=time
         var goal=route.points[targetIndex], distance=position.distance(to:goal)
@@ -301,7 +329,7 @@ public struct RouteGuide: Sendable {
             if let since=arrivedSince, time-since >= settings.arrivalDwell {
                 if targetIndex == route.points.count-1 {
                     state = .completed
-                    return GuideUpdate(state:state,targetIndex:targetIndex,announcement:"\(targetIndex)번째 지점 도착. 안내를 종료합니다.")
+                    return GuideUpdate(state:state,targetIndex:targetIndex,announcement:GuidanceCopy.completed)
                 }
                 arrivedIndex=targetIndex
                 targetIndex += 1; arrivedSince=nil; sector=nil
