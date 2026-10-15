@@ -62,6 +62,9 @@ public struct ScanManifest: Codable, Sendable {
         if version == 2 {
             guard let route else { throw LabError.invalid("저장된 경로가 없습니다.") }
             try route.validate()
+            guard route.area.corners.allSatisfy({checkpoint.distance(to:$0) >= 0.5}) else {
+                throw LabError.invalid("C는 E의 네 꼭짓점과 별개로 선택해야 합니다.")
+            }
             guard frame.origin.distance(to:route.area.world(FloorPoint(0,0))) < 0.02,
                   frame.front.distance(to:route.area.world(FloorPoint(0,-1))) < 0.02 else {
                 throw LabError.invalid("저장된 무대 정면이 E와 일치하지 않습니다.")

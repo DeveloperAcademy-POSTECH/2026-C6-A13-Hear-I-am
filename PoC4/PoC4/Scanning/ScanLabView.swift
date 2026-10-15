@@ -15,93 +15,162 @@ struct CameraView: UIViewRepresentable {
 
 struct ScanLabView: View {
     @StateObject private var model=ScanLabModel()
-    @State private var showPreview = false
+    @State private var showPreview=false
     @Environment(\.scenePhase) private var scenePhase
+    private let cornerNames=["앞왼쪽","앞오른쪽","뒤오른쪽","뒤왼쪽"]
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment:.leading,spacing:16) {
-                    Text("1단계 · 스캔과 위치 복원").font(.title2.bold())
-                    Text("실험용 위치 기록 · 경로 안내와 물체 감지는 아직 제공하지 않습니다.")
+                    Text("PoC4-2 · 현장 경로 안내").font(.title2.bold())
+                    Text("LiDAR 무대 스캔 · 수동 경로·장애물 등록 · 배 착용 음성 안내")
                         .font(.footnote).foregroundStyle(.secondary)
                     ZStack {
                         CameraView(model:model)
                         Image(systemName:"plus").font(.title).foregroundStyle(.white)
                             .shadow(color:.black,radius:2).accessibilityHidden(true)
-                        VStack { Spacer(); Text("십자선 중심을 실제 바닥 표식에 맞추세요")
-                            .font(.caption).padding(6).background(.black.opacity(0.65)).foregroundStyle(.white) }
+                        VStack {Spacer(); Text("십자선 중심을 실제 무대 바닥에 맞추세요")
+                            .font(.caption).padding(6).background(.black.opacity(0.65)).foregroundStyle(.white)}
                     }.frame(height:280).clipShape(RoundedRectangle(cornerRadius:12))
-                    Button { showPreview = true } label: {
-                        Label("스캔 공간 3D 보기", systemImage: "cube.transparent")
-                    }.disabled(model.meshCount == 0)
-                    Text("수집된 형상을 회전·확대해 확인합니다. 스캔 중에도 갱신됩니다.")
-                        .font(.caption).foregroundStyle(.secondary)
+                    Button {showPreview=true} label: {Label("스캔 공간·E·경로 3D 보기",systemImage:"cube.transparent")}
+                        .disabled(model.meshCount == 0)
                     if !model.supported {
-                        Label("이 기기는 LiDAR 메시 스캔을 지원하지 않습니다. 시뮬레이터에서는 화면만 확인할 수 있습니다.",systemImage:"info.circle")
+                        Label("LiDAR 지원 실제 iPhone이 필요합니다. 시뮬레이터는 UI·빌드 확인용입니다.",systemImage:"info.circle")
                             .foregroundStyle(.orange)
                     }
                     Text(model.status).font(.headline).accessibilityIdentifier("lab-status")
-                    HStack { Text("추적: \(model.tracking)"); Spacer(); Text("지도: \(model.mapping)") }.font(.caption)
+                    HStack {Text("추적: \(model.tracking)"); Spacer(); Text("지도: \(model.mapping)")}.font(.caption)
                     Text("메시 \(model.meshCount)개 · 정점 \(model.vertexCount)개").font(.caption.monospacedDigit())
-                    Toggle("메시 표시 · 새 스캔 초록 / 저장 공간 주황",isOn:$model.showMesh).font(.footnote)
-                    GroupBox("1. 무대 스캔") {
-                        VStack(alignment:.leading,spacing:12) {
+                    Toggle("메시 표시",isOn:$model.showMesh).font(.footnote)
+                    GroupBox("1. 스캔과 무대 E") {
+                        VStack(alignment:.leading,spacing:10) {
                             TextField("스캔 이름",text:$model.scanName).textFieldStyle(.roundedBorder)
                             Button("새 스캔 시작",action:model.newScan).disabled(!model.supported || model.busy)
-                            Text("바닥에 O(원점), F(객석 방향), C(별도 확인점)를 표시합니다. 각 점은 0.5m 이상 떨어지게 하세요. K1~K4 도면 정합은 이후 단계입니다.")
-                                .font(.footnote)
-                            HStack {
-                                Button("O 선택") {model.capture("O")}
-                                Button("F 선택") {model.capture("F")}
-                                Button("C 선택") {model.capture("C")}
-                            }.disabled(model.mode != .scanning || model.busy)
+                            Text("객석 기준 앞왼쪽 → 앞오른쪽 → 뒤오른쪽 → 뒤왼쪽 순서로 찍습니다. 각 버튼을 다시 누르면 해당 점을 수정합니다. 앞 변으로 정면을 정의합니다.").font(.footnote)
+                            ForEach(0..<4,id:\.self) {i in
+                                HStack {
+                                    Button("\(i+1). \(cornerNames[i]) 선택") {model.captureCorner(i)}
+                                    Text(model.corners[i] == nil ? "—" : "✓")
+                                }.disabled(model.mode != .scanning || model.busy)
+                            }
                             Text(model.references).font(.caption)
-                            Button("메시와 공간 지도 저장",action:model.save).disabled(!model.canSave || model.busy)
-                            Text("카메라가 mapped 상태이고 O·F·C와 메시가 있어야 저장됩니다.").font(.caption).foregroundStyle(.secondary)
+                            Text("E는 동일 평면·순서·자기 교차·직각·대변 길이 오차를 검사합니다.").font(.caption)
                         }.frame(maxWidth:.infinity,alignment:.leading)
                     }
-                    GroupBox("2. 저장 공간 복원") {
+                    GroupBox("2. 바닥 경로 p0 → p1~p5") {
                         VStack(alignment:.leading,spacing:10) {
-                            if model.records.isEmpty { Text("저장된 스캔이 없습니다.").foregroundStyle(.secondary) }
-                            ForEach(model.records,id:\.id) { item in
+                            Text("p0는 출발점, 이후 최대 다섯 목적지입니다. 순서대로 바닥을 찍고 개별 수정·삭제할 수 있습니다.").font(.footnote)
+                            Button(model.routePoints.isEmpty ? "p0 찍기" : "p\(model.routePoints.count) 찍기") {model.captureRoutePoint()}
+                                .disabled(model.mode != .scanning || model.corners.contains(where:{$0 == nil}) || model.routePoints.count >= 6)
+                            ForEach(Array(model.routePoints.enumerated()),id:\.offset) {i,p in
+                                HStack {
+                                    Text(String(format:"p%d · %.2f, %.2f m",i,p.x,p.y)).monospacedDigit()
+                                    Spacer()
+                                    Button("수정") {model.captureRoutePoint(i)}
+                                    Button("삭제",role:.destructive) {model.removeRoutePoint(i)}
+                                }.font(.caption)
+                            }
+                        }.frame(maxWidth:.infinity,alignment:.leading)
+                    }
+                    GroupBox("3. 장애물 영역") {
+                        VStack(alignment:.leading,spacing:10) {
+                            Text("물체 바닥 점유 영역의 꼭짓점 3~8개를 둘러 찍습니다. 메시만으로 물체가 자동 등록되지 않습니다. 계단도 통과 금지입니다.").font(.footnote)
+                            TextField("물체 이름",text:$model.obstacleName).textFieldStyle(.roundedBorder)
+                            Picker("종류",selection:$model.obstacleKind) {
+                                Text("계단").tag(ObstacleKind.stairs)
+                                Text("박스").tag(ObstacleKind.box)
+                                Text("기타").tag(ObstacleKind.other)
+                            }.pickerStyle(.segmented)
+                            HStack {
+                                Button("영역 꼭짓점 추가") {model.captureObstacleVertex()}
+                                Button("마지막 점 취소") {model.removeLastObstacleVertex()}
+                                    .disabled(model.obstacleDraft.isEmpty)
+                            }.disabled(model.mode != .scanning)
+                            Text("작성 중: \(model.obstacleDraft.count)개").font(.caption)
+                            ForEach(Array(model.obstacleDraft.enumerated()),id:\.offset) {i,p in
+                                HStack {
+                                    Text(String(format:"영역 %d · %.2f, %.2f m",i+1,p.x,p.y)).font(.caption.monospacedDigit())
+                                    Spacer()
+                                    Button("수정") {model.captureObstacleVertex(i)}
+                                    Button("삭제",role:.destructive) {model.removeObstacleVertex(i)}
+                                }.disabled(model.mode != .scanning)
+                            }
+                            Button("통과 금지 장애물 등록") {model.registerObstacle()}
+                                .disabled(model.obstacleDraft.count < 3 || model.mode != .scanning)
+                            ForEach(Array(model.obstacles.enumerated()),id:\.element.id) {i,o in
+                                HStack {
+                                    Text("\(o.name) · \(o.kind.rawValue) · 통과 금지").font(.caption)
+                                    Spacer()
+                                    Button("수정") {model.editObstacle(i)}
+                                    Button("삭제",role:.destructive) {model.removeObstacle(i)}
+                                }
+                            }
+                        }.frame(maxWidth:.infinity,alignment:.leading)
+                    }
+                    GroupBox("4. 경로 검사와 저장") {
+                        VStack(alignment:.leading,spacing:10) {
+                            Text("경계 여유 \(model.settings.boundaryMargin,format:.number.precision(.fractionLength(2)))m · 장애물 여유 \(model.settings.obstacleClearance,format:.number.precision(.fractionLength(2)))m").font(.caption)
+                            Stepper("경계 여유",value:$model.settings.boundaryMargin,in:0.10...1.0,step:0.05).disabled(model.mode != .scanning)
+                            Stepper("장애물 여유",value:$model.settings.obstacleClearance,in:0.10...1.0,step:0.05).disabled(model.mode != .scanning)
+                            ForEach(model.routeConflicts,id:\.self) {Text("⚠️ \($0)").font(.caption).foregroundStyle(.red)}
+                            Text("실제 무대와 분리한 확인점 C를 바닥에 표시하고 선택하세요. E 꼭짓점은 C를 대신하지 않습니다.").font(.footnote)
+                            Button("독립 확인점 C 선택") {model.capture("C")}
+                                .disabled(model.mode != .scanning || model.corners.contains(where:{$0 == nil}))
+                            Button("메시·지도·E·경로 저장",action:model.save).disabled(!model.canSave || model.busy)
+                            Text("mapped, 메시, C, 최소 p0→p1, 충돌 없는 모든 선분이 필요합니다.").font(.caption)
+                        }.frame(maxWidth:.infinity,alignment:.leading)
+                    }
+                    GroupBox("5. 저장 공간 복원과 C 검증") {
+                        VStack(alignment:.leading,spacing:10) {
+                            if model.records.isEmpty {Text("저장된 스캔이 없습니다.").foregroundStyle(.secondary)}
+                            ForEach(model.records,id:\.id) {item in
                                 Button {model.restore(item)} label: {
                                     VStack(alignment:.leading) {
                                         Text(item.name).font(.headline)
-                                        Text("\(item.date.formatted()) · 메시 \(item.meshCount)").font(.caption)
+                                        Text("\(item.date.formatted()) · 메시 \(item.meshCount) · v\(item.version)").font(.caption)
                                     }
                                 }.disabled(model.busy || !model.supported)
                             }
                             Button("목록 새로고침",action:model.refreshFiles).font(.footnote)
-                            Text("복원 후 실제 C에 십자선을 맞추고 검증하세요. 화면의 가상 C를 따라 찍지 말고 바닥의 실제 표식을 확인하세요.").font(.footnote)
+                            Text("복원 후 실제 바닥 C를 다시 선택하세요. 화면의 가상 점을 따라 찍지 마세요.").font(.footnote)
                             Button("실제 C 다시 선택 · 오차 검증",action:model.verifyCheckpoint)
                                 .disabled(!model.canVerify || model.busy)
                             if let error=model.lastErrorMeters {
-                                Text(String(format:"C 오차 %.3fm · 실험 허용값 %.2fm",error,model.checkpointTolerance)).font(.caption.monospacedDigit())
+                                Text(String(format:"C 오차 %.3fm · 허용 %.2fm",error,model.checkpointTolerance)).font(.caption.monospacedDigit())
                             }
                         }.frame(maxWidth:.infinity,alignment:.leading)
                     }
-                    GroupBox("3. 착용 위치 · 방향 기록") {
+                    GroupBox("6. 배 착용과 순차 안내") {
                         VStack(alignment:.leading,spacing:10) {
-                            Text("배 앞에 세로 고정 · 후면 카메라는 앞쪽, 화면은 몸 쪽. 시작 버튼 후 8초 동안 고정하세요. 폰이 밴드에서 돌아가지 않게 고정합니다.").font(.footnote)
-                            if let p=model.position {
-                                Text(String(format:"X %.2f · Y %.2f · 높이 %.2f m",p.x,p.y,p.z)).monospacedDigit()
-                            } else { Text("위치 — · 기준점 검증 또는 추적 확인 필요") }
-                            Text(model.heading.map {String(format:"몸 정면 %.1f° · 객석 0°",$0)} ?? "몸 정면 —")
-                                .monospacedDigit()
+                            Text("배 앞에 세로 고정 · 후면 카메라는 앞쪽, 화면은 몸 쪽. 앱을 전경에 유지하세요. 폰 위치는 발 위치가 아닙니다.").font(.footnote)
+                            if let p=model.position {Text(String(format:"폰 X %.2f · Y %.2f · 높이 %.2f m",p.x,p.y,p.z)).monospacedDigit()}
+                            else {Text("위치 — · C 검증 필요")}
+                            Text(model.heading.map {String(format:"몸 정면 %.1f° · 객석 0°",$0)} ?? "몸 정면 —").monospacedDigit()
+                            Button("8초 착용 준비 카운트다운",action:model.startWear)
+                                .disabled(!model.ready || model.recordOn || model.wearCountdown != nil)
+                            if let count=model.wearCountdown {Text("\(count)초").font(.title.bold())}
+                            Text("시작 p0 반경 \(model.settings.startRadius,format:.number.precision(.fractionLength(2)))m · 정면 ±\(model.settings.frontToleranceDegrees,format:.number.precision(.fractionLength(0)))°").font(.caption)
+                            Stepper("p0 시작 반경",value:$model.settings.startRadius,in:0.2...1.0,step:0.05).disabled(model.mode != .scanning)
+                            Stepper("정면 허용 오차",value:$model.settings.frontToleranceDegrees,in:5...45,step:5).disabled(model.mode != .scanning)
+                            Stepper("도착 반경",value:$model.settings.arrivalRadius,in:0.15...1.0,step:0.05).disabled(model.mode != .scanning)
+                            Stepper("도착 체류 시간",value:$model.settings.arrivalDwell,in:0.3...3.0,step:0.1).disabled(model.mode != .scanning)
+                            Text("도착 반경 \(model.settings.arrivalRadius,format:.number.precision(.fractionLength(2)))m · 체류 \(model.settings.arrivalDwell,format:.number.precision(.fractionLength(1)))초").font(.caption)
                             HStack {
-                                Button("8초 후 착용 기록 시작",action:model.startWear).disabled(!model.ready || model.recordOn || model.wearCountdown != nil)
-                                Button("구간 종료",action:model.stopWear).disabled(!model.recordOn && model.wearCountdown == nil)
+                                Button(model.guideState == .paused ? "명시적 재개" : "안내 시작",action:model.startGuide)
+                                    .disabled(!model.canGuide)
+                                Button("일시정지") {model.pauseGuide()}.disabled(model.guideState != .guiding)
                             }
-                            Text(model.recordOn ? "● 착용 구간 기록 중" : "관측 로그는 세션 시작부터 자동 기록").font(.caption)
-                            TextField("실측 위치·회전 각도·조명·메모",text:$model.note).textFieldStyle(.roundedBorder)
+                            Text(model.guideMessage).font(.headline)
+                            Text("에어팟 재생/일시정지 명령은 실기기 실험 대상입니다. 화면 버튼을 대안으로 사용하세요.").font(.caption)
+                            Button("착용 종료",action:model.stopWear).disabled(!model.recordOn && model.wearCountdown == nil)
+                            TextField("실측 위치·회전·조명 메모",text:$model.note).textFieldStyle(.roundedBorder)
                             Button("실측 메모 기록",action:model.addNote).disabled(model.mode == .idle || model.mode == .saved)
                             Button("측정 종료 · 로그 저장",role:.destructive,action:model.endSession)
                         }.frame(maxWidth:.infinity,alignment:.leading)
                     }
                     GroupBox("검증 로그 내보내기") {
                         VStack(alignment:.leading,spacing:10) {
-                            Text("JSONL: 추정 좌표·방향, 품질 상태, C 검증, 착용 구간, 실측 메모. 종료 후 공유하세요. 중단된 로그도 파일 앱에서 복구할 수 있습니다.").font(.footnote)
-                            ForEach(model.exports,id:\.self) { url in
+                            ForEach(model.exports,id:\.self) {url in
                                 ShareLink(item:url) {Label(url.lastPathComponent,systemImage:"square.and.arrow.up").font(.caption).lineLimit(1)}
                             }
                         }.frame(maxWidth:.infinity,alignment:.leading)
@@ -113,11 +182,8 @@ struct ScanLabView: View {
                 .alert("확인 필요",isPresented:Binding(get:{model.errorMessage != nil},set:{if !$0 {model.errorMessage=nil}})) {
                     Button("확인") {model.errorMessage=nil}
                 } message: {Text(model.errorMessage ?? "")}
-                .sheet(isPresented: $showPreview) {
-                    StagePreviewView(model: model)
-                }
-                .onChange(of:scenePhase) { _,phase in model.setActive(phase == .active) }
-                .accessibilityAction(.magicTap) {model.endSession()}
+                .sheet(isPresented:$showPreview) {StagePreviewView(model:model)}
+                .onChange(of:scenePhase) {_,phase in model.setActive(phase == .active)}
         }
     }
 }
