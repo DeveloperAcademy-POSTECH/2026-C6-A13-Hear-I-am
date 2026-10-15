@@ -1,6 +1,6 @@
 # Generated illustrations
 
-Created with the built-in image_gen tool, 2026-10-16. The three user-supplied crops were visual references. Assets are bundled in `PoC4/Resources/Assets.xcassets`; no network is needed at runtime. Camera backgrounds use ARKit, not generated pictures.
+Created with the built-in image_gen tool, 2026-10-16. The three user-supplied crops were visual references. Assets are bundled in `PoC4/PoC4/Resources/Assets.xcassets`; no network is needed at runtime. Camera backgrounds use ARKit, not generated pictures.
 
 ## StageEmpty
 
@@ -21,5 +21,5 @@ Minimal charcoal black line-art illustration for Hear I am light action card. Re
 - 원본: https://www.figma.com/design/GfvOEZoxjcen2Bv3zHh5YU?node-id=557-130
 - iOS 내보내기 프레임: https://www.figma.com/design/GfvOEZoxjcen2Bv3zHh5YU?node-id=603-675
 - 검정 배경/흰 방향선의 기존 임시 로고를 사용했다. 원본은 유지하고 내보내기 사본의 코너 마스크를 제거해 1024×1024 불투명 정사각형으로 구성했다. iOS가 기기별 모서리 모양을 적용한다.
-- 파일: `PoC4/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png`
+- 파일: `PoC4/PoC4/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png`
 - Debug/Release와 project.yml 모두 AppIcon으로 연결했다.
