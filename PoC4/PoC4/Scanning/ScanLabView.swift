@@ -46,7 +46,7 @@ struct ScanLabView: View {
                         VStack(alignment:.leading,spacing:10) {
                             TextField("스캔 이름",text:$model.scanName).textFieldStyle(.roundedBorder)
                             Button("새 스캔 시작",action:model.newScan).disabled(!model.supported || model.busy)
-                            Text("객석 기준 앞왼쪽 → 앞오른쪽 → 뒤오른쪽 → 뒤왼쪽 순서로 찍습니다. 각 버튼을 다시 누르면 해당 점을 수정합니다. 앞 변으로 정면을 정의합니다.").font(.footnote)
+                            Text("객석 기준 앞왼쪽 → 앞오른쪽 → 뒤오른쪽 → 뒤왼쪽 순서로 찍습니다. 각 버튼을 다시 누르면 해당 점을 수정합니다. 앞 변으로 정면을 정의합니다. 찍은 점은 카메라 화면에 E1~E4 앵커로 표시됩니다. 두 번째 점부터 주황색 점선은 앞 변에 수직인 임시 안쪽 방향이며 E의 확정 경계가 아닙니다.").font(.footnote)
                             ForEach(0..<4,id:\.self) {i in
                                 HStack {
                                     Button("\(i+1). \(cornerNames[i]) 선택") {model.captureCorner(i)}

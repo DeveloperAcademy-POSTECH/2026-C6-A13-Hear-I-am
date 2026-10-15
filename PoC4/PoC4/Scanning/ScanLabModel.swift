@@ -89,6 +89,7 @@ final class ScanLabModel: ObservableObject {
     private var nodes: [UUID:SCNNode]=[:]
     private let overlay=SCNNode()
     private let referenceOverlay=SCNNode()
+    private var cornerAnchors: [Int: ARAnchor] = [:]
     private var origin: Point3?
     private var front: Point3?
     private var checkpoint: Point3?
@@ -226,6 +227,7 @@ final class ScanLabModel: ObservableObject {
         previewRevision += 1
         meshes=[:]; nodes.values.forEach {$0.removeFromParentNode()}; nodes=[:]
         referenceOverlay.childNodes.forEach {$0.removeFromParentNode()}
+        cornerAnchors.removeAll()
         overlay.isHidden = !showMesh; referenceOverlay.isHidden=false
         manifest=nil; origin=nil; front=nil; checkpoint=nil; stage=nil; area=nil
         corners=Array(repeating:nil,count:4); routePoints=[]; obstacles=[]; obstacleDraft=[]; routeConflicts=[]
@@ -335,7 +337,7 @@ final class ScanLabModel: ObservableObject {
         return route.conflicts(boundaryMargin:settings.boundaryMargin,obstacleClearance:settings.obstacleClearance).isEmpty
     }
     private func updateRouteStatus() {
-        guard let area, routePoints.count >= 2 else {routeConflicts=[]; canSave=false; return}
+        guard let area, routePoints.count >= 2 else {routeConflicts=[]; canSave=false; redrawReferences(); return}
         do {
             let route=try StageRoute(area:area,points:routePoints,obstacles:obstacles)
             routeConflicts=route.conflicts(boundaryMargin:settings.boundaryMargin,obstacleClearance:settings.obstacleClearance)
@@ -345,10 +347,18 @@ final class ScanLabModel: ObservableObject {
     }
     func captureCorner(_ index: Int) {
         guard mode == .scanning, corners.indices.contains(index), !busy else { return }
+        var changed=false
         do {
             let p=try centerFloorPoint()
-            corners[index]=p; area=nil; stage=nil; origin=nil; front=nil; checkpoint=nil
+            var selected=corners
+            selected[index]=p
+            if let first=selected[0], let second=selected[1] {
+                _ = try FrontEdgeGuide(frontLeft:first,frontRight:second)
+            }
+            corners=selected; changed=true
+            area=nil; stage=nil; origin=nil; front=nil; checkpoint=nil
             routePoints=[]; obstacles=[]; obstacleDraft=[]; removeReferenceAnchors()
+            addCornerAnchors()
             if corners.allSatisfy({$0 != nil}) {
                 let completed=try StageArea(corners:corners.compactMap {$0})
                 area=completed
@@ -358,9 +368,20 @@ final class ScanLabModel: ObservableObject {
                 addReference(o,suffix:".origin"); addReference(f,suffix:".front")
             }
             gate.invalidate(); invalidateWear("무대 변경 · C 확인 필요")
+            if area != nil {status="무대 E 확정 · 스캔 공간 3D 보기에서 확인하세요"}
+            else if corners[0] != nil && corners[1] != nil {
+                status="E1·E2 고정 · 주황색 수직 점선을 따라 뒤쪽 꼭짓점을 찾으세요"
+            } else {status="첫 꼭짓점 앵커 표시 · 앞오른쪽 점을 선택하세요"}
             references="네 꼭짓점 \(corners.compactMap {$0}.count)/4 · \(area == nil ? "직사각형 미확정" : "E 확정") · C —"
             updateRouteStatus(); event("corner_\(index)",position:p)
-        } catch { errorMessage=error.localizedDescription; redrawReferences() }
+        } catch {
+            if changed {
+                canSave=false; gate.invalidate(); invalidateWear("무대 E 미확정 · 꼭짓점을 다시 선택하세요")
+                references="네 꼭짓점 \(corners.compactMap {$0}.count)/4 · E 미확정 · C —"
+                redrawReferences()
+            }
+            errorMessage=error.localizedDescription
+        }
     }
     func captureRoutePoint(_ index: Int? = nil) {
         guard mode == .scanning, let area, !busy else { return }
@@ -441,7 +462,19 @@ final class ScanLabModel: ObservableObject {
         } catch { errorMessage=error.localizedDescription }
     }
     private func removeReferenceAnchors() {
+        cornerAnchors.values.forEach {session?.remove(anchor:$0)}
+        cornerAnchors.removeAll()
         session?.currentFrame?.anchors.filter {$0.name?.hasPrefix(referencePrefix) == true}.forEach {session?.remove(anchor:$0)}
+    }
+    private func addCornerAnchors() {
+        for (index,point) in corners.enumerated() {
+            guard let point else {continue}
+            var transform=matrix_identity_float4x4
+            transform.columns.3=SIMD4(Float(point.x),Float(point.y),Float(point.z),1)
+            let anchor=ARAnchor(name:referencePrefix+".corner.\(index)",transform:transform)
+            cornerAnchors[index]=anchor
+            session?.add(anchor:anchor)
+        }
     }
     private func removeReference(suffix: String) {
         session?.currentFrame?.anchors.filter {$0.name==referencePrefix+suffix}.forEach {session?.remove(anchor:$0)}
@@ -463,7 +496,13 @@ final class ScanLabModel: ObservableObject {
             referenceOverlay.addChildNode(n)
         }
         for (i,p) in corners.enumerated() {
-            guard let p else {continue}; marker(p,label:"E\(i+1)",color:.systemCyan)
+            guard let p else {continue}; cornerMarker(p,label:"E\(i+1)")
+        }
+        if area == nil, let first=corners[0], let second=corners[1],
+           let guide=try? FrontEdgeGuide(frontLeft:first,frontRight:second) {
+            line(guide.leftStart,guide.rightStart,color:.systemOrange)
+            dashedGuide(guide.leftStart,guide.leftEnd)
+            dashedGuide(guide.rightStart,guide.rightEnd)
         }
         if let area {
             let edge=[FloorPoint(0,0),FloorPoint(area.width,0),FloorPoint(area.width,area.depth),FloorPoint(0,area.depth)]
@@ -476,6 +515,46 @@ final class ScanLabModel: ObservableObject {
                 for i in o.vertices.indices {line(area.world(o.vertices[i]),area.world(o.vertices[(i+1)%o.vertices.count]),color:.systemRed)}
             }
             for p in obstacleDraft {marker(area.world(p),label:"물체",color:.systemOrange)}
+        }
+    }
+    private func cornerMarker(_ p: Point3,label: String) {
+        let group=SCNNode()
+        group.name="stage-corner-"+label
+        group.position=SCNVector3(Float(p.x),Float(p.y),Float(p.z))
+        let ring=SCNNode(geometry:SCNTorus(ringRadius:0.08,pipeRadius:0.009))
+        ring.geometry?.firstMaterial?.diffuse.contents=UIColor.systemCyan
+        ring.position.y=0.012
+        group.addChildNode(ring)
+        let stem=SCNNode(geometry:SCNCylinder(radius:0.005,height:0.14))
+        stem.geometry?.firstMaterial?.diffuse.contents=UIColor.systemCyan
+        stem.position.y=0.07
+        group.addChildNode(stem)
+        let pin=SCNNode(geometry:SCNSphere(radius:0.04))
+        pin.geometry?.firstMaterial?.diffuse.contents=UIColor.systemYellow
+        pin.position.y=0.15
+        group.addChildNode(pin)
+        let text=SCNText(string:label,extrusionDepth:0)
+        text.font = .boldSystemFont(ofSize:12)
+        text.firstMaterial?.diffuse.contents=UIColor.white
+        let tag=SCNNode(geometry:text)
+        tag.scale=SCNVector3(0.018,0.018,0.018)
+        tag.position=SCNVector3(0,0.24,0)
+        tag.constraints=[SCNBillboardConstraint()]
+        group.addChildNode(tag)
+        referenceOverlay.addChildNode(group)
+        if previewVisible {previewAnnotations.addChildNode(group.clone())}
+    }
+    private func dashedGuide(_ a: Point3,_ b: Point3) {
+        let length=hypot(b.x-a.x,b.z-a.z)
+        guard length > 0 else {return}
+        var start=0.0
+        while start < length {
+            let end=min(start+0.30,length)
+            let u=start/length, v=end/length
+            let from=Point3(a.x+(b.x-a.x)*u,a.y,a.z+(b.z-a.z)*u)
+            let to=Point3(a.x+(b.x-a.x)*v,a.y,a.z+(b.z-a.z)*v)
+            line(from,to,color:.systemOrange)
+            start += 0.55
         }
     }
     private func marker(_ p: Point3,label: String,color: UIColor) {
