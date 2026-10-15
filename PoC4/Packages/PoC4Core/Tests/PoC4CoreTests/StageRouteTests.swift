@@ -134,7 +134,7 @@ final class RouteGuideTests: XCTestCase {
         _=g.observe(time:0,position:FloorPoint(2,1),headingDegrees:0,trackingValid:true)
         XCTAssertNil(g.observe(time:0.2,position:FloorPoint(2,1),headingDegrees:0,trackingValid:true).announcement)
         let first=g.observe(time:0.41,position:FloorPoint(2,1),headingDegrees:0,trackingValid:true)
-        XCTAssertEqual(first.announcement,"1번째 지점 도착.")
+        XCTAssertEqual(first.announcement,"1번째 지점 도착. 다음 p2, 왼쪽, 1.0미터.")
         XCTAssertEqual(g.state,.guiding)
         XCTAssertEqual(g.targetIndex,2)
         for t in [0.6,0.9,1.2] {
@@ -147,33 +147,60 @@ final class RouteGuideTests: XCTestCase {
         XCTAssertEqual(last.announcement,"2번째 지점 도착. 안내를 종료합니다.")
         XCTAssertEqual(g.state,.completed)
     }
+    func testFiveDestinationsNeverStopAtSecondPoint() throws {
+        let points=(1...6).map { FloorPoint(Double($0),1) }
+        var g=RouteGuide(route:try route(points),settings:GuideSettings())
+        XCTAssertTrue(g.start(position:points[0],headingDegrees:0,trackingValid:true))
+        var time=0.0
+        for target in 1...5 {
+            var arrival: String?
+            for _ in 0..<5 {
+                let update=g.observe(time:time,position:points[target],headingDegrees:0,trackingValid:true)
+                if update.announcement?.contains("번째 지점 도착") == true { arrival=update.announcement }
+                time += 0.25
+            }
+            XCTAssertNotNil(arrival)
+            XCTAssertTrue(arrival?.hasPrefix("\(target)번째 지점 도착.") == true)
+            XCTAssertEqual(g.targetIndex,target == 5 ? 5 : target+1)
+            XCTAssertEqual(g.state,target == 5 ? .completed : .guiding)
+        }
+    }
     func testOnlyStableStageReentryAutomaticallyResumes() throws {
         let r=try route([FloorPoint(1,1),FloorPoint(2,1)])
         var g=RouteGuide(route:r,settings:GuideSettings())
         XCTAssertTrue(g.start(position:FloorPoint(1,1),headingDegrees:0,trackingValid:true))
         _=g.observe(time:0,position:FloorPoint(-0.1,1),headingDegrees:0,trackingValid:true)
         XCTAssertEqual(g.pauseReason,.outsideStage)
-        XCTAssertFalse(g.observeAutomaticRecovery(time:0.1,position:FloorPoint(0.1,1),trackingValid:true))
-        XCTAssertFalse(g.observeAutomaticRecovery(time:0.2,position:FloorPoint(1,1),trackingValid:true))
-        XCTAssertFalse(g.observeAutomaticRecovery(time:0.6,position:FloorPoint(1,1),trackingValid:true))
-        XCTAssertFalse(g.observeAutomaticRecovery(time:1.0,position:FloorPoint(1,1),trackingValid:true))
-        XCTAssertTrue(g.observeAutomaticRecovery(time:1.21,position:FloorPoint(1,1),trackingValid:true))
+        XCTAssertFalse(g.observeAutomaticRecovery(time:0.1,position:FloorPoint(0.1,1),headingDegrees:0,trackingValid:true))
+        XCTAssertFalse(g.observeAutomaticRecovery(time:0.2,position:FloorPoint(1,1),headingDegrees:0,trackingValid:true))
+        XCTAssertFalse(g.observeAutomaticRecovery(time:0.6,position:FloorPoint(1,1),headingDegrees:0,trackingValid:true))
+        XCTAssertFalse(g.observeAutomaticRecovery(time:1.0,position:FloorPoint(1,1),headingDegrees:0,trackingValid:true))
+        XCTAssertTrue(g.observeAutomaticRecovery(time:1.21,position:FloorPoint(1,1),headingDegrees:0,trackingValid:true))
         XCTAssertEqual(g.state,.guiding)
         XCTAssertEqual(g.targetIndex,1)
         g.pause()
         XCTAssertEqual(g.pauseReason,.manual)
-        XCTAssertFalse(g.observeAutomaticRecovery(time:2.5,position:FloorPoint(1,1),trackingValid:true))
+        XCTAssertFalse(g.observeAutomaticRecovery(time:2.5,position:FloorPoint(1,1),headingDegrees:0,trackingValid:true))
         XCTAssertTrue(g.resume(position:FloorPoint(1,1),trackingValid:true))
         _=g.observe(time:3,position:FloorPoint(1,1),headingDegrees:0,trackingValid:false)
         XCTAssertEqual(g.pauseReason,.invalidSample)
-        XCTAssertFalse(g.observeAutomaticRecovery(time:4.1,position:FloorPoint(1,1),trackingValid:true))
+        XCTAssertFalse(g.observeAutomaticRecovery(time:4.1,position:FloorPoint(1,1),headingDegrees:0,trackingValid:true))
         XCTAssertTrue(g.resume(position:FloorPoint(1,1),trackingValid:true))
         _=g.observe(time:5,position:FloorPoint(1,1),headingDegrees:0,trackingValid:true)
         _=g.observe(time:5.7,position:FloorPoint(1,1),headingDegrees:0,trackingValid:true)
         XCTAssertEqual(g.pauseReason,.sampleGap)
-        XCTAssertFalse(g.observeAutomaticRecovery(time:5.8,position:FloorPoint(1,1),trackingValid:true))
-        XCTAssertFalse(g.observeAutomaticRecovery(time:6.3,position:FloorPoint(1,1),trackingValid:true))
-        XCTAssertTrue(g.observeAutomaticRecovery(time:6.8,position:FloorPoint(1,1),trackingValid:true))
+        XCTAssertFalse(g.observeAutomaticRecovery(time:5.8,position:FloorPoint(1,1),headingDegrees:0,trackingValid:true))
+        XCTAssertFalse(g.observeAutomaticRecovery(time:6.3,position:FloorPoint(1,1),headingDegrees:0,trackingValid:true))
+        XCTAssertTrue(g.observeAutomaticRecovery(time:6.8,position:FloorPoint(1,1),headingDegrees:0,trackingValid:true))
+        XCTAssertEqual(g.targetIndex,1)
+        g.pauseForUnclearHeading()
+        XCTAssertEqual(g.pauseReason,.unclearHeading)
+        XCTAssertFalse(g.observeAutomaticRecovery(time:7,position:FloorPoint(1,1),headingDegrees:.nan,trackingValid:true))
+        XCTAssertFalse(g.observeAutomaticRecovery(time:7.1,position:FloorPoint(1,1),headingDegrees:0,trackingValid:true))
+        XCTAssertFalse(g.observeAutomaticRecovery(time:7.6,position:FloorPoint(1,1),headingDegrees:0,trackingValid:true))
+        XCTAssertFalse(g.observeAutomaticRecovery(time:8.0,position:FloorPoint(1,1),headingDegrees:0,trackingValid:true))
+        XCTAssertTrue(g.observeAutomaticRecovery(time:8.2,position:FloorPoint(1,1),headingDegrees:0,trackingValid:true))
+        XCTAssertEqual(g.state,.guiding)
         XCTAssertEqual(g.targetIndex,1)
     }
     func testLeavingStagePausesGuidance() throws {

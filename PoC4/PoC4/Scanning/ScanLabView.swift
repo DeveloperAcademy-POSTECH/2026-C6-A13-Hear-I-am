@@ -18,6 +18,14 @@ struct ScanLabView: View {
     @State private var showPreview=false
     @Environment(\.scenePhase) private var scenePhase
     private let cornerNames=["앞왼쪽","앞오른쪽","뒤오른쪽","뒤왼쪽"]
+    private var guideStateLabel: String {
+        switch model.guideState {
+        case .idle: return "시작 전"
+        case .guiding: return "안내 중"
+        case .paused: return "일시정지"
+        case .completed: return "완료"
+        }
+    }
     var body: some View {
         NavigationStack {
             VStack(spacing:0) {
@@ -165,9 +173,15 @@ struct ScanLabView: View {
                                     .disabled(!model.canGuide || model.autoResumePending)
                                 Button("일시정지") {model.pauseGuide()}.disabled(model.guideState != .guiding)
                             }
+                            if let target=model.guideTargetIndex, model.routePoints.count >= 2 {
+                                Text("현재 목표 p\(target) / 저장된 마지막 p\(model.routePoints.count-1) · \(guideStateLabel)")
+                                    .font(.caption.monospacedDigit())
+                            }
                             Text(model.guideMessage).font(.headline)
                             if model.autoResumePending {
-                                Text("무대 안쪽에서 추적이 안정되면 버튼 없이 안내가 이어집니다.").font(.caption)
+                                Text(model.heading == nil
+                                     ? "후면 카메라 렌즈를 전방으로 향하게 고정하세요. 방향이 안정되면 안내가 이어집니다."
+                                     : "무대 안쪽에서 위치가 안정되면 버튼 없이 안내가 이어집니다.").font(.caption)
                             }
                             Text("에어팟 재생/일시정지 명령은 실기기 실험 대상입니다. 화면 버튼을 대안으로 사용하세요.").font(.caption)
                             Button("착용 종료",action:model.stopWear).disabled(!model.recordOn && model.wearCountdown == nil)
