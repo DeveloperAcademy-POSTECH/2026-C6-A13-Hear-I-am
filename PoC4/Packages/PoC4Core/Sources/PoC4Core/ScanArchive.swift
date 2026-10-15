@@ -126,6 +126,11 @@ public actor ScanStore {
             return m
         }.sorted {$0.date>$1.date}
     }
+    /// Remove only the selected scan bundle; completed guidance records live in a separate store.
+    public func delete(_ id: UUID) throws {
+        let directory=root.appendingPathComponent(id.uuidString,isDirectory:true)
+        if FileManager.default.fileExists(atPath:directory.path) {try FileManager.default.removeItem(at:directory)}
+    }
     public func load(_ id: UUID) throws -> LoadedScan {
         let dir=root.appendingPathComponent(id.uuidString,isDirectory:true)
         let m=try JSONDecoder().decode(ScanManifest.self,from:Data(contentsOf:dir.appendingPathComponent("manifest.json")))

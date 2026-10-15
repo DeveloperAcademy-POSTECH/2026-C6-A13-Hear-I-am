@@ -45,6 +45,16 @@ import PoC4Core
         do {try JSONEncoder().encode(updated).write(to:pinURL,options:.atomic); pins=updated}
         catch {self.error="고정 상태를 저장하지 못했습니다: \(error.localizedDescription)"}
     }
+    func deleteStage(_ id: UUID) async throws {
+        try await scans.delete(id)
+        records.removeAll {$0.id == id}
+        pins.remove(id)
+        try JSONEncoder().encode(pins).write(to:pinURL,options:.atomic)
+    }
+    func deletePlan(_ id: UUID) async throws {
+        try await planStore.delete(id)
+        plans.removeAll {$0.id == id}
+    }
     func savePlan(_ value: PerformancePlan) async throws {
         var plan=value; plan.updatedAt=Date(); plan.name=plan.name.trimmingCharacters(in:.whitespacesAndNewlines)
         try await planStore.save(plan); plans=try await planStore.list()

@@ -22,6 +22,10 @@ struct HomeView: View {
     @State private var preparing=false
     @State private var guiding=false
     @State private var notice: String?
+    @State private var selecting=false
+    @State private var selectedIDs: Set<UUID> = []
+    @State private var confirmingDelete=false
+    @State private var deleting=false
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -36,8 +40,8 @@ struct HomeView: View {
                         Text("무엇을 시작할까요?").font(.title3).foregroundStyle(.secondary)
                     }
                     HStack(spacing:12) {
-                        homeAction("무대 준비하기",subtitle:"공간과 경로 저장",image:"ScanAction",dark:true) {preparing=true}
-                        homeAction("안내 사용하기",subtitle:"저장한 무대 선택",image:"BeltAction",dark:false) {guiding=true}
+                        homeAction("무대 준비하기",subtitle:"공간과 경로 저장",image:"ScanAction",dark:true) {preparing=true}.disabled(selecting)
+                        homeAction("안내 사용하기",subtitle:"저장한 무대 선택",image:"BeltAction",dark:false) {guiding=true}.disabled(selecting)
                     }
                     if !library.groups.pinned.isEmpty {
                         stageSection("고정한 무대",records:library.groups.pinned)
@@ -53,18 +57,46 @@ struct HomeView: View {
                             }.frame(maxWidth:.infinity).padding(20).background(Color(.systemGray6),in:RoundedRectangle(cornerRadius:22))
                         } else if library.groups.recent.isEmpty {
                             Text("저장한 무대가 모두 위에 고정되어 있어요.").font(.subheadline).foregroundStyle(.secondary).padding(.vertical)
-                        } else {ForEach(library.groups.recent,id:\.id) {StageRow(record:$0,library:library)}}
+                        } else {ForEach(library.groups.recent,id:\.id) {selectableStage($0)}}
                     }
                 }.padding(20).padding(.bottom,16)
             }.background(Color(.systemBackground)).toolbar(.hidden,for:.navigationBar)
+                .safeAreaInset(edge:.bottom) {
+                    if selecting {LibrarySelectionBar(count:selectedIDs.count,busy:deleting,cancel:{selecting=false;selectedIDs=[]},delete:{confirmingDelete=true})}
+                }
+                .confirmationDialog("선택한 무대 \(selectedIDs.count)개를 삭제할까요?",isPresented:$confirmingDelete,titleVisibility:.visible) {
+                    Button("무대 삭제",role:.destructive) {deleteSelectedStages()}
+                    Button("취소",role:.cancel) {}
+                } message: {Text("스캔 공간과 동선이 삭제되며 되돌릴 수 없어요. 고정도 해제됩니다. 완료한 안내 기록은 유지돼요.")}
                 .refreshable {await library.refresh()}
                 .landscapeCover(isPresented:$preparing,onDismiss:{Task {await library.refresh()}}) {close in PreparationView(onClose:close)}
                 .fullScreenCover(isPresented:$guiding) {GuidanceView(library:library)}
                 .alert("Hear I am",isPresented:Binding(get:{notice != nil},set:{if !$0 {notice=nil}})) {Button("확인",role:.cancel) {notice=nil}} message: {Text(notice ?? "")}
         }
     }
+    private func selectableStage(_ record: ScanManifest) -> some View {
+        StageRow(record:record,library:library)
+            .librarySelection(selecting:selecting,selected:selectedIDs.contains(record.id),onSelect:{
+                selecting=true;selectedIDs.insert(record.id)
+            },onToggle:{if !selectedIDs.insert(record.id).inserted {selectedIDs.remove(record.id)}})
+            .disabled(deleting)
+    }
+    private func deleteSelectedStages() {
+        guard !deleting else {return}
+        deleting=true
+        let ids=selectedIDs
+        Task {
+            var failures:[String]=[]
+            for id in ids {
+                do {try await library.deleteStage(id)} catch {failures.append(error.localizedDescription)}
+            }
+            selectedIDs.formIntersection(Set(library.records.map(\.id)))
+            selecting = !selectedIDs.isEmpty;deleting=false
+            if !failures.isEmpty {notice="일부 무대를 삭제하지 못했어요. 다시 시도해주세요. " + failures.joined(separator:"\n")}
+        }
+    }
     private func stageSection(_ title: String, records: [ScanManifest]) -> some View {
-        VStack(alignment:.leading,spacing:14) {Text(title).font(.title2.bold()); ForEach(records,id:\.id) {StageRow(record:$0,library:library)}}
+        VStack(alignment:.leading,spacing:14) {Text(title).font(.title2.bold()); ForEach(records,id:\.id) {selectableStage($0)}}
     }
     private func homeAction(_ title: String,subtitle: String,image: String,dark: Bool,action: @escaping ()->Void) -> some View {
         Button(action:action) {

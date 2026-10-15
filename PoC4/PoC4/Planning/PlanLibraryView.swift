@@ -4,6 +4,10 @@ import PoC4Core
 struct PlanLibraryView: View {
     @ObservedObject var library: StageLibrary
     @State private var editing: PerformancePlan?
+    @State private var selecting=false
+    @State private var selectedIDs: Set<UUID> = []
+    @State private var confirmingDelete=false
+    @State private var deleting=false
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -26,14 +30,39 @@ struct PlanLibraryView: View {
                                 Text(plan.updatedAt,format:.dateTime.locale(Locale(identifier:"ko_KR")).month().day().hour().minute()).font(.caption).foregroundStyle(.secondary)
                             }.padding(16).background(.white,in:RoundedRectangle(cornerRadius:20)).overlay(RoundedRectangle(cornerRadius:20).stroke(.gray.opacity(0.2)))
                         }.buttonStyle(.plain)
+                            .librarySelection(selecting:selecting,selected:selectedIDs.contains(plan.id),onSelect:{
+                                selecting=true;selectedIDs.insert(plan.id)
+                            },onToggle:{if !selectedIDs.insert(plan.id).inserted {selectedIDs.remove(plan.id)}})
+                            .disabled(deleting)
                     }
                 }.padding(20)
             }.navigationTitle("공연 사전 저장")
-                .toolbar {ToolbarItem(placement:.topBarTrailing) {Button {editing=PerformancePlan()} label:{Image(systemName:"plus")}.accessibilityLabel("공연 사전 저장 추가")}}
+                .toolbar {ToolbarItem(placement:.topBarTrailing) {Button {editing=PerformancePlan()} label:{Image(systemName:"plus")}.accessibilityLabel("공연 사전 저장 추가").disabled(selecting)}}
+                .safeAreaInset(edge:.bottom) {
+                    if selecting {LibrarySelectionBar(count:selectedIDs.count,busy:deleting,cancel:{selecting=false;selectedIDs=[]},delete:{confirmingDelete=true})}
+                }
+                .confirmationDialog("선택한 공연 동선 \(selectedIDs.count)개를 삭제할까요?",isPresented:$confirmingDelete,titleVisibility:.visible) {
+                    Button("공연 동선 삭제",role:.destructive) {deleteSelectedPlans()}
+                    Button("취소",role:.cancel) {}
+                } message: {Text("저장한 사전 도면이 삭제되며 되돌릴 수 없어요. 실제 스캔 무대와 안내 기록은 유지돼요.")}
                 .refreshable {await library.refresh()}
                 .landscapeCover(isPresented:Binding(get:{editing != nil},set:{if !$0 {editing=nil}})) {close in
                     if let editing {PlanEditorView(initial:editing,library:library,onClose:close)}
                 }
+        }
+    }
+    private func deleteSelectedPlans() {
+        guard !deleting else {return}
+        deleting=true
+        let ids=selectedIDs
+        Task {
+            var failures:[String]=[]
+            for id in ids {
+                do {try await library.deletePlan(id)} catch {failures.append(error.localizedDescription)}
+            }
+            selectedIDs.formIntersection(Set(library.plans.map(\.id)))
+            selecting = !selectedIDs.isEmpty;deleting=false
+            if !failures.isEmpty {library.error="일부 공연 동선을 삭제하지 못했어요. 다시 시도해주세요. " + failures.joined(separator:"\n")}
         }
     }
 }
