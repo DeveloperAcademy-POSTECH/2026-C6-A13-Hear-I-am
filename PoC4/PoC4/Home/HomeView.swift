@@ -69,7 +69,7 @@ struct HomeView: View {
                     Button("취소",role:.cancel) {}
                 } message: {Text("스캔 공간과 동선이 삭제되며 되돌릴 수 없어요. 고정도 해제됩니다. 완료한 안내 기록은 유지돼요.")}
                 .refreshable {await library.refresh()}
-                .landscapeCover(isPresented:$preparing,onDismiss:{Task {await library.refresh()}}) {close in PreparationView(onClose:close)}
+                .fullScreenCover(isPresented:$preparing,onDismiss:{Task {await library.refresh()}}) {PreparationView()}
                 .fullScreenCover(isPresented:$guiding) {GuidanceView(library:library)}
                 .alert("Hear I am",isPresented:Binding(get:{notice != nil},set:{if !$0 {notice=nil}})) {Button("확인",role:.cancel) {notice=nil}} message: {Text(notice ?? "")}
         }
