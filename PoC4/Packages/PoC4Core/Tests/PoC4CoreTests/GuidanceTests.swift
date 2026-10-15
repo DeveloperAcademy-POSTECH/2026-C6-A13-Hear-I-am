@@ -110,6 +110,18 @@ final class GuidanceTests: XCTestCase {
         XCTAssertEqual(cue.symbol,"arrow.up.right")
         XCTAssertNil(GuidanceCue(position:.init(0,0),goal:.init(1,1),headingDegrees:.nan))
     }
+    func testArrivalSpeechHoldsAdvancementButStillChecksPosition() throws {
+        let r=try route();var g=guide(r)
+        XCTAssertTrue(g.start(position:r.points[0],headingDegrees:0,trackingValid:true))
+        for i in 0...10 {
+            _=g.observe(time:Double(i)*0.2,position:r.points[1],headingDegrees:0,trackingValid:true,allowsTargetAdvance:false)
+        }
+        XCTAssertEqual(g.targetIndex,1);XCTAssertEqual(g.state,.guiding)
+        _=arrive(&g,at:r.points[1],from:2.2)
+        XCTAssertEqual(g.targetIndex,2)
+        _=g.observe(time:3.4,position:.init(3,4),headingDegrees:0,trackingValid:true,allowsTargetAdvance:false)
+        XCTAssertEqual(g.pauseReason,.offRoute)
+    }
 }
 
 private extension RouteGuide {

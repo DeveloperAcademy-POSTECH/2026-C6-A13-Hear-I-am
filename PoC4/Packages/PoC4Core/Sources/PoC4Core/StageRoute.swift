@@ -309,7 +309,7 @@ public struct RouteGuide: Sendable {
         guard time-since >= 1.0 else { return false }
         return resume(position:position,trackingValid:true)
     }
-    public mutating func observe(time: Double, position: FloorPoint, headingDegrees: Double, trackingValid: Bool) -> GuideUpdate {
+    public mutating func observe(time: Double, position: FloorPoint, headingDegrees: Double, trackingValid: Bool, allowsTargetAdvance: Bool = true) -> GuideUpdate {
         guard state == .guiding else { return GuideUpdate(state:state,targetIndex:targetIndex,announcement:nil) }
         guard time.isFinite, position.valid, headingDegrees.isFinite, trackingValid else {
             pause(reason:.invalidSample); return GuideUpdate(state:state,targetIndex:targetIndex,announcement:nil)
@@ -324,7 +324,7 @@ public struct RouteGuide: Sendable {
         lastTime=time
         var goal=route.points[targetIndex], distance=position.distance(to:goal)
         var arrivedIndex: Int?
-        if distance <= settings.arrivalRadius {
+        if allowsTargetAdvance && distance <= settings.arrivalRadius {
             if arrivedSince == nil { arrivedSince=time }
             if let since=arrivedSince, time-since >= settings.arrivalDwell {
                 if targetIndex == route.points.count-1 {
