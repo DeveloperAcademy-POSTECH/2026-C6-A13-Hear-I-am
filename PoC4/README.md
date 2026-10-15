@@ -2,7 +2,7 @@
 
 이슈 [#10](https://github.com/DeveloperAcademy-POSTECH/2026-C6-A13-Hear-I-am/issues/10) · `testflight/1-ux-refinement`
 
-`PoC4.xcodeproj`의 **PoC4** scheme이 실제 앱 대상이다. 앱 표시 이름은 **Hear I am**이며, 저장소 루트의 `HearIam.xcodeproj`는 이번 구현 대상이 아니다.
+`PoC4.xcodeproj`는 이 TestFlight 검증용 브랜치의 유일한 Xcode 프로젝트다. **PoC4** scheme을 실행하며 앱 표시 이름은 **Hear I am**이다.
 
 ## 실행
 
@@ -15,7 +15,7 @@
 ## 구현한 흐름
 
 - 세로 홈: 브랜드·질문 문구·큰 기능 카드, 고정한 무대, 최근 저장순 목록, 별 토글, 저장 메시의 3D 미리보기.
-- 기본 TabView: 홈 / 공연 사전 저장 / 기록. 설정 버튼과 안내·기록에는 준비 중임을 표시한다.
+- 기본 TabView: 홈 / 공연 사전 저장 / 기록. 설정은 진입 버튼만 제공한다.
 - 가로 무대 준비: 전체 카메라 배경, 중심 십자선, 반투명 안내(접기 가능), 하단 동작 버튼, 5단계 표시와 중앙 설명.
 - 스캔 확정은 확인창을 거친다. 이후 스캔 단계 복귀는 차단하고 추적은 계속 유지한다.
 - 객석 기준 앞오른쪽 → 앞왼쪽 → 뒤왼쪽 → 뒤오른쪽을 지정한다. 네 점을 자동 연결하고 직사각형·바닥 높이를 검사한다.
@@ -32,11 +32,11 @@
 - 기존 `StageRoute.version=1`과 스캔 manifest v1/v2는 계속 읽는다. 기존 실험 안내는 새 경로를 시작하지 않는다.
 - 즐겨찾기: `Documents/stage-pins.json`. 고정 목록과 최근 목록은 서로 중복되지 않는다. 각 목록은 저장 날짜 내림차순이다.
 - 사전 저장: `Documents/PerformancePlans/<UUID>.json`, 원자적 쓰기. 실제 공간 지도와 연결하지 않는다.
-- 생성 그림 세 개와 프롬프트는 [IMAGE-ASSETS.md](IMAGE-ASSETS.md)에 기록했다. 카메라 화면은 실제 ARKit 영상이다.
+- 생성 그림 세 개와 프롬프트는 [IMAGE-ASSETS.md](../Documentation/IMAGE-ASSETS.md)에 기록했다. 카메라 화면은 실제 ARKit 영상이다.
 
 ## 이번 범위 밖
 
-안내 실행·음성·진동 UX, 기록 집계, 설정 세부 기능은 후속 기획 대상이다. PoC4-2 실험 코드는 남아 있으며 기존 동작 설명은 [POC4-2-LEGACY.md](POC4-2-LEGACY.md)에 보존했다. 검증 결과와 실제 기기 체크리스트는 [UX-VALIDATION.md](UX-VALIDATION.md)에 있다.
+설정 세부 기능과 실제 공연장 검증은 후속 작업이다. 기존 PoC4-2 동작 설명은 [POC4-2-LEGACY.md](../Documentation/Archive/POC4-2-LEGACY.md)에 보존했다. 검증 결과와 실제 기기 체크리스트는 [UX-VALIDATION.md](../Documentation/UX-VALIDATION.md)에 있다.
 
 
 ### 세로 안내와 완료 기록
@@ -45,4 +45,4 @@
 
 검증 단계에서는 방향/거리 아래에 실시간 카메라와 저장 지점·연결선·현재 목표를 표시한다. 추적이나 오디오가 중단되면 현재 목표를 보존하고 현장 확인 후 명시적으로 재개한다. 완료 기록은 Documents/GuidanceRecords에 세션별 JSON으로 저장하며 같은 세션을 중복 저장하지 않는다.
 
-자세한 흐름과 제한은 [GUIDANCE-UX-PLAN.md](GUIDANCE-UX-PLAN.md), 검증 결과는 [UX-VALIDATION.md](UX-VALIDATION.md)를 참고한다.
+자세한 흐름과 제한은 [GUIDANCE-UX-PLAN.md](../Documentation/GUIDANCE-UX-PLAN.md), 검증 결과는 [UX-VALIDATION.md](../Documentation/UX-VALIDATION.md)를 참고한다.

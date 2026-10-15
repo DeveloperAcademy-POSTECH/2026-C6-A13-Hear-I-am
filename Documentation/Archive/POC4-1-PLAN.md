@@ -23,7 +23,7 @@
 - 작업 브랜치: 사용자 지정 `PoC4-1`. 이슈 번호를 붙이는 일반 규칙보다 사용자 지정 이름을 우선한다.
 - 분기점: `origin/develop`의 `dc9bfbc`. 기존 개발 브랜치에서 새 작업을 시작하는 저장소 규칙을 따른다.
 - 재사용 검토 기준: `origin/poc/3-external-camera`의 `63de704`.
-- 1단계 구현: 별도 `PoC4/` 앱과 `PoC4Core`를 추가했다. 실행 및 실측 절차는 [PoC4/README.md](PoC4/README.md), 구현 이슈는 [#6](https://github.com/DeveloperAcademy-POSTECH/2026-C6-A13-Hear-I-am/issues/6)이다. 기존 PoC 앱은 수정하지 않았다.
+- 1단계 구현: 별도 `PoC4/` 앱과 `PoC4Core`를 추가했다. 실행 및 실측 절차는 [PoC4/README.md](../../PoC4/README.md), 구현 이슈는 [#6](https://github.com/DeveloperAcademy-POSTECH/2026-C6-A13-Hear-I-am/issues/6)이다. 기존 PoC 앱은 수정하지 않았다.
 - 후속 구현에서는 PoC3 전체 브랜치를 병합하지 않고, 필요한 파일과 테스트를 기준 커밋에서 가져와 출처를 기록한다. 기존 프로젝트는 유지하고 별도 `PoC4/` 프로젝트를 추가한다.
 
 ## 첫 구현 범위
