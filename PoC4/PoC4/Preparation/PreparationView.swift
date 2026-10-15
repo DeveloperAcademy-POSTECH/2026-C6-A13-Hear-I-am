@@ -3,7 +3,7 @@ import PoC4Core
 
 struct PreparationView: View {
     @StateObject private var model=ScanLabModel(preparing:true)
-    let onClose: () -> Void
+    @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
     @State private var step=0
     @State private var highest=0
@@ -84,18 +84,18 @@ struct PreparationView: View {
             }.ignoresSafeArea(.container,edges:[.horizontal,.bottom])
         }
         }.background(.white).preferredColorScheme(.light)
-            .onAppear {model.showMesh=true; if model.supported {model.newScan()}}
+            .onAppear {ScreenOrientation.set(.landscape); model.showMesh=true; if model.supported {model.newScan()}}
             .onChange(of:step) {_,value in model.showMesh = value == 0}
-            .onDisappear {model.endSession()}
+            .onDisappear {model.endSession(); ScreenOrientation.set(.portrait)}
             .onChange(of:scenePhase) {_,phase in if phase == .background {model.setActive(false)} else if phase == .active {model.setActive(true)}}
-            .onChange(of:model.savedID) {_,id in if id != nil {onClose()}}
+            .onChange(of:model.savedID) {_,id in if id != nil {dismiss()}}
             .alert("공간 스캔을 확정할까요?",isPresented:$confirmScan) {
                 Button("계속 스캔",role:.cancel) {}
                 Button("공간 확정") {model.confirmSpace(); if model.scanConfirmed {advance()}}
             } message:{Text("공연장과 백스테이지가 충분히 포함됐는지 확인해주세요. 확정 후에는 스캔 단계로 돌아갈 수 없습니다.")}
             .alert("확인해주세요",isPresented:Binding(get:{model.errorMessage != nil},set:{if !$0 {model.errorMessage=nil}})) {Button("확인",role:.cancel) {model.errorMessage=nil}} message:{Text(model.errorMessage ?? "")}
             .confirmationDialog("준비를 종료할까요? 저장하지 않은 내용은 사라집니다.",isPresented:$confirmExit,titleVisibility:.visible) {
-                Button("저장하지 않고 나가기",role:.destructive) {onClose()}; Button("계속 준비",role:.cancel) {}
+                Button("저장하지 않고 나가기",role:.destructive) {dismiss()}; Button("계속 준비",role:.cancel) {}
             }
     }
     private var stepBar: some View {
@@ -112,7 +112,7 @@ struct PreparationView: View {
                 }.disabled(model.busy || i == 0 || i>highest || objectEditing).accessibilityLabel("\(i+1)단계 \(titles[i])\(complete(i) ? ", 완료" : "")")
             }
             Spacer(minLength:0)
-            Button("나가기") {if model.meshCount == 0 {onClose()} else {confirmExit=true}}.font(.subheadline).disabled(model.busy)
+            Button("나가기") {if model.meshCount == 0 {dismiss()} else {confirmExit=true}}.font(.subheadline).disabled(model.busy)
         }.padding(.horizontal,20).frame(height:52)
     }
     private var miniMap: some View {
