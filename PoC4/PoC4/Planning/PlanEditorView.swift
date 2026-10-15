@@ -10,13 +10,13 @@ struct PlanEditorView: View {
     @State private var message: String?
     @State private var confirmingExit=false
     @State private var saving=false
-    @Environment(\.dismiss) private var dismiss
+    let onClose: () -> Void
     private let initial: PerformancePlan
-    init(initial:PerformancePlan,library:StageLibrary) {self.initial=initial; self.library=library; _plan=State(initialValue:initial)}
+    init(initial:PerformancePlan,library:StageLibrary,onClose:@escaping () -> Void) {self.initial=initial; self.library=library; self.onClose=onClose; _plan=State(initialValue:initial)}
     var body: some View {
         VStack(spacing:10) {
             HStack(spacing:16) {
-                Button {if plan != initial {confirmingExit=true} else {dismiss()}} label:{Image(systemName:"xmark").frame(width:44,height:44)}.accessibilityLabel("편집 나가기")
+                Button {if plan != initial {confirmingExit=true} else {onClose()}} label:{Image(systemName:"xmark").frame(width:44,height:44)}.accessibilityLabel("편집 나가기")
                 TextField("공연 이름",text:$plan.name).font(.title3.bold()).textInputAutocapitalization(.sentences).submitLabel(.done)
                 Text("배치 연습용 · 3:2 고정 비율").font(.caption).foregroundStyle(.secondary)
                 ActionButton(title:saving ? "저장 중…" : "저장",enabled:!saving && valid) {save()}
@@ -46,10 +46,9 @@ struct PlanEditorView: View {
                 if plan.finished, !valid {Text(validationMessage ?? "").font(.caption).foregroundStyle(.red)}
             }.foregroundStyle(.secondary)
         }.padding(.horizontal,18).padding(.vertical,8).background(.white).disabled(saving)
-            .onAppear {ScreenOrientation.set(.landscape)}.onDisappear {ScreenOrientation.set(.portrait)}
             .alert("확인해주세요",isPresented:Binding(get:{message != nil},set:{if !$0 {message=nil}})) {Button("확인",role:.cancel) {message=nil}} message:{Text(message ?? "")}
             .confirmationDialog("저장하지 않은 변경사항이 있어요",isPresented:$confirmingExit,titleVisibility:.visible) {
-                Button("저장하지 않고 나가기",role:.destructive) {dismiss()}; Button("계속 편집",role:.cancel) {}
+                Button("저장하지 않고 나가기",role:.destructive) {onClose()}; Button("계속 편집",role:.cancel) {}
             }
     }
     private var validationMessage: String? {
@@ -71,6 +70,6 @@ struct PlanEditorView: View {
     }
     private func save() {
         saving=true
-        Task {do {try await library.savePlan(plan); dismiss()} catch {message=error.localizedDescription}; saving=false}
+        Task {do {try await library.savePlan(plan); onClose()} catch {message=error.localizedDescription}; saving=false}
     }
 }

@@ -58,7 +58,7 @@ struct HomeView: View {
                 }.padding(20).padding(.bottom,16)
             }.background(Color(.systemBackground)).toolbar(.hidden,for:.navigationBar)
                 .refreshable {await library.refresh()}
-                .fullScreenCover(isPresented:$preparing,onDismiss:{Task {await library.refresh()}}) {PreparationView()}
+                .landscapeCover(isPresented:$preparing,onDismiss:{Task {await library.refresh()}}) {close in PreparationView(onClose:close)}
                 .fullScreenCover(isPresented:$guiding) {GuidanceView(library:library)}
                 .alert("Hear I am",isPresented:Binding(get:{notice != nil},set:{if !$0 {notice=nil}})) {Button("확인",role:.cancel) {notice=nil}} message: {Text(notice ?? "")}
         }
