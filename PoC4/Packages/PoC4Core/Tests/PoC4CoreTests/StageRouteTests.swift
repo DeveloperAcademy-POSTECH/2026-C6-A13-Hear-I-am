@@ -66,6 +66,8 @@ final class StageRouteTests: XCTestCase {
         XCTAssertEqual(loaded.manifest.version,2)
         XCTAssertEqual(loaded.manifest.route,r)
         XCTAssertEqual(loaded.manifest.settings.arrivalRadius,0.4)
+        let invalid=ScanManifest(id:UUID(),name:"bad",frame:try StageFrame(origin:a.world(FloorPoint(0,0)),front:a.world(FloorPoint(0,-1))),checkpoint:a.corners[2],worldMapHash:"x",meshHash:"y",meshCount:1,vertexCount:3,device:"test",appVersion:"test",route:r,settings:settings)
+        XCTAssertThrowsError(try invalid.validate())
     }
 }
 
