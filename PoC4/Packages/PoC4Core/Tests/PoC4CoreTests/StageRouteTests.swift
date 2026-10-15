@@ -5,6 +5,27 @@ final class StageRouteTests: XCTestCase {
     func area() throws -> StageArea {
         try StageArea(corners:[Point3(6,0,0),Point3(0,0,0),Point3(0,0,6),Point3(6,0,6)])
     }
+    func testFrontEdgeGuideIsPerpendicularAndPointsBackstage() throws {
+        let guide=try FrontEdgeGuide(frontLeft:Point3(6,0,0),frontRight:Point3(0,0,0))
+        XCTAssertEqual(guide.leftEnd.x,6,accuracy:1e-8)
+        XCTAssertEqual(guide.rightEnd.x,0,accuracy:1e-8)
+        XCTAssertEqual(guide.leftEnd.z,guide.length,accuracy:1e-8)
+        XCTAssertEqual(guide.rightEnd.z,guide.length,accuracy:1e-8)
+        let frontX=guide.rightStart.x-guide.leftStart.x
+        let frontZ=guide.rightStart.z-guide.leftStart.z
+        let inwardX=guide.leftEnd.x-guide.leftStart.x
+        let inwardZ=guide.leftEnd.z-guide.leftStart.z
+        XCTAssertEqual(frontX*inwardX+frontZ*inwardZ,0,accuracy:1e-8)
+        let rotated=try FrontEdgeGuide(frontLeft:Point3(2,1,3),frontRight:Point3(2,1,7))
+        XCTAssertGreaterThan(rotated.leftEnd.x,rotated.leftStart.x)
+        XCTAssertEqual(rotated.leftEnd.z,3,accuracy:1e-8)
+        let wide=try FrontEdgeGuide(frontLeft:Point3(20,0,0),frontRight:Point3(0,0,0))
+        XCTAssertEqual(wide.length,12)
+    }
+    func testFrontEdgeGuideRejectsUnusableFirstEdge() {
+        XCTAssertThrowsError(try FrontEdgeGuide(frontLeft:Point3(0,0,0),frontRight:Point3(0.1,0,0)))
+        XCTAssertThrowsError(try FrontEdgeGuide(frontLeft:Point3(0,0,0),frontRight:Point3(2,0.3,0)))
+    }
     func testCornerFrameRoundTripAndFront() throws {
         let a=try area()
         XCTAssertEqual(a.floor(a.world(FloorPoint(2,4))).distance(to:FloorPoint(2,4)),0,accuracy:1e-8)
