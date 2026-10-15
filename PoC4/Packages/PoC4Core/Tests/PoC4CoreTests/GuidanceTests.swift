@@ -81,6 +81,20 @@ final class GuidanceTests: XCTestCase {
         XCTAssertFalse(gate.observe(time:3.6,eligible:false))
         XCTAssertFalse(gate.observe(time:3.7,eligible:true))
     }
+    func testPortraitDepartureAcceptsMeasuredHeadingWithoutAudienceAlignment() throws {
+        let r=try route()
+        for heading in [-179.0, -90, 0, 90, 180] {
+            var g=guide(r)
+            XCTAssertTrue(g.start(position:r.points[0],headingDegrees:heading,trackingValid:true))
+            XCTAssertNotNil(g.cue(position:r.points[0],headingDegrees:heading))
+        }
+        let g=guide(r)
+        XCTAssertFalse(g.ready(position:r.points[0],headingDegrees:.nan,trackingValid:true))
+        XCTAssertFalse(g.ready(position:r.points[0],headingDegrees:90,trackingValid:false))
+        XCTAssertFalse(g.ready(position:.init(-1,3),headingDegrees:90,trackingValid:true))
+        let legacy=try StageRoute(area:r.area,points:[.init(1,2),.init(5,2)],obstacles:[])
+        XCTAssertFalse(RouteGuide(route:legacy,settings:GuideSettings()).ready(position:legacy.points[0],headingDegrees:90,trackingValid:true))
+    }
     func testNarrationOrderAndLateCancellationCallbacks() throws {
         var q=NarrationQueue()
         let first=try XCTUnwrap(q.replace(["설명","3","2","1"]))

@@ -42,6 +42,18 @@ import PoC4Core
     var targetName: String { GuidanceCopy.target(targetIndex,last:(selected?.route?.points.count ?? 2)-1) }
     var showsRouteCamera: Bool { [.starting,.guiding,.paused,.finishing,.completed].contains(phase) }
     var isCameraStep: Bool { phase == .restoring || phase == .checkpoint }
+    var departureStatus: String {
+        guard let pose=freshPose(), let guide else {
+            return tracking.heading == nil ? "카메라가 바닥이나 천장을 향하지 않도록 허리 앞쪽에 세워주세요." : "현재 위치를 다시 확인하고 있어요."
+        }
+        if !started, pose.point.distance(to:guide.route.points[0]) > guide.settings.startRadius {
+            return "지정한 출발점에 더 가까이 서주세요."
+        }
+        if let issue=guide.positionIssue(pose.point) {
+            return issue == .obstacleProximity ? "등록한 기물과 가까워요. 출발 위치와 동선을 확인해주세요." : "저장한 동선 위에 서주세요."
+        }
+        return departureReady ? "위치와 몸의 방향이 확인됐어요." : "위치와 방향을 확인 중이에요. 잠시 멈춰주세요."
+    }
     var canVerify: Bool { phase == .checkpoint && instructionDone && tracking.canVerify && !speaking }
     var canResume: Bool {
         guard let pose=freshPose(), let guide else { return false }
@@ -142,7 +154,7 @@ import PoC4Core
                 }
                 guard self.generation == operation, self.active, self.tracking.ready else { return }
                 self.phase = .departure;self.countdownTask=nil;self.departureGate.reset();self.readyAnnounced=false
-                self.read([self.started ? "착용 상태를 확인하고 있습니다. 안내를 중단한 동선 위에서 준비해주세요." : "착용 상태를 확인하고 있습니다. 지정한 출발점에서 객석을 향해 준비해주세요."])
+                self.read([self.started ? "착용 상태를 확인하고 있습니다. 안내를 중단한 동선 위에서 준비해주세요." : "착용 상태를 확인하고 있습니다. 지정한 출발점에서 잠시 멈춰주세요. 몸이 향한 방향을 기준으로 안내합니다."])
             }
         }
     }
@@ -185,6 +197,7 @@ import PoC4Core
         if phase == .interrupted { read(["안내를 멈췄습니다. 휴대폰을 손에 들고 확인점을 다시 확인해주세요."]);return }
         if phase == .paused { read(["안내를 일시정지했습니다. 현재 위치와 저장된 동선을 확인한 뒤 다시 시작해주세요."]);return }
         if phase == .wear { read(["휴대폰을 허리 앞쪽에 세로로 고정해주세요. 후면 카메라는 몸 바깥쪽을 향하고 렌즈는 가리지 말아주세요."]);return }
+        if phase == .departure { read([departureStatus]);return }
         read(currentInstruction)
     }
     func setActive(_ value: Bool) {
@@ -255,6 +268,11 @@ import PoC4Core
         if [.wear,.countdown,.departure,.starting,.guiding,.paused].contains(phase), !tracking.ready {
             interrupt("위치 추적이 끊겼어요. 확인점을 다시 확인해주세요.");return
         }
+        if let p=tracking.position, let time=tracking.guidancePoseTime,
+           ProcessInfo.processInfo.systemUptime-time >= 0, ProcessInfo.processInfo.systemUptime-time <= 0.5,
+           let first=selected?.route?.points.first {
+            startDistance=FloorPoint(p.x,p.y).distance(to:first)
+        } else { startDistance=nil }
         guard let pose=freshPose() else {
             if phase == .departure { departureReady=false;departureGate.reset();readyAnnounced=false }
             if phase == .guiding || phase == .starting { if tracking.heading == nil { interrupt("몸이 향한 방향을 확인할 수 없어요. 착용 방향을 다시 확인해주세요.") } }

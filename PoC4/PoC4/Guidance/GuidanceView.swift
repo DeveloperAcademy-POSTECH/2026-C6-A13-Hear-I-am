@@ -70,9 +70,9 @@ struct GuidanceView: View {
                     if let selected=model.selected { Text(selected.name).font(.subheadline).foregroundStyle(.secondary) }
                     if model.phase == .departure {
                         Label(model.tracking.ready ? "확인점 검증 완료" : "위치 확인 중",systemImage:model.tracking.ready ? "checkmark.circle.fill" : "circle")
-                        Label(model.tracking.heading != nil ? "몸의 방향 확인 중" : "카메라를 몸 바깥쪽으로 향해주세요",systemImage:"location.north")
+                        Label(model.tracking.heading != nil ? "몸의 방향 확인 완료" : "카메라를 몸 바깥쪽으로 향해주세요",systemImage:"location.north")
                         if let distance=model.startDistance, !model.hasStarted { Text("출발점까지 \(distance,format:.number.precision(.fractionLength(1))) m").font(.headline.monospacedDigit()) }
-                        Text(model.hasStarted ? "안내를 중단했던 동선 위에서 재개할 수 있어요." : "출발점까지의 별도 길 안내는 제공하지 않아요. 지정한 출발점에서 객석을 향해 준비해주세요.")
+                        Text(model.hasStarted ? "안내를 중단했던 동선 위에서 재개할 수 있어요." : "출발점까지의 별도 길 안내는 제공하지 않아요. 출발점에서 잠시 멈춰주세요. 어느 방향을 바라봐도 몸의 방향에 맞춰 안내해요.")
                             .font(.footnote).foregroundStyle(.secondary)
                     }
                     if model.phase == .failed {
@@ -217,7 +217,7 @@ struct GuidanceView: View {
         switch model.phase {
         case .wear:return "후면 카메라는 몸 바깥쪽으로, 렌즈가 가려지지 않게 해주세요."
         case .countdown:return "착용 시간이 끝나면 위치와 방향을 확인해요."
-        case .departure:return model.departureReady ? "하단 버튼을 누르면 \(model.targetName)으로 안내해요." : "위치와 몸의 방향을 확인하고 있어요."
+        case .departure:return model.departureReady ? "하단 버튼을 누르면 \(model.targetName)으로 안내해요." : model.departureStatus
         case .starting:return "시작 음성이 끝나면 방향과 거리를 알려드려요."
         case .guiding:return model.cue.map {model.arrivedName != nil ? "다음 지점 · \($0.direction) " + String(format:"%.1f m",$0.distance) : String(format:"%.1f m",$0.distance)} ?? "위치 확인 중"
         default:return model.message
@@ -235,7 +235,12 @@ struct GuidanceView: View {
                 }.frame(maxWidth:.infinity,alignment:.leading)
             }
             if model.phase != .starting && model.phase != .countdown && !(model.phase == .finishing && model.speaking) {
-                GuidanceButton(title:model.phase == .finishing ? "종료 안내 다시 듣기" : "설명 다시 듣기",secondary:true,enabled:!model.speaking && !savingRecord) {model.replay()}
+                Button {model.replay()} label: {
+                    Label(model.phase == .finishing ? "종료 안내 다시 듣기" : "설명 다시 듣기",systemImage:"speaker.wave.2")
+                        .font(.subheadline.weight(.medium)).frame(minHeight:44).padding(.horizontal,12)
+                }.buttonStyle(.plain).foregroundStyle(Color.hearGreen)
+                    .disabled(model.speaking || savingRecord)
+                    .opacity(model.speaking || savingRecord ? 0.45 : 1)
             }
             primaryControls
         }.padding(.horizontal,24).padding(.top,12).padding(.bottom,12).background(.regularMaterial)
