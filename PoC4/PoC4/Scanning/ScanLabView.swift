@@ -20,18 +20,23 @@ struct ScanLabView: View {
     private let cornerNames=["앞왼쪽","앞오른쪽","뒤오른쪽","뒤왼쪽"]
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment:.leading,spacing:16) {
-                    Text("PoC4-2 · 현장 경로 안내").font(.title2.bold())
-                    Text("LiDAR 무대 스캔 · 수동 경로·장애물 등록 · 배 착용 음성 안내")
-                        .font(.footnote).foregroundStyle(.secondary)
-                    ZStack {
-                        CameraView(model:model)
-                        Image(systemName:"plus").font(.title).foregroundStyle(.white)
-                            .shadow(color:.black,radius:2).accessibilityHidden(true)
-                        VStack {Spacer(); Text("십자선 중심을 실제 무대 바닥에 맞추세요")
-                            .font(.caption).padding(6).background(.black.opacity(0.65)).foregroundStyle(.white)}
-                    }.frame(height:280).clipShape(RoundedRectangle(cornerRadius:12))
+            VStack(spacing:0) {
+                ZStack {
+                    CameraView(model:model)
+                    Image(systemName:"plus").font(.title).foregroundStyle(.white)
+                        .shadow(color:.black,radius:2).accessibilityHidden(true)
+                    VStack {Spacer(); Text("십자선 중심을 실제 무대 바닥에 맞추세요")
+                        .font(.caption).padding(6).background(.black.opacity(0.65)).foregroundStyle(.white)}
+                }
+                .frame(height:240)
+                .clipShape(RoundedRectangle(cornerRadius:12))
+                .padding(.horizontal)
+                .padding(.top,8)
+                ScrollView {
+                    VStack(alignment:.leading,spacing:16) {
+                        Text("PoC4-2 · 현장 경로 안내").font(.title2.bold())
+                        Text("LiDAR 무대 스캔 · 수동 경로·장애물 등록 · 배 착용 음성 안내")
+                            .font(.footnote).foregroundStyle(.secondary)
                     Button {showPreview=true} label: {Label("스캔 공간·E·경로 3D 보기",systemImage:"cube.transparent")}
                         .disabled(model.meshCount == 0)
                     if !model.supported {
@@ -74,7 +79,7 @@ struct ScanLabView: View {
                     }
                     GroupBox("3. 장애물 영역") {
                         VStack(alignment:.leading,spacing:10) {
-                            Text("물체 바닥 점유 영역의 꼭짓점 3~8개를 둘러 찍습니다. 메시만으로 물체가 자동 등록되지 않습니다. 계단도 통과 금지입니다.").font(.footnote)
+                            Text("장애물이 없으면 이 단계는 건너뛰세요. 물체가 있다면 바닥 점유 영역의 꼭짓점 3~8개를 둘러 찍습니다. 메시만으로 자동 등록되지 않으며 계단도 통과 금지입니다.").font(.footnote)
                             TextField("물체 이름",text:$model.obstacleName).textFieldStyle(.roundedBorder)
                             Picker("종류",selection:$model.obstacleKind) {
                                 Text("계단").tag(ObstacleKind.stairs)
@@ -113,7 +118,7 @@ struct ScanLabView: View {
                             Stepper("경계 여유",value:$model.settings.boundaryMargin,in:0.10...1.0,step:0.05).disabled(model.mode != .scanning)
                             Stepper("장애물 여유",value:$model.settings.obstacleClearance,in:0.10...1.0,step:0.05).disabled(model.mode != .scanning)
                             ForEach(model.routeConflicts,id:\.self) {Text("⚠️ \($0)").font(.caption).foregroundStyle(.red)}
-                            Text("실제 무대와 분리한 확인점 C를 바닥에 표시하고 선택하세요. E 꼭짓점은 C를 대신하지 않습니다.").font(.footnote)
+                            Text("E 꼭짓점과 다른 실제 바닥점 C를 선택하세요. E 안쪽도 가능하며 복원 후 같은 지점을 다시 찾을 수 있어야 합니다.").font(.footnote)
                             Button("독립 확인점 C 선택") {model.capture("C")}
                                 .disabled(model.mode != .scanning || model.corners.contains(where:{$0 == nil}))
                             Button("메시·지도·E·경로 저장",action:model.save).disabled(!model.canSave || model.busy)
@@ -175,7 +180,8 @@ struct ScanLabView: View {
                             }
                         }.frame(maxWidth:.infinity,alignment:.leading)
                     }
-                }.padding()
+                    }.padding()
+                }
             }.navigationTitle("PoC4 Scan Lab").navigationBarTitleDisplayMode(.inline)
                 .buttonStyle(.bordered)
                 .overlay {if model.busy {ProgressView("처리 중…").padding().background(.regularMaterial,in:RoundedRectangle(cornerRadius:12))}}
