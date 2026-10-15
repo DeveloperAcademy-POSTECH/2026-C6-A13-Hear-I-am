@@ -85,7 +85,7 @@ struct PreparationView: View {
         }
         }.background(.white).preferredColorScheme(.light)
             .onAppear {ScreenOrientation.set(.landscape); model.showMesh=true; if model.supported {model.newScan()}}
-            .onChange(of:step) {_,value in model.showMesh = value == 0}
+            .onChange(of:step) {_,value in model.showMesh = value == 0 || value == 1}
             .onDisappear {model.endSession(); ScreenOrientation.set(.portrait)}
             .onChange(of:scenePhase) {_,phase in if phase == .background {model.setActive(false)} else if phase == .active {model.setActive(true)}}
             .onChange(of:model.savedID) {_,id in if id != nil {dismiss()}}
@@ -130,6 +130,8 @@ struct PreparationView: View {
             Text(guideDescription).font(.system(size:12)).foregroundStyle(.secondary)
             if step == 0 {
                 Text("\(model.meshCount)개 표면 · \(model.mapping)").font(.caption).foregroundStyle(.secondary)
+            }
+            if step == 0 || step == 1 {
                 Toggle("스캔 범위 표시",isOn:$model.showMesh).font(.caption).tint(.hearGreen)
             }
             if step == 1 {
