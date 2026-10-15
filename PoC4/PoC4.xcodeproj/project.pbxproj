@@ -303,6 +303,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				PRODUCT_BUNDLE_IDENTIFIER = org.heariam.poc4.scanlab;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = 1;
@@ -317,6 +318,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				PRODUCT_BUNDLE_IDENTIFIER = org.heariam.poc4.scanlab;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = 1;
