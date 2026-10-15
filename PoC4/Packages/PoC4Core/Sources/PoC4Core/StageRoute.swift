@@ -255,7 +255,9 @@ public struct RouteGuide: Sendable {
               position.distance(to:route.points[0]) <= settings.startRadius,
               !usesRouteCorridor || positionIssue(position) == nil else { return false }
         let angle=atan2(sin(headingDegrees * .pi/180),cos(headingDegrees * .pi/180))*180 / .pi
-        return abs(angle) <= settings.frontToleranceDegrees &&
+        // Portrait guidance already computes directions relative to the measured body heading.
+        // Only the legacy experiment requires facing the audience before departure.
+        return (usesRouteCorridor || abs(angle) <= settings.frontToleranceDegrees) &&
             route.conflicts(boundaryMargin:settings.boundaryMargin,obstacleClearance:settings.obstacleClearance).isEmpty
     }
     @discardableResult public mutating func start(position: FloorPoint, headingDegrees: Double, trackingValid: Bool) -> Bool {
