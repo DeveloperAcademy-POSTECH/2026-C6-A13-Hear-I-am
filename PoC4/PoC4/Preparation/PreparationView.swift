@@ -20,12 +20,14 @@ struct PreparationView: View {
     private var draft: PreparationDraft {model.preparation ?? PreparationDraft()}
     private var nextCorner: Int? {selectedCorner ?? PreparationDraft.captureOrder.first(where:{draft.corners[$0] == nil})}
     var body: some View {
+        GeometryReader { safe in
         VStack(spacing:0) {
             stepBar
             GeometryReader { geometry in
             ZStack {
-                CameraView(model:model)
+                CameraView(model:model).frame(maxWidth:.infinity,maxHeight:.infinity)
                 if !model.supported {Color(.systemGray6)}
+                if model.supported {
                 Image(systemName:"plus").font(.system(size:30,weight:.light)).foregroundStyle(.white).shadow(color:.black,radius:2).accessibilityHidden(true)
                 VStack {
                     HStack(alignment:.top) {
@@ -50,7 +52,11 @@ struct PreparationView: View {
                         Spacer()
                         controls
                     }
-                }.padding(14)
+                }.padding(.leading,safe.safeAreaInsets.leading+14)
+                    .padding(.trailing,safe.safeAreaInsets.trailing+14)
+                    .padding(.bottom,safe.safeAreaInsets.bottom+14)
+                    .padding(.top,14)
+                }
                 if let intro, model.supported {
                     Color.black.opacity(0.30)
                     PreparationIntro(step:step,page:intro) {
@@ -74,8 +80,9 @@ struct PreparationView: View {
                     VStack(spacing:16) {ProgressView(); Text("무대 정보를 저장하는 중입니다…").font(.headline)}
                         .padding(32).background(.regularMaterial,in:RoundedRectangle(cornerRadius:22))
                 }
-            }.clipped()
-            }
+            }.frame(width:geometry.size.width,height:geometry.size.height).clipped()
+            }.ignoresSafeArea(.container,edges:[.horizontal,.bottom])
+        }
         }.background(.white).preferredColorScheme(.light)
             .onAppear {ScreenOrientation.set(.landscape); model.showMesh=false; if model.supported {model.newScan()}}
             .onDisappear {model.endSession(); ScreenOrientation.set(.portrait)}
