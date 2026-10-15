@@ -118,13 +118,23 @@ final class ScanLabModel: ObservableObject {
     var referencePrefix: String { "PoC4.reference."+scanID.uuidString }
     var stageLabel: String { manifest?.name ?? (mode == .scanning ? scanName : "없음") }
 
-    init() {
+    @Published private(set) var preparation: PreparationDraft?
+    @Published private(set) var scanConfirmed = false
+    @Published private(set) var savedID: UUID?
+    @Published private(set) var preparationInterrupted = false
+    @Published private(set) var pendingObjectWorld: [Point3] = []
+    private var editingObjectID: UUID?
+    var canConfirmScan: Bool { mode == .scanning && !busy && !meshes.isEmpty && latest?.mapped == true && latest?.normal == true && now-(latest?.time ?? 0) < 0.5 }
+    var canPlacePoint: Bool { mode == .scanning && !busy && !preparationInterrupted && latest?.normal == true && now-(latest?.time ?? 0) < 0.5 }
+
+    init(preparing: Bool = false) {
+        preparation = preparing ? PreparationDraft() : nil
         let docs=FileManager.default.urls(for:.documentDirectory,in:.userDomainMask)[0]
         store=ScanStore(root:docs.appendingPathComponent("Scans",isDirectory:true))
         logDirectory=docs.appendingPathComponent("Trials",isDirectory:true)
         previewScene.rootNode.addChildNode(previewRoot)
         previewScene.rootNode.addChildNode(previewAnnotations)
-        installRemoteCommands()
+        if !preparing { installRemoteCommands() }
         NotificationCenter.default.addObserver(forName: AVAudioSession.interruptionNotification, object:nil, queue:.main) { [weak self] notification in
             guard let raw=notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
                   AVAudioSession.InterruptionType(rawValue:raw) == .began else { return }
@@ -225,6 +235,7 @@ final class ScanLabModel: ObservableObject {
         stopLog()
         session?.delegate=nil; session?.pause()
         token=UUID(); gate=TrackingGate(); latest=nil
+        if preparation != nil { preparation=PreparationDraft(); scanConfirmed=false; savedID=nil; pendingObjectWorld=[]; editingObjectID=nil }
         position=nil; heading=nil; ready=false; canVerify=false; canSave=false
         previewRoot.childNodes.forEach { $0.removeFromParentNode() }
         previewNodes.removeAll(); previewDirty.removeAll()
@@ -367,11 +378,13 @@ final class ScanLabModel: ObservableObject {
         return point
     }
     private var routeIsValid: Bool {
+        if let preparation { return preparation.errors.isEmpty }
         guard let area, routePoints.count >= 2, checkpoint != nil,
               let route=try? StageRoute(area:area,points:routePoints,obstacles:obstacles) else { return false }
         return route.conflicts(boundaryMargin:settings.boundaryMargin,obstacleClearance:settings.obstacleClearance).isEmpty
     }
     private func updateRouteStatus() {
+        if let preparation { routeConflicts=preparation.errors; canSave=false; redrawReferences(); return }
         guard let area, routePoints.count >= 2 else {routeConflicts=[]; canSave=false; redrawReferences(); return}
         do {
             let route=try StageRoute(area:area,points:routePoints,obstacles:obstacles)
@@ -625,8 +638,10 @@ final class ScanLabModel: ObservableObject {
         } catch { gate.invalidate(); invalidateWear("확인점 선택 실패"); errorMessage=error.localizedDescription }
     }
     func save() {
-        guard canSave, !busy, let session, let stage, let checkpoint, let area,
-              let route=try? StageRoute(area:area,points:routePoints,obstacles:obstacles) else { return }
+        guard canSave, !busy, let session, let stage, let checkpoint, let area else { return }
+        let route: StageRoute
+        do { route = try preparation?.stageRoute() ?? StageRoute(area:area,points:routePoints,obstacles:obstacles) }
+        catch { errorMessage=error.localizedDescription; return }
         busy=true; canSave=false
         let operation=token
         session.getCurrentWorldMap { [weak self] map,error in
@@ -643,7 +658,7 @@ final class ScanLabModel: ObservableObject {
                 guard [".origin",".front",".check"].allSatisfy({suffix in map.anchors.contains {$0.name==self.referencePrefix+suffix}}) else {
                     self.busy=false; self.errorMessage="공간 지도에 기준점이 아직 포함되지 않았습니다. 다시 저장하세요."; return
                 }
-                self.session?.pause(); self.mode = .saved; self.gate.invalidate(); self.ready=false
+                self.session?.pause(); self.gate.invalidate(); self.ready=false
                 self.cancelCountdown(); self.position=nil; self.heading=nil; self.recordOn=false
                 do {
                     let data=try NSKeyedArchiver.archivedData(withRootObject:map,requiringSecureCoding:true)
@@ -652,17 +667,100 @@ final class ScanLabModel: ObservableObject {
                         appVersion:Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown",
                         route:route,settings:self.settings)
                     guard self.token==operation else { return }
-                    self.manifest=result; self.status="저장 완료 · 앱 재실행 후 저장 공간을 불러와 C를 검증하세요"
+                    self.mode = .saved; self.savedID=result.id; self.manifest=result; self.status="저장 완료 · 앱 재실행 후 저장 공간을 불러와 C를 검증하세요"
                     self.event("scan_saved",detail:result.id.uuidString); self.stopLog(); self.refreshFiles()
                 } catch {
                     guard self.token==operation else { return }
-                    self.errorMessage="저장 실패: "+error.localizedDescription; self.status="저장 실패 · 새 스캔으로 다시 시도하세요"
-                    self.stopLog()
+                    self.errorMessage="저장 실패: "+error.localizedDescription; self.status="입력은 유지됩니다. 다시 저장해주세요."
+                    if let configuration=self.session?.configuration, self.active { self.session?.run(configuration) }
                 }
-                self.busy=false; UIApplication.shared.isIdleTimerDisabled=false
+                self.busy=false; UIApplication.shared.isIdleTimerDisabled = self.mode == .scanning
             }
         }
     }
+    func confirmSpace() { if canConfirmScan { scanConfirmed=true } }
+    func resumePreparation() {
+        guard active, mode == .scanning, let configuration=session?.configuration else { return }
+        latest=nil; preparationInterrupted=false; session?.run(configuration)
+        status="주변을 천천히 비추며 추적을 다시 확인해주세요."
+    }
+    private func synchronizePreparation() {
+        guard let draft=preparation else {return}
+        corners=draft.corners; checkpoint=draft.checkpoint; area=draft.area
+        removeReferenceAnchors(); addCornerAnchors()
+        if let area {
+            origin=area.world(FloorPoint(0,0)); front=area.world(FloorPoint(0,-1))
+            stage=try? StageFrame(origin:origin!,front:front!)
+            addReference(origin!,suffix:".origin"); addReference(front!,suffix:".front")
+            routePoints=draft.route.map(area.floor)
+            obstacles=draft.objects.compactMap {try? $0.projected(in:area)}
+            obstacleDraft=pendingObjectWorld.map(area.floor)
+        } else { origin=nil; front=nil; stage=nil; routePoints=[]; obstacles=[]; obstacleDraft=[] }
+        if let checkpoint {addReference(checkpoint,suffix:".check")}
+        routeConflicts=draft.errors; canSave=false; redrawReferences()
+    }
+    func prepareCorner(_ index: Int) {
+        guard canPlacePoint, var draft=preparation, draft.corners.indices.contains(index) else {return}
+        do {draft.corners[index]=try centerFloorPoint(); preparation=draft; synchronizePreparation()}
+        catch {errorMessage=error.localizedDescription}
+    }
+    func undoPreparationCorner(_ index: Int) {
+        guard !busy, var draft=preparation, draft.corners.indices.contains(index) else {return}
+        draft.corners[index]=nil; preparation=draft; synchronizePreparation()
+    }
+    func prepareRoutePoint(destination: Bool = false) {
+        guard canPlacePoint, var draft=preparation else {return}
+        do {try draft.addRoutePoint(centerFloorPoint(),asDestination:destination); preparation=draft; synchronizePreparation()}
+        catch {errorMessage=error.localizedDescription}
+    }
+    func undoPreparationRoute() {
+        guard !busy, var draft=preparation else {return}
+        draft.removeLastRoutePoint(); preparation=draft; synchronizePreparation()
+    }
+    func prepareCheckpoint() {
+        guard canPlacePoint, var draft=preparation else {return}
+        do {
+            draft.checkpoint=try centerFloorPoint()
+            guard draft.checkpointErrors.isEmpty else {throw LabError.invalid(draft.checkpointErrors.joined(separator:"\n"))}
+            preparation=draft; synchronizePreparation()
+        } catch {errorMessage=error.localizedDescription}
+    }
+    func beginPreparationObject(_ id: UUID? = nil) {
+        guard !busy else {return}
+        editingObjectID=id
+        if let object=preparation?.objects.first(where:{$0.id==id}) {
+            obstacleName=object.name; obstacleKind=object.kind; pendingObjectWorld=object.vertices
+        } else {obstacleName="장애물"; obstacleKind = .other; pendingObjectWorld=[]}
+        synchronizePreparation()
+    }
+    func prepareObjectVertex() {
+        guard canPlacePoint, let area=preparation?.area else {return}
+        do {
+            let p=try centerFloorPoint()
+            guard pendingObjectWorld.count<8, abs(p.y-area.floorHeight)<=0.10, area.contains(area.floor(p)) else {throw LabError.invalid("무대 안 바닥에서 기물의 둘레를 3~8점으로 지정해주세요.")}
+            pendingObjectWorld.append(p); synchronizePreparation()
+        } catch {errorMessage=error.localizedDescription}
+    }
+    func undoPreparationObjectVertex() {
+        guard !busy, !pendingObjectWorld.isEmpty else {return}
+        pendingObjectWorld.removeLast(); synchronizePreparation()
+    }
+    @discardableResult func commitPreparationObject() -> Bool {
+        guard !busy, var draft=preparation, let area=draft.area else {return false}
+        do {
+            let item=WorldObstacle(id:editingObjectID ?? UUID(),name:obstacleName.trimmingCharacters(in:.whitespacesAndNewlines),kind:obstacleKind,vertices:pendingObjectWorld)
+            let projected=try item.projected(in:area)
+            guard projected.vertices.allSatisfy({area.contains($0)}) else {throw LabError.invalid("기물을 무대 안에 지정해주세요.")}
+            if let i=draft.objects.firstIndex(where:{$0.id==item.id}) {draft.objects[i]=item} else {draft.objects.append(item)}
+            preparation=draft; cancelPreparationObject(); return true
+        } catch {errorMessage=error.localizedDescription; return false}
+    }
+    func cancelPreparationObject() {pendingObjectWorld=[]; editingObjectID=nil; synchronizePreparation()}
+    func deletePreparationObject(_ id: UUID) {
+        guard !busy else {return}
+        preparation?.objects.removeAll {$0.id==id}; synchronizePreparation()
+    }
+
     func startWear() {
         guard ready, logging != nil, !recordOn, wearCountdown == nil else { return }
         let operation=token
@@ -734,6 +832,7 @@ final class ScanLabModel: ObservableObject {
         ]
     }
     private func clearNowPlaying() {
+        guard preparation == nil else { return }
         MPNowPlayingInfoCenter.default().nowPlayingInfo=nil
         try? AVAudioSession.sharedInstance().setActive(false,options:.notifyOthersOnDeactivation)
     }
@@ -776,6 +875,11 @@ final class ScanLabModel: ObservableObject {
     }
     func interrupt(_ message: String, token incoming: UUID) {
         guard incoming==token else { return }
+        if preparation != nil, mode == .scanning, message != "측정 종료" {
+            session?.pause(); preparationInterrupted=true; busy=false; canSave=false
+            latest=nil; status="추적이 중단됐습니다. 같은 공간에서 추적을 다시 시작해주세요."
+            return
+        }
         pauseGuide(message)
         if message != "측정 종료", let guide, guide.state == .paused {
             suspendedGuide=guide; suspendedScanID=scanID
@@ -787,6 +891,10 @@ final class ScanLabModel: ObservableObject {
     }
     func setActive(_ value: Bool) {
         active=value
+        if preparation != nil {
+            if !value { session?.pause(); latest=nil; canSave=false; preparationInterrupted=true }
+            return
+        }
         if !value { interrupt("앱 비활성화 · 저장 공간을 다시 불러오거나 새 스캔을 시작하세요",token:token) }
     }
     func endSession() { interrupt("측정 종료",token:token) }
