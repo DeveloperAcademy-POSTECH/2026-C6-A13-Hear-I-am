@@ -26,22 +26,26 @@ struct HomeView: View {
     @State private var selectedIDs: Set<UUID> = []
     @State private var confirmingDelete=false
     @State private var deleting=false
+    @State private var renameTarget: ScanManifest?
+    @State private var editedName=""
+    @State private var showingRename=false
+    @State private var renaming=false
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment:.leading,spacing:26) {
-                    VStack(alignment:.leading,spacing:8) {
-                        HStack {
-                            BrandMark().frame(width:44,height:44)
-                            Text("Hear I am").font(.largeTitle.bold())
-                            Spacer()
-                            Button {notice="설정은 준비 중입니다."} label: {Image(systemName:"gearshape").font(.title3).frame(width:44,height:44)}.accessibilityLabel("설정")
-                        }
-                        Text("무엇을 시작할까요?").font(.title3).foregroundStyle(.secondary)
+                    HStack {
+                        BrandMark().frame(width:44,height:44)
+                        Text("Hear I am").font(.largeTitle.bold())
+                        Spacer()
+                        Button {notice="설정은 준비 중입니다."} label: {Image(systemName:"gearshape").font(.title3).frame(width:44,height:44)}.accessibilityLabel("설정")
                     }
-                    HStack(spacing:12) {
-                        homeAction("무대 준비하기",subtitle:"공간과 경로 저장",image:"ScanAction",dark:true) {preparing=true}.disabled(selecting)
-                        homeAction("안내 사용하기",subtitle:"저장한 무대 선택",image:"BeltAction",dark:false) {guiding=true}.disabled(selecting)
+                    VStack(alignment:.leading,spacing:12) {
+                        Text("무엇을 시작할까요?").font(.title3).foregroundStyle(.secondary)
+                        HStack(spacing:12) {
+                            homeAction("무대 준비하기",subtitle:"공간과 경로 저장",image:"ScanAction",dark:true) {preparing=true}.disabled(selecting)
+                            homeAction("안내 사용하기",subtitle:"저장한 무대 선택",image:"BeltAction",dark:false) {guiding=true}.disabled(selecting)
+                        }
                     }
                     if !library.groups.pinned.isEmpty {
                         stageSection("고정한 무대",records:library.groups.pinned)
@@ -68,6 +72,12 @@ struct HomeView: View {
                     Button("삭제",role:.destructive) {deleteSelectedStages()}
                     Button("취소",role:.cancel) {}
                 } message: {Text("스캔 공간과 동선이 삭제되며 되돌릴 수 없어요. 고정도 해제됩니다. 완료한 안내 기록은 유지돼요.")}
+                .alert("무대 이름 변경",isPresented:$showingRename) {
+                    TextField("무대 이름",text:$editedName)
+                    Button("취소",role:.cancel) {renameTarget=nil}
+                    Button("저장") {renameStage()}
+                        .disabled(editedName.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty || editedName.trimmingCharacters(in:.whitespacesAndNewlines).count>80)
+                } message: {Text("무대 이름을 80자 이내로 입력해주세요.")}
                 .refreshable {await library.refresh()}
                 .fullScreenCover(isPresented:$preparing,onDismiss:{Task {await library.refresh()}}) {PreparationView()}
                 .fullScreenCover(isPresented:$guiding) {GuidanceView(library:library)}
@@ -75,11 +85,23 @@ struct HomeView: View {
         }
     }
     private func selectableStage(_ record: ScanManifest) -> some View {
-        StageRow(record:record,library:library)
+        StageRow(record:record,library:library,onRename:{
+            renameTarget=record;editedName=record.name;showingRename=true
+        })
             .librarySelection(selecting:selecting,selected:selectedIDs.contains(record.id),onSelect:{
                 selecting=true;selectedIDs.insert(record.id)
             },onToggle:{if !selectedIDs.insert(record.id).inserted {selectedIDs.remove(record.id)}})
-            .disabled(deleting)
+            .disabled(deleting || renaming)
+    }
+    private func renameStage() {
+        guard let target=renameTarget, !renaming else {return}
+        let name=editedName
+        renaming=true
+        Task {
+            defer {renaming=false;renameTarget=nil}
+            do {try await library.renameStage(target.id,to:name)}
+            catch {notice="이름을 변경하지 못했어요. 다시 시도해주세요. " + error.localizedDescription}
+        }
     }
     private func deleteSelectedStages() {
         guard !deleting else {return}
@@ -116,13 +138,19 @@ struct HomeView: View {
 private struct StageRow: View {
     let record: ScanManifest
     @ObservedObject var library: StageLibrary
+    let onRename: () -> Void
     var body: some View {
         VStack(alignment:.leading,spacing:12) {
             HStack(alignment:.top,spacing:12) {
                 StageMap(showsLabels:false,width:record.route?.area.width ?? 12,depth:record.route?.area.depth ?? 8,points:record.route?.points ?? [],objects:record.route?.obstacles ?? [])
                     .frame(width:92,height:92).accessibilityHidden(true)
                 VStack(alignment:.leading,spacing:6) {
-                    Text(record.name).font(.headline).lineLimit(2)
+                    Button(action:onRename) {
+                        HStack(alignment:.firstTextBaseline,spacing:5) {
+                            Text(record.name).font(.headline).lineLimit(2)
+                            Image(systemName:"pencil").font(.caption).foregroundStyle(.secondary)
+                        }.frame(minHeight:44,alignment:.leading).contentShape(Rectangle())
+                    }.buttonStyle(.plain).accessibilityLabel("\(record.name) 이름 변경")
                     Text("내부 지점 \(max(0,(record.route?.points.count ?? 2)-2))개 · 기물 \(record.route?.obstacles.count ?? 0)개").font(.caption).foregroundStyle(.secondary)
                     Text(record.date,format:.dateTime.locale(Locale(identifier:"ko_KR")).month().day().hour().minute()).font(.caption).foregroundStyle(.secondary)
                 }

@@ -25,7 +25,7 @@ public struct ScanManifest: Codable, Sendable {
     public let route: StageRoute?
     public let settings: GuideSettings
     public let id: UUID
-    public let name: String
+    public fileprivate(set) var name: String
     public let date: Date
     public let frame: StageFrame
     public let checkpoint: Point3
@@ -125,6 +125,21 @@ public actor ScanStore {
             guard m.id.uuidString==$0.lastPathComponent else { throw LabError.invalid("스캔 ID 불일치") }
             return m
         }.sorted {$0.date>$1.date}
+    }
+    /// Update only the display name, preserving the original date, identity and scan assets.
+    public func rename(_ id: UUID, to name: String) throws -> ScanManifest {
+        let trimmed=name.trimmingCharacters(in:.whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed.count<=80 else {
+            throw LabError.invalid("무대 이름은 1~80자로 입력해주세요.")
+        }
+        let url=root.appendingPathComponent(id.uuidString,isDirectory:true).appendingPathComponent("manifest.json")
+        var manifest=try JSONDecoder().decode(ScanManifest.self,from:Data(contentsOf:url))
+        guard manifest.id==id else {throw LabError.invalid("스캔 ID 불일치")}
+        try manifest.validate()
+        manifest.name=trimmed
+        let encoder=JSONEncoder();encoder.outputFormatting=[.sortedKeys]
+        try encoder.encode(manifest).write(to:url,options:.atomic)
+        return manifest
     }
     /// Remove only the selected scan bundle; completed guidance records live in a separate store.
     public func delete(_ id: UUID) throws {
