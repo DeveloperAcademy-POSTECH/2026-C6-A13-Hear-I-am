@@ -22,7 +22,13 @@ struct CameraSample {
         case .limited(let reason): normal=false; tracking="limited: \(reason)"
         }
         mapped=frame.worldMappingStatus == .mapped
-        mapping=String(describing:frame.worldMappingStatus)
+        switch frame.worldMappingStatus {
+        case .notAvailable: mapping="공간 인식 준비 중"
+        case .limited: mapping="공간을 더 비춰주세요"
+        case .extending: mapping="스캔 범위를 넓히고 있어요"
+        case .mapped: mapping="공간 지도 안정됨"
+        @unknown default: mapping="공간 확인 중"
+        }
         anchors=Dictionary(frame.anchors.compactMap { anchor -> (String,Point3)? in
             guard let name=anchor.name, name.hasPrefix("PoC4.reference.") else { return nil }
             let p=anchor.transform.columns.3

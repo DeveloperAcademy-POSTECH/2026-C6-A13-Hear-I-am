@@ -40,6 +40,82 @@ enum ScreenOrientation {
     }
 }
 
+/// Present the landscape controller with its final orientation, so UIKit coordinates
+/// rotation with presentation/dismissal rather than rotating an already visible SwiftUI screen.
+extension View {
+    func landscapeCover<Content: View>(isPresented: Binding<Bool>, onDismiss: @escaping () -> Void = {},
+                                       @ViewBuilder content: @escaping (@escaping () -> Void) -> Content) -> some View {
+        background(LandscapePresenter(isPresented:isPresented,onDismiss:onDismiss,content:content).frame(width:0,height:0))
+    }
+}
+
+private struct LandscapePresenter<Content: View>: UIViewControllerRepresentable {
+    @Binding var isPresented: Bool
+    let onDismiss: () -> Void
+    let content: (@escaping () -> Void) -> Content
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+    func makeUIViewController(context: Context) -> PresentationAnchor {
+        let anchor=PresentationAnchor()
+        anchor.onReady={ [weak coordinator=context.coordinator] in coordinator?.reconcile() }
+        context.coordinator.anchor=anchor
+        return anchor
+    }
+    func updateUIViewController(_ controller: PresentationAnchor,context: Context) {
+        context.coordinator.parent=self
+        context.coordinator.wantsPresentation=isPresented
+        Task { @MainActor [weak coordinator=context.coordinator] in coordinator?.reconcile() }
+    }
+    @MainActor final class Coordinator {
+        var parent: LandscapePresenter
+        var wantsPresentation=false
+        weak var anchor: PresentationAnchor?
+        private var host: UIViewController?
+        private var transitioning=false
+        init(_ parent: LandscapePresenter) {self.parent=parent}
+        func reconcile() {
+            guard !transitioning, let anchor else {return}
+            if wantsPresentation, host == nil, anchor.viewIfLoaded?.window != nil, anchor.presentedViewController == nil {
+                let controller=LandscapeHostingController(rootView:parent.content { [weak self] in self?.parent.isPresented=false })
+                controller.modalPresentationStyle = .fullScreen
+                controller.modalTransitionStyle = .crossDissolve
+                // Allow both the outgoing portrait and incoming landscape controller during the transition.
+                HearAppDelegate.orientations = .allButUpsideDown
+                host=controller;transitioning=true
+                anchor.present(controller,animated:!UIAccessibility.isReduceMotionEnabled) { [weak self] in
+                    guard let self else {return}
+                    self.transitioning=false
+                    ScreenOrientation.set(.landscape)
+                    self.reconcile()
+                }
+            } else if !wantsPresentation, let host {
+                transitioning=true
+                HearAppDelegate.orientations = .portrait
+                anchor.setNeedsUpdateOfSupportedInterfaceOrientations()
+                host.dismiss(animated:!UIAccessibility.isReduceMotionEnabled) { [weak self] in
+                    guard let self else {return}
+                    self.host=nil;self.transitioning=false
+                    ScreenOrientation.set(.portrait)
+                    self.parent.onDismiss()
+                    self.reconcile()
+                }
+            }
+        }
+    }
+}
+
+private final class PresentationAnchor: UIViewController {
+    var onReady: (() -> Void)?
+    override var supportedInterfaceOrientations: UIInterfaceOrientationMask {.portrait}
+    override func viewDidAppear(_ animated: Bool) {super.viewDidAppear(animated);onReady?()}
+}
+
+private final class LandscapeHostingController<Content: View>: UIHostingController<Content> {
+    override var supportedInterfaceOrientations: UIInterfaceOrientationMask {.landscape}
+    override var preferredInterfaceOrientationForPresentation: UIInterfaceOrientation {
+        UIDevice.current.orientation == .landscapeRight ? .landscapeLeft : .landscapeRight
+    }
+}
+
 struct UnavailableFeature: View {
     let title: String
     let symbol: String

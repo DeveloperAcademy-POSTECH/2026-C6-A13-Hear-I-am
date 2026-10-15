@@ -3,7 +3,7 @@ import PoC4Core
 
 struct PreparationView: View {
     @StateObject private var model=ScanLabModel(preparing:true)
-    @Environment(\.dismiss) private var dismiss
+    let onClose: () -> Void
     @Environment(\.scenePhase) private var scenePhase
     @State private var step=0
     @State private var highest=0
@@ -47,7 +47,7 @@ struct PreparationView: View {
                     }
                     Spacer(minLength:8)
                     HStack {
-                        Text(model.preparationInterrupted ? "추적 중단" : "십자선을 실제 바닥에 맞춰주세요")
+                        Text(model.preparationInterrupted ? "추적 중단" : (step == 0 ? "민트색 그물 = 스캔한 표면" : "십자선을 실제 바닥에 맞춰주세요"))
                             .font(.caption).padding(8).background(.regularMaterial,in:Capsule())
                         Spacer()
                         controls
@@ -84,17 +84,18 @@ struct PreparationView: View {
             }.ignoresSafeArea(.container,edges:[.horizontal,.bottom])
         }
         }.background(.white).preferredColorScheme(.light)
-            .onAppear {ScreenOrientation.set(.landscape); model.showMesh=false; if model.supported {model.newScan()}}
-            .onDisappear {model.endSession(); ScreenOrientation.set(.portrait)}
+            .onAppear {model.showMesh=true; if model.supported {model.newScan()}}
+            .onChange(of:step) {_,value in model.showMesh = value == 0}
+            .onDisappear {model.endSession()}
             .onChange(of:scenePhase) {_,phase in if phase == .background {model.setActive(false)} else if phase == .active {model.setActive(true)}}
-            .onChange(of:model.savedID) {_,id in if id != nil {dismiss()}}
+            .onChange(of:model.savedID) {_,id in if id != nil {onClose()}}
             .alert("공간 스캔을 확정할까요?",isPresented:$confirmScan) {
                 Button("계속 스캔",role:.cancel) {}
                 Button("공간 확정") {model.confirmSpace(); if model.scanConfirmed {advance()}}
             } message:{Text("공연장과 백스테이지가 충분히 포함됐는지 확인해주세요. 확정 후에는 스캔 단계로 돌아갈 수 없습니다.")}
             .alert("확인해주세요",isPresented:Binding(get:{model.errorMessage != nil},set:{if !$0 {model.errorMessage=nil}})) {Button("확인",role:.cancel) {model.errorMessage=nil}} message:{Text(model.errorMessage ?? "")}
             .confirmationDialog("준비를 종료할까요? 저장하지 않은 내용은 사라집니다.",isPresented:$confirmExit,titleVisibility:.visible) {
-                Button("저장하지 않고 나가기",role:.destructive) {dismiss()}; Button("계속 준비",role:.cancel) {}
+                Button("저장하지 않고 나가기",role:.destructive) {onClose()}; Button("계속 준비",role:.cancel) {}
             }
     }
     private var stepBar: some View {
@@ -111,7 +112,7 @@ struct PreparationView: View {
                 }.disabled(model.busy || i == 0 || i>highest || objectEditing).accessibilityLabel("\(i+1)단계 \(titles[i])\(complete(i) ? ", 완료" : "")")
             }
             Spacer(minLength:0)
-            Button("나가기") {if model.meshCount == 0 {dismiss()} else {confirmExit=true}}.font(.subheadline).disabled(model.busy)
+            Button("나가기") {if model.meshCount == 0 {onClose()} else {confirmExit=true}}.font(.subheadline).disabled(model.busy)
         }.padding(.horizontal,20).frame(height:52)
     }
     private var miniMap: some View {
@@ -127,7 +128,10 @@ struct PreparationView: View {
         VStack(alignment:.leading,spacing:8) {
             Text(guideTitle).font(.system(size:19,weight:.bold))
             Text(guideDescription).font(.system(size:12)).foregroundStyle(.secondary)
-            if step == 0 {Text("\(model.meshCount)개 표면 · \(model.mapping)").font(.caption).foregroundStyle(.secondary)}
+            if step == 0 {
+                Text("\(model.meshCount)개 표면 · \(model.mapping)").font(.caption).foregroundStyle(.secondary)
+                Toggle("스캔 범위 표시",isOn:$model.showMesh).font(.caption).tint(.hearGreen)
+            }
             if step == 1 {
                 HStack(spacing:5) {ForEach(PreparationDraft.captureOrder,id:\.self) {i in
                     Button(cornerNames[i]) {selectedCorner=i}.font(.system(size:10)).buttonStyle(.bordered).tint(selectedCorner == i ? .hearGreen : .gray)
@@ -161,7 +165,7 @@ struct PreparationView: View {
         switch step {
         case 0:return "휴대폰을 양손으로 잡고 공연장과 백스테이지까지 충분히 담아주세요."
         case 1:return "객석에서 바라본 기준입니다. 네 점이 자동으로 연결됩니다. 위 이름을 눌러 다시 찍을 수 있어요."
-        case 2:return objectEditing ? "바닥에 닿는 둘레를 3~8점으로 찍어주세요. \(model.pendingObjectWorld.count)/8점 · 단상도 통과 금지" : "기물이 없다면 바로 다음으로 넘어가세요."
+        case 2:return objectEditing ? "십자선을 물체 주변 바닥 모서리에 맞추고 ‘둘레 점 추가’를 누르세요. 한 방향으로 3~8점을 찍고 등록하면 자동으로 닫힙니다. 현재 \(model.pendingObjectWorld.count)/8점 · 윗면은 찍지 않아요." : "‘기물 추가’ 후 바닥 둘레를 직접 찍어요. 사각형은 네 모서리를 순서대로 지정하세요. 기물이 없으면 건너뛰세요."
         case 3:return "출발·도착은 같은 높이의 무대 밖도 가능해요. 내부 지점은 무대 안에 지정하세요. \(draft.route.count)/6점"
         default:return "무대 중앙 또는 특징적인 바닥 지점을 선택하세요. 모서리에서 0.5m 이상 떨어져야 해요."
         }
@@ -180,8 +184,8 @@ struct PreparationView: View {
             if objectEditing {
                 Button("취소") {model.cancelPreparationObject(); objectEditing=false}.padding(8).background(.regularMaterial,in:Capsule())
                 ActionButton(title:"마지막 점 삭제",primary:false,enabled:!model.pendingObjectWorld.isEmpty) {model.undoPreparationObjectVertex()}
-                ActionButton(title:"둘레 점 지정",enabled:model.canPlacePoint && model.pendingObjectWorld.count<8) {model.prepareObjectVertex()}
-                ActionButton(title:"등록",enabled:model.pendingObjectWorld.count>=3) {if model.commitPreparationObject() {objectEditing=false}}
+                ActionButton(title:"둘레 점 추가",enabled:model.canPlacePoint && model.pendingObjectWorld.count<8) {model.prepareObjectVertex()}
+                ActionButton(title:"기물 등록",enabled:model.pendingObjectWorld.count>=3) {if model.commitPreparationObject() {objectEditing=false}}
             } else {
                 ActionButton(title:"기물 추가",primary:false,enabled:draft.area != nil) {model.beginPreparationObject(); objectEditing=true}
                 ActionButton(title:draft.objects.isEmpty ? "건너뛰기" : "다음 단계",enabled:draft.objectErrors.isEmpty) {advance()}

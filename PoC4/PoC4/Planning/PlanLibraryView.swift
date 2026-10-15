@@ -31,7 +31,9 @@ struct PlanLibraryView: View {
             }.navigationTitle("공연 사전 저장")
                 .toolbar {ToolbarItem(placement:.topBarTrailing) {Button {editing=PerformancePlan()} label:{Image(systemName:"plus")}.accessibilityLabel("공연 사전 저장 추가")}}
                 .refreshable {await library.refresh()}
-                .fullScreenCover(item:$editing) {plan in PlanEditorView(initial:plan,library:library)}
+                .landscapeCover(isPresented:Binding(get:{editing != nil},set:{if !$0 {editing=nil}})) {close in
+                    if let editing {PlanEditorView(initial:editing,library:library,onClose:close)}
+                }
         }
     }
 }
