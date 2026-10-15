@@ -43,7 +43,7 @@ struct PlanEditorView: View {
             HStack {
                 Text(plan.finished ? "출발 → 내부 \(plan.points.count-2)개 → 도착 · 기물은 모두 통과 금지" : "\(plan.points.count)/6점 · 최소 3점부터 완료 · 마지막 점이 도착점이 됩니다").font(.caption)
                 Spacer()
-                if plan.finished, !valid {Text("동선과 기물의 겹침을 확인해주세요").font(.caption).foregroundStyle(.red)}
+                if plan.finished, !valid {Text(validationMessage ?? "").font(.caption).foregroundStyle(.red)}
             }.foregroundStyle(.secondary)
         }.padding(.horizontal,18).padding(.vertical,8).background(.white).disabled(saving)
             .onAppear {ScreenOrientation.set(.landscape)}.onDisappear {ScreenOrientation.set(.portrait)}
@@ -52,7 +52,10 @@ struct PlanEditorView: View {
                 Button("저장하지 않고 나가기",role:.destructive) {dismiss()}; Button("계속 편집",role:.cancel) {}
             }
     }
-    private var valid: Bool {(try? plan.validate()) != nil}
+    private var validationMessage: String? {
+        do {try plan.validate(); return nil} catch {return error.localizedDescription}
+    }
+    private var valid: Bool {validationMessage == nil}
     private func perform(_ action:() throws -> Void) {do {try action()} catch {message=error.localizedDescription}}
     private func tap(_ point:FloorPoint) {
         guard !saving else {return}

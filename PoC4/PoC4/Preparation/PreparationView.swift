@@ -14,6 +14,7 @@ struct PreparationView: View {
     @State private var selectedCorner: Int?
     @State private var objectEditing=false
     @State private var review=false
+    @State private var guideCollapsed=false
     private let titles=["스캔","무대 범위","장애물","경로","확인점"]
     private let cornerNames=["앞 왼쪽","앞 오른쪽","뒤 오른쪽","뒤 왼쪽"]
     private var draft: PreparationDraft {model.preparation ?? PreparationDraft()}
@@ -21,15 +22,26 @@ struct PreparationView: View {
     var body: some View {
         VStack(spacing:0) {
             stepBar
+            GeometryReader { geometry in
             ZStack {
                 CameraView(model:model)
                 if !model.supported {Color(.systemGray6)}
                 Image(systemName:"plus").font(.system(size:30,weight:.light)).foregroundStyle(.white).shadow(color:.black,radius:2).accessibilityHidden(true)
                 VStack {
                     HStack(alignment:.top) {
-                        miniMap.frame(width:180,height:125).padding(10).background(.regularMaterial,in:RoundedRectangle(cornerRadius:18))
+                        if step>0 {miniMap.frame(width:180,height:125).padding(10).background(.regularMaterial,in:RoundedRectangle(cornerRadius:18))}
                         Spacer(minLength:70)
-                        guideCard.frame(width:260)
+                        VStack(spacing:0) {
+                            HStack {
+                                Text("STEP \(step+1)").font(.caption.bold()).foregroundStyle(.secondary)
+                                Spacer()
+                                Button {intro=0} label:{Image(systemName:"questionmark.circle")}.accessibilityLabel("단계 안내 다시 보기")
+                                Button {guideCollapsed.toggle()} label:{Image(systemName:guideCollapsed ? "chevron.down" : "chevron.up")}.accessibilityLabel(guideCollapsed ? "안내 펼치기" : "안내 접기")
+                            }.padding(12)
+                            if !guideCollapsed {
+                                ScrollView {guideCard}.frame(maxHeight:max(76,geometry.size.height-152))
+                            }
+                        }.frame(width:min(260,geometry.size.width*0.35)).background(.regularMaterial,in:RoundedRectangle(cornerRadius:20))
                     }
                     Spacer(minLength:8)
                     HStack {
@@ -63,8 +75,9 @@ struct PreparationView: View {
                         .padding(32).background(.regularMaterial,in:RoundedRectangle(cornerRadius:22))
                 }
             }.clipped()
+            }
         }.background(.white).preferredColorScheme(.light)
-            .onAppear {ScreenOrientation.set(.landscape); model.showMesh=false; model.newScan()}
+            .onAppear {ScreenOrientation.set(.landscape); model.showMesh=false; if model.supported {model.newScan()}}
             .onDisappear {model.endSession(); ScreenOrientation.set(.portrait)}
             .onChange(of:scenePhase) {_,phase in if phase == .background {model.setActive(false)} else if phase == .active {model.setActive(true)}}
             .onChange(of:model.savedID) {_,id in if id != nil {dismiss()}}
@@ -91,7 +104,7 @@ struct PreparationView: View {
                 }.disabled(model.busy || i == 0 || i>highest || objectEditing).accessibilityLabel("\(i+1)단계 \(titles[i])\(complete(i) ? ", 완료" : "")")
             }
             Spacer(minLength:0)
-            Button("나가기") {confirmExit=true}.font(.subheadline).disabled(model.busy)
+            Button("나가기") {if model.meshCount == 0 {dismiss()} else {confirmExit=true}}.font(.subheadline).disabled(model.busy)
         }.padding(.horizontal,20).frame(height:52)
     }
     private var miniMap: some View {
@@ -105,7 +118,6 @@ struct PreparationView: View {
     }
     private var guideCard: some View {
         VStack(alignment:.leading,spacing:8) {
-            HStack {Text("STEP \(step+1)").font(.caption.bold()).foregroundStyle(.secondary); Spacer(); Button {intro=0} label:{Image(systemName:"questionmark.circle")}.accessibilityLabel("단계 안내 다시 보기")}
             Text(guideTitle).font(.system(size:19,weight:.bold))
             Text(guideDescription).font(.system(size:12)).foregroundStyle(.secondary)
             if step == 0 {Text("\(model.meshCount)개 표면 · \(model.mapping)").font(.caption).foregroundStyle(.secondary)}
@@ -127,7 +139,7 @@ struct PreparationView: View {
             }
             if step == 3, draft.routeFinished, let error=draft.routeErrors.first {Text(error).font(.caption).foregroundStyle(.red)}
             if step == 4, draft.checkpoint != nil, let error=draft.checkpointErrors.first {Text(error).font(.caption).foregroundStyle(.red)}
-        }.padding(14).background(.regularMaterial,in:RoundedRectangle(cornerRadius:20))
+        }.padding(.horizontal,14).padding(.bottom,14)
     }
     private var guideTitle: String {
         switch step {
@@ -188,6 +200,7 @@ struct PreparationView: View {
                 VStack(alignment:.leading,spacing:12) {
                     Text("무대 정보를 확인해주세요").font(.title3.bold())
                     TextField("무대 이름",text:$model.scanName).textFieldStyle(.roundedBorder)
+                    if model.scanName.count>80 {Text("무대 이름은 80자 이내로 입력해주세요.").font(.caption).foregroundStyle(.red)}
                     Text("경로 \(draft.route.count)점 · 기물 \(draft.objects.count)개 · 확인점 1개").font(.subheadline)
                     if draft.errors.isEmpty {Text("저장 준비가 끝났어요. 공간 지도가 안정되면 저장할 수 있습니다.").font(.caption).foregroundStyle(.secondary)}
                     else {ScrollView {Text(Array(Set(draft.errors)).sorted().joined(separator:"\n")).font(.caption).foregroundStyle(.red)}.frame(maxHeight:70)}
@@ -205,7 +218,7 @@ struct PreparationView: View {
     private func advance() {highest=max(highest,min(step+1,4)); changeStep(min(step+1,4))}
     private func changeStep(_ value:Int) {
         guard value>0, value<=highest, !model.busy else {return}
-        step=value; review=false; selectedCorner=nil
+        step=value; review=false; selectedCorner=nil; guideCollapsed=false
         if !seen.contains(value) {seen.insert(value); intro=0} else {intro=nil}
     }
 }

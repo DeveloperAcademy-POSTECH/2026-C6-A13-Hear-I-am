@@ -19,6 +19,9 @@ public struct PerformancePlan: Codable, Equatable, Identifiable, Sendable {
         guard !finished, points.count < 6, point.valid, (-3...15).contains(point.x), (-1...9).contains(point.y) else {
             throw LabError.invalid("경로를 편집하려면 최신 점을 삭제해주세요. 최대 6점까지 가능합니다.")
         }
+        if points.count == 1, !Self.area.contains(point, margin: 0.01) {
+            throw LabError.invalid("첫 내부 지점 P1은 무대 안에 지정해주세요.")
+        }
         // The current last point can be outside as a prospective destination;
         // adding another point would turn it into an interior waypoint.
         if points.count >= 2, let last = points.last, !Self.area.contains(last, margin: 0.01) {

@@ -55,7 +55,9 @@ final class PreparationTests: XCTestCase {
     }
     func testPlannerFinishAndPersistence() async throws {
         var p = PerformancePlan()
-        try p.append(FloorPoint(-1,2)); try p.append(FloorPoint(3,2))
+        try p.append(FloorPoint(-1,2))
+        XCTAssertThrowsError(try p.append(FloorPoint(-1,3)))
+        try p.append(FloorPoint(3,2))
         XCTAssertThrowsError(try p.finishRoute())
         try p.append(FloorPoint(13,2))
         XCTAssertThrowsError(try p.append(FloorPoint(4,3)))
@@ -79,6 +81,28 @@ final class PreparationTests: XCTestCase {
         try p.moveObject(p.objects[0].id, to: FloorPoint(6,5))
         XCTAssertNoThrow(try p.validate())
         XCTAssertThrowsError(try p.moveObject(p.objects[0].id, to: FloorPoint(-1,5)))
+    }
+    func testPreparationArchiveRetainsOutsideEndpointsAndPolicy() async throws {
+        var d = draft()
+        try d.addRoutePoint(Point3(-1,0,-2)); try d.addRoutePoint(Point3(2,0,-2))
+        try d.addRoutePoint(Point3(13,0,-2), asDestination: true)
+        d.checkpoint = Point3(6,0,-4)
+        let route = try d.stageRoute()
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = ScanStore(root: root)
+        let mesh = MeshSnapshot(id: UUID(), transform: [1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1],
+            vertices: [Point3(0,0,0),Point3(1,0,0),Point3(0,0,-1)], indices: [0,1,2])
+        var settings = GuideSettings()
+        settings.boundaryMargin = PreparationDraft.boundaryMargin
+        settings.obstacleClearance = PreparationDraft.obstacleClearance
+        let id = UUID()
+        _ = try await store.save(id: id, name: "출입 포함 무대", frame: StageFrame(origin: Point3(0,0,0), front: Point3(0,0,1)),
+            checkpoint: d.checkpoint!, worldMap: Data([1,2,3]), meshes: [mesh], device: "test", appVersion: "1", route: route, settings: settings)
+        let loaded = try await store.load(id)
+        XCTAssertEqual(loaded.manifest.route, route)
+        XCTAssertEqual(loaded.manifest.settings, settings)
+        XCTAssertEqual(loaded.manifest.version, 2)
     }
     func testPinsRoundTripAndNoDuplicates() throws {
         let area = PerformancePlan.area
