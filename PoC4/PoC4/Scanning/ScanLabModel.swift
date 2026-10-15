@@ -626,14 +626,15 @@ final class ScanLabModel: ObservableObject {
         commands.playCommand.isEnabled=true; commands.pauseCommand.isEnabled=true
         commands.togglePlayPauseCommand.isEnabled=true
         remoteTargets.append(commands.playCommand.addTarget { [weak self] _ in
-            Task { @MainActor in self?.startGuide() }; return .success
+            Task { @MainActor in self?.event("remote_command",detail:"play"); self?.startGuide() }; return .success
         })
         remoteTargets.append(commands.pauseCommand.addTarget { [weak self] _ in
-            Task { @MainActor in self?.pauseGuide("에어팟/원격 명령 일시정지") }; return .success
+            Task { @MainActor in self?.event("remote_command",detail:"pause"); self?.pauseGuide("에어팟/원격 명령 일시정지") }; return .success
         })
         remoteTargets.append(commands.togglePlayPauseCommand.addTarget { [weak self] _ in
             Task { @MainActor in
                 guard let self else {return}
+                self.event("remote_command",detail:"toggle")
                 if self.guideState == .guiding {self.pauseGuide("에어팟/원격 명령 일시정지")}
                 else {self.startGuide()}
             }; return .success
@@ -712,7 +713,7 @@ final class ScanLabModel: ObservableObject {
         logging?.append(TrialRecord(sequence:sequence,uptime:time ?? now,event:name,detail:detail,
             position:position,heading:heading,tracking:latest?.tracking ?? tracking,
             verified:gate.isReady(now:now),errorMeters:error,
-            coordinateSpace:(name.hasPrefix("reference_") || name=="checkpoint") ? "ar-world" : "stage",
+            coordinateSpace:(name.hasPrefix("reference_") || name.hasPrefix("corner_") || name=="route_point" || name=="checkpoint") ? "ar-world" : "stage",
             mapping:latest?.mapping ?? mapping))
     }
     private func stopLog() {
