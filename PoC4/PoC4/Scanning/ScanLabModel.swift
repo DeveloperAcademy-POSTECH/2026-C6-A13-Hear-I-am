@@ -35,6 +35,7 @@ final class ScanLabModel: ObservableObject {
     @Published var settings=GuideSettings() { didSet { updateRouteStatus() } }
     @Published private(set) var routeConflicts: [String] = []
     @Published private(set) var guideState: GuideState = .idle
+    @Published private(set) var autoResumePending=false
     @Published private(set) var guideMessage="경로를 저장하고 C를 검증하세요"
     @Published private(set) var exports: [URL]=[]
     @Published var scanName="무대 스캔"
@@ -123,7 +124,9 @@ final class ScanLabModel: ObservableObject {
         previewScene.rootNode.addChildNode(previewRoot)
         previewScene.rootNode.addChildNode(previewAnnotations)
         installRemoteCommands()
-        NotificationCenter.default.addObserver(forName: AVAudioSession.interruptionNotification, object:nil, queue:.main) { [weak self] _ in
+        NotificationCenter.default.addObserver(forName: AVAudioSession.interruptionNotification, object:nil, queue:.main) { [weak self] notification in
+            guard let raw=notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
+                  AVAudioSession.InterruptionType(rawValue:raw) == .began else { return }
             Task { @MainActor in self?.audioInterrupted() }
         }
         refreshFiles()
@@ -231,7 +234,7 @@ final class ScanLabModel: ObservableObject {
         overlay.isHidden = !showMesh; referenceOverlay.isHidden=false
         manifest=nil; origin=nil; front=nil; checkpoint=nil; stage=nil; area=nil
         corners=Array(repeating:nil,count:4); routePoints=[]; obstacles=[]; obstacleDraft=[]; routeConflicts=[]
-        guide=nil; guideState = .idle; speech.stopSpeaking(at:.immediate); clearNowPlaying()
+        guide=nil; guideState = .idle; autoResumePending=false; speech.stopSpeaking(at:.immediate); clearNowPlaying()
         recordOn=false; lastErrorMeters=nil; references="앞왼쪽 → 앞오른쪽 → 뒤오른쪽 → 뒤왼쪽 → C"
         restoreStarted=nil; updateCounts(); lastUI = -.infinity; lastPoseLog = -.infinity
     }
@@ -270,11 +273,28 @@ final class ScanLabModel: ObservableObject {
                 position=stagePosition(sample.world)
                 heading=stage.heading(cameraForward:sample.forward)
                 if heading == nil && recordOn { gate.invalidate(); invalidateWear("카메라 수평 방향 불명확 · 착용 자세와 C를 다시 확인하세요") }
-                if recordOn, let position, let heading, var guide, guide.state == .guiding {
-                    let update=guide.observe(time:sample.time,position:FloorPoint(position.x,position.y),headingDegrees:heading,trackingValid:ready)
-                    self.guide=guide; guideState=update.state
-                    if let spoken=update.announcement { announce(spoken); event("guide_announcement",detail:spoken,position:position,heading:heading) }
-                    if update.state == .completed { updateNowPlaying(active:false); event("guide_complete",detail:"p\(update.targetIndex)") }
+                if recordOn, let position, let heading, var guide {
+                    let floor=FloorPoint(position.x,position.y)
+                    if guide.state == .guiding {
+                        let update=guide.observe(time:sample.time,position:floor,headingDegrees:heading,trackingValid:ready)
+                        self.guide=guide; guideState=update.state
+                        if let spoken=update.announcement { announce(spoken); event("guide_announcement",detail:spoken,position:position,heading:heading) }
+                        if update.state == .completed { updateNowPlaying(active:false); event("guide_complete",detail:"p\(update.targetIndex)") }
+                        if update.state == .paused {
+                            speech.stopSpeaking(at:.immediate); updateNowPlaying(active:false)
+                            autoResumePending=guide.canAutomaticallyRecover
+                            guideMessage=autoResumePending
+                                ? "위치 확인 중 · 무대 안쪽에서 1초 안정되면 자동 재개"
+                                : "위치·추적을 확인한 뒤 명시적 재개"
+                            event("guide_paused",detail:"\(guide.pauseReason.map { String(describing:$0) } ?? "unknown")")
+                        }
+                    } else if guide.state == .paused && autoResumePending {
+                        if guide.observeAutomaticRecovery(time:sample.time,position:floor,trackingValid:ready) {
+                            self.guide=guide; guideState=guide.state; autoResumePending=false
+                            updateNowPlaying(active:true); guideMessage="p\(guide.targetIndex) 안내 재개"
+                            event("guide_auto_resumed",detail:"p\(guide.targetIndex)")
+                        } else { self.guide=guide }
+                    }
                 }
             } else { position=nil; heading=nil }
             if mode == .restoring {
@@ -666,11 +686,12 @@ final class ScanLabModel: ObservableObject {
             ? guide.start(position:floor,headingDegrees:heading,trackingValid:true)
             : guide.resume(position:floor,trackingValid:true)
         guard success else {return}
-        self.guide=guide; guideState=guide.state; guideMessage="p\(guide.targetIndex) 안내 중"
+        self.guide=guide; guideState=guide.state; autoResumePending=false; guideMessage="p\(guide.targetIndex) 안내 중"
         updateNowPlaying(active:true); event("guide_start",detail:"p\(guide.targetIndex)")
         announce("안내를 시작합니다.")
     }
     func pauseGuide(_ reason: String = "사용자 일시정지") {
+        autoResumePending=false
         guard var guide, guide.state == .guiding else {return}
         guide.pause(); self.guide=guide; guideState = .paused; guideMessage=reason
         speech.stopSpeaking(at:.immediate); updateNowPlaying(active:false); event("guide_paused",detail:reason)
@@ -732,6 +753,7 @@ final class ScanLabModel: ObservableObject {
         event("manual_note",detail:text); note=""
     }
     private func invalidateWear(_ message: String) {
+        autoResumePending=false
         pauseGuide(message); cancelCountdown()
         if recordOn { event("wear_invalidated",detail:message) }
         recordOn=false; ready=false; position=nil; heading=nil; status=message

@@ -223,6 +223,7 @@ public struct GuideSettings: Codable, Equatable, Sendable {
     }
 }
 public enum GuideState: Equatable, Sendable { case idle, guiding, paused, completed }
+public enum GuidePauseReason: Equatable, Sendable { case manual, invalidSample, sampleGap, outsideStage }
 public struct GuideUpdate: Equatable, Sendable {
     public let state: GuideState
     public let targetIndex: Int
@@ -232,11 +233,15 @@ public struct GuideUpdate: Equatable, Sendable {
 public struct RouteGuide: Sendable {
     public private(set) var state: GuideState = .idle
     public private(set) var targetIndex=1
+    public private(set) var pauseReason: GuidePauseReason?
+    public var canAutomaticallyRecover: Bool { state == .paused && (pauseReason == .outsideStage || pauseReason == .sampleGap) }
     public let route: StageRoute
     public let settings: GuideSettings
     private var arrivedSince: Double?
     private var lastTime: Double?
     private var lastSpeech: Double = -.infinity
+    private var reentrySince: Double?
+    private var lastReentryTime: Double?
     private var sector: Int?
     public init(route: StageRoute, settings: GuideSettings) { self.route=route; self.settings=settings }
     public func ready(position: FloorPoint, headingDegrees: Double, trackingValid: Bool) -> Bool {
@@ -247,22 +252,45 @@ public struct RouteGuide: Sendable {
     }
     @discardableResult public mutating func start(position: FloorPoint, headingDegrees: Double, trackingValid: Bool) -> Bool {
         guard state == .idle, ready(position:position,headingDegrees:headingDegrees,trackingValid:trackingValid) else { return false }
-        state = .guiding; targetIndex=1; arrivedSince=nil; lastTime=nil; lastSpeech = -.infinity; sector=nil
+        state = .guiding; targetIndex=1; arrivedSince=nil; lastTime=nil; lastSpeech = -.infinity; sector=nil; pauseReason=nil
         return true
     }
-    public mutating func pause() { if state == .guiding { state = .paused; arrivedSince=nil } }
+    public mutating func pause() { pause(reason:.manual) }
+    private mutating func pause(reason: GuidePauseReason) {
+        guard state == .guiding else { return }
+        state = .paused; pauseReason=reason; arrivedSince=nil; reentrySince=nil; lastReentryTime=nil
+    }
     @discardableResult public mutating func resume(position: FloorPoint, trackingValid: Bool) -> Bool {
         guard state == .paused, trackingValid, position.valid,
               route.area.contains(position,margin:settings.boundaryMargin),
               route.conflicts(boundaryMargin:settings.boundaryMargin,obstacleClearance:settings.obstacleClearance).isEmpty else { return false }
-        state = .guiding; arrivedSince=nil; lastTime=nil; lastSpeech = -.infinity; sector=nil
+        state = .guiding; pauseReason=nil; arrivedSince=nil; lastTime=nil; lastSpeech = -.infinity
+        reentrySince=nil; lastReentryTime=nil; sector=nil
         return true
+    }
+    /// A boundary or guide-sample gap may recover after one second of fresh, verified in-bounds samples.
+    @discardableResult public mutating func observeAutomaticRecovery(time: Double, position: FloorPoint, trackingValid: Bool) -> Bool {
+        guard canAutomaticallyRecover else { return false }
+        guard time.isFinite, position.valid, trackingValid,
+              route.area.contains(position,margin:settings.boundaryMargin),
+              lastReentryTime.map({time > $0 && time-$0 <= 0.5}) ?? true else {
+            reentrySince=nil; lastReentryTime=nil; return false
+        }
+        lastReentryTime=time
+        guard let since=reentrySince else { reentrySince=time; return false }
+        guard time-since >= 1.0 else { return false }
+        return resume(position:position,trackingValid:true)
     }
     public mutating func observe(time: Double, position: FloorPoint, headingDegrees: Double, trackingValid: Bool) -> GuideUpdate {
         guard state == .guiding else { return GuideUpdate(state:state,targetIndex:targetIndex,announcement:nil) }
-        guard time.isFinite, position.valid, headingDegrees.isFinite, trackingValid,
-              lastTime.map({time > $0 && time-$0 <= 0.5}) ?? true, route.area.contains(position) else {
-            pause(); return GuideUpdate(state:state,targetIndex:targetIndex,announcement:nil)
+        guard time.isFinite, position.valid, headingDegrees.isFinite, trackingValid else {
+            pause(reason:.invalidSample); return GuideUpdate(state:state,targetIndex:targetIndex,announcement:nil)
+        }
+        guard lastTime.map({time > $0 && time-$0 <= 0.5}) ?? true else {
+            pause(reason:.sampleGap); return GuideUpdate(state:state,targetIndex:targetIndex,announcement:nil)
+        }
+        guard route.area.contains(position) else {
+            pause(reason:.outsideStage); return GuideUpdate(state:state,targetIndex:targetIndex,announcement:nil)
         }
         lastTime=time
         let goal=route.points[targetIndex], distance=position.distance(to:goal)
@@ -271,10 +299,11 @@ public struct RouteGuide: Sendable {
             if let since=arrivedSince, time-since >= settings.arrivalDwell {
                 if targetIndex == route.points.count-1 {
                     state = .completed
-                    return GuideUpdate(state:state,targetIndex:targetIndex,announcement:"마지막 목적지에 도착했습니다.")
+                    return GuideUpdate(state:state,targetIndex:targetIndex,announcement:"\(targetIndex)번째 지점 도착. 안내를 종료합니다.")
                 }
-                targetIndex += 1; arrivedSince=nil; lastSpeech = -.infinity; sector=nil
-                return GuideUpdate(state:state,targetIndex:targetIndex,announcement:"p\(targetIndex-1) 도착. 다음 목적지로 이동합니다.")
+                let arrivedIndex=targetIndex
+                targetIndex += 1; arrivedSince=nil; lastSpeech=time; sector=nil
+                return GuideUpdate(state:state,targetIndex:targetIndex,announcement:"\(arrivedIndex)번째 지점 도착.")
             }
         } else { arrivedSince=nil }
         let dx=goal.x-position.x, dy=goal.y-position.y
