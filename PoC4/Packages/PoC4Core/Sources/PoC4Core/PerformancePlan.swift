@@ -68,6 +68,7 @@ public struct LibraryPins: Codable, Equatable, Sendable {
     public private(set) var ids: Set<UUID> = []
     public init() {}
     public mutating func toggle(_ id: UUID) { if !ids.insert(id).inserted { ids.remove(id) } }
+    public mutating func remove(_ id: UUID) {ids.remove(id)}
     public func groups(_ records: [ScanManifest]) -> (pinned: [ScanManifest], recent: [ScanManifest]) {
         let sorted = records.sorted { $0.date == $1.date ? $0.id.uuidString < $1.id.uuidString : $0.date > $1.date }
         return (sorted.filter {ids.contains($0.id)}, sorted.filter {!ids.contains($0.id)})
@@ -82,6 +83,10 @@ public actor PerformancePlanStore {
         try plan.validate()
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         try JSONEncoder().encode(plan).write(to: root.appendingPathComponent(plan.id.uuidString + ".json"), options: .atomic)
+    }
+    public func delete(_ id: UUID) throws {
+        let file=root.appendingPathComponent(id.uuidString + ".json")
+        if FileManager.default.fileExists(atPath:file.path) {try FileManager.default.removeItem(at:file)}
     }
     public func list() throws -> [PerformancePlan] {
         guard FileManager.default.fileExists(atPath: root.path) else { return [] }

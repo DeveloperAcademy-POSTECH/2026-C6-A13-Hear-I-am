@@ -104,6 +104,39 @@ final class PreparationTests: XCTestCase {
         XCTAssertEqual(loaded.manifest.settings, settings)
         XCTAssertEqual(loaded.manifest.version, 2)
     }
+    func testDeletingPlanOnlyRemovesSelectedFileAndIsRepeatable() async throws {
+        let root=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer {try? FileManager.default.removeItem(at:root)}
+        let store=PerformancePlanStore(root:root)
+        var first=PerformancePlan()
+        try first.append(.init(-1,2));try first.append(.init(3,2));try first.append(.init(13,2));try first.finishRoute()
+        var second=first;second.id=UUID();second.name="유지할 동선"
+        try await store.save(first);try await store.save(second)
+        try await store.delete(first.id);try await store.delete(first.id)
+        let remaining=try await PerformancePlanStore(root:root).list()
+        XCTAssertEqual(remaining.map(\.id),[second.id])
+    }
+    func testDeletingScanRemovesBundleButPreservesOtherScanAndPins() async throws {
+        let root=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer {try? FileManager.default.removeItem(at:root)}
+        let store=ScanStore(root:root)
+        let frame=try StageFrame(origin:.init(0,0,0),front:.init(0,0,1))
+        let mesh=MeshSnapshot(id:UUID(),transform:[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1],
+            vertices:[.init(0,0,0),.init(1,0,0),.init(0,0,-1)],indices:[0,1,2])
+        let deletedID=UUID(), retainedID=UUID()
+        for id in [deletedID,retainedID] {
+            _=try await store.save(id:id,name:"테스트",frame:frame,checkpoint:.init(3,0,-2),worldMap:Data([1]),meshes:[mesh],device:"test",appVersion:"1")
+        }
+        var pins=LibraryPins();pins.toggle(deletedID);pins.toggle(retainedID)
+        try await store.delete(deletedID);try await store.delete(deletedID);pins.remove(deletedID)
+        let remaining=try await ScanStore(root:root).list()
+        XCTAssertEqual(remaining.map(\.id),[retainedID])
+        XCTAssertFalse(FileManager.default.fileExists(atPath:root.appendingPathComponent(deletedID.uuidString).path))
+        let reloadedPins=try JSONDecoder().decode(LibraryPins.self,from:JSONEncoder().encode(pins))
+        XCTAssertEqual(reloadedPins.ids,[retainedID])
+        let retained=try await store.load(retainedID)
+        XCTAssertEqual(retained.meshes,[mesh])
+    }
     func testPinsRoundTripAndNoDuplicates() throws {
         let area = PerformancePlan.area
         let frame = try StageFrame(origin: area.world(FloorPoint(0,0)), front: area.world(FloorPoint(0,-1)))

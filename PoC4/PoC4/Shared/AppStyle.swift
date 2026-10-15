@@ -146,3 +146,44 @@ struct BrandMark: View {
         }.background(.black,in:RoundedRectangle(cornerRadius:12)).accessibilityHidden(true)
     }
 }
+
+
+extension View {
+    func librarySelection(selecting: Bool, selected: Bool, onSelect: @escaping () -> Void, onToggle: @escaping () -> Void) -> some View {
+        self.allowsHitTesting(!selecting)
+            .overlay {
+                if selecting {
+                    Button(action:onToggle) {Color.clear.contentShape(Rectangle())}
+                        .buttonStyle(.plain).accessibilityLabel(selected ? "선택 해제" : "선택")
+                }
+            }
+            .overlay(alignment:.topLeading) {
+                if selecting {
+                    Image(systemName:selected ? "checkmark.circle.fill" : "circle")
+                        .font(.title2).foregroundStyle(selected ? Color.hearGreen : .secondary)
+                        .background(.white,in:Circle()).padding(8).allowsHitTesting(false)
+                }
+            }
+            .overlay(RoundedRectangle(cornerRadius:20).stroke(selected ? Color.hearGreen : .clear,lineWidth:2).allowsHitTesting(false))
+            .contentShape(RoundedRectangle(cornerRadius:20))
+            .highPriorityGesture(LongPressGesture(minimumDuration:0.45).onEnded {_ in onSelect()})
+            .accessibilityAction(named:"삭제할 항목으로 선택",onSelect)
+    }
+}
+
+struct LibrarySelectionBar: View {
+    let count: Int
+    let busy: Bool
+    let cancel: () -> Void
+    let delete: () -> Void
+    var body: some View {
+        HStack(spacing:16) {
+            Button("취소",action:cancel).frame(minHeight:44)
+            Spacer()
+            if busy {ProgressView()} else {Text("\(count)개 선택").font(.subheadline.weight(.semibold))}
+            Spacer()
+            Button(role:.destructive,action:delete) {Label("삭제",systemImage:"trash").frame(minHeight:44)}
+                .disabled(count == 0)
+        }.padding(.horizontal,24).padding(.vertical,6).background(.regularMaterial).disabled(busy)
+    }
+}
