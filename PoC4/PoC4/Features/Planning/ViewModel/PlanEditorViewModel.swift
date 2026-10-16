@@ -39,11 +39,10 @@ final class PlanEditorViewModel: ObservableObject {
     }
     func undoPoint() { plan.undoPoint() }
     func finishRoute() { perform {try plan.finishRoute()} }
-    /// Returns true when saved; failures stay in `message`.
-    func save(to library: StageLibrary) async -> Bool {
+    /// Saves, then calls `onSaved`. Failures stay in `message`. The busy flag is set before returning.
+    func save(to library: StageLibrary, onSaved: @escaping () -> Void) {
         saving=true
-        defer {saving=false}
-        do {try await library.savePlan(plan); return true} catch {message=error.localizedDescription; return false}
+        Task {do {try await library.savePlan(plan); onSaved()} catch {message=error.localizedDescription}; saving=false}
     }
     private func perform(_ action:() throws -> Void) {do {try action()} catch {message=error.localizedDescription}}
 }
