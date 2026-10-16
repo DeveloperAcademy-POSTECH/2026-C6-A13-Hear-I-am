@@ -27,7 +27,10 @@ targets:
   PoC4:
     type: application
     platform: iOS
-    sources: [PoC4]
+    sources:
+      - path: PoC4
+        excludes:
+          - "**/.gitkeep"
     dependencies:
       - package: PoC4Core
     settings:
