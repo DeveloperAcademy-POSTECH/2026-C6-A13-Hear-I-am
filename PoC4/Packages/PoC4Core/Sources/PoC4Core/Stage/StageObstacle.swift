@@ -1,0 +1,68 @@
+import Foundation
+
+public enum ObstacleKind: String, Codable, CaseIterable, Sendable { case stairs, box, other, platform }
+public enum PassagePolicy: String, Codable, Sendable { case prohibited, passable }
+public struct StageObstacle: Codable, Equatable, Sendable, Identifiable {
+    public var id: UUID
+    public var name: String
+    public var kind: ObstacleKind
+    public var passage: PassagePolicy
+    public var vertices: [FloorPoint]
+    public init(id: UUID = UUID(), name: String, kind: ObstacleKind, passage: PassagePolicy = .prohibited, vertices: [FloorPoint]) throws {
+        self.id=id; self.name=name; self.kind=kind; self.passage=passage; self.vertices=vertices
+        try validate()
+    }
+    public func validate() throws {
+        guard !name.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty,
+              (3...8).contains(vertices.count), vertices.allSatisfy(\.valid),
+              abs(Self.area(vertices)) >= 0.02 else { throw LabError.invalid("장애물 영역에 유효한 꼭짓점 3~8개가 필요합니다.") }
+        for i in vertices.indices {
+            for j in vertices.indices where j > i+1 && !(i == 0 && j == vertices.count-1) {
+                if Self.intersects(vertices[i],vertices[(i+1)%vertices.count],vertices[j],vertices[(j+1)%vertices.count]) {
+                    throw LabError.invalid("장애물 영역이 자기 교차합니다.")
+                }
+            }
+        }
+    }
+    private static func area(_ p: [FloorPoint]) -> Double {
+        p.indices.reduce(0) { $0+p[$1].x*p[($1+1)%p.count].y-p[($1+1)%p.count].x*p[$1].y }/2
+    }
+    private static func cross(_ a: FloorPoint,_ b: FloorPoint,_ c: FloorPoint) -> Double {
+        (b.x-a.x)*(c.y-a.y)-(b.y-a.y)*(c.x-a.x)
+    }
+    static func intersects(_ a: FloorPoint,_ b: FloorPoint,_ c: FloorPoint,_ d: FloorPoint) -> Bool {
+        let e=1e-9
+        let ab1=cross(a,b,c), ab2=cross(a,b,d), cd1=cross(c,d,a), cd2=cross(c,d,b)
+        if ab1*ab2 < -e && cd1*cd2 < -e { return true }
+        func on(_ p: FloorPoint,_ q: FloorPoint,_ r: FloorPoint) -> Bool {
+            abs(cross(p,q,r)) <= e && r.x >= min(p.x,q.x)-e && r.x <= max(p.x,q.x)+e &&
+            r.y >= min(p.y,q.y)-e && r.y <= max(p.y,q.y)+e
+        }
+        return on(a,b,c) || on(a,b,d) || on(c,d,a) || on(c,d,b)
+    }
+    public func contains(_ p: FloorPoint) -> Bool {
+        var inside=false
+        for i in vertices.indices {
+            let a=vertices[i], b=vertices[(i+1)%vertices.count]
+            if Self.distancePointSegment(p,a,b) < 1e-8 { return true }
+            if (a.y > p.y) != (b.y > p.y) && p.x < (b.x-a.x)*(p.y-a.y)/(b.y-a.y)+a.x { inside.toggle() }
+        }
+        return inside
+    }
+    private static func distancePointSegment(_ p: FloorPoint,_ a: FloorPoint,_ b: FloorPoint) -> Double {
+        let dx=b.x-a.x, dy=b.y-a.y, n=dx*dx+dy*dy
+        let t=n > 0 ? max(0,min(1,((p.x-a.x)*dx+(p.y-a.y)*dy)/n)) : 0
+        return hypot(p.x-a.x-t*dx,p.y-a.y-t*dy)
+    }
+    private static func segmentDistance(_ a: FloorPoint,_ b: FloorPoint,_ c: FloorPoint,_ d: FloorPoint) -> Double {
+        if intersects(a,b,c,d) { return 0 }
+        return min(distancePointSegment(a,c,d),distancePointSegment(b,c,d),
+                   distancePointSegment(c,a,b),distancePointSegment(d,a,b))
+    }
+    public func overlaps(_ a: FloorPoint,_ b: FloorPoint, clearance: Double) -> Bool {
+        if contains(a) || contains(b) { return true }
+        return vertices.indices.contains { i in
+            Self.segmentDistance(a,b,vertices[i],vertices[(i+1)%vertices.count]) <= clearance+1e-9
+        }
+    }
+}
