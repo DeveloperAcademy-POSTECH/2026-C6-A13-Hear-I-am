@@ -1,13 +1,10 @@
 import SwiftUI
 import PoC4Core
 
+/// Saved schematic plans. Independent from scanned stages and guidance.
 struct PlanLibraryView: View {
     @ObservedObject var library: StageLibrary
-    @State private var editing: PerformancePlan?
-    @State private var selecting=false
-    @State private var selectedIDs: Set<UUID> = []
-    @State private var confirmingDelete=false
-    @State private var deleting=false
+    @StateObject private var model=PlanLibraryViewModel()
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -18,49 +15,28 @@ struct PlanLibraryView: View {
                         VStack(spacing:16) {
                             Image("StageEmpty").resizable().scaledToFit().frame(height:190)
                             Text("아직 저장한 공연이 없어요").font(.headline)
-                            Button("첫 동선 그리기") {editing=PerformancePlan()}.buttonStyle(.borderedProminent)
+                            Button("첫 동선 그리기") {model.create()}.buttonStyle(.borderedProminent)
                         }.frame(maxWidth:.infinity).padding(.vertical,35)
                     }
                     ForEach(library.plans) {plan in
-                        Button {editing=plan} label: {
-                            VStack(alignment:.leading,spacing:12) {
-                                StageMap(points:plan.points,objects:plan.objects).frame(height:180)
-                                HStack {Text(plan.name).font(.headline); Spacer(); Image(systemName:"chevron.right")}
-                                Text("내부 지점 \(max(0,plan.points.count-2))개 · 기물 \(plan.objects.count)개").font(.subheadline).foregroundStyle(.secondary)
-                                Text(plan.updatedAt,format:.dateTime.locale(Locale(identifier:"ko_KR")).month().day().hour().minute()).font(.caption).foregroundStyle(.secondary)
-                            }.padding(16).background(.white,in:RoundedRectangle(cornerRadius:20)).overlay(RoundedRectangle(cornerRadius:20).stroke(.gray.opacity(0.2)))
-                        }.buttonStyle(.plain)
-                            .librarySelection(selecting:selecting,selected:selectedIDs.contains(plan.id),onSelect:{
-                                selecting=true;selectedIDs.insert(plan.id)
-                            },onToggle:{if !selectedIDs.insert(plan.id).inserted {selectedIDs.remove(plan.id)}})
-                            .disabled(deleting)
+                        Button {model.open(plan)} label: {PlanCard(plan:plan)}.buttonStyle(.plain)
+                            .librarySelection(selecting:model.selection.selecting,selected:model.selection.contains(plan.id),onSelect:{
+                                model.selection.begin(with:plan.id)
+                            },onToggle:{model.selection.toggle(plan.id)})
+                            .disabled(model.selection.deleting)
                     }
                 }.padding(20)
             }.navigationTitle("공연 사전 저장")
-                .toolbar {ToolbarItem(placement:.topBarTrailing) {Button {editing=PerformancePlan()} label:{Image(systemName:"plus")}.accessibilityLabel("공연 사전 저장 추가").disabled(selecting)}}
+                .toolbar {ToolbarItem(placement:.topBarTrailing) {Button {model.create()} label:{Image(systemName:"plus")}.accessibilityLabel("공연 사전 저장 추가").disabled(model.selection.selecting)}}
                 .safeAreaInset(edge:.bottom) {
-                    if selecting {LibrarySelectionBar(count:selectedIDs.count,busy:deleting,cancel:{selecting=false;selectedIDs=[]},delete:{confirmingDelete=true})}
+                    if model.selection.selecting {LibrarySelectionBar(count:model.selection.ids.count,busy:model.selection.deleting,cancel:{model.selection.cancel()},delete:{model.selection.confirmingDelete=true})}
                 }
-                .alert("선택한 공연 동선 \(selectedIDs.count)개를 삭제할까요?",isPresented:$confirmingDelete) {
-                    Button("삭제",role:.destructive) {deleteSelectedPlans()}
+                .alert("선택한 공연 동선 \(model.selection.ids.count)개를 삭제할까요?",isPresented:$model.selection.confirmingDelete) {
+                    Button("삭제",role:.destructive) {model.deleteSelected(in:library)}
                     Button("취소",role:.cancel) {}
                 } message: {Text("저장한 사전 도면이 삭제되며 되돌릴 수 없어요. 실제 스캔 무대와 안내 기록은 유지돼요.")}
                 .refreshable {await library.refresh()}
-                .fullScreenCover(item:$editing) {plan in PlanEditorView(initial:plan,library:library)}
-        }
-    }
-    private func deleteSelectedPlans() {
-        guard !deleting else {return}
-        deleting=true
-        let ids=selectedIDs
-        Task {
-            var failures:[String]=[]
-            for id in ids {
-                do {try await library.deletePlan(id)} catch {failures.append(error.localizedDescription)}
-            }
-            selectedIDs.formIntersection(Set(library.plans.map(\.id)))
-            selecting = !selectedIDs.isEmpty;deleting=false
-            if !failures.isEmpty {library.error="일부 공연 동선을 삭제하지 못했어요. 다시 시도해주세요. " + failures.joined(separator:"\n")}
+                .fullScreenCover(item:$model.editing) {plan in PlanEditorView(initial:plan,library:library)}
         }
     }
 }

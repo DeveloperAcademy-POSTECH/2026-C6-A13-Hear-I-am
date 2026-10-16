@@ -3,17 +3,7 @@ import PoC4Core
 
 struct HomeView: View {
     @ObservedObject var library: StageLibrary
-    @State private var preparing=false
-    @State private var guiding=false
-    @State private var notice: String?
-    @State private var selecting=false
-    @State private var selectedIDs: Set<UUID> = []
-    @State private var confirmingDelete=false
-    @State private var deleting=false
-    @State private var renameTarget: ScanManifest?
-    @State private var editedName=""
-    @State private var showingRename=false
-    @State private var renaming=false
+    @StateObject private var model=HomeViewModel()
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -22,17 +12,17 @@ struct HomeView: View {
                         BrandMark().frame(width:44,height:44)
                         Text("Hear I am").font(.largeTitle.bold())
                         Spacer()
-                        Button {notice="설정은 준비 중입니다."} label: {Image(systemName:"gearshape").font(.title3).frame(width:44,height:44)}.accessibilityLabel("설정")
+                        Button {model.showSettingsNotice()} label: {Image(systemName:"gearshape").font(.title3).frame(width:44,height:44)}.accessibilityLabel("설정")
                     }
                     VStack(alignment:.leading,spacing:12) {
                         Text("무엇을 시작할까요?").font(.title3).foregroundStyle(.secondary)
                         HStack(spacing:12) {
-                            homeAction("무대 준비하기",subtitle:"공간과 경로 저장",image:"ScanAction",dark:true) {preparing=true}.disabled(selecting)
-                            homeAction("안내 사용하기",subtitle:"저장한 무대 선택",image:"BeltAction",dark:false) {guiding=true}.disabled(selecting)
+                            HomeActionCard(title:"무대 준비하기",subtitle:"공간과 경로 저장",image:"ScanAction",dark:true) {model.preparing=true}.disabled(model.selection.selecting)
+                            HomeActionCard(title:"안내 사용하기",subtitle:"저장한 무대 선택",image:"BeltAction",dark:false) {model.guiding=true}.disabled(model.selection.selecting)
                         }
                     }
                     if !library.groups.pinned.isEmpty {
-                        stageSection("고정한 무대",records:library.groups.pinned)
+                        VStack(alignment:.leading,spacing:14) {Text("고정한 무대").font(.title2.bold()); HomeStageList(library:library,model:model,records:library.groups.pinned)}
                     }
                     VStack(alignment:.leading,spacing:14) {
                         HStack {Text("최근 저장한 무대").font(.title2.bold()); Spacer(); Text("최근 저장순").font(.caption).foregroundStyle(.secondary)}
@@ -45,76 +35,26 @@ struct HomeView: View {
                             }.frame(maxWidth:.infinity).padding(20).background(Color(.systemGray6),in:RoundedRectangle(cornerRadius:22))
                         } else if library.groups.recent.isEmpty {
                             Text("저장한 무대가 모두 위에 고정되어 있어요.").font(.subheadline).foregroundStyle(.secondary).padding(.vertical)
-                        } else {ForEach(library.groups.recent,id:\.id) {selectableStage($0)}}
+                        } else {HomeStageList(library:library,model:model,records:library.groups.recent)}
                     }
                 }.padding(20).padding(.bottom,16)
             }.background(Color(.systemBackground)).toolbar(.hidden,for:.navigationBar)
                 .safeAreaInset(edge:.bottom) {
-                    if selecting {LibrarySelectionBar(count:selectedIDs.count,busy:deleting,cancel:{selecting=false;selectedIDs=[]},delete:{confirmingDelete=true})}
+                    if model.selection.selecting {LibrarySelectionBar(count:model.selection.ids.count,busy:model.selection.deleting,cancel:{model.selection.cancel()},delete:{model.selection.confirmingDelete=true})}
                 }
-                .alert("선택한 무대 \(selectedIDs.count)개를 삭제할까요?",isPresented:$confirmingDelete) {
-                    Button("삭제",role:.destructive) {deleteSelectedStages()}
+                .alert("선택한 무대 \(model.selection.ids.count)개를 삭제할까요?",isPresented:$model.selection.confirmingDelete) {
+                    Button("삭제",role:.destructive) {model.deleteSelected(in:library)}
                     Button("취소",role:.cancel) {}
                 } message: {Text("스캔 공간과 동선이 삭제되며 되돌릴 수 없어요. 고정도 해제됩니다. 완료한 안내 기록은 유지돼요.")}
-                .alert("무대 이름 변경",isPresented:$showingRename) {
-                    TextField("무대 이름",text:$editedName)
-                    Button("취소",role:.cancel) {renameTarget=nil}
-                    Button("저장") {renameStage()}
-                        .disabled(editedName.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty || editedName.trimmingCharacters(in:.whitespacesAndNewlines).count>80)
+                .alert("무대 이름 변경",isPresented:$model.showingRename) {
+                    TextField("무대 이름",text:$model.editedName)
+                    Button("취소",role:.cancel) {model.cancelRename()}
+                    Button("저장") {model.rename(in:library)}.disabled(!model.canSaveName)
                 } message: {Text("무대 이름을 80자 이내로 입력해주세요.")}
                 .refreshable {await library.refresh()}
-                .fullScreenCover(isPresented:$preparing,onDismiss:{Task {await library.refresh()}}) {PreparationView()}
-                .fullScreenCover(isPresented:$guiding) {GuidanceView(library:library)}
-                .alert("Hear I am",isPresented:Binding(get:{notice != nil},set:{if !$0 {notice=nil}})) {Button("확인",role:.cancel) {notice=nil}} message: {Text(notice ?? "")}
+                .fullScreenCover(isPresented:$model.preparing,onDismiss:{Task {await library.refresh()}}) {PreparationView()}
+                .fullScreenCover(isPresented:$model.guiding) {GuidanceView(library:library)}
+                .alert("Hear I am",isPresented:Binding(get:{model.notice != nil},set:{if !$0 {model.notice=nil}})) {Button("확인",role:.cancel) {model.notice=nil}} message: {Text(model.notice ?? "")}
         }
-    }
-    private func selectableStage(_ record: ScanManifest) -> some View {
-        StageRow(record:record,library:library,onRename:{
-            renameTarget=record;editedName=record.name;showingRename=true
-        })
-            .librarySelection(selecting:selecting,selected:selectedIDs.contains(record.id),onSelect:{
-                selecting=true;selectedIDs.insert(record.id)
-            },onToggle:{if !selectedIDs.insert(record.id).inserted {selectedIDs.remove(record.id)}})
-            .disabled(deleting || renaming)
-    }
-    private func renameStage() {
-        guard let target=renameTarget, !renaming else {return}
-        let name=editedName
-        renaming=true
-        Task {
-            defer {renaming=false;renameTarget=nil}
-            do {try await library.renameStage(target.id,to:name)}
-            catch {notice="이름을 변경하지 못했어요. 다시 시도해주세요. " + error.localizedDescription}
-        }
-    }
-    private func deleteSelectedStages() {
-        guard !deleting else {return}
-        deleting=true
-        let ids=selectedIDs
-        Task {
-            var failures:[String]=[]
-            for id in ids {
-                do {try await library.deleteStage(id)} catch {failures.append(error.localizedDescription)}
-            }
-            selectedIDs.formIntersection(Set(library.records.map(\.id)))
-            selecting = !selectedIDs.isEmpty;deleting=false
-            if !failures.isEmpty {notice="일부 무대를 삭제하지 못했어요. 다시 시도해주세요. " + failures.joined(separator:"\n")}
-        }
-    }
-    private func stageSection(_ title: String, records: [ScanManifest]) -> some View {
-        VStack(alignment:.leading,spacing:14) {Text(title).font(.title2.bold()); ForEach(records,id:\.id) {selectableStage($0)}}
-    }
-    private func homeAction(_ title: String,subtitle: String,image: String,dark: Bool,action: @escaping ()->Void) -> some View {
-        Button(action:action) {
-            VStack(alignment:.leading,spacing:14) {
-                Image(image).resizable().scaledToFit().frame(height:86).frame(maxWidth:.infinity).accessibilityHidden(true)
-                Spacer(minLength:0)
-                HStack(spacing:3) {Text(title).font(.system(size:19,weight:.bold)).minimumScaleFactor(0.8).lineLimit(1); Spacer(minLength:0); Image(systemName:"chevron.right").font(.caption.bold())}
-                Text(subtitle).font(.system(size:13)).foregroundStyle(dark ? Color.white.opacity(0.75) : .secondary)
-            }.padding(16).frame(maxWidth:.infinity).frame(height:207)
-                .foregroundStyle(dark ? .white : .hearInk)
-                .background(dark ? Color.hearInk : Color(.systemBackground),in:RoundedRectangle(cornerRadius:22))
-                .overlay(RoundedRectangle(cornerRadius:22).stroke(.gray.opacity(dark ? 0 : 0.25)))
-        }.buttonStyle(.plain)
     }
 }
