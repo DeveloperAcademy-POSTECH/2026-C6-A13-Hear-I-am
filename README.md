@@ -26,8 +26,12 @@ Xcode에서 **[PoC4/PoC4.xcodeproj](PoC4/PoC4.xcodeproj)** 하나를 열고 **Po
 ```text
 PoC4/
 ├── PoC4.xcodeproj/       # 실행할 유일한 Xcode 프로젝트
-├── PoC4/                # 기능별 앱 소스·이미지 자산
-├── Packages/PoC4Core/    # 공용 로직과 테스트
+├── PoC4/                # 앱 소스 (MVVM)
+│   ├── App/Source/      #   앱 진입점·탭 루트
+│   ├── Core/            #   여러 기능이 함께 쓰는 AR·음성·로그·저장소·디자인 요소
+│   ├── Features/        #   기능별 Model / View(Screen·Parts·Sheet) / ViewModel
+│   └── Resources/       #   이미지 자산·개인정보 매니페스트
+├── Packages/PoC4Core/    # 화면과 무관한 도메인 로직과 테스트 (Geometry·Stage·Guidance·Storage)
 ├── scripts/             # 검증 스크립트
 ├── project.yml          # 동일 프로젝트의 XcodeGen 설정
 └── README.md            # 상세 사용 안내
@@ -35,7 +39,7 @@ Documentation/           # 기획·검증·자산 문서
 └── Archive/             # 이전 PoC 문서와 코드 이력 안내
 ```
 
-- [상세 사용 안내](PoC4/README.md)
+- [상세 사용 안내](PoC4/README.md) · [코드 구조(MVVM)](Documentation/ARCHITECTURE.md)
 - [UX 구현 계획](Documentation/UX-REFINEMENT-PLAN.md) · [세로 안내 계획](Documentation/GUIDANCE-UX-PLAN.md)
 - [검증 결과 및 실기기 체크리스트](Documentation/UX-VALIDATION.md)
 - [이미지 자산과 앱 아이콘](Documentation/IMAGE-ASSETS.md)
