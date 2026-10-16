@@ -4,7 +4,7 @@
 >
 > PoC4-2를 기반으로 무대 준비·음성 안내 UX를 검증합니다. 실제 공연장 검증과 배포 서명·업로드는 별도로 진행합니다.
 
-Xcode에서 **[PoC4/Hear-I-am.xcodeproj](PoC4/Hear-I-am.xcodeproj)** 하나를 열고 **Hear-I-am** scheme을 선택하세요. 앱 표시 이름은 **Hear I am**입니다.
+Xcode에서 **[Hear-I-am.xcodeproj](Hear-I-am.xcodeproj)** 하나를 열고 **Hear-I-am** scheme을 선택하세요. 앱 표시 이름은 **Hear I am**입니다.
 
 ## 현재 구현
 
@@ -19,7 +19,7 @@ Xcode에서 **[PoC4/Hear-I-am.xcodeproj](PoC4/Hear-I-am.xcodeproj)** 하나를 �
 - iOS 17 이상. 실제 스캔·공간 복원은 LiDAR를 지원하는 iPhone에서 확인하세요.
 - Xcode의 Signing & Capabilities에서 개발 팀을 선택합니다.
 - 시뮬레이터에서는 홈·목록·도면 편집 등을 확인할 수 있습니다. 실제 AR 스캔과 이동 안내는 실기기 검증이 필요합니다.
-- 코어 테스트: 저장소 루트에서 `sh PoC4/scripts/test-core.sh`.
+- 코어 테스트: 저장소 루트에서 `sh scripts/test-core.sh`.
 
 ## 폴더 구조
 
