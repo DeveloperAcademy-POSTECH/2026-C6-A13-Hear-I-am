@@ -23,16 +23,19 @@ extension GuidanceViewModel {
         let record=try run.record(completionSpoken:true,finishedAt:Date())
         pendingRecord=record;return record
     }
-    /// Saves the completion record once. Returns false and keeps `saveError` when saving fails.
-    func saveRecord(to library: StageLibrary) async -> Bool {
-        guard !savingRecord else {return false}
+    /// Saves the completion record once, then calls `onSaved`. Failures stay in `saveError`.
+    /// The busy flag is set before returning so a second tap is ignored immediately.
+    func saveRecord(to library: StageLibrary, onSaved: @escaping () -> Void) {
+        guard !savingRecord else {return}
         savingRecord=true;saveError=nil
-        defer {savingRecord=false}
-        do {
-            let record=try completedRecord()
-            try await library.saveGuidanceRecord(record)
-            return true
-        } catch {saveError="기록을 저장하지 못했어요. 다시 시도해주세요. \(error.localizedDescription)";return false}
+        Task {
+            defer {savingRecord=false}
+            do {
+                let record=try completedRecord()
+                try await library.saveGuidanceRecord(record)
+                onSaved()
+            } catch {saveError="기록을 저장하지 못했어요. 다시 시도해주세요. \(error.localizedDescription)"}
+        }
     }
     /// Stops the session, timers and audio. Called once when the screen closes.
     func finish() {

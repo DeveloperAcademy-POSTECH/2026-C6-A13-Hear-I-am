@@ -32,6 +32,6 @@ struct PlanEditorView: View {
             }
     }
     private func save() {
-        Task {if await model.save(to:library) {dismiss()}}
+        model.save(to:library) {dismiss()}
     }
 }

@@ -49,7 +49,7 @@ struct GuidanceView: View {
     }
     private func close() { model.finish();dismiss() }
     private func saveAndClose() {
-        Task { if await model.saveRecord(to:library) { close() } }
+        model.saveRecord(to:library) { close() }
     }
     private func exit() {
         if model.phase == .completed {saveAndClose()}
