@@ -6,10 +6,10 @@
 
 ## 실행
 
-- iOS 17 이상. Xcode에서 `PoC4/Hear-I-am.xcodeproj`를 열고 Hear-I-am scheme을 선택한다.
+- iOS 17 이상. Xcode에서 `Hear-I-am.xcodeproj`를 열고 Hear-I-am scheme을 선택한다.
 - 실제 스캔은 ARKit 메시 재구성을 지원하는 LiDAR iPhone이 필요하다. Signing Team을 지정하고 카메라 권한을 허용한다.
 - 시뮬레이터에서는 홈·사전 편집·저장 목록을 확인할 수 있으며 스캔 완료를 모사하지 않는다.
-- 코어 검증: 저장소 루트에서 `sh PoC4/scripts/test-core.sh`.
+- 코어 검증: 저장소 루트에서 `sh scripts/test-core.sh`.
 - 프로젝트 소스 목록과 `project.yml`을 함께 관리한다. XcodeGen 사용 시 `PoC4`에서 `xcodegen generate`.
 
 ## 구현한 흐름
