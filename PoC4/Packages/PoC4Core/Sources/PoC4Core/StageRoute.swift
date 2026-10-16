@@ -36,6 +36,26 @@ public struct FrontEdgeGuide: Equatable, Sendable {
     }
 }
 
+/// Temporary back-edge direction from measured E3 toward unmeasured E4.
+/// Its length matches the front edge; E4 is still measured independently.
+public struct BackEdgeGuide: Equatable, Sendable {
+    public let start: Point3
+    public let end: Point3
+
+    public init(front: FrontEdgeGuide, backRight: Point3) throws {
+        let dx=front.rightStart.x-front.leftStart.x
+        let dz=front.rightStart.z-front.leftStart.z
+        let inwardX=(front.rightEnd.x-front.rightStart.x)/front.length
+        let inwardZ=(front.rightEnd.z-front.rightStart.z)/front.length
+        let depth=(backRight.x-front.rightStart.x)*inwardX+(backRight.z-front.rightStart.z)*inwardZ
+        guard backRight.valid, abs(backRight.y-front.rightStart.y) <= 0.20, depth >= 0.5 else {
+            throw LabError.invalid("세 번째 꼭짓점은 같은 바닥의 앞 변 뒤쪽에 있어야 합니다.")
+        }
+        start=Point3(backRight.x,front.rightStart.y,backRight.z)
+        end=Point3(backRight.x-dx,front.rightStart.y,backRight.z-dz)
+    }
+}
+
 /// Corners are front-left, front-right, back-right, back-left as seen from the audience.
 /// Coordinates are AR world metres, with the floor in world X/Z and world Y vertical.
 public struct StageArea: Codable, Equatable, Sendable {

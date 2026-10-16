@@ -26,6 +26,23 @@ final class StageRouteTests: XCTestCase {
         XCTAssertThrowsError(try FrontEdgeGuide(frontLeft:Point3(0,0,0),frontRight:Point3(0.1,0,0)))
         XCTAssertThrowsError(try FrontEdgeGuide(frontLeft:Point3(0,0,0),frontRight:Point3(2,0.3,0)))
     }
+    func testBackEdgeGuideExtendsFromE3PerpendicularToInwardGuides() throws {
+        let front=try FrontEdgeGuide(frontLeft:Point3(6,0,0),frontRight:Point3(0,0,0))
+        let back=try BackEdgeGuide(front:front,backRight:Point3(0,0,4))
+        XCTAssertEqual(back.start,Point3(0,0,4))
+        XCTAssertEqual(back.end,Point3(6,0,4))
+        let backX=back.end.x-back.start.x, backZ=back.end.z-back.start.z
+        let inwardX=front.rightEnd.x-front.rightStart.x, inwardZ=front.rightEnd.z-front.rightStart.z
+        XCTAssertEqual(backX*inwardX+backZ*inwardZ,0,accuracy:1e-8)
+        let rotated=try FrontEdgeGuide(frontLeft:Point3(2,1,3),frontRight:Point3(2,1,7))
+        let rotatedBack=try BackEdgeGuide(front:rotated,backRight:Point3(6,1,7))
+        XCTAssertEqual(rotatedBack.end,Point3(6,1,3))
+    }
+    func testBackEdgeGuideRejectsThirdCornerOutsideBackFloor() throws {
+        let front=try FrontEdgeGuide(frontLeft:Point3(6,0,0),frontRight:Point3(0,0,0))
+        XCTAssertThrowsError(try BackEdgeGuide(front:front,backRight:Point3(0,0,0.2)))
+        XCTAssertThrowsError(try BackEdgeGuide(front:front,backRight:Point3(0,0.3,4)))
+    }
     func testCornerFrameRoundTripAndFront() throws {
         let a=try area()
         XCTAssertEqual(a.floor(a.world(FloorPoint(2,4))).distance(to:FloorPoint(2,4)),0,accuracy:1e-8)

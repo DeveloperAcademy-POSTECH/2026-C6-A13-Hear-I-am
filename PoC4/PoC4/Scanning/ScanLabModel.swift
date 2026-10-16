@@ -101,6 +101,8 @@ final class ScanLabModel: ObservableObject {
     private var suspendedGuide: RouteGuide?
     private var suspendedScanID: UUID?
     private let speech=AVSpeechSynthesizer()
+    private var lastAlignmentPrompt = -Double.infinity
+    private let alignmentPrompt = "후면 카메라를 몸 앞쪽으로 향하게 하고 수평을 맞춰 주세요."
     private var remoteTargets: [Any] = []
     private let previewAnnotations=SCNNode()
     private var gate=TrackingGate()
@@ -279,10 +281,17 @@ final class ScanLabModel: ObservableObject {
                     self.guide=guide; guideState=guide.state; autoResumePending=true
                     speech.stopSpeaking(at:.immediate); updateNowPlaying(active:false)
                     guideMessage="카메라가 거의 바닥·천장을 향함 · 렌즈를 전방으로 고정하면 자동 재개"
+                    lastAlignmentPrompt = -Double.infinity
                     let forward=sample.forward
                     let length=sqrt(forward.x*forward.x+forward.y*forward.y+forward.z*forward.z)
                     let horizontalRatio=length > 0 ? hypot(forward.x,forward.z)/length : 0
                     event("guide_paused",detail:String(format:"unclearHeading:p%d:horizontalRatio=%.3f",guide.targetIndex,horizontalRatio))
+                }
+                if heading == nil, recordOn, let guide, guide.state == .paused,
+                   guide.pauseReason == .unclearHeading, sample.time-lastAlignmentPrompt >= 6 {
+                    announce(alignmentPrompt)
+                    lastAlignmentPrompt=sample.time
+                    event("guide_alignment_prompt",detail:"p\(guide.targetIndex)")
                 }
                 if recordOn, let position, let heading, var guide {
                     let floor=FloorPoint(position.x,position.y)
@@ -388,7 +397,10 @@ final class ScanLabModel: ObservableObject {
             var selected=corners
             selected[index]=p
             if let first=selected[0], let second=selected[1] {
-                _ = try FrontEdgeGuide(frontLeft:first,frontRight:second)
+                let frontGuide = try FrontEdgeGuide(frontLeft:first,frontRight:second)
+                if let third=selected[2] {
+                    _ = try BackEdgeGuide(front:frontGuide,backRight:third)
+                }
             }
             corners=selected; changed=true
             area=nil; stage=nil; origin=nil; front=nil; checkpoint=nil
@@ -404,7 +416,9 @@ final class ScanLabModel: ObservableObject {
             }
             gate.invalidate(); invalidateWear("무대 변경 · C 확인 필요")
             if area != nil {status="무대 E 확정 · 스캔 공간 3D 보기에서 확인하세요"}
-            else if corners[0] != nil && corners[1] != nil {
+            else if corners[0] != nil && corners[1] != nil && corners[2] != nil {
+                status="E3 고정 · 청록색 수직 점선을 따라 E4를 직접 선택하세요"
+            } else if corners[0] != nil && corners[1] != nil {
                 status="E1·E2 고정 · 주황색 수직 점선을 따라 뒤쪽 꼭짓점을 찾으세요"
             } else {status="첫 꼭짓점 앵커 표시 · 앞오른쪽 점을 선택하세요"}
             references="네 꼭짓점 \(corners.compactMap {$0}.count)/4 · \(area == nil ? "직사각형 미확정" : "E 확정") · C —"
@@ -538,6 +552,10 @@ final class ScanLabModel: ObservableObject {
             line(guide.leftStart,guide.rightStart,color:.systemOrange)
             dashedGuide(guide.leftStart,guide.leftEnd)
             dashedGuide(guide.rightStart,guide.rightEnd)
+            if let third=corners[2],
+               let back=try? BackEdgeGuide(front:guide,backRight:third) {
+                dashedGuide(back.start,back.end,color:.systemTeal)
+            }
         }
         if let area {
             let edge=[FloorPoint(0,0),FloorPoint(area.width,0),FloorPoint(area.width,area.depth),FloorPoint(0,area.depth)]
@@ -579,7 +597,7 @@ final class ScanLabModel: ObservableObject {
         referenceOverlay.addChildNode(group)
         if previewVisible {previewAnnotations.addChildNode(group.clone())}
     }
-    private func dashedGuide(_ a: Point3,_ b: Point3) {
+    private func dashedGuide(_ a: Point3,_ b: Point3,color: UIColor = .systemOrange) {
         let length=hypot(b.x-a.x,b.z-a.z)
         guard length > 0 else {return}
         var start=0.0
@@ -588,7 +606,7 @@ final class ScanLabModel: ObservableObject {
             let u=start/length, v=end/length
             let from=Point3(a.x+(b.x-a.x)*u,a.y,a.z+(b.z-a.z)*u)
             let to=Point3(a.x+(b.x-a.x)*v,a.y,a.z+(b.z-a.z)*v)
-            line(from,to,color:.systemOrange)
+            line(from,to,color:color)
             start += 0.55
         }
     }
