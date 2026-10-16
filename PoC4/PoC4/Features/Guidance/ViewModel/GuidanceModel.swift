@@ -20,7 +20,7 @@ import PoC4Core
     @Published private(set) var cue: GuidanceCue?
     @Published private(set) var arrivedName: String?
     @Published var showExit=false
-    let tracking=ScanLabModel(guidanceSession:true)
+    let tracking=ARSessionController(purpose:.guidance)
     private let voice=GuidanceSpeech()
     private var guide: RouteGuide?
     private var run: GuidanceRun?

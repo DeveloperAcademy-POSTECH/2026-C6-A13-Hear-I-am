@@ -3,7 +3,7 @@ import ARKit
 import PoC4Core
 
 struct CameraView: UIViewRepresentable {
-    let model: ScanLabModel
+    let model: ARSessionController
     func makeUIView(context: Context) -> ARSCNView {
         let view=ARSCNView(frame:.zero)
         view.preferredFramesPerSecond=30
