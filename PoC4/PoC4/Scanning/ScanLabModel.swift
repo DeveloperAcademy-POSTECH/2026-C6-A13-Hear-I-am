@@ -1,7 +1,6 @@
 import ARKit
 import SceneKit
 import AVFoundation
-import MediaPlayer
 import SwiftUI
 import Combine
 import PoC4Core
@@ -15,32 +14,20 @@ final class ScanLabModel: ObservableObject {
     @Published private(set) var mapping="대기"
     @Published private(set) var meshCount=0
     @Published private(set) var vertexCount=0
-    @Published private(set) var records: [ScanManifest]=[]
     @Published private(set) var position: Point3?
     @Published private(set) var heading: Double?
     @Published private(set) var ready=false
     @Published private(set) var canVerify=false
     @Published private(set) var canSave=false
     @Published private(set) var busy=false
-    @Published private(set) var recordOn=false
-    @Published private(set) var wearCountdown: Int?
-    @Published private(set) var lastErrorMeters: Double?
-    @Published private(set) var references="앞왼쪽 → 앞오른쪽 → 뒤오른쪽 → 뒤왼쪽 → C"
     @Published private(set) var corners: [Point3?] = Array(repeating:nil,count:4)
     @Published private(set) var routePoints: [FloorPoint] = []
     @Published private(set) var obstacles: [StageObstacle] = []
     @Published private(set) var obstacleDraft: [FloorPoint] = []
     @Published var obstacleName="장애물"
     @Published var obstacleKind: ObstacleKind = .box
-    @Published var settings=GuideSettings() { didSet { updateRouteStatus() } }
-    @Published private(set) var routeConflicts: [String] = []
-    @Published private(set) var guideState: GuideState = .idle
-    @Published private(set) var guideTargetIndex: Int?
-    @Published private(set) var autoResumePending=false
-    @Published private(set) var guideMessage="경로를 저장하고 C를 검증하세요"
-    @Published private(set) var exports: [URL]=[]
+    @Published var settings=GuideSettings()
     @Published var scanName="무대 스캔"
-    @Published var note=""
     @Published var errorMessage: String?
     @Published var showMesh=true { didSet { overlay.isHidden = !showMesh } }
     let checkpointTolerance=0.15 // Experiment threshold, NOT an accuracy guarantee.
@@ -56,39 +43,6 @@ final class ScanLabModel: ObservableObject {
     private var archiveWriteInProgress=false
     private var manifest: ScanManifest?
     private var meshes: [UUID:MeshSnapshot]=[:]
-    let previewScene = SCNScene()
-    let previewRoot = SCNNode()
-    private var previewNodes: [UUID: SCNNode] = [:]
-    private var previewDirty: Set<UUID> = []
-    private var previewVisible = false
-    private var lastPreviewUpdate = -Double.infinity
-    @Published private(set) var previewRevision = 0
-
-    func setPreviewVisible(_ visible: Bool) {
-        previewVisible = visible
-        if visible {
-            previewDirty.formUnion(meshes.keys)
-            updatePreview(); redrawReferences()
-        } else {
-            previewRoot.childNodes.forEach { $0.removeFromParentNode() }
-            previewNodes.removeAll()
-            previewAnnotations.childNodes.forEach {$0.removeFromParentNode()}
-        }
-    }
-
-    private func updatePreview() {
-        guard previewVisible, !previewDirty.isEmpty else { return }
-        for id in previewDirty {
-            previewNodes.removeValue(forKey: id)?.removeFromParentNode()
-            guard let mesh = meshes[id] else { continue }
-            let node = mesh.node(saved: mode != .scanning, solid: true)
-            previewNodes[id] = node
-            previewRoot.addChildNode(node)
-        }
-        previewDirty.removeAll()
-        lastPreviewUpdate = now
-        previewRevision += 1
-    }
 
     private var nodes: [UUID:SCNNode]=[:]
     private let overlay=SCNNode()
@@ -99,12 +53,6 @@ final class ScanLabModel: ObservableObject {
     private var checkpoint: Point3?
     private var stage: StageFrame?
     private var area: StageArea?
-    private var guide: RouteGuide?
-    private var suspendedGuide: RouteGuide?
-    private var suspendedScanID: UUID?
-    private let speech=AVSpeechSynthesizer()
-    private var remoteTargets: [Any] = []
-    private let previewAnnotations=SCNNode()
     private var gate=TrackingGate()
     private var latest: CameraSample?
     private var lastUI = -Double.infinity
@@ -114,7 +62,6 @@ final class ScanLabModel: ObservableObject {
     private var logging: TrialLog?
     private var sequence=0
     private var active=true
-    private var wearTask: Task<Void,Never>?
     private let isGuidanceSession: Bool
     private(set) var guidancePoseTime: Double?
     private var visibleGuidanceTarget: Int?
@@ -126,7 +73,6 @@ final class ScanLabModel: ObservableObject {
     private let cameraQueue=DispatchQueue(label:"PoC4.AR",qos:.userInitiated)
     var now: Double { ProcessInfo.processInfo.systemUptime }
     var referencePrefix: String { "PoC4.reference."+scanID.uuidString }
-    var stageLabel: String { manifest?.name ?? (mode == .scanning ? scanName : "없음") }
 
     @Published private(set) var preparation: PreparationDraft?
     @Published private(set) var scanConfirmed = false
@@ -147,15 +93,11 @@ final class ScanLabModel: ObservableObject {
             settings.boundaryMargin=PreparationDraft.boundaryMargin
             settings.obstacleClearance=PreparationDraft.obstacleClearance
         }
-        previewScene.rootNode.addChildNode(previewRoot)
-        previewScene.rootNode.addChildNode(previewAnnotations)
-        if !preparing && !guidanceSession { installRemoteCommands() }
         if !guidanceSession { NotificationCenter.default.addObserver(forName: AVAudioSession.interruptionNotification, object:nil, queue:.main) { [weak self] notification in
             guard let raw=notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
                   AVAudioSession.InterruptionType(rawValue:raw) == .began else { return }
             Task { @MainActor in self?.audioInterrupted() }
         } }
-        refreshFiles()
         watchdog=Timer.scheduledTimer(withTimeInterval:0.2,repeats:true) { [weak self] _ in
             Task { @MainActor in self?.tick() }
         }
@@ -166,18 +108,6 @@ final class ScanLabModel: ObservableObject {
         arView.scene.rootNode.addChildNode(overlay)
         arView.scene.rootNode.addChildNode(referenceOverlay)
         if let session { arView.session=session }
-    }
-    func refreshFiles() {
-        Task {
-            do { records=try await store.list() }
-            catch { errorMessage="스캔 목록 오류: "+error.localizedDescription }
-        }
-        do {
-            exports=try FileManager.default.contentsOfDirectory(at:logDirectory,includingPropertiesForKeys:nil)
-                .filter {$0.pathExtension=="jsonl"}.sorted {$0.lastPathComponent>$1.lastPathComponent}
-        } catch {
-            if FileManager.default.fileExists(atPath:logDirectory.path) { errorMessage=error.localizedDescription }
-        }
     }
     private func permission() async -> Bool {
         switch AVCaptureDevice.authorizationStatus(for:.video) {
@@ -196,7 +126,6 @@ final class ScanLabModel: ObservableObject {
             guard await permission(), active, token==operation else { return }
             busy=false
             reset()
-            suspendedGuide=nil; suspendedScanID=nil
             scanID=UUID(); mode = .scanning
             beginLog(source:"new-scan")
             guard logging != nil else {mode = .idle; return}
@@ -230,10 +159,6 @@ final class ScanLabModel: ObservableObject {
                 if let route=loaded.manifest.route {
                     area=route.area; corners=route.area.corners.map { Optional($0) }
                     routePoints=route.points; obstacles=route.obstacles; settings=loaded.manifest.settings
-                    if suspendedScanID == item.id, let suspendedGuide, suspendedGuide.route == route {
-                        guide=suspendedGuide; guideState = .paused; guideMessage="C·착용 위치 재검증 후 명시적 재개"
-                    } else { guide=RouteGuide(route:route,settings:settings) }
-                    guideTargetIndex=guide?.targetIndex
                 }
                 mode = .restoring
                 for part in loaded.meshes { meshes[part.id]=part }
@@ -243,30 +168,22 @@ final class ScanLabModel: ObservableObject {
                 guard logging != nil else {mode = .idle; return}
                 restoreStarted=now
                 startSession(map:map)
-                references="저장된 네 꼭짓점과 C · 실제 C를 다시 선택해 검증"
                 status="복원 중 · 스캔했던 주변과 기준점을 천천히 비추세요"
             } catch { if token==operation { errorMessage="불러오기 실패: "+error.localizedDescription } }
         }
     }
     private func reset() {
-        cancelCountdown()
         stopLog()
         session?.delegate=nil; session?.pause()
         token=UUID(); gate=TrackingGate(); latest=nil
         if preparation != nil { preparation=PreparationDraft(); scanConfirmed=false; savedID=nil; pendingObjectWorld=[]; editingObjectID=nil }
         position=nil; heading=nil; guidancePoseTime=nil; ready=false; canVerify=false; canSave=false
-        previewRoot.childNodes.forEach { $0.removeFromParentNode() }
-        previewNodes.removeAll(); previewDirty.removeAll()
-        previewAnnotations.childNodes.forEach {$0.removeFromParentNode()}
-        previewRevision += 1
         meshes=[:]; nodes.values.forEach {$0.removeFromParentNode()}; nodes=[:]
         referenceOverlay.childNodes.forEach {$0.removeFromParentNode()}
         cornerAnchors.removeAll()
         overlay.isHidden = !showMesh; referenceOverlay.isHidden=false
         manifest=nil; origin=nil; front=nil; checkpoint=nil; stage=nil; area=nil
-        corners=Array(repeating:nil,count:4); routePoints=[]; obstacles=[]; obstacleDraft=[]; routeConflicts=[]
-        guide=nil; guideState = .idle; guideTargetIndex=nil; autoResumePending=false; speech.stopSpeaking(at:.immediate); clearNowPlaying()
-        recordOn=false; lastErrorMeters=nil; references="앞왼쪽 → 앞오른쪽 → 뒤오른쪽 → 뒤왼쪽 → C"
+        corners=Array(repeating:nil,count:4); routePoints=[]; obstacles=[]; obstacleDraft=[]
         restoreStarted=nil; updateCounts(); lastUI = -.infinity; lastPoseLog = -.infinity
     }
     private func startSession(map: ARWorldMap?) {
@@ -303,43 +220,6 @@ final class ScanLabModel: ObservableObject {
             if let stage, ready {
                 position=stagePosition(sample.world)
                 heading=stage.heading(cameraForward:sample.forward)
-                if heading == nil, recordOn, var guide, guide.state == .guiding {
-                    guide.pauseForUnclearHeading()
-                    self.guide=guide; guideState=guide.state; autoResumePending=true
-                    speech.stopSpeaking(at:.immediate); updateNowPlaying(active:false)
-                    guideMessage="카메라가 거의 바닥·천장을 향함 · 렌즈를 전방으로 고정하면 자동 재개"
-                    let forward=sample.forward
-                    let length=sqrt(forward.x*forward.x+forward.y*forward.y+forward.z*forward.z)
-                    let horizontalRatio=length > 0 ? hypot(forward.x,forward.z)/length : 0
-                    event("guide_paused",detail:String(format:"unclearHeading:p%d:horizontalRatio=%.3f",guide.targetIndex,horizontalRatio))
-                }
-                if recordOn, let position, let heading, var guide {
-                    let floor=FloorPoint(position.x,position.y)
-                    if guide.state == .guiding {
-                        let previousTarget=guide.targetIndex
-                        let update=guide.observe(time:sample.time,position:floor,headingDegrees:heading,trackingValid:ready)
-                        self.guide=guide; guideState=update.state; guideTargetIndex=update.targetIndex
-                        if update.targetIndex != previousTarget {
-                            event("guide_target_advanced",detail:"p\(previousTarget)→p\(update.targetIndex)/p\(routePoints.count-1)")
-                        }
-                        if let spoken=update.announcement { announce(spoken); event("guide_announcement",detail:spoken,position:position,heading:heading) }
-                        if update.state == .completed { updateNowPlaying(active:false); event("guide_complete",detail:"p\(update.targetIndex)") }
-                        if update.state == .paused {
-                            speech.stopSpeaking(at:.immediate); updateNowPlaying(active:false)
-                            autoResumePending=guide.canAutomaticallyRecover
-                            guideMessage=autoResumePending
-                                ? "위치 확인 중 · 무대 안쪽에서 1초 안정되면 자동 재개"
-                                : "위치·추적을 확인한 뒤 명시적 재개"
-                            event("guide_paused",detail:"\(guide.pauseReason.map { String(describing:$0) } ?? "unknown")")
-                        }
-                    } else if guide.state == .paused && autoResumePending {
-                        if guide.observeAutomaticRecovery(time:sample.time,position:floor,headingDegrees:heading,trackingValid:ready) {
-                            self.guide=guide; guideState=guide.state; autoResumePending=false
-                            updateNowPlaying(active:true); guideMessage="p\(guide.targetIndex) 안내 재개"
-                            event("guide_auto_resumed",detail:"p\(guide.targetIndex)")
-                        } else { self.guide=guide }
-                    }
-                }
             } else { position=nil; heading=nil }
             guidancePoseTime=sample.time
             if mode == .restoring {
@@ -351,14 +231,12 @@ final class ScanLabModel: ObservableObject {
         if sample.time-lastPoseLog>=0.05 {
             lastPoseLog=sample.time
             let raw=sample.world.valid ? stagePosition(sample.world) : nil
-            event("pose",detail:recordOn ? "wearing" : "observing",position:raw,
+            event("pose",detail:"observing",position:raw,
                   heading:stage?.heading(cameraForward:sample.forward),time:sample.time)
         }
     }
     func receiveMeshes(_ parts: [MeshSnapshot], removed: [UUID], token incoming: UUID) {
         guard incoming==token, mode == .scanning, active, !busy else { return }
-        previewDirty.formUnion(removed)
-        previewDirty.formUnion(parts.map(\.id))
         for id in removed { meshes[id]=nil; nodes.removeValue(forKey:id)?.removeFromParentNode() }
         for part in parts {
             meshes[part.id]=part
@@ -370,7 +248,6 @@ final class ScanLabModel: ObservableObject {
     }
     private func updateCounts() { meshCount=meshes.count; vertexCount=meshes.values.reduce(0){$0+$1.vertices.count} }
     private func rebuildMesh(saved: Bool) {
-        previewDirty.formUnion(meshes.keys)
         nodes.values.forEach {$0.removeFromParentNode()}; nodes=[:]
         for m in meshes.values { let n=m.node(saved:saved); nodes[m.id]=n; overlay.addChildNode(n) }
     }
@@ -396,138 +273,7 @@ final class ScanLabModel: ObservableObject {
               point.y < latest.world.y-0.15 else { throw LabError.invalid("기기 아래의 바닥을 5m 이내에서 선택하세요.") }
         return point
     }
-    private var routeIsValid: Bool {
-        if let preparation { return preparation.errors.isEmpty }
-        guard let area, routePoints.count >= 2, checkpoint != nil,
-              let route=try? StageRoute(area:area,points:routePoints,obstacles:obstacles) else { return false }
-        return route.conflicts(boundaryMargin:settings.boundaryMargin,obstacleClearance:settings.obstacleClearance).isEmpty
-    }
-    private func updateRouteStatus() {
-        if let preparation { routeConflicts=preparation.errors; canSave=false; redrawReferences(); return }
-        guard let area, routePoints.count >= 2 else {routeConflicts=[]; canSave=false; redrawReferences(); return}
-        do {
-            let route=try StageRoute(area:area,points:routePoints,obstacles:obstacles,allowsOutsideEndpoints:manifest?.route?.version == 2)
-            routeConflicts=route.conflicts(boundaryMargin:settings.boundaryMargin,obstacleClearance:settings.obstacleClearance)
-        } catch { routeConflicts=[error.localizedDescription] }
-        canSave=false
-        redrawReferences()
-    }
-    func captureCorner(_ index: Int) {
-        guard mode == .scanning, corners.indices.contains(index), !busy else { return }
-        var changed=false
-        do {
-            let p=try centerFloorPoint()
-            var selected=corners
-            selected[index]=p
-            if let first=selected[0], let second=selected[1] {
-                _ = try FrontEdgeGuide(frontLeft:first,frontRight:second)
-            }
-            corners=selected; changed=true
-            area=nil; stage=nil; origin=nil; front=nil; checkpoint=nil
-            routePoints=[]; obstacles=[]; obstacleDraft=[]; removeReferenceAnchors()
-            addCornerAnchors()
-            if corners.allSatisfy({$0 != nil}) {
-                let completed=try StageArea(corners:corners.compactMap {$0})
-                area=completed
-                let o=completed.world(FloorPoint(0,0))
-                let f=completed.world(FloorPoint(0,-1))
-                stage=try StageFrame(origin:o,front:f); origin=o; front=f
-                addReference(o,suffix:".origin"); addReference(f,suffix:".front")
-            }
-            gate.invalidate(); invalidateWear("무대 변경 · C 확인 필요")
-            if area != nil {status="무대 E 확정 · 스캔 공간 3D 보기에서 확인하세요"}
-            else if corners[0] != nil && corners[1] != nil {
-                status="E1·E2 고정 · 주황색 수직 점선을 따라 뒤쪽 꼭짓점을 찾으세요"
-            } else {status="첫 꼭짓점 앵커 표시 · 앞오른쪽 점을 선택하세요"}
-            references="네 꼭짓점 \(corners.compactMap {$0}.count)/4 · \(area == nil ? "직사각형 미확정" : "E 확정") · C —"
-            updateRouteStatus(); event("corner_\(index)",position:p)
-        } catch {
-            if changed {
-                canSave=false; gate.invalidate(); invalidateWear("무대 E 미확정 · 꼭짓점을 다시 선택하세요")
-                references="네 꼭짓점 \(corners.compactMap {$0}.count)/4 · E 미확정 · C —"
-                redrawReferences()
-            }
-            errorMessage=error.localizedDescription
-        }
-    }
-    func captureRoutePoint(_ index: Int? = nil) {
-        guard mode == .scanning, let area, !busy else { return }
-        do {
-            let p=try centerFloorPoint()
-            guard abs(p.y-area.floorHeight)<=0.10 else { throw LabError.invalid("무대 바닥 평면 위의 점을 선택하세요.") }
-            let q=area.floor(p)
-            guard area.contains(q) else { throw LabError.invalid("무대 E 안의 점을 선택하세요.") }
-            if let index { guard routePoints.indices.contains(index) else { return }; routePoints[index]=q }
-            else { guard routePoints.count<6 else {throw LabError.invalid("p0과 목적지 p1~p5까지만 등록할 수 있습니다.")}; routePoints.append(q) }
-            updateRouteStatus(); event("route_point",detail:"p\(index ?? routePoints.count-1)",position:p)
-        } catch {errorMessage=error.localizedDescription}
-    }
-    func removeRoutePoint(_ index: Int) {
-        guard mode == .scanning, routePoints.indices.contains(index) else {return}
-        routePoints.remove(at:index); updateRouteStatus(); event("route_point_removed",detail:String(index))
-    }
-    func captureObstacleVertex(_ index: Int? = nil) {
-        guard mode == .scanning, let area, !busy else {return}
-        do {
-            let p=try centerFloorPoint()
-            guard abs(p.y-area.floorHeight)<=0.10, area.contains(area.floor(p)), (index != nil || obstacleDraft.count<8) else {
-                throw LabError.invalid("무대 바닥의 장애물 꼭짓점 3~8개를 선택하세요.")
-            }
-            if let index {
-                guard obstacleDraft.indices.contains(index) else {return}
-                obstacleDraft[index]=area.floor(p)
-            } else {obstacleDraft.append(area.floor(p))}
-            redrawReferences()
-        } catch {errorMessage=error.localizedDescription}
-    }
-    func removeLastObstacleVertex() {if !obstacleDraft.isEmpty {obstacleDraft.removeLast(); redrawReferences()}}
-    func removeObstacleVertex(_ index: Int) {
-        guard obstacleDraft.indices.contains(index) else {return}
-        obstacleDraft.remove(at:index); redrawReferences()
-    }
-    func registerObstacle() {
-        guard mode == .scanning else {return}
-        do {
-            let obstacle=try StageObstacle(name:obstacleName,kind:obstacleKind,passage:.prohibited,vertices:obstacleDraft)
-            obstacles.append(obstacle); obstacleDraft=[]; updateRouteStatus()
-            event("obstacle_registered",detail:"\(obstacle.kind.rawValue):\(obstacle.name):prohibited")
-        } catch {errorMessage=error.localizedDescription}
-    }
-    func editObstacle(_ index: Int) {
-        guard mode == .scanning, obstacles.indices.contains(index) else {return}
-        let o=obstacles.remove(at:index); obstacleName=o.name; obstacleKind=o.kind; obstacleDraft=o.vertices
-        updateRouteStatus(); event("obstacle_edit",detail:o.id.uuidString)
-    }
-    func removeObstacle(_ index: Int) {
-        guard mode == .scanning, obstacles.indices.contains(index) else {return}
-        let o=obstacles.remove(at:index); updateRouteStatus(); event("obstacle_removed",detail:o.id.uuidString)
-    }
-    func capture(_ kind: String) {
-        guard mode == .scanning, !busy else { return }
-        do {
-            let point=try centerFloorPoint()
-            switch kind {
-            case "O":
-                origin=point; front=nil; checkpoint=nil; stage=nil
-                removeReferenceAnchors()
-                addReference(point,suffix:".origin")
-            case "F":
-                guard let origin else { throw LabError.invalid("O를 먼저 선택하세요.") }
-                stage=try StageFrame(origin:origin,front:point); front=point; checkpoint=nil
-                removeReference(suffix:".front"); removeReference(suffix:".check")
-                addReference(point,suffix:".front")
-            default:
-                guard let area, let origin, let front else { throw LabError.invalid("O와 F를 먼저 선택하세요.") }
-                guard area.corners.allSatisfy({point.distance(to:$0)>=0.5}),
-                      point.distance(to:origin)>=0.5, point.distance(to:front)>=0.5,
-                      abs(point.y-origin.y)<=0.15 else { throw LabError.invalid("C는 O·F에서 0.5m 이상 떨어진 같은 바닥점이어야 합니다.") }
-                checkpoint=point; removeReference(suffix:".check"); addReference(point,suffix:".check")
-            }
-            gate.invalidate(); invalidateWear("기준 변경 · C 확인 필요")
-            references="네 꼭짓점 \(corners.compactMap {$0}.count)/4 · E \(area == nil ? "—" : "✓") · C \(checkpoint == nil ? "—" : "✓")"
-            redrawReferences(); event("reference_"+kind,position:point)
-        } catch { errorMessage=error.localizedDescription }
-    }
+    private var routeIsValid: Bool { preparation?.errors.isEmpty ?? false }
     private func removeReferenceAnchors() {
         cornerAnchors.values.forEach {session?.remove(anchor:$0)}
         cornerAnchors.removeAll()
@@ -543,17 +289,13 @@ final class ScanLabModel: ObservableObject {
             session?.add(anchor:anchor)
         }
     }
-    private func removeReference(suffix: String) {
-        session?.currentFrame?.anchors.filter {$0.name==referencePrefix+suffix}.forEach {session?.remove(anchor:$0)}
-    }
     private func addReference(_ p: Point3, suffix: String) {
         var t=matrix_identity_float4x4; t.columns.3=SIMD4(Float(p.x),Float(p.y),Float(p.z),1)
         session?.add(anchor:ARAnchor(name:referencePrefix+suffix,transform:t))
     }
     private func redrawReferences() {
         referenceOverlay.childNodes.forEach {$0.removeFromParentNode()}
-        previewAnnotations.childNodes.forEach {$0.removeFromParentNode()}
-        let referenceLabels: [(String,Point3?)] = (preparation == nil && !isGuidanceSession) ? [("O",origin),("F",front),("C",checkpoint)] : [("확인점",checkpoint)]
+        let referenceLabels: [(String,Point3?)] = [("확인점",checkpoint)]
         for (label,p) in referenceLabels {
             guard let p else { continue }
             let node=SCNNode(geometry:SCNSphere(radius:0.04)); node.geometry?.firstMaterial?.diffuse.contents=UIColor.systemYellow
@@ -583,7 +325,7 @@ final class ScanLabModel: ObservableObject {
             for i in 0..<4 { line(area.world(edge[i]),area.world(edge[(i+1)%4]),color:.systemCyan) }
             for (i,p) in routePoints.enumerated() {
                 let active=isGuidanceSession && !guidanceCompleted && i == visibleGuidanceTarget
-                let label=(preparation == nil && !isGuidanceSession) ? "p\(i)" : (i == 0 ? "출발" : ((isGuidanceSession || preparation?.routeFinished == true) && i == routePoints.count-1 ? "도착" : "P\(i)"))
+                let label=i == 0 ? "출발" : ((isGuidanceSession || preparation?.routeFinished == true) && i == routePoints.count-1 ? "도착" : "P\(i)")
                 let color: UIColor=active ? .systemOrange : .systemGreen
                 marker(area.world(p),label:label+(active ? " · 현재 목표" : ""),color:color)
                 if active {
@@ -624,7 +366,6 @@ final class ScanLabModel: ObservableObject {
         tag.constraints=[SCNBillboardConstraint()]
         group.addChildNode(tag)
         referenceOverlay.addChildNode(group)
-        if previewVisible {previewAnnotations.addChildNode(group.clone())}
     }
     private func dashedGuide(_ a: Point3,_ b: Point3) {
         let length=hypot(b.x-a.x,b.z-a.z)
@@ -642,12 +383,12 @@ final class ScanLabModel: ObservableObject {
     private func marker(_ p: Point3,label: String,color: UIColor) {
         let n=SCNNode(geometry:SCNSphere(radius:0.05)); n.geometry?.firstMaterial?.diffuse.contents=color
         n.position=SCNVector3(Float(p.x),Float(p.y)+0.05,Float(p.z))
-        referenceOverlay.addChildNode(n); if previewVisible {previewAnnotations.addChildNode(n.clone())}
+        referenceOverlay.addChildNode(n)
         let text=SCNText(string:label,extrusionDepth:0); text.font = .boldSystemFont(ofSize:10)
         text.firstMaterial?.diffuse.contents=color; text.firstMaterial?.lightingModel = .constant
         let t=SCNNode(geometry:text); t.scale=SCNVector3(0.015,0.015,0.015)
         t.position=SCNVector3(Float(p.x),Float(p.y)+0.14,Float(p.z)); t.constraints=[SCNBillboardConstraint()]
-        referenceOverlay.addChildNode(t); if previewVisible {previewAnnotations.addChildNode(t.clone())}
+        referenceOverlay.addChildNode(t)
     }
     private func line(_ a: Point3,_ b: Point3,color: UIColor) {
         let u=SIMD3<Float>(Float(a.x),Float(a.y)+0.025,Float(a.z))
@@ -657,14 +398,13 @@ final class ScanLabModel: ObservableObject {
         n.geometry?.firstMaterial?.diffuse.contents=color
         n.simdPosition=(u+v)/2
         n.simdOrientation=simd_quatf(from:SIMD3<Float>(0,1,0),to:simd_normalize(d))
-        referenceOverlay.addChildNode(n); if previewVisible {previewAnnotations.addChildNode(n.clone())}
+        referenceOverlay.addChildNode(n)
     }
     func verifyCheckpoint() {
         guard !busy, let checkpoint else { return }
         do {
             let observed=try centerFloorPoint()
             let distance=observed.distance(to:checkpoint)
-            lastErrorMeters=distance
             let ok=gate.verify(error:distance,tolerance:checkpointTolerance,now:now)
             ready=ok
             event("checkpoint",detail:ok ? "pass" : "fail",position:observed,error:distance)
@@ -702,7 +442,7 @@ final class ScanLabModel: ObservableObject {
                     self.busy=false; self.errorMessage="공간 지도에 기준점이 아직 포함되지 않았습니다. 다시 저장하세요."; return
                 }
                 self.session?.pause(); self.gate.invalidate(); self.ready=false
-                self.cancelCountdown(); self.position=nil; self.heading=nil; self.recordOn=false
+                self.position=nil; self.heading=nil
                 do {
                     let data=try NSKeyedArchiver.archivedData(withRootObject:map,requiringSecureCoding:true)
                     self.archiveWriteInProgress=true
@@ -712,7 +452,7 @@ final class ScanLabModel: ObservableObject {
                         route:route,settings:self.settings)
                     guard self.token==operation else { return }
                     self.mode = .saved; self.savedID=result.id; self.manifest=result; self.status="저장 완료 · 앱 재실행 후 저장 공간을 불러와 C를 검증하세요"
-                    self.event("scan_saved",detail:result.id.uuidString); self.stopLog(); self.refreshFiles()
+                    self.event("scan_saved",detail:result.id.uuidString); self.stopLog()
                 } catch {
                     guard self.token==operation else { return }
                     self.errorMessage="저장 실패: "+error.localizedDescription; self.status="입력은 유지됩니다. 다시 저장해주세요."
@@ -742,7 +482,7 @@ final class ScanLabModel: ObservableObject {
             obstacleDraft=pendingObjectWorld.map(area.floor)
         } else { origin=nil; front=nil; stage=nil; routePoints=[]; obstacles=[]; obstacleDraft=[] }
         if let checkpoint {addReference(checkpoint,suffix:".check")}
-        routeConflicts=draft.errors; canSave=false; redrawReferences()
+        canSave=false; redrawReferences()
     }
     func prepareCorner(_ index: Int) {
         guard canPlacePoint, var draft=preparation, draft.corners.indices.contains(index) else {return}
@@ -806,117 +546,12 @@ final class ScanLabModel: ObservableObject {
         preparation?.objects.removeAll {$0.id==id}; synchronizePreparation()
     }
 
-    func startWear() {
-        guard ready, logging != nil, !recordOn, wearCountdown == nil else { return }
-        let operation=token
-        wearTask=Task { [weak self] in
-            guard let self else { return }
-            for seconds in stride(from:8,through:1,by:-1) {
-                guard !Task.isCancelled, self.token==operation, self.active, self.gate.isReady(now:self.now) else {
-                    self.wearCountdown=nil; return
-                }
-                self.wearCountdown=seconds
-                self.status="착용 준비 \(seconds)초 · 카메라를 앞쪽으로 고정하세요"
-                do {try await Task.sleep(nanoseconds:1_000_000_000)} catch {return}
-            }
-            self.wearCountdown=nil
-            guard self.token==operation, self.gate.isReady(now:self.now),
-                  self.heading != nil, self.logging != nil else {
-                self.status="착용 시작 취소 · C와 카메라 방향을 확인하세요"; return
-            }
-            guard self.prepareAudio() else {return}
-            self.recordOn=true; self.event("wear_start",detail:"rear camera outward, portrait")
-            self.status="착용 추적 기록 중 · 카메라 위치의 추정값이며 발 위치가 아닙니다"
-            UIAccessibility.post(notification:.announcement,argument:"착용 기록 시작")
-        }
-    }
-    var canGuide: Bool {
-        guard ready, recordOn, let position, let heading, let guide else {return false}
-        if guide.state == .idle {return guide.ready(position:FloorPoint(position.x,position.y),headingDegrees:heading,trackingValid:true)}
-        return guide.state == .paused && routeConflicts.isEmpty
-    }
-    func startGuide() {
-        guard canGuide, let position, let heading, var guide else {
-            guideMessage="p0 근접·무대 정면·C 검증·경로 안전 상태를 확인하세요"; return
-        }
-        let floor=FloorPoint(position.x,position.y)
-        let success = guide.state == .idle
-            ? guide.start(position:floor,headingDegrees:heading,trackingValid:true)
-            : guide.resume(position:floor,trackingValid:true)
-        guard success else {return}
-        self.guide=guide; guideState=guide.state; guideTargetIndex=guide.targetIndex
-        autoResumePending=false; guideMessage="p\(guide.targetIndex) 안내 중"
-        updateNowPlaying(active:true); event("guide_start",detail:"p\(guide.targetIndex)")
-        announce("안내를 시작합니다.")
-    }
-    func pauseGuide(_ reason: String = "사용자 일시정지") {
-        autoResumePending=false
-        guard var guide, guide.state == .guiding else {return}
-        guide.pause(); self.guide=guide; guideState = .paused; guideMessage=reason
-        speech.stopSpeaking(at:.immediate); updateNowPlaying(active:false); event("guide_paused",detail:reason)
-    }
-    private func announce(_ text: String) {
-        guideMessage=text
-        speech.stopSpeaking(at:.immediate)
-        let utterance=AVSpeechUtterance(string:text); utterance.voice=AVSpeechSynthesisVoice(language:"ko-KR"); utterance.rate=0.48
-        speech.speak(utterance)
-    }
-    private func prepareAudio() -> Bool {
-        do {
-            let audio=AVAudioSession.sharedInstance()
-            try audio.setCategory(.playback,mode:.spokenAudio,options:[.mixWithOthers])
-            try audio.setActive(true)
-            updateNowPlaying(active:false); return true
-        } catch {errorMessage="오디오 준비 실패: "+error.localizedDescription; return false}
-    }
-    private func updateNowPlaying(active: Bool) {
-        MPNowPlayingInfoCenter.default().nowPlayingInfo=[
-            MPMediaItemPropertyTitle:"PoC4 무대 안내",
-            MPMediaItemPropertyArtist:stageLabel,
-            MPNowPlayingInfoPropertyPlaybackRate:active ? 1.0 : 0.0
-        ]
-    }
-    private func clearNowPlaying() {
-        guard preparation == nil, !isGuidanceSession else { return }
-        MPNowPlayingInfoCenter.default().nowPlayingInfo=nil
-        try? AVAudioSession.sharedInstance().setActive(false,options:.notifyOthersOnDeactivation)
-    }
-    private func installRemoteCommands() {
-        let commands=MPRemoteCommandCenter.shared()
-        commands.playCommand.isEnabled=true; commands.pauseCommand.isEnabled=true
-        commands.togglePlayPauseCommand.isEnabled=true
-        remoteTargets.append(commands.playCommand.addTarget { [weak self] _ in
-            Task { @MainActor in self?.event("remote_command",detail:"play"); self?.startGuide() }; return .success
-        })
-        remoteTargets.append(commands.pauseCommand.addTarget { [weak self] _ in
-            Task { @MainActor in self?.event("remote_command",detail:"pause"); self?.pauseGuide("에어팟/원격 명령 일시정지") }; return .success
-        })
-        remoteTargets.append(commands.togglePlayPauseCommand.addTarget { [weak self] _ in
-            Task { @MainActor in
-                guard let self else {return}
-                self.event("remote_command",detail:"toggle")
-                if self.guideState == .guiding {self.pauseGuide("에어팟/원격 명령 일시정지")}
-                else {self.startGuide()}
-            }; return .success
-        })
-    }
     private func audioInterrupted() {
-        pauseGuide("오디오 중단 · C와 착용 위치 재검증 후 명시적 재개")
         gate.invalidate(); invalidateWear("오디오 중단 · C 재검증 필요")
         event("audio_interrupted")
     }
-    private func cancelCountdown() {wearTask?.cancel(); wearTask=nil; wearCountdown=nil}
-    func stopWear() {pauseGuide("착용 종료"); clearNowPlaying(); cancelCountdown(); recordOn=false; event("wear_stop"); status="착용 구간 종료 · 관측 로그는 계속 기록"}
-    func addNote() {
-        let text=note.trimmingCharacters(in:.whitespacesAndNewlines)
-        guard !text.isEmpty else { return }
-        event("manual_note",detail:text); note=""
-    }
     private func invalidateWear(_ message: String) {
-        autoResumePending=false
-        pauseGuide(message); cancelCountdown()
-        if recordOn { event("wear_invalidated",detail:message) }
-        recordOn=false; ready=false; position=nil; heading=nil; guidancePoseTime=nil; status=message
+        ready=false; position=nil; heading=nil; guidancePoseTime=nil; status=message
         if isGuidanceSession {referenceOverlay.isHidden=true}
     }
     func interrupt(_ message: String, token incoming: UUID) {
@@ -927,13 +562,9 @@ final class ScanLabModel: ObservableObject {
             latest=nil; status="추적이 중단됐습니다. 같은 공간에서 추적을 다시 시작해주세요."
             return
         }
-        pauseGuide(message)
-        if message != "측정 종료", let guide, guide.state == .paused {
-            suspendedGuide=guide; suspendedScanID=scanID
-        } else {suspendedGuide=nil; suspendedScanID=nil}
         event("session_interrupted",detail:message)
         session?.pause(); session?.delegate=nil; token=UUID(); busy=false; gate.invalidate()
-        canSave=false; canVerify=false; mode = .idle; restoreStarted=nil; clearNowPlaying()
+        canSave=false; canVerify=false; mode = .idle; restoreStarted=nil
         invalidateWear(message); stopLog(); UIApplication.shared.isIdleTimerDisabled=false
     }
     func setActive(_ value: Bool) {
@@ -949,7 +580,6 @@ final class ScanLabModel: ObservableObject {
     }
     func endSession() { interrupt("측정 종료",token:token) }
     private func tick() {
-        if now-lastPreviewUpdate >= 0.5 { updatePreview() }
         let was=gate.verified; gate.expire(now:now)
         if was && !gate.verified { invalidateWear("센서 표본 만료 · C 재검증 필요"); event("sample_expired") }
         canVerify=gate.canVerify(now:now); ready=gate.isReady(now:now)
@@ -997,7 +627,7 @@ final class ScanLabModel: ObservableObject {
         logger.close { [weak self] result in
             Task { @MainActor in
                 switch result {
-                case .success: self?.refreshFiles()
+                case .success: break
                 case .failure(let error): self?.errorMessage="로그 마무리 실패: "+error.localizedDescription
                 }
             }
