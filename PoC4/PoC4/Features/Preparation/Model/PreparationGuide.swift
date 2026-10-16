@@ -1,0 +1,29 @@
+import Foundation
+import PoC4Core
+
+/// Title and description of the collapsible guide card for the current step.
+struct PreparationGuide {
+    let title: String
+    let description: String
+
+    init(step: PreparationStep, draft: PreparationDraft, nextCorner: Int?, objectEditing: Bool, pendingVertexCount: Int) {
+        let names=PreparationStep.cornerNames
+        switch step {
+        case .scan:
+            title="공간을 천천히 둘러보세요"
+            description="휴대폰을 양손으로 잡고 공연장과 백스테이지까지 충분히 담아주세요."
+        case .boundary:
+            title=nextCorner.map {"무대 \(names[$0])을 지정해주세요"} ?? "네 모서리가 연결됐어요"
+            description="객석에서 바라본 기준입니다. 네 점이 자동으로 연결됩니다. 위 이름을 눌러 다시 찍을 수 있어요."
+        case .objects:
+            title=objectEditing ? "기물의 바닥 둘레를 지정해주세요" : "장애물과 단상을 등록하세요"
+            description=objectEditing ? "십자선을 물체 주변 바닥 모서리에 맞추고 ‘둘레 점 추가’를 누르세요. 한 방향으로 3~8점을 찍고 등록하면 자동으로 닫힙니다. 현재 \(pendingVertexCount)/8점 · 윗면은 찍지 않아요." : "‘기물 추가’ 후 바닥 둘레를 직접 찍어요. 사각형은 네 모서리를 순서대로 지정하세요. 기물이 없으면 건너뛰세요."
+        case .route:
+            title=draft.routeFinished ? "경로가 연결됐어요" : (draft.route.isEmpty ? "출발점을 지정해주세요" : "다음 위치를 지정해주세요")
+            description="출발·도착은 같은 높이의 무대 밖도 가능해요. 내부 지점은 무대 안에 지정하세요. \(draft.route.count)/6점"
+        case .checkpoint:
+            title=draft.checkpoint == nil ? "확인점 한 개를 지정해주세요" : "확인점을 지정했어요"
+            description="무대 중앙 또는 특징적인 바닥 지점을 선택하세요. 모서리에서 0.5m 이상 떨어져야 해요."
+        }
+    }
+}
