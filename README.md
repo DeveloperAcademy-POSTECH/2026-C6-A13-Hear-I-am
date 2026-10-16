@@ -4,7 +4,7 @@
 >
 > PoC4-2를 기반으로 무대 준비·음성 안내 UX를 검증합니다. 실제 공연장 검증과 배포 서명·업로드는 별도로 진행합니다.
 
-Xcode에서 **[PoC4/PoC4.xcodeproj](PoC4/PoC4.xcodeproj)** 하나를 열고 **PoC4** scheme을 선택하세요. 앱 표시 이름은 **Hear I am**입니다.
+Xcode에서 **[PoC4/Hear-I-am.xcodeproj](PoC4/Hear-I-am.xcodeproj)** 하나를 열고 **Hear-I-am** scheme을 선택하세요. 앱 표시 이름은 **Hear I am**입니다.
 
 ## 현재 구현
 
