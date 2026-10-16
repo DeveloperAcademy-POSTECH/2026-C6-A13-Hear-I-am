@@ -1,0 +1,37 @@
+import SwiftUI
+import HearIAmCore
+
+/// Landscape editor for a schematic plan. Units are layout units, not surveyed metres.
+struct PlanEditorView: View {
+    @ObservedObject var library: StageLibrary
+    @StateObject private var model: PlanEditorViewModel
+    @Environment(\.dismiss) private var dismiss
+    init(initial:PerformancePlan,library:StageLibrary) {self.library=library; _model=StateObject(wrappedValue:PlanEditorViewModel(initial:initial))}
+    var body: some View {
+        let plan=model.plan
+        VStack(spacing:10) {
+            HStack(spacing:16) {
+                Button {if model.hasChanges {model.confirmingExit=true} else {dismiss()}} label:{Image(systemName:"xmark").frame(width:44,height:44)}.accessibilityLabel("편집 나가기")
+                TextField("공연 이름",text:$model.plan.name).font(.title3.bold()).textInputAutocapitalization(.sentences).submitLabel(.done)
+                Text("배치 연습용 · 3:2 고정 비율").font(.caption).foregroundStyle(.secondary)
+                ActionButton(title:model.saving ? "저장 중…" : "저장",enabled:!model.saving && model.valid) {save()}
+            }
+            StageMap(points:plan.points,finished:plan.finished,objects:plan.objects,selectedObject:model.selected,onTap:model.tap)
+                .accessibilityLabel("공연 동선 편집 도면. 선택한 도구로 화면을 눌러 위치를 지정하세요.")
+            PlanEditorTools(model:model)
+            HStack {
+                Text(plan.finished ? "출발 → 내부 \(plan.points.count-2)개 → 도착 · 기물은 모두 통과 금지" : "\(plan.points.count)/6점 · 최소 3점부터 완료 · 마지막 점이 도착점이 됩니다").font(.caption)
+                Spacer()
+                if plan.finished, !model.valid {Text(model.validationMessage ?? "").font(.caption).foregroundStyle(.red)}
+            }.foregroundStyle(.secondary)
+        }.padding(.horizontal,18).padding(.vertical,8).background(.white).disabled(model.saving)
+            .onAppear {ScreenOrientation.set(.landscape)}.onDisappear {ScreenOrientation.set(.portrait)}
+            .alert("확인해주세요",isPresented:Binding(get:{model.message != nil},set:{if !$0 {model.message=nil}})) {Button("확인",role:.cancel) {model.message=nil}} message:{Text(model.message ?? "")}
+            .confirmationDialog("저장하지 않은 변경사항이 있어요",isPresented:$model.confirmingExit,titleVisibility:.visible) {
+                Button("저장하지 않고 나가기",role:.destructive) {dismiss()}; Button("계속 편집",role:.cancel) {}
+            }
+    }
+    private func save() {
+        model.save(to:library) {dismiss()}
+    }
+}

@@ -2,11 +2,11 @@
 
 이슈 [#10](https://github.com/DeveloperAcademy-POSTECH/2026-C6-A13-Hear-I-am/issues/10) · `testflight/1-ux-refinement`
 
-`PoC4.xcodeproj`는 이 TestFlight 검증용 브랜치의 유일한 Xcode 프로젝트다. **PoC4** scheme을 실행하며 앱 표시 이름은 **Hear I am**이다.
+`PoC4.xcodeproj`는 이 TestFlight 검증용 브랜치의 유일한 Xcode 프로젝트다. **Hear-I-am** scheme을 실행하며 앱 표시 이름은 **Hear I am**이다.
 
 ## 실행
 
-- iOS 17 이상. Xcode에서 `PoC4/PoC4.xcodeproj`를 열고 PoC4 scheme을 선택한다.
+- iOS 17 이상. Xcode에서 `PoC4/Hear-I-am.xcodeproj`를 열고 Hear-I-am scheme을 선택한다.
 - 실제 스캔은 ARKit 메시 재구성을 지원하는 LiDAR iPhone이 필요하다. Signing Team을 지정하고 카메라 권한을 허용한다.
 - 시뮬레이터에서는 홈·사전 편집·저장 목록을 확인할 수 있으며 스캔 완료를 모사하지 않는다.
 - 코어 검증: 저장소 루트에서 `sh PoC4/scripts/test-core.sh`.
