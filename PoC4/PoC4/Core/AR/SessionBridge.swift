@@ -4,13 +4,13 @@ import PoC4Core
 
 /// Each session has its own bridge token; queued callbacks from a previous session are ignored.
 final class SessionBridge: NSObject, ARSessionDelegate {
-    weak var model: ScanLabModel?
+    weak var controller: ARSessionController?
     let token: UUID
-    init(model: ScanLabModel, token: UUID) { self.model=model; self.token=token }
+    init(controller: ARSessionController, token: UUID) { self.controller=controller; self.token=token }
     func session(_ session: ARSession, didUpdate frame: ARFrame) {
         let sample=CameraSample(frame)
         Task { @MainActor [weak self] in
-            guard let self else { return }; self.model?.receive(sample,token:self.token)
+            guard let self else { return }; self.controller?.receive(sample,token:self.token)
         }
     }
     func session(_ session: ARSession, didAdd anchors: [ARAnchor]) { meshes(anchors,remove:false) }
@@ -23,7 +23,7 @@ final class SessionBridge: NSObject, ARSessionDelegate {
         let snapshots=remove ? [] : meshAnchors.compactMap(Self.copy)
         Task { @MainActor [weak self] in
             guard let self else { return }
-            self.model?.receiveMeshes(snapshots,removed:remove ? ids : [],token:self.token)
+            self.controller?.receiveMeshes(snapshots,removed:remove ? ids : [],token:self.token)
         }
     }
     static func copy(_ anchor: ARMeshAnchor) -> MeshSnapshot? {
@@ -45,13 +45,13 @@ final class SessionBridge: NSObject, ARSessionDelegate {
         return (try? result.validate()) == nil ? nil : result
     }
     func sessionWasInterrupted(_ session: ARSession) {
-        Task { @MainActor [weak self] in guard let self else { return }; self.model?.interrupt("AR 세션 중단",token:self.token) }
+        Task { @MainActor [weak self] in guard let self else { return }; self.controller?.interrupt("AR 세션 중단",token:self.token) }
     }
     func sessionInterruptionEnded(_ session: ARSession) {
-        Task { @MainActor [weak self] in guard let self else { return }; self.model?.interrupt("중단 종료 · 저장 공간을 다시 불러오세요",token:self.token) }
+        Task { @MainActor [weak self] in guard let self else { return }; self.controller?.interrupt("중단 종료 · 저장 공간을 다시 불러오세요",token:self.token) }
     }
     func session(_ session: ARSession, didFailWithError error: Error) {
         let message=error.localizedDescription
-        Task { @MainActor [weak self] in guard let self else { return }; self.model?.interrupt(message,token:self.token) }
+        Task { @MainActor [weak self] in guard let self else { return }; self.controller?.interrupt(message,token:self.token) }
     }
 }
