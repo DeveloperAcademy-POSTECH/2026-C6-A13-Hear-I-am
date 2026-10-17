@@ -29,7 +29,11 @@ extension GuidanceViewModel {
         self.guide=guide;cue=guide.cue(position:pose.point,headingDegrees:pose.heading)
         tracking.setGuidanceTarget(guide.targetIndex,completed:guide.state == .completed)
         if update.state == .completed { playCompletion();return }
-        if update.state == .paused { paused(guide:guide);return }
+        if update.state == .paused {
+            if let reason=guide.pauseReason, Self.escapeReasons.contains(reason) { beginEscape(reason:reason,pose:pose,guide:guide) }
+            else { paused(guide:guide) }
+            return
+        }
         if update.targetIndex != previous { arrived(previous,guide:guide,time:pose.time) }
         if let shown=arrivalShownAt, pose.time-shown > Self.arrivalShownSeconds { arrivedName=nil;arrivalShownAt=nil }
         signal(pose:pose,guide:guide)

@@ -31,4 +31,6 @@ enum SignalVolume {
     static let arrival: Float=0.5
     /// Tones drop to this share of their level while speech plays, so words are not masked.
     static let duckedShare: Float=0.6
+    /// Warning level after 10 s of failing to step away from an obstacle.
+    static let quietShare: Float=0.3
 }
