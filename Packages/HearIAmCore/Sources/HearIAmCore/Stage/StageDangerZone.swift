@@ -37,6 +37,13 @@ public struct StageDangerZone: Codable, Equatable, Sendable, Identifiable {
         }
         return [.init(x0,y0),.init(x1,y0),.init(x1,y1),.init(x0,y1)]
     }
+    /// Includes the strip boundary; points outside the stage are not in a danger zone.
+    public func contains(_ point: FloorPoint, width: Double, depth: Double) -> Bool {
+        let polygon=vertices(width:width,depth:depth)
+        guard point.valid, polygon.count == 4 else { return false }
+        return point.x >= polygon[0].x && point.x <= polygon[2].x &&
+               point.y >= polygon[0].y && point.y <= polygon[2].y
+    }
     public static func summary(_ zones: [Self]) -> String {
         let entries=Edge.allCases.compactMap { edge in
             zones.first(where: { $0.edge == edge }).map { "\(edge.label) \($0.distance.label)" }

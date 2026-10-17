@@ -38,7 +38,7 @@ extension ARSceneRenderer {
         let edge=[FloorPoint(0,0),FloorPoint(area.width,0),FloorPoint(area.width,area.depth),FloorPoint(0,area.depth)]
         for i in 0..<4 { line(area.world(edge[i]),area.world(edge[(i+1)%4]),color:.systemCyan) }
         for zone in content.dangerZones {
-            referenceLayer.addChildNode(StageDangerZoneOverlay.node(zone,in:area))
+            referenceLayer.addChildNode(StageDangerZoneOverlay.node(zone,in:area,live:true))
         }
         let routePoints=content.routePoints
         for (i,p) in routePoints.enumerated() {

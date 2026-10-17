@@ -24,6 +24,14 @@ struct PreparationView: View {
                             .frame(width:min(260,geometry.size.width*0.35)).background(.regularMaterial,in:RoundedRectangle(cornerRadius:20))
                     }
                     Spacer(minLength:8)
+                    if model.step == .route, !model.draft.dangerZoneRoutePointLabels.isEmpty {
+                        Label("주의: \(model.draft.dangerZoneRoutePointLabels.joined(separator:" · ")) 위험 구역 포함",systemImage:"exclamationmark.triangle.fill")
+                            .font(.caption).foregroundStyle(.orange)
+                            .padding(.horizontal,12).padding(.vertical,6)
+                            .background(.regularMaterial,in:RoundedRectangle(cornerRadius:10))
+                            .fixedSize(horizontal:false,vertical:true)
+                            .allowsHitTesting(false)
+                    }
                     HStack {
                         Text(model.showsCrosshairHint)
                             .font(.caption).padding(8).background(.regularMaterial,in:Capsule())

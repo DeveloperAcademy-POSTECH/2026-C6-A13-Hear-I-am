@@ -59,6 +59,18 @@ public struct PreparationDraft: Sendable {
             } catch { return "\(object.name): \(error.localizedDescription)" }
         }
     }
+    /// Informational only: never included in validation errors or placement guards.
+    public var dangerZoneRoutePointLabels: [String] {
+        guard let area else { return [] }
+        return route.enumerated().compactMap { index, point in
+            guard dangerZones.contains(where: {
+                $0.contains(area.floor(point),width:area.width,depth:area.depth)
+            }) else { return nil }
+            if index == 0 { return "시작점" }
+            if routeFinished && index == route.count-1 { return "종료점" }
+            return "P\(index)"
+        }
+    }
     public var routeErrors: [String] {
         do { return try stageRoute().conflicts(boundaryMargin: Self.boundaryMargin, obstacleClearance: Self.obstacleClearance) }
         catch { return [error.localizedDescription] }
