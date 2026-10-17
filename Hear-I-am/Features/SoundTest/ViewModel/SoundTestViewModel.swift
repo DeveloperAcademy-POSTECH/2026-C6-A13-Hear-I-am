@@ -6,7 +6,7 @@ import HearIAmCore
 /// Section ④ lives in SoundTestViewModel+Direction.
 @MainActor final class SoundTestViewModel: ObservableObject {
     @Published var warning: WarningLevel?
-    @Published var warningTone: WarningTone = .soft
+    @Published var warningTone=UserDefaults.standard.string(forKey:SignalPlayer.toneKey).flatMap(WarningTone.init(rawValue:)) ?? .soft
     @Published var speaking=false
     @Published var lastEvent="아직 없음"
     @Published var logStatus=""
