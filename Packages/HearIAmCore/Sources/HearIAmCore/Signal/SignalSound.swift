@@ -2,8 +2,8 @@ import Foundation
 
 /// Every non-speech sound the performer hears through the earbud.
 public enum SignalSound: Equatable, Sendable {
-    /// One period of the looping warning: a short rough beep followed by silence.
-    case warning(WarningLevel)
+    /// One period of the looping warning: a short beep followed by silence.
+    case warning(WarningLevel, tone: WarningTone = .soft)
     /// A single bell-like ding when a point is reached.
     case arrival
     /// A low tone pulsed about 12 times a second so it reads as a buzz rather than a note.
@@ -13,7 +13,7 @@ public enum SignalSound: Equatable, Sendable {
     /// Stable identifier for logs.
     public var name: String {
         switch self {
-        case .warning(let level): return "warning_"+level.name
+        case .warning(let level, let tone): return "warning_\(level.name)_\(tone.rawValue)"
         case .arrival: return "arrival"
         case .buzz(let hertz, let harmonic): return "buzz_\(Int(hertz))hz"+(harmonic ? "_harmonic" : "")
         }

@@ -26,6 +26,11 @@ struct SoundTestView: View {
 
     private var signals: some View {
         VStack(alignment:.leading,spacing:16) {
+            SoundTestRow(label:"경고 소리 종류 (고른 뒤 아래 거리를 눌러요)") {
+                ForEach(WarningTone.allCases,id:\.self) { tone in
+                    ActionButton(title:Self.toneLabel(tone),primary:model.warningTone == tone) { model.setWarningTone(tone) }
+                }
+            }
             SoundTestRow(label:"장애물 경고 (반복, 다시 누르면 꺼짐)") {
                 ForEach(WarningLevel.allCases,id:\.self) { level in
                     ActionButton(title:["1m","0.6m","0.35m"][level.rawValue-1],primary:model.warning == level) {
@@ -105,6 +110,15 @@ struct SoundTestView: View {
 
     static func label(_ degrees: Int) -> String {
         degrees == 0 ? "앞" : degrees == 180 ? "뒤" : (degrees < 0 ? "왼쪽 " : "오른쪽 ")+"\(abs(degrees))°"
+    }
+    static func toneLabel(_ tone: WarningTone) -> String {
+        switch tone {
+        case .sharp: return "날카로운 삑 (처음)"
+        case .soft: return "부드러운 삑"
+        case .low: return "낮은 삑"
+        case .pluck: return "톡 (마림바)"
+        case .thump: return "낮은 둥 (진동 느낌)"
+        }
     }
     static func angle(_ value: Double?) -> String { value.map { String(format:"%+.0f°",$0) } ?? "—" }
 }

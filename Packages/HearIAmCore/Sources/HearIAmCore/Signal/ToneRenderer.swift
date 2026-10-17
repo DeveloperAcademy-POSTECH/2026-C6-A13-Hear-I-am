@@ -5,18 +5,14 @@ import Foundation
 public enum ToneRenderer {
     public static let sampleRate=44_100.0
     public static let peak: Float=0.9
-    static let warningHertz=950.0, warningPulse=0.08
     static let arrivalHertz=1318.5, arrivalLength=0.6
     static let buzzRate=12.0, buzzLength=0.6
 
     public static func render(_ sound: SignalSound) -> [Float] {
         switch sound {
-        case .warning(let level):
-            let pulse=samples(warningPulse) { t in
-                let tone=sin(2 * .pi*warningHertz*t)+0.3*sin(2 * .pi*warningHertz*3*t)
-                return tone*fade(t,length:warningPulse,edge:0.005)
-            }
-            return normalized(pulse)+[Float](repeating:0,count:max(0,count(level.period)-pulse.count))
+        case .warning(let level, let tone):
+            let pulse=normalized(warningBeep(tone))
+            return pulse+[Float](repeating:0,count:max(0,count(level.period)-pulse.count))
         case .arrival:
             return normalized(samples(arrivalLength) { t in
                 let tone=sin(2 * .pi*arrivalHertz*t)+0.4*sin(2 * .pi*arrivalHertz*2*t)
@@ -31,6 +27,22 @@ public enum ToneRenderer {
         }
     }
 
+    /// One beep, no longer than the shortest warning period (0.15 s).
+    static func warningBeep(_ tone: WarningTone) -> [Float] {
+        func sine(_ hertz: Double, _ t: Double) -> Double { sin(2 * .pi*hertz*t) }
+        switch tone {
+        case .sharp:
+            return samples(0.08) { t in (sine(950,t)+0.3*sine(2850,t))*fade(t,length:0.08,edge:0.005) }
+        case .soft:
+            return samples(0.1) { t in sine(880,t)*fade(t,length:0.1,edge:0.02) }
+        case .low:
+            return samples(0.12) { t in (sine(440,t)+0.15*sine(880,t))*fade(t,length:0.12,edge:0.02) }
+        case .pluck:
+            return samples(0.14) { t in sine(660,t)*exp(-t*30)*fade(t,length:0.14,edge:0.003) }
+        case .thump:
+            return samples(0.12) { t in (sine(60,t)+0.4*sine(240,t))*fade(t,length:0.12,edge:0.015) }
+        }
+    }
     static func count(_ seconds: Double) -> Int { Int((seconds*sampleRate).rounded()) }
     private static func samples(_ seconds: Double, _ value: (Double) -> Double) -> [Float] {
         (0..<count(seconds)).map { Float(value(Double($0)/sampleRate)) }

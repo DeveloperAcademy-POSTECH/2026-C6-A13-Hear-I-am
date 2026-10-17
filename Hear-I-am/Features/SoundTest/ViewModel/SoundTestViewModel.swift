@@ -6,6 +6,7 @@ import HearIAmCore
 /// Section ④ lives in SoundTestViewModel+Direction.
 @MainActor final class SoundTestViewModel: ObservableObject {
     @Published var warning: WarningLevel?
+    @Published var warningTone: WarningTone = .soft
     @Published var speaking=false
     @Published var lastEvent="아직 없음"
     @Published var logStatus=""
@@ -56,6 +57,7 @@ import HearIAmCore
 
     // ① signals
     func setWarning(_ level: WarningLevel?) { warning=level;signals.setWarning(level) }
+    func setWarningTone(_ tone: WarningTone) { warningTone=tone;signals.setWarningTone(tone) }
     func playArrival() { signals.play(.arrival) }
     func speak(_ text: String) { record("test_speech",text);voice.play([text]) }
     /// Warning and a correction line together, to hear whether the words are masked.

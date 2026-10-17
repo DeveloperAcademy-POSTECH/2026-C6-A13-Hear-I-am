@@ -2,7 +2,7 @@ import XCTest
 @testable import HearIAmCore
 
 final class SignalSoundTests: XCTestCase {
-    let all: [SignalSound]=WarningLevel.allCases.map { .warning($0) }+[.arrival]
+    let all: [SignalSound]=WarningLevel.allCases.flatMap { level in WarningTone.allCases.map { .warning(level,tone:$0) } }+[.arrival]
         + [40,60,80].flatMap { [SignalSound.buzz(hertz:$0,harmonic:false),.buzz(hertz:$0,harmonic:true)] }
 
     func rms(_ s: ArraySlice<Float>) -> Float { (s.map { $0*$0 }.reduce(0,+)/Float(max(1,s.count))).squareRoot() }
@@ -18,16 +18,21 @@ final class SignalSoundTests: XCTestCase {
         }
     }
     func testCloserWarningsRepeatFasterAndOnePeriodIsRendered() {
-        let lengths=WarningLevel.allCases.map { ToneRenderer.render(.warning($0)).count }
-        XCTAssertEqual(lengths,lengths.sorted(by:>))
-        for level in WarningLevel.allCases {
-            XCTAssertEqual(ToneRenderer.render(.warning(level)).count,ToneRenderer.count(level.period))
+        for tone in WarningTone.allCases {
+            let lengths=WarningLevel.allCases.map { ToneRenderer.render(.warning($0,tone:tone)).count }
+            XCTAssertEqual(lengths,lengths.sorted(by:>),tone.rawValue)
+            for level in WarningLevel.allCases {
+                XCTAssertEqual(ToneRenderer.render(.warning(level,tone:tone)).count,ToneRenderer.count(level.period),tone.rawValue)
+                XCTAssertLessThanOrEqual(ToneRenderer.warningBeep(tone).count,ToneRenderer.count(WarningLevel.close.period),tone.rawValue)
+            }
         }
     }
     func testWarningIsMostlySilenceExceptAtCloseRange() {
-        let far=ToneRenderer.render(.warning(.far)), pulse=ToneRenderer.count(ToneRenderer.warningPulse)
-        XCTAssertGreaterThan(rms(far[..<pulse]),0.3)
-        XCTAssertEqual(rms(far[pulse...]),0)
+        for tone in WarningTone.allCases {
+            let far=ToneRenderer.render(.warning(.far,tone:tone)), pulse=ToneRenderer.warningBeep(tone).count
+            XCTAssertGreaterThan(rms(far[..<pulse]),0.1,tone.rawValue)
+            XCTAssertEqual(rms(far[pulse...]),0,tone.rawValue)
+        }
     }
     func testArrivalDecays() {
         let s=ToneRenderer.render(.arrival), window=ToneRenderer.count(0.1)
