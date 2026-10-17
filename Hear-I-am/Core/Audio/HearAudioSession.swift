@@ -23,12 +23,13 @@ import AVFoundation
     }
 }
 
-/// Fixed loudness per signal: warning > speech > arrival. Overall level is set with the phone volume at rehearsal.
+/// Fixed loudness per signal. Overall level is set with the phone volume at rehearsal.
+/// The arrival ding matches the warning so it is heard while a warning plays (field test 10/17).
 enum SignalVolume {
     static let warning: Float=1.0
     static let speech: Float=0.8
     static let buzz: Float=0.9
-    static let arrival: Float=0.5
+    static let arrival: Float=1.0
     /// Tones drop to this share of their level while speech plays, so words are not masked.
     static let duckedShare: Float=0.6
     /// Warning level after 10 s of failing to step away from an obstacle.

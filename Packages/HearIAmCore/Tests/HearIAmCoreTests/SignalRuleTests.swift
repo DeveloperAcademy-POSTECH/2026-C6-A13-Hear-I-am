@@ -31,17 +31,18 @@ final class SignalRuleTests: XCTestCase {
     func testWarningStagesAndBearing() throws {
         let box=try square(2,2)
         var gate=WarningGate()
-        let far=try XCTUnwrap(gate.update(position:.init(1,2.5),headingDegrees:0,obstacles:[box]))
-        XCTAssertEqual(far.level,.far);XCTAssertEqual(far.bearing,-90,accuracy:1e-9);XCTAssertEqual(far.name,"상자")
-        XCTAssertEqual(gate.update(position:.init(1.5,2.5),headingDegrees:0,obstacles:[box])?.level,.near)
-        XCTAssertEqual(gate.update(position:.init(1.7,2.5),headingDegrees:0,obstacles:[box])?.level,.close)
+        // Heading −90 faces +X, straight at the box.
+        let far=try XCTUnwrap(gate.update(position:.init(1,2.5),headingDegrees:-90,obstacles:[box]))
+        XCTAssertEqual(far.level,.far);XCTAssertEqual(far.bearing,0,accuracy:1e-9);XCTAssertEqual(far.name,"상자")
+        XCTAssertEqual(gate.update(position:.init(1.5,2.5),headingDegrees:-90,obstacles:[box])?.level,.near)
+        XCTAssertEqual(gate.update(position:.init(1.7,2.5),headingDegrees:-90,obstacles:[box])?.level,.close)
         var fresh=WarningGate()
-        XCTAssertNil(fresh.update(position:.init(0.9,2.5),headingDegrees:0,obstacles:[box]))
+        XCTAssertNil(fresh.update(position:.init(0.9,2.5),headingDegrees:-90,obstacles:[box]))
     }
     func testWarningStageIsKeptFiveCentimetresPastItsThreshold() throws {
         let box=try square(2,2)
         var gate=WarningGate()
-        func level(_ distance: Double) -> WarningLevel? { gate.update(position:.init(2-distance,2.5),headingDegrees:0,obstacles:[box])?.level }
+        func level(_ distance: Double) -> WarningLevel? { gate.update(position:.init(2-distance,2.5),headingDegrees:-90,obstacles:[box])?.level }
         XCTAssertEqual(level(0.30),.close)
         XCTAssertEqual(level(0.38),.close)
         XCTAssertEqual(level(0.41),.near)
@@ -49,6 +50,18 @@ final class SignalRuleTests: XCTestCase {
         XCTAssertEqual(level(1.03),.far)
         XCTAssertNil(level(1.06))
         XCTAssertNil(level(1.03))
+    }
+    func testOnlyObstaclesAheadWarnUnlessAlmostTouching() throws {
+        let box=try square(2,2)
+        var gate=WarningGate()
+        // Facing the audience (heading 0) the box at +X is 90° to the left: passing beside it is quiet.
+        XCTAssertNil(gate.update(position:.init(1.5,2.5),headingDegrees:0,obstacles:[box]))
+        XCTAssertEqual(gate.update(position:.init(1.7,2.5),headingDegrees:0,obstacles:[box])?.level,.close)
+        // Ahead within ±45° warns; a warned box stays in view up to ±55°.
+        var ahead=WarningGate()
+        XCTAssertEqual(ahead.update(position:.init(1.5,2.5),headingDegrees:-50,obstacles:[box])?.level,.near)
+        XCTAssertEqual(ahead.update(position:.init(1.5,2.5),headingDegrees:-140,obstacles:[box])?.level,.near)
+        XCTAssertNil(ahead.update(position:.init(1.5,2.5),headingDegrees:-150,obstacles:[box]))
     }
     func testPlatformsAndStairsNeverWarnAndInvalidSamplesClear() throws {
         var gate=WarningGate()

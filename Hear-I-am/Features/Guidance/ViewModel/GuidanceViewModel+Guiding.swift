@@ -5,7 +5,7 @@ import HearIAmCore
 /// corrections past 45° for 1 s, steps 1 m ahead. The earbud gives the obstacle warning and the arrival ding.
 /// Walking on track is silent.
 extension GuidanceViewModel {
-    static let arrivalShownSeconds=2.0
+    static let arrivalShownSeconds=2.0, arrivalWarningPause=1.5
 
     var canResume: Bool {
         guard let pose=freshPose(), let guide else { return false }
@@ -19,7 +19,7 @@ extension GuidanceViewModel {
     }
     /// Clears every signal rule; called when guidance starts or resumes.
     func resetSignals() {
-        landmarks.reset();warnings.reset();corrections.reset();steps.reset();arrivalShownAt=nil
+        landmarks.reset();warnings.reset();corrections.reset();steps.reset();arrivalShownAt=nil;warningHoldUntil=nil
         signals.setWarning(nil)
     }
     func tickGuiding(pose: (point: FloorPoint, heading: Double, time: Double), guide current: RouteGuide) {
@@ -44,6 +44,7 @@ extension GuidanceViewModel {
         let name=GuidanceCopy.target(previous,last:guide.route.points.count-1)
         arrivedName=name;arrivalShownAt=time
         landmarks.reset();corrections.reset()
+        signals.setWarning(nil);warningHoldUntil=time+Self.arrivalWarningPause
         signals.play(.arrival)
         tracking.event("signal_arrival",detail:"\(name) next=\(guide.targetIndex)")
     }
@@ -53,10 +54,13 @@ extension GuidanceViewModel {
         let bearing=StageHeading.bearing(from:pose.point,to:target,headingDegrees:pose.heading)
         // The detector takes the body relative to the target, the opposite sign of the bearing.
         if let landmark=landmarks.update(relativeDegrees:-bearing) { haptics.play(signedDegrees:landmark) }
-        let warning=warnings.update(position:pose.point,headingDegrees:pose.heading,obstacles:guide.route.obstacles)
-        if warning?.level != signals.warning {
-            signals.setWarning(warning?.level)
-            tracking.event("signal_warning_reason",detail:warning?.detail ?? "off")
+        if let hold=warningHoldUntil, pose.time < hold {} else {
+            warningHoldUntil=nil
+            let warning=warnings.update(position:pose.point,headingDegrees:pose.heading,obstacles:guide.route.obstacles)
+            if warning?.level != signals.warning {
+                signals.setWarning(warning?.level)
+                tracking.event("signal_warning_reason",detail:warning?.detail ?? "off")
+            }
         }
         if let step=steps.update(position:pose.point,target:target,obstacles:guide.route.obstacles) {
             voice.play([step.line]);tracking.event("signal_step",detail:step.detail)
