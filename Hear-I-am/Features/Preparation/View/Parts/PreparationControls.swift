@@ -14,7 +14,10 @@ struct PreparationControls: View {
                 ActionButton(title:"마지막 점 삭제",primary:false,enabled:!model.busy) {model.undoCorner(last)}
             }
             if let next=model.nextCorner {ActionButton(title:"모서리 지정",enabled:model.canPlacePoint) {model.captureCorner(next)}}
-            if draft.area != nil {ActionButton(title:"다음 단계") {model.advance()}}
+            if draft.area != nil {
+                ActionButton(title:"위험 구역",primary:false,enabled:!model.busy) {model.editingDangerZones=true}
+                ActionButton(title:"다음 단계") {model.advance()}
+            }
         case .objects:
             if model.objectEditing {
                 Button("취소") {model.cancelObject()}.padding(8).background(.regularMaterial,in:Capsule())

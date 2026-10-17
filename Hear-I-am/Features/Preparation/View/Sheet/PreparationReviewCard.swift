@@ -1,4 +1,5 @@
 import SwiftUI
+import HearIAmCore
 
 /// Final summary and stage name before saving.
 struct PreparationReviewCard: View {
@@ -14,6 +15,7 @@ struct PreparationReviewCard: View {
                     TextField("무대 이름",text:$model.scanName).textFieldStyle(.roundedBorder)
                     if model.nameTooLong {Text("무대 이름은 80자 이내로 입력해주세요.").font(.caption).foregroundStyle(.red)}
                     Text("경로 \(draft.route.count)점 · 기물 \(draft.objects.count)개 · 확인점 1개").font(.subheadline)
+                    Text(StageDangerZone.summary(draft.dangerZones)).font(.caption).foregroundStyle(.orange)
                     if draft.errors.isEmpty {Text("저장 준비가 끝났어요. 공간 지도가 안정되면 저장할 수 있습니다.").font(.caption).foregroundStyle(.secondary)}
                     else {ScrollView {Text(Array(Set(draft.errors)).sorted().joined(separator:"\n")).font(.caption).foregroundStyle(.red)}.frame(maxHeight:70)}
                     HStack {

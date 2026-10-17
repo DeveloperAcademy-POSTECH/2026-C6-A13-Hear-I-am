@@ -114,7 +114,8 @@ final class ARSessionController: ObservableObject {
         renderer.draw(.init(
             style:purpose == .preparation ? .preparation(routeFinished:preparedDraft?.routeFinished == true)
                                           : .guidance(target:visibleGuidanceTarget,completed:guidanceCompleted),
-            checkpoint:checkpoint,corners:corners,area:area,routePoints:routePoints,obstacles:obstacles,pendingObject:pendingObject))
+            checkpoint:checkpoint,corners:corners,area:area,routePoints:routePoints,obstacles:obstacles,pendingObject:pendingObject,
+            dangerZones:preparedDraft?.dangerZones ?? manifest?.route?.dangerZones ?? []))
     }
 
     func startSession(map: ARWorldMap?) {

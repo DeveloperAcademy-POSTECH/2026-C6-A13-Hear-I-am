@@ -8,7 +8,7 @@ struct StageRow: View {
     var body: some View {
         VStack(alignment:.leading,spacing:12) {
             HStack(alignment:.top,spacing:12) {
-                StageMap(showsLabels:false,width:record.route?.area.width ?? 12,depth:record.route?.area.depth ?? 8,points:record.route?.points ?? [],objects:record.route?.obstacles ?? [])
+                StageMap(showsLabels:false,width:record.route?.area.width ?? 12,depth:record.route?.area.depth ?? 8,points:record.route?.points ?? [],objects:record.route?.obstacles ?? [],dangerZones:record.route?.dangerZones ?? [])
                     .frame(width:92,height:92).accessibilityHidden(true)
                 VStack(alignment:.leading,spacing:6) {
                     Button(action:onRename) {
