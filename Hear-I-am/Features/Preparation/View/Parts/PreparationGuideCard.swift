@@ -39,9 +39,10 @@ struct PreparationGuideCard: View {
                 if model.objectEditing {
                     TextField("기물 이름",text:$model.obstacleName).textFieldStyle(.roundedBorder).font(.caption)
                     Picker("종류",selection:$model.obstacleKind) {Text("장애물").tag(ObstacleKind.other); Text("단상").tag(ObstacleKind.platform); Text("계단").tag(ObstacleKind.stairs)}.pickerStyle(.segmented)
+                    if let note=model.objectHeightNote {Text(note).font(.caption).foregroundStyle(.secondary)}
                 } else {
                     ScrollView {VStack(spacing:4) {ForEach(draft.objects) {o in
-                        HStack {Button("\(o.name) · \(o.kind.defaultName)") {model.beginObject(o.id)}; Spacer(); Button {model.deleteObject(o.id)} label:{Image(systemName:"trash")}.accessibilityLabel("\(o.name) 삭제")}.font(.caption).padding(.vertical,4)
+                        HStack {Button("\(o.name) · \(o.kind.defaultName)\(o.height.map { " · \(Int(($0*100).rounded()))cm" } ?? "")") {model.beginObject(o.id)}; Spacer(); Button {model.deleteObject(o.id)} label:{Image(systemName:"trash")}.accessibilityLabel("\(o.name) 삭제")}.font(.caption).padding(.vertical,4)
                     }}}.frame(maxHeight:60)
                 }
             }

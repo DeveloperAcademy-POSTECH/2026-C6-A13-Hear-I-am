@@ -8,8 +8,10 @@ public struct StageObstacle: Codable, Equatable, Sendable, Identifiable {
     public var kind: ObstacleKind
     public var passage: PassagePolicy
     public var vertices: [FloorPoint]
-    public init(id: UUID = UUID(), name: String, kind: ObstacleKind, passage: PassagePolicy = .prohibited, vertices: [FloorPoint]) throws {
-        self.id=id; self.name=name; self.kind=kind; self.passage=passage; self.vertices=vertices
+    /// Top above the stage floor in metres, measured from the scan mesh; nil for older saves or when not measured.
+    public var height: Double?
+    public init(id: UUID = UUID(), name: String, kind: ObstacleKind, passage: PassagePolicy = .prohibited, vertices: [FloorPoint], height: Double? = nil) throws {
+        self.id=id; self.name=name; self.kind=kind; self.passage=passage; self.vertices=vertices; self.height=height
         try validate()
     }
     public func validate() throws {
