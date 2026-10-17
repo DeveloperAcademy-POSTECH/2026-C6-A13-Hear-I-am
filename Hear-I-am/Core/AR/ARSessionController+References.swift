@@ -35,6 +35,12 @@ extension ARSessionController {
         if let checkpoint {addReference(checkpoint,suffix:".check")}
         canSave=false; redrawReferences()
     }
+    /// Visual settings do not change spatial anchors or invalidate an already mapped stage.
+    func updatePreparationDangerZones(_ zones: [StageDangerZone]) {
+        guard purpose == .preparation, preparedDraft?.area != nil else { return }
+        preparedDraft?.dangerZones=zones
+        redrawReferences()
+    }
     func verifyCheckpoint() {
         guard !busy, let checkpoint else { return }
         do {

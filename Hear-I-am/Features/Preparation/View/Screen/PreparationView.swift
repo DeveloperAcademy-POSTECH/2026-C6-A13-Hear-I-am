@@ -60,6 +60,7 @@ struct PreparationView: View {
             }.ignoresSafeArea(.container,edges:[.horizontal,.bottom])
         }
         }.background(.white).preferredColorScheme(.light)
+            .sheet(isPresented:$model.editingDangerZones) { PreparationDangerZoneSheet(model:model) }
             .onAppear {ScreenOrientation.set(.landscape); model.appear()}
             .onDisappear {model.disappear(); ScreenOrientation.set(.portrait)}
             .onChange(of:scenePhase) {_,phase in model.scenePhaseChanged(phase)}
