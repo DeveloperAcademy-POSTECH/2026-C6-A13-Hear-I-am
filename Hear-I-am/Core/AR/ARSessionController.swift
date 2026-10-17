@@ -49,6 +49,7 @@ final class ARSessionController: ObservableObject {
     var lastPoseLog = -Double.infinity
     var restoreStarted: Double?
     var guidancePoseTime: Double?
+    var guidanceHorizontalRatio: Double?
     private var watchdog: Timer?
     private let cameraQueue=DispatchQueue(label:"HearIAm.AR",qos:.userInitiated)
 
@@ -135,7 +136,7 @@ final class ARSessionController: ObservableObject {
         session?.delegate=nil; session?.pause()
         token=UUID(); gate=TrackingGate(); latest=nil
         if purpose == .preparation { preparedDraft=PreparationDraft(); savedID=nil; onReset?() }
-        position=nil; heading=nil; guidancePoseTime=nil; ready=false; canVerify=false; canSave=false
+        position=nil; heading=nil; guidancePoseTime=nil; guidanceHorizontalRatio=nil; ready=false; canVerify=false; canSave=false
         meshes=[:]; renderer.clearMeshes()
         renderer.clearAnnotations()
         cornerAnchors.removeAll()

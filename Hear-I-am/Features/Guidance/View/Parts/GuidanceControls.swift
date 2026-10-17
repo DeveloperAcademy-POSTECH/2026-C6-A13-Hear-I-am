@@ -39,6 +39,7 @@ struct GuidanceControls: View {
         case .countdown: GuidanceButton(title:"착용 시간 다시 시작",secondary:true) {model.beginWear()}
         case .departure: GuidanceButton(title:model.hasStarted ? "안내 다시 시작" : "안내 시작",enabled:model.departureReady && model.instructionDone && !model.speaking) {model.startGuidance()}
         case .starting,.guiding: GuidanceButton(title:"일시정지") {model.pause()}
+        case .aligning: GuidanceButton(title:"자동 재개 취소 · 일시정지",secondary:true) {model.pause()}
         case .paused:
             GuidanceButton(title:"확인점 다시 확인",secondary:true) {model.restore()}
             GuidanceButton(title:"안내 다시 시작",enabled:model.canResume && model.instructionDone && !model.speaking) {model.startGuidance()}

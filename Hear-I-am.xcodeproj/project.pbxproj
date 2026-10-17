@@ -65,6 +65,7 @@
 		A90C44D485E2338BBE54394F /* ARSessionController+Samples.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52755DE4FDB44174815FA35E /* ARSessionController+Samples.swift */; };
 		AD17F75881AD0B8688842F58 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = CEF3295A562F96FC1DE68889 /* Assets.xcassets */; };
 		B232EA0CB8328E7EBE25F83E /* CameraView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C34640BEB642B9BB9BB35D85 /* CameraView.swift */; };
+		B63014AD33948730E75FB827 /* GuidanceViewModel+Alignment.swift in Sources */ = {isa = PBXBuildFile; fileRef = E19455F0B8A903F647078F73 /* GuidanceViewModel+Alignment.swift */; };
 		B77F4E3AA6F6548C9189E5B0 /* ARSessionController+Lifecycle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84454DF442867536AF635936 /* ARSessionController+Lifecycle.swift */; };
 		BC1F1AE3EA5B843B67EC9124 /* HomeStageList.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9DE9AB83C23BCC3EB3BE325 /* HomeStageList.swift */; };
 		BD1D1793F763840FEC55AC18 /* PlanCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42B08A291AC63802A9B7E5D3 /* PlanCard.swift */; };
@@ -159,6 +160,7 @@
 		DA20BEEFF43A8B86171542D7 /* GuidanceViewModel+Finish.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GuidanceViewModel+Finish.swift"; sourceTree = "<group>"; };
 		DAFBB4E908F155285F847CAF /* LibrarySelectionBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibrarySelectionBar.swift; sourceTree = "<group>"; };
 		DF75FE4E62D7F51E265F184F /* View+LibrarySelection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "View+LibrarySelection.swift"; sourceTree = "<group>"; };
+		E19455F0B8A903F647078F73 /* GuidanceViewModel+Alignment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GuidanceViewModel+Alignment.swift"; sourceTree = "<group>"; };
 		E52F7F95F4EDC001AF688451 /* GuidanceRecordDetail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuidanceRecordDetail.swift; sourceTree = "<group>"; };
 		E98A678EB5F1C7FF30AC8C49 /* PlanLibraryViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanLibraryViewModel.swift; sourceTree = "<group>"; };
 		EBB0F7E5D5D9A02E59BC8DD7 /* GuidanceViewModel+Selection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GuidanceViewModel+Selection.swift"; sourceTree = "<group>"; };
@@ -343,6 +345,7 @@
 			isa = PBXGroup;
 			children = (
 				030CDDD2A61339C05266B734 /* GuidanceViewModel.swift */,
+				E19455F0B8A903F647078F73 /* GuidanceViewModel+Alignment.swift */,
 				3F311DF588BCA22DAF239C73 /* GuidanceViewModel+Departure.swift */,
 				DA20BEEFF43A8B86171542D7 /* GuidanceViewModel+Finish.swift */,
 				C4F59C55D393611B5DE1F59A /* GuidanceViewModel+Guiding.swift */,
@@ -754,6 +757,7 @@
 				32C779DB6AE8E684F068D148 /* GuidanceSpeech.swift in Sources */,
 				7F88D42321F69BA0E7FFC174 /* GuidanceStageList.swift in Sources */,
 				22C3F3BAD4CEE503CB080699 /* GuidanceView.swift in Sources */,
+				B63014AD33948730E75FB827 /* GuidanceViewModel+Alignment.swift in Sources */,
 				38A50F961CC2647C3774AD17 /* GuidanceViewModel+Departure.swift in Sources */,
 				DD459BE5806939F062E519A3 /* GuidanceViewModel+Finish.swift in Sources */,
 				A04EF9E0E45F77619DD771C8 /* GuidanceViewModel+Guiding.swift in Sources */,

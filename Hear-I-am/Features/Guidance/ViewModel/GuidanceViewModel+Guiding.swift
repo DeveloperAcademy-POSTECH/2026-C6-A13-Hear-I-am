@@ -7,7 +7,7 @@ extension GuidanceViewModel {
         return guide.canResume(position:pose.point,trackingValid:true)
     }
     func pause() {
-        guard phase == .guiding || phase == .starting else { return }
+        guard phase == .guiding || phase == .starting || phase == .aligning else { return }
         invalidateTasks();guide?.pause();phase = started ? .paused : .departure
         message="현재 목표는 \(targetName)이에요."
         read(["안내를 일시정지했습니다. 다시 시작 버튼을 누르면 이어서 안내합니다."])

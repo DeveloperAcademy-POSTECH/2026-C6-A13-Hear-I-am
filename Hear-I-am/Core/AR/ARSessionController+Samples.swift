@@ -18,7 +18,8 @@ extension ARSessionController {
             if let stage, ready {
                 position=stagePosition(sample.world)
                 heading=stage.heading(cameraForward:sample.forward)
-            } else { position=nil; heading=nil }
+                guidanceHorizontalRatio=StageFrame.horizontalForwardRatio(sample.forward)
+            } else { position=nil; heading=nil; guidanceHorizontalRatio=nil }
             guidancePoseTime=sample.time
             if mode == .restoring {
                 let candidate=sample.normal && referenceAnchorsPresent(sample)

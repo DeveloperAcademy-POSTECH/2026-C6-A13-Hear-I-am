@@ -24,11 +24,18 @@ public struct StageFrame: Codable, Equatable, Sendable {
         return Point3(simd_dot(d,right), simd_dot(d,back), d.y)
     }
     /// Rear camera optical forward (-Z) faces away from abdomen; no walking-direction inference.
+    public static let minimumHeadingHorizontalRatio = 0.25
+    /// Nil identifies an invalid direction vector, not a recoverable camera tilt.
+    public static func horizontalForwardRatio(_ cameraForward: Point3) -> Double? {
+        let v=cameraForward.vector
+        let length=simd_length(v)
+        guard cameraForward.valid, length.isFinite, length > 0.001 else { return nil }
+        return hypot(v.x,v.z)/length
+    }
     public func heading(cameraForward: Point3) -> Double? {
         let v=cameraForward.vector
         let horizontal=SIMD3(v.x,0,v.z)
-        guard cameraForward.valid, simd_length(v)>0.001,
-              simd_length(horizontal)/simd_length(v) >= 0.25 else { return nil }
+        guard let ratio=Self.horizontalForwardRatio(cameraForward), ratio >= Self.minimumHeadingHorizontalRatio else { return nil }
         let h=simd_normalize(horizontal)
         return atan2(-simd_dot(h,right), -simd_dot(h,back))*180 / .pi
     }

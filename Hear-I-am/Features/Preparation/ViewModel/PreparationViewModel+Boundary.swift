@@ -9,7 +9,7 @@ extension PreparationViewModel {
 
     func captureCorner(_ index: Int) {
         guard draft.corners.indices.contains(index) else {return}
-        place { draft,point in draft.corners[index]=point }
+        place { draft,point in try draft.captureCorner(index,at:point) }
         selectedCorner=nil
     }
     func undoCorner(_ index: Int) {

@@ -95,6 +95,74 @@ final class GuidanceTests: XCTestCase {
         let legacy=try StageRoute(area:r.area,points:[.init(1,2),.init(5,2)],obstacles:[])
         XCTAssertFalse(RouteGuide(route:legacy,settings:GuideSettings()).ready(position:legacy.points[0],headingDegrees:90,trackingValid:true))
     }
+    func testTiltRecoveryPreservesTargetAndWaitsForSpeech() throws {
+        let r=try route();var g=guide(r)
+        XCTAssertTrue(g.start(position:r.points[0],headingDegrees:0,trackingValid:true))
+        _=arrive(&g,at:r.points[1],from:1)
+        XCTAssertEqual(g.targetIndex,2)
+        g.pauseForUnclearHeading()
+        for t in [3.0,3.25,3.5,3.75,4.0] {
+            XCTAssertFalse(g.observeAutomaticRecovery(time:t,position:r.points[2],headingDegrees:0,trackingValid:true,allowsResume:false))
+            XCTAssertEqual(g.targetIndex,2)
+        }
+        XCTAssertTrue(g.observeAutomaticRecovery(time:4.25,position:r.points[2],headingDegrees:0,trackingValid:true))
+        XCTAssertEqual(g.targetIndex,2);XCTAssertEqual(g.state,.guiding)
+        _=g.observe(time:4.5,position:r.points[2],headingDegrees:0,trackingValid:true)
+        XCTAssertEqual(g.targetIndex,2) // Paused time never counts as arrival dwell.
+    }
+    func testTiltRecoveryResetsForInvalidHeadingDuplicateAndFrameGap() throws {
+        let r=try route();var g=guide(r)
+        XCTAssertTrue(g.start(position:r.points[0],headingDegrees:0,trackingValid:true));g.pauseForUnclearHeading()
+        for t in [1.0,1.25,1.5] { XCTAssertFalse(g.observeAutomaticRecovery(time:t,position:r.points[0],headingDegrees:0,trackingValid:true)) }
+        XCTAssertFalse(g.observeAutomaticRecovery(time:1.75,position:r.points[0],headingDegrees:.nan,trackingValid:true))
+        XCTAssertFalse(g.observeAutomaticRecovery(time:2,position:r.points[0],headingDegrees:0,trackingValid:true))
+        XCTAssertFalse(g.observeAutomaticRecovery(time:2,position:r.points[0],headingDegrees:0,trackingValid:true))
+        XCTAssertFalse(g.observeAutomaticRecovery(time:3,position:r.points[0],headingDegrees:0,trackingValid:true))
+        XCTAssertFalse(g.observeAutomaticRecovery(time:3.75,position:r.points[0],headingDegrees:0,trackingValid:true))
+        for t in [4.0,4.25,4.5,4.75] { XCTAssertFalse(g.observeAutomaticRecovery(time:t,position:r.points[0],headingDegrees:0,trackingValid:true)) }
+        XCTAssertTrue(g.observeAutomaticRecovery(time:5,position:r.points[0],headingDegrees:0,trackingValid:true))
+    }
+    func testManualPauseCancelsTiltRecoveryAndCannotBecomeTiltPause() throws {
+        let r=try route();var g=guide(r)
+        XCTAssertTrue(g.start(position:r.points[0],headingDegrees:0,trackingValid:true))
+        g.pauseForUnclearHeading();g.pause();g.pauseForUnclearHeading()
+        XCTAssertEqual(g.pauseReason,.manual)
+        for i in 0...10 { XCTAssertFalse(g.observeAutomaticRecovery(time:Double(i)*0.25,position:r.points[0],headingDegrees:0,trackingValid:true)) }
+    }
+    func testTiltRecoveryRejectsOffRouteAndRegisteredObstacle() throws {
+        let obstacle=try StageObstacle(name:"박스",kind:.box,vertices:[.init(2,2.5),.init(4,2.5),.init(4,3.5),.init(2,3.5)])
+        let r=try route(obstacles:[obstacle]);var g=guide(r)
+        XCTAssertTrue(g.start(position:r.points[0],headingDegrees:0,trackingValid:true))
+        _=arrive(&g,at:r.points[1],from:1);g.pauseForUnclearHeading()
+        for point in [FloorPoint(3,4),.init(3,2.3),.init(6.1,2)] {
+            for i in 0...8 { XCTAssertFalse(g.observeAutomaticRecovery(time:3+Double(i)*0.25,position:point,headingDegrees:0,trackingValid:true)) }
+        }
+        XCTAssertEqual(g.targetIndex,2);XCTAssertEqual(g.state,.paused)
+    }
+    func testTiltRecoveryPermitsActiveEntryAndExitOutsideStage() throws {
+        let r=try route();var g=guide(r)
+        XCTAssertTrue(g.start(position:r.points[0],headingDegrees:0,trackingValid:true));g.pauseForUnclearHeading()
+        for t in [1.0,1.25,1.5,1.75] { XCTAssertFalse(g.observeAutomaticRecovery(time:t,position:r.points[0],headingDegrees:0,trackingValid:true)) }
+        XCTAssertTrue(g.observeAutomaticRecovery(time:2,position:r.points[0],headingDegrees:0,trackingValid:true))
+        _=arrive(&g,at:r.points[1],from:3);_=arrive(&g,at:r.points[2],from:4.2)
+        XCTAssertEqual(g.targetIndex,3);g.pauseForUnclearHeading()
+        for t in [6.0,6.25,6.5,6.75] { XCTAssertFalse(g.observeAutomaticRecovery(time:t,position:r.points[3],headingDegrees:0,trackingValid:true)) }
+        XCTAssertTrue(g.observeAutomaticRecovery(time:7,position:r.points[3],headingDegrees:0,trackingValid:true))
+        XCTAssertEqual(g.targetIndex,3)
+    }
+    func testLostTrackingVerificationNeverAutomaticallyReturnsDuringTilt() throws {
+        let r=try route();var g=guide(r);var tracking=TrackingGate()
+        XCTAssertTrue(g.start(position:r.points[0],headingDegrees:0,trackingValid:true));g.pauseForUnclearHeading()
+        for t in [0.0,0.25,0.5,0.75,1.0] { tracking.observe(time:t,normal:true,anchorsPresent:true) }
+        XCTAssertTrue(tracking.verify(error:0.05,tolerance:0.15,now:1))
+        tracking.observe(time:1.25,normal:false,anchorsPresent:true)
+        for i in 0...10 {
+            let time=1.5+Double(i)*0.25
+            tracking.observe(time:time,normal:true,anchorsPresent:true)
+            XCTAssertFalse(g.observeAutomaticRecovery(time:time,position:r.points[0],headingDegrees:0,trackingValid:tracking.isReady(now:time)))
+        }
+        XCTAssertFalse(tracking.verified);XCTAssertEqual(g.state,.paused)
+    }
     func testNarrationOrderAndLateCancellationCallbacks() throws {
         var q=NarrationQueue()
         let first=try XCTUnwrap(q.replace(["설명","3","2","1"]))
