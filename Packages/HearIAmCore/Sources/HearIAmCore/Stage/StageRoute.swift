@@ -26,7 +26,7 @@ public struct StageRoute: Codable, Equatable, Sendable {
             for i in 0..<(points.count-1) {
                 let a=points[i], b=points[i+1]
                 if a.distance(to:b) < 0.05 { result.append("p\(i)→p\(i+1) 선분이 너무 짧습니다") }
-                for o in obstacles where o.passage == .prohibited && o.overlaps(a,b,clearance:obstacleClearance) {
+                for o in obstacles where o.blocksPath && o.overlaps(a,b,clearance:obstacleClearance) {
                     result.append("p\(i)→p\(i+1)이 \(o.name) 여유 영역과 겹칩니다")
                 }
             }

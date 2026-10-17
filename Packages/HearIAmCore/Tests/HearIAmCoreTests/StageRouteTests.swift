@@ -56,7 +56,7 @@ final class StageRouteTests: XCTestCase {
     }
     func testObstacleIntersectionClearanceAndRouteOrder() throws {
         let a=try area()
-        let o=try StageObstacle(name:"계단",kind:.stairs,vertices:[FloorPoint(2,2),FloorPoint(4,2),FloorPoint(4,4),FloorPoint(2,4)])
+        let o=try StageObstacle(name:"상자",kind:.box,vertices:[FloorPoint(2,2),FloorPoint(4,2),FloorPoint(4,4),FloorPoint(2,4)])
         let crossing=try StageRoute(area:a,points:[FloorPoint(1,3),FloorPoint(5,3)],obstacles:[o])
         XCTAssertFalse(crossing.conflicts(boundaryMargin:0.3,obstacleClearance:0.35).isEmpty)
         let touching=try StageRoute(area:a,points:[FloorPoint(1,1.65),FloorPoint(5,1.65)],obstacles:[o])

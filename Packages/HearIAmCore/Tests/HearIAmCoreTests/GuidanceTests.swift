@@ -52,8 +52,8 @@ final class GuidanceTests: XCTestCase {
         XCTAssertEqual(g.pauseReason,.outsideStage)
         XCTAssertFalse(g.canResume(position:.init(6.1,2),trackingValid:true))
     }
-    func testDriftTowardRegisteredPlatformStopsEvenInsideCorridor() throws {
-        let obstacle=try StageObstacle(name:"단상",kind:.platform,vertices:[.init(2,2.5),.init(4,2.5),.init(4,3.5),.init(2,3.5)])
+    func testDriftTowardRegisteredObstacleStopsEvenInsideCorridor() throws {
+        let obstacle=try StageObstacle(name:"상자",kind:.box,vertices:[.init(2,2.5),.init(4,2.5),.init(4,3.5),.init(2,3.5)])
         let r=try route(obstacles:[obstacle]);var g=guide(r)
         XCTAssertTrue(g.start(position:r.points[0],headingDegrees:0,trackingValid:true))
         _=arrive(&g,at:r.points[1],from:1)
