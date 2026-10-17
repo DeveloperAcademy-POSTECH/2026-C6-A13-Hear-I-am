@@ -112,6 +112,40 @@ final class SignalRuleTests: XCTestCase {
         XCTAssertEqual(down.kind,.down);XCTAssertEqual(down.line,"내려갑니다")
         XCTAssertNil(gate.update(position:.init(6.5,1),target:.init(9,1),obstacles:[platform]))
     }
+    func testNarrowPlatformSaysUpAndDownTogether() throws {
+        let platform=try square(5,0,size:0.6,kind:.platform,name:"단상")
+        var gate=StepGate()
+        let over=try XCTUnwrap(gate.update(position:.init(4.5,0.3),target:.init(7,0.3),obstacles:[platform]))
+        XCTAssertEqual(over.kind,.over);XCTAssertEqual(over.line,"앞에 단상, 올라갔다 내려갑니다")
+        XCTAssertEqual(over.distance,0.5,accuracy:1e-9);XCTAssertEqual(try XCTUnwrap(over.across),0.6,accuracy:1e-9)
+        XCTAssertNil(gate.update(position:.init(5.3,0.3),target:.init(7,0.3),obstacles:[platform]))
+        XCTAssertNil(gate.update(position:.init(5.8,0.3),target:.init(7,0.3),obstacles:[platform]))
+    }
+    func testTargetOnThePlatformSaysOnlyUp() throws {
+        let platform=try square(5,0,size:0.6,kind:.platform,name:"단상")
+        var gate=StepGate()
+        let up=try XCTUnwrap(gate.update(position:.init(4.5,0.3),target:.init(5.3,0.3),obstacles:[platform]))
+        XCTAssertEqual(up.kind,.up);XCTAssertNil(up.across)
+    }
+    func testWayThroughACornerIsNotReadAsNarrow() throws {
+        let platform=try square(5,0,size:2,kind:.platform,name:"단상")
+        var gate=StepGate()
+        // Straight through the corner (5,0) and on across the platform: 2.83 m wide on this way.
+        let up=try XCTUnwrap(gate.update(position:.init(4.5,-0.5),target:.init(7.5,2.5),obstacles:[platform]))
+        XCTAssertEqual(up.kind,.up);XCTAssertEqual(try XCTUnwrap(up.across),2*sqrt(2),accuracy:1e-6)
+    }
+    /// Field test 10/17 (scan 1BD93C66): a three-point platform whose corner the way cut through.
+    /// The old rule said "step down" 0.08 m before the far edge; now both are said 1 m before.
+    func testFieldPlatformCornerIsAnnouncedOnce() throws {
+        let platform=try StageObstacle(name:"단상",kind:.platform,passage:.passable,
+            vertices:[.init(0.7139529683203593,0.5632972875048134),.init(1.0932633337867907,0.34660957362677614),.init(1.0357488654195819,0.8491016512813823)])
+        let target=FloorPoint(0.6787936946289872,0.3127485406974675)
+        var gate=StepGate(), cues: [StepCue]=[]
+        for p in [FloorPoint(2.2,1.6),.init(1.85,1.36),.init(1.76,1.17),.init(1.59,1.02),.init(1.41,0.74),.init(1.21,0.58),.init(1.08,0.45),.init(1.03,0.38),.init(0.9,0.33)] {
+            if let cue=gate.update(position:p,target:target,obstacles:[platform]) { cues.append(cue) }
+        }
+        XCTAssertEqual(cues.map(\.kind),[.over],cues.map(\.detail).joined(separator:" | "))
+    }
     func testStepRearmsAfterMovingAwayAndIgnoresObstacles() throws {
         let stairs=try square(5,0,size:2,kind:.stairs,name:"계단")
         var gate=StepGate()
