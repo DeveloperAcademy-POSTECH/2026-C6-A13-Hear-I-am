@@ -40,6 +40,7 @@
 		542E8181848569C07DF9D90C /* PreparationGuide.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD63D8392748436AA7668CD1 /* PreparationGuide.swift */; };
 		598F8CF5BEC923DF613A7925 /* GuidanceRecordDetail.swift in Sources */ = {isa = PBXBuildFile; fileRef = E52F7F95F4EDC001AF688451 /* GuidanceRecordDetail.swift */; };
 		5FE594079F690B65F4896B79 /* PreparationReviewCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48A40118D9761ED3FCD466AF /* PreparationReviewCard.swift */; };
+		60F735E417BC500B61ABA00B /* DirectionHaptics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C9D9C4A569E37093119B17B /* DirectionHaptics.swift */; };
 		675DFBBF004AF79494A918D1 /* LibrarySelectionState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 754DA2DEA96D2C68486BF8AB /* LibrarySelectionState.swift */; };
 		6D3F26F42C09E75387311322 /* HearAudioSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CA33158518034C9C9B52FAE /* HearAudioSession.swift */; };
 		6FAC80BD5564AAF95A626D3E /* PreparationViewModel+Route.swift in Sources */ = {isa = PBXBuildFile; fileRef = 722D44DB888422F0F5634E0C /* PreparationViewModel+Route.swift */; };
@@ -110,6 +111,7 @@
 		38CE34E2EE5B2FB98E57F699 /* ARSceneRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ARSceneRenderer.swift; sourceTree = "<group>"; };
 		392E920D4DD249EC30519537 /* GuidanceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuidanceView.swift; sourceTree = "<group>"; };
 		3BB83D4B60EFF01F074B6D12 /* Hear-I-am.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = "Hear-I-am.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		3C9D9C4A569E37093119B17B /* DirectionHaptics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DirectionHaptics.swift; sourceTree = "<group>"; };
 		3D8307AA2FCB90242FC33A85 /* HearIAmCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = HearIAmCore; path = Packages/HearIAmCore; sourceTree = SOURCE_ROOT; };
 		3F311DF588BCA22DAF239C73 /* GuidanceViewModel+Departure.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GuidanceViewModel+Departure.swift"; sourceTree = "<group>"; };
 		42B08A291AC63802A9B7E5D3 /* PlanCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanCard.swift; sourceTree = "<group>"; };
@@ -465,12 +467,21 @@
 			path = Screen;
 			sourceTree = "<group>";
 		};
+		8AC646F8F0E001DBDBBB1859 /* Haptics */ = {
+			isa = PBXGroup;
+			children = (
+				3C9D9C4A569E37093119B17B /* DirectionHaptics.swift */,
+			);
+			path = Haptics;
+			sourceTree = "<group>";
+		};
 		8C4399FFAA7D6AC12EBB7749 /* Core */ = {
 			isa = PBXGroup;
 			children = (
 				2278031D2A15F71C52F08411 /* AR */,
 				D1303427A64FADB35F73FA83 /* Audio */,
 				913ED6424FF695AB2B11D468 /* DesignSystem */,
+				8AC646F8F0E001DBDBBB1859 /* Haptics */,
 				2315212CBE4B3187A74A27A4 /* Logging */,
 				83BDE5B00F00DB951C3777C7 /* Store */,
 			);
@@ -746,6 +757,7 @@
 				947CABFA03E10DDBD2617F24 /* CameraSample.swift in Sources */,
 				B232EA0CB8328E7EBE25F83E /* CameraView.swift in Sources */,
 				76F5F340BC6B937A42E72FBF /* Color+Hear.swift in Sources */,
+				60F735E417BC500B61ABA00B /* DirectionHaptics.swift in Sources */,
 				1D8CDE27966F1B9E8BF21CC0 /* GuidanceButton.swift in Sources */,
 				3583CA78556FBB1B2FEC58D7 /* GuidanceCameraPrompt.swift in Sources */,
 				D9D135CFA21039B850FD3A4A /* GuidanceControls.swift in Sources */,
