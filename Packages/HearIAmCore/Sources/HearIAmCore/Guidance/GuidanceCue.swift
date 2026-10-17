@@ -8,12 +8,8 @@ public struct GuidanceCue: Equatable, Sendable {
     public var speech: String { String(format:"%@, %.1f미터.",direction,distance) }
     public init?(position: FloorPoint, goal: FloorPoint, headingDegrees: Double, sector: Int? = nil) {
         guard position.valid, goal.valid, headingDegrees.isFinite else { return nil }
-        let r=headingDegrees * .pi/180
-        let forward=FloorPoint(-sin(r),-cos(r)), right=FloorPoint(-cos(r),sin(r))
-        let dx=goal.x-position.x, dy=goal.y-position.y
-        let angle=atan2(dx*right.x+dy*right.y,dx*forward.x+dy*forward.y)*180 / .pi
-        let normalized=(angle+360).truncatingRemainder(dividingBy:360)
-        self.sector=sector.flatMap { (0..<8).contains($0) ? $0 : nil } ?? Int(floor((normalized+22.5)/45))%8
+        let angle=StageHeading.bearing(from:position,to:goal,headingDegrees:headingDegrees)
+        self.sector=sector.flatMap { (0..<8).contains($0) ? $0 : nil } ?? StageHeading.sector(angle)
         distance=position.distance(to:goal)
     }
 }

@@ -116,14 +116,9 @@ public struct RouteGuide: Sendable {
                 goal=route.points[targetIndex]; distance=position.distance(to:goal)
             }
         } else { arrivedSince=nil }
-        let dx=goal.x-position.x, dy=goal.y-position.y
-        // heading 0 faces audience (-stage Y); positive rotates to the performer's right.
-        let radians=headingDegrees * .pi/180
-        let forward=FloorPoint(-sin(radians),-cos(radians))
-        let bodyRight=FloorPoint(forward.y,-forward.x)
-        let angle=atan2(dx*bodyRight.x+dy*bodyRight.y,dx*forward.x+dy*forward.y)*180 / .pi
+        let angle=StageHeading.bearing(from:position,to:goal,headingDegrees:headingDegrees)
         let normalized=(angle+360).truncatingRemainder(dividingBy:360)
-        let candidate=Int(floor((normalized+22.5)/45))%8
+        let candidate=StageHeading.sector(angle)
         if let old=sector {
             let center=Double(old)*45
             let delta=abs((normalized-center+540).truncatingRemainder(dividingBy:360)-180)
