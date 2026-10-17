@@ -1,10 +1,10 @@
 import Foundation
 import HearIAmCore
 
-/// ④ Find a target direction by body (waist vibration every 30°) or by head (earbud buzz).
+/// ④ Find a target direction by body (waist vibration every 45°) or by head (earbud buzz).
 /// The trial ends after facing the target with the body for one second.
 extension SoundTestViewModel {
-    static let targets=[90,-90,180,60,-60,120,-120,150,-150]
+    static let targets=[90,-90,180,45,-45,135,-135]
     static let foundTolerance=10.0, headTolerance=15.0, headRearm=25.0, steadySeconds=1.0
 
     var headReceiving: Bool { head.lastSample.map { ProcessInfo.processInfo.systemUptime-$0 < 1 } ?? false }

@@ -1,6 +1,7 @@
 import Foundation
 
-/// PoC1's 30° landmark detector (AngleLandmarkDetector), carried over with integer landmarks.
+/// PoC1's landmark detector (AngleLandmarkDetector), carried over with integer landmarks.
+/// The default landmarks are the 45° field set in DirectionPattern.
 /// Feed the body angle relative to the next target (0° = facing it). A landmark fires when the
 /// angle enters ±3° of it or a fast turn jumps across it, and fires again only after leaving ±6°.
 /// Consecutive samples are assumed to be less than 180° apart. Call reset() after a sensor gap.
