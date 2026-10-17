@@ -41,6 +41,6 @@ extension GuidanceViewModel {
     func finish() {
         active=false;invalidateTasks();timer?.invalidate();timer=nil
         observations.forEach {NotificationCenter.default.removeObserver($0)};observations=[]
-        tracking.endSession();voice.deactivate()
+        tracking.endSession();signals.shutdown();haptics.shutdown();voice.deactivate()
     }
 }

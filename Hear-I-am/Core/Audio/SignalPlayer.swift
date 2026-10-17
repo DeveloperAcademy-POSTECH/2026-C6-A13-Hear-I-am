@@ -8,8 +8,10 @@ import HearIAmCore
     /// (event, detail) for the experiment log. Guidance forwards these to its trial log.
     var onEvent: ((String,String)->Void)?
     private(set) var warning: WarningLevel?
-    /// Timbre for the warning; a running warning switches at once.
-    private(set) var warningTone: WarningTone = .soft
+    /// Timbre for the warning; a running warning switches at once. The choice made in the sound test
+    /// tab is saved, so guidance plays the same sound.
+    private(set) var warningTone=UserDefaults.standard.string(forKey:SignalPlayer.toneKey).flatMap(WarningTone.init(rawValue:)) ?? .soft
+    static let toneKey="signal.warningTone"
     private(set) var speechActive=false
     private let engine=AVAudioEngine()
     private let warningNode=AVAudioPlayerNode()
@@ -54,7 +56,8 @@ import HearIAmCore
     }
     func setWarningTone(_ tone: WarningTone) {
         guard tone != warningTone else { return }
-        warningTone=tone;event("signal_warning_tone",tone.rawValue)
+        warningTone=tone;UserDefaults.standard.set(tone.rawValue,forKey:Self.toneKey)
+        event("signal_warning_tone",tone.rawValue)
         guard let level=warning else { return }
         warning=nil;setWarning(level)
     }
