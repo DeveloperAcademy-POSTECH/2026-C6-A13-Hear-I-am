@@ -59,6 +59,30 @@ public struct StageObstacle: Codable, Equatable, Sendable, Identifiable {
         return min(distancePointSegment(a,c,d),distancePointSegment(b,c,d),
                    distancePointSegment(c,a,b),distancePointSegment(d,a,b))
     }
+    /// Platforms and stairs are walked onto; everything else is an obstacle to keep away from.
+    public var isStep: Bool { kind == .platform || kind == .stairs }
+    /// Shortest distance from `p` to the outline; 0 when inside.
+    public func distance(to p: FloorPoint) -> Double { contains(p) ? 0 : p.distance(to:closestPoint(to:p)) }
+    /// Closest point on the outline, or `p` itself when inside.
+    public func closestPoint(to p: FloorPoint) -> FloorPoint {
+        if contains(p) { return p }
+        return vertices.indices.map { i -> FloorPoint in
+            let a=vertices[i], b=vertices[(i+1)%vertices.count], dx=b.x-a.x, dy=b.y-a.y, n=dx*dx+dy*dy
+            let t=n > 0 ? max(0,min(1,((p.x-a.x)*dx+(p.y-a.y)*dy)/n)) : 0
+            return FloorPoint(a.x+t*dx,a.y+t*dy)
+        }.min { p.distance(to:$0) < p.distance(to:$1) } ?? p
+    }
+    /// Fractions t ∈ [0, 1] along a→b where the segment crosses the outline, ascending.
+    public func crossings(from a: FloorPoint, to b: FloorPoint) -> [Double] {
+        let rx=b.x-a.x, ry=b.y-a.y
+        return vertices.indices.compactMap { i -> Double? in
+            let c=vertices[i], d=vertices[(i+1)%vertices.count], sx=d.x-c.x, sy=d.y-c.y
+            let denominator=rx*sy-ry*sx
+            guard abs(denominator) > 1e-12 else { return nil }
+            let t=((c.x-a.x)*sy-(c.y-a.y)*sx)/denominator, u=((c.x-a.x)*ry-(c.y-a.y)*rx)/denominator
+            return (0...1).contains(t) && (0...1).contains(u) ? t : nil
+        }.sorted()
+    }
     public func overlaps(_ a: FloorPoint,_ b: FloorPoint, clearance: Double) -> Bool {
         if contains(a) || contains(b) { return true }
         return vertices.indices.contains { i in
