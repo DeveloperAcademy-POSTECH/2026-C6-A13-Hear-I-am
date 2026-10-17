@@ -11,6 +11,7 @@ public struct PreparationDraft: Sendable {
     public var routeFinished = false
     public var objects: [WorldObstacle] = []
     public var checkpoint: Point3?
+    public var dangerZones: [StageDangerZone] = []
     public init() {}
     public var area: StageArea? {
         guard corners.allSatisfy({ $0 != nil }) else { return nil }
@@ -46,7 +47,7 @@ public struct PreparationDraft: Sendable {
             throw LabError.invalid("경로가 새 무대 바닥과 높이가 다릅니다. 경로를 다시 지정해주세요.")
         }
         let obstacles = try objects.map { try $0.projected(in: area) }
-        return try StageRoute(area: area, points: route.map(area.floor), obstacles: obstacles, allowsOutsideEndpoints: true)
+        return try StageRoute(area: area, points: route.map(area.floor), obstacles: obstacles, allowsOutsideEndpoints: true, dangerZones: dangerZones)
     }
     public var objectErrors: [String] {
         guard let area else { return boundaryErrors }
