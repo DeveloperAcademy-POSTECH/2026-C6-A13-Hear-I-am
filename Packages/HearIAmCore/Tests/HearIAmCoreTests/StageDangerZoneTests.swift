@@ -67,6 +67,39 @@ final class StageDangerZoneTests: XCTestCase {
         draft.dangerZones=[]
         XCTAssertTrue(try draft.stageRoute().dangerZones.isEmpty)
     }
+    func testContainmentIncludesBorderButExcludesOutsideAndInvalidPoints() {
+        for edge in StageDangerZone.Edge.allCases {
+            for distance in StageDangerZone.Distance.allCases {
+                let zone=StageDangerZone(edge:edge,distance:distance)
+                let vertices=zone.vertices(width:6,depth:4)
+                for vertex in vertices { XCTAssertTrue(zone.contains(vertex,width:6,depth:4)) }
+                XCTAssertFalse(zone.contains(.init(3,2),width:6,depth:4))
+                for point in [FloorPoint(-0.01,0),.init(6.01,4),.init(0,-0.01),.init(0,4.01),.init(.nan,0)] {
+                    XCTAssertFalse(zone.contains(point,width:6,depth:4))
+                }
+            }
+        }
+    }
+    func testWarningsDoNotBlockStartInteriorOrDestinationAndUpdateAfterEdits() throws {
+        var draft=PreparationDraft()
+        draft.corners=PerformancePlan.area.corners.map { Optional($0) }
+        draft.dangerZones=[.init(edge:.front,distance:.halfMetre),.init(edge:.left,distance:.oneMetre)]
+        try draft.addRoutePoint(.init(0.25,0,-0.25))
+        XCTAssertEqual(draft.dangerZoneRoutePointLabels,["시작점"])
+        try draft.addRoutePoint(.init(2,0,-0.5))
+        try draft.addRoutePoint(.init(3,0,-0.25),asDestination:true)
+        XCTAssertEqual(draft.dangerZoneRoutePointLabels,["시작점","P1","종료점"])
+        XCTAssertTrue(draft.routeErrors.isEmpty)
+        XCTAssertEqual(try draft.stageRoute().points.count,3)
+        draft.removeLastRoutePoint()
+        XCTAssertEqual(draft.dangerZoneRoutePointLabels,["시작점","P1"])
+        try draft.addRoutePoint(.init(13,0,-0.25),asDestination:true)
+        XCTAssertEqual(draft.dangerZoneRoutePointLabels,["시작점","P1"])
+        draft.dangerZones=[]
+        XCTAssertTrue(draft.dangerZoneRoutePointLabels.isEmpty)
+        draft.dangerZones=[.init(edge:.back,distance:.oneMetre)]
+        XCTAssertTrue(draft.dangerZoneRoutePointLabels.isEmpty)
+    }
     func testArchiveLoadAndRenamePreservePerEdgeSettings() async throws {
         let root=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at:root) }
