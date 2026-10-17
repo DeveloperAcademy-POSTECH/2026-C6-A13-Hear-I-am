@@ -17,7 +17,7 @@ extension GuidanceViewModel {
     func tickEscape(pose: (point: FloorPoint, heading: Double, time: Double), guide: RouteGuide) {
         guard var state=escape else { return }
         let bearing=escapeBearing(pose:pose,guide:guide)
-        if let landmark=landmarks.update(relativeDegrees:-bearing) { haptics.play(signedDegrees:landmark) }
+        if let landmark=landmarks.update(relativeDegrees:-bearing) { haptics.playDirection(signedDegrees:landmark,signals:signals) }
         let warning=warnings.update(position:pose.point,headingDegrees:pose.heading,obstacles:guide.route.obstacles)
         if warning?.level != signals.warning { signals.setWarning(warning?.level);tracking.event("signal_warning_reason",detail:warning?.detail ?? "off") }
         if !state.quiet && pose.time-state.startedAt >= EscapeState.quietAfter {

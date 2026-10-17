@@ -3,21 +3,34 @@ import os
 import HearIAmCore
 
 /// Plays signal tones mixed with speech. The warning loops on its own node, so a one-shot
-/// tone (arrival, buzz) never cuts it off. Every play, stop and failure is logged.
+/// tone (arrival, buzz) never cuts it off. Direction beeps have a node of their own too, so turning
+/// right after arriving does not cut the ding. Every play, stop and failure is logged.
 @MainActor final class SignalPlayer {
     /// (event, detail) for the experiment log. Guidance forwards these to its trial log.
     var onEvent: ((String,String)->Void)?
     private(set) var warning: WarningLevel?
     /// Timbre for the warning; a running warning switches at once. The choice made in the sound test
     /// tab is saved, so guidance plays the same sound.
-    private(set) var warningTone=UserDefaults.standard.string(forKey:SignalPlayer.toneKey).flatMap(WarningTone.init(rawValue:)) ?? .soft
-    static let toneKey="signal.warningTone"
+    private(set) var warningTone=SignalPlayer.savedWarningTone
+    /// 「낮은 삑」 was chosen on 10/18 (#33). A new key, so a tone tried earlier in the test tab does not
+    /// override that choice.
+    static let toneKey="signal.warningTone.v2"
+    static var savedWarningTone: WarningTone {
+        UserDefaults.standard.string(forKey:toneKey).flatMap(WarningTone.init(rawValue:)) ?? .low
+    }
+    static let directionModeKey="signal.directionMode"
+    /// How guidance gives the direction at each 45° landmark; chosen in the sound test tab (#33).
+    static var directionMode: DirectionSignalMode {
+        get { UserDefaults.standard.string(forKey:directionModeKey).flatMap(DirectionSignalMode.init(rawValue:)) ?? .both }
+        set { UserDefaults.standard.set(newValue.rawValue,forKey:directionModeKey) }
+    }
     private(set) var speechActive=false
     /// A long-running warning is softened so it does not drown the performance.
     private(set) var warningQuiet=false
     private let engine=AVAudioEngine()
     private let warningNode=AVAudioPlayerNode()
     private let shotNode=AVAudioPlayerNode()
+    private let directionNode=AVAudioPlayerNode()
     private let format=AVAudioFormat(standardFormatWithSampleRate:ToneRenderer.sampleRate,channels:1)!
     private var buffers: [String:AVAudioPCMBuffer]=[:]
     private var shotVolume=SignalVolume.arrival
@@ -25,21 +38,24 @@ import HearIAmCore
     private let log=Logger(subsystem:Bundle.main.bundleIdentifier ?? "HearIAm",category:"Signal")
 
     init() {
-        engine.attach(warningNode);engine.attach(shotNode)
-        engine.connect(warningNode,to:engine.mainMixerNode,format:format)
-        engine.connect(shotNode,to:engine.mainMixerNode,format:format)
+        for node in [warningNode,shotNode,directionNode] {
+            engine.attach(node);engine.connect(node,to:engine.mainMixerNode,format:format)
+        }
         observer=NotificationCenter.default.addObserver(forName:.AVAudioEngineConfigurationChange,object:engine,queue:.main) { [weak self] _ in
             Task { @MainActor in self?.configurationChanged() }
         }
     }
     deinit { observer.map(NotificationCenter.default.removeObserver) }
 
-    /// Plays one sound once. A new one-shot replaces the previous one; the warning loop is untouched.
+    /// Plays one sound once. A new one-shot replaces the previous one on its node (direction beeps
+    /// replace direction beeps, other one-shots each other); the warning loop is untouched.
     func play(_ sound: SignalSound) {
         guard prepare(sound.name), let buffer=buffer(sound) else { return }
-        shotVolume=volume(sound);applyVolumes()
-        shotNode.scheduleBuffer(buffer,at:nil,options:.interrupts)
-        if !shotNode.isPlaying { shotNode.play() }
+        let node: AVAudioPlayerNode
+        if case .direction=sound { node=directionNode } else { node=shotNode;shotVolume=volume(sound) }
+        applyVolumes()
+        node.scheduleBuffer(buffer,at:nil,options:.interrupts)
+        if !node.isPlaying { node.play() }
         event("signal_play",sound.name)
     }
     /// Starts, changes or stops (nil) the looping obstacle warning.
@@ -74,7 +90,7 @@ import HearIAmCore
     }
     func stop() {
         let wasWarning=warning
-        warning=nil;warningNode.stop();shotNode.stop()
+        warning=nil;warningNode.stop();shotNode.stop();directionNode.stop()
         if wasWarning != nil { event("signal_warning",(wasWarning?.name ?? "")+"->off") }
     }
     /// Stops playback and the engine, e.g. when the screen closes or audio is interrupted.
@@ -92,7 +108,7 @@ import HearIAmCore
     private func buffer(_ sound: SignalSound) -> AVAudioPCMBuffer? {
         if let cached=buffers[sound.name] { return cached }
         let samples=ToneRenderer.render(sound)
-        guard let buffer=AVAudioPCMBuffer(pcmFormat:format,frameCapacity:AVAudioFrameCount(samples.count)),
+        guard !samples.isEmpty, let buffer=AVAudioPCMBuffer(pcmFormat:format,frameCapacity:AVAudioFrameCount(samples.count)),
               let channel=buffer.floatChannelData?[0] else {
             event("signal_error","\(sound.name) buffer",level:.error);return nil
         }
@@ -104,12 +120,14 @@ import HearIAmCore
         switch sound {
         case .warning: return SignalVolume.warning
         case .arrival: return SignalVolume.arrival
+        case .direction: return SignalVolume.direction
         case .buzz: return SignalVolume.buzz
         }
     }
     private func applyVolumes() {
         let share=speechActive ? SignalVolume.duckedShare : 1
         warningNode.volume=SignalVolume.warning*share*(warningQuiet ? SignalVolume.quietShare : 1);shotNode.volume=shotVolume*share
+        directionNode.volume=SignalVolume.direction*share
     }
     /// Route changes (earbud in/out) stop the engine. A running warning is restarted on the new route.
     private func configurationChanged() {
