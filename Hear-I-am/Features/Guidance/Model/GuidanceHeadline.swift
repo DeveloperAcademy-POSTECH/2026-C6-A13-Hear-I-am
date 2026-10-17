@@ -11,7 +11,7 @@ struct GuidanceHeadline {
          arrivedName: String?, cue: GuidanceCue?, message: String) {
         switch phase {
         case .guiding: symbol=cue?.symbol ?? "location.north"
-        case .paused: symbol="pause.circle"
+        case .paused,.aligning: symbol="pause.circle"
         case .interrupted,.failed: symbol="exclamationmark.circle"
         case .finishing,.completed: symbol="checkmark.circle"
         case .departure: symbol=departureReady ? "checkmark.circle" : "location.circle"
@@ -24,6 +24,7 @@ struct GuidanceHeadline {
         case .starting: title="안내를 시작할게요"
         case .guiding: title=arrivedName.map {"\($0)에 도착했어요"} ?? cue?.direction ?? "\(targetName)으로 이동해요"
         case .paused: title="안내를\n일시정지했어요"
+        case .aligning: title="카메라를 몸 앞쪽으로\n수평을 맞춰주세요"
         case .interrupted: title="잠시 멈춰주세요"
         case .failed: title="공연장을\n확인하지 못했어요"
         case .finishing: title="마지막 지점에\n도착했어요"
