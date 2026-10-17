@@ -33,6 +33,10 @@ struct PreparationGuideCard: View {
                 HStack(spacing:5) {ForEach(PreparationDraft.captureOrder,id:\.self) {i in
                     Button(PreparationStep.cornerNames[i]) {model.selectedCorner=i}.font(.system(size:10)).buttonStyle(.bordered).tint(model.selectedCorner == i ? .hearGreen : .gray)
                 }}
+                if draft.area != nil {
+                    Text("‘위험 구역’에서 변과 거리(0.5m/1m)를 선택할 수 있어요.").font(.caption)
+                    Text(StageDangerZone.summary(draft.dangerZones)).font(.caption).foregroundStyle(.orange)
+                }
                 if model.allCornersCaptured, let error=draft.boundaryErrors.first {Text(error).font(.caption).foregroundStyle(.red)}
             }
             if step == .objects {

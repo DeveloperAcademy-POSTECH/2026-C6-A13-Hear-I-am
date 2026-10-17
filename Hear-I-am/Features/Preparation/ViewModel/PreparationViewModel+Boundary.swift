@@ -7,6 +7,13 @@ extension PreparationViewModel {
     var lastCapturedCorner: Int? { PreparationDraft.captureOrder.last(where:{draft.corners[$0] != nil}) }
     var allCornersCaptured: Bool { draft.corners.allSatisfy {$0 != nil} }
 
+    func setDangerZone(_ edge: StageDangerZone.Edge, distance: StageDangerZone.Distance?) {
+        guard !busy, draft.area != nil else { return }
+        draft.dangerZones.removeAll { $0.edge == edge }
+        if let distance { draft.dangerZones.append(.init(edge:edge,distance:distance)) }
+        session.updatePreparationDangerZones(draft.dangerZones)
+    }
+
     func captureCorner(_ index: Int) {
         guard draft.corners.indices.contains(index) else {return}
         place { draft,point in draft.corners[index]=point }

@@ -25,6 +25,7 @@ final class PreparationViewModel: ObservableObject {
     @Published var selectedCorner: Int?
     @Published var objectEditing=false
     @Published var review=false
+    @Published var editingDangerZones=false
     @Published var guideCollapsed=false
     @Published var confirmingScan=false
     @Published var confirmingExit=false

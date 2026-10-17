@@ -11,6 +11,7 @@ public struct PreparationDraft: Sendable {
     public var routeFinished = false
     public var objects: [WorldObstacle] = []
     public var checkpoint: Point3?
+    public var dangerZones: [StageDangerZone] = []
     public init() {}
     public var area: StageArea? {
         guard corners.allSatisfy({ $0 != nil }) else { return nil }
@@ -46,7 +47,7 @@ public struct PreparationDraft: Sendable {
             throw LabError.invalid("경로가 새 무대 바닥과 높이가 다릅니다. 경로를 다시 지정해주세요.")
         }
         let obstacles = try objects.map { try $0.projected(in: area) }
-        return try StageRoute(area: area, points: route.map(area.floor), obstacles: obstacles, allowsOutsideEndpoints: true)
+        return try StageRoute(area: area, points: route.map(area.floor), obstacles: obstacles, allowsOutsideEndpoints: true, dangerZones: dangerZones)
     }
     public var objectErrors: [String] {
         guard let area else { return boundaryErrors }
@@ -56,6 +57,18 @@ public struct PreparationDraft: Sendable {
                 guard o.vertices.allSatisfy({ area.contains($0) }) else { return "\(o.name)이 무대 밖입니다. 다시 지정해주세요." }
                 return nil
             } catch { return "\(object.name): \(error.localizedDescription)" }
+        }
+    }
+    /// Informational only: never included in validation errors or placement guards.
+    public var dangerZoneRoutePointLabels: [String] {
+        guard let area else { return [] }
+        return route.enumerated().compactMap { index, point in
+            guard dangerZones.contains(where: {
+                $0.contains(area.floor(point),width:area.width,depth:area.depth)
+            }) else { return nil }
+            if index == 0 { return "시작점" }
+            if routeFinished && index == route.count-1 { return "종료점" }
+            return "P\(index)"
         }
     }
     public var routeErrors: [String] {
