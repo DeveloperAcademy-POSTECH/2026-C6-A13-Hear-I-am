@@ -31,6 +31,7 @@ extension PreparationViewModel {
             let projected=try item.projected(in:area)
             guard projected.vertices.allSatisfy({area.contains($0)}) else {throw LabError.invalid("기물을 무대 안에 지정해주세요.")}
             if let i=draft.objects.firstIndex(where:{$0.id==item.id}) {draft.objects[i]=item} else {draft.objects.append(item)}
+            session.event("object_saved",detail:"\(item.name) kind=\(item.kind.rawValue) passage=\(projected.passage.rawValue) vertices=\(item.vertices.count)")
             cancelObject()
         } catch {session.errorMessage=error.localizedDescription}
     }

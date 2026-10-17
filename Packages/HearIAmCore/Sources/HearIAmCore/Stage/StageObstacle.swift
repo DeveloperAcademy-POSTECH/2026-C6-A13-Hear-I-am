@@ -61,6 +61,9 @@ public struct StageObstacle: Codable, Equatable, Sendable, Identifiable {
     }
     /// Platforms and stairs are walked onto; everything else is an obstacle to keep away from.
     public var isStep: Bool { kind == .platform || kind == .stairs }
+    /// Routes must keep clear of this outline. Platforms and stairs never block, even when an older
+    /// save still marks them prohibited, because the performer walks onto them (decided 10/17).
+    public var blocksPath: Bool { passage == .prohibited && !isStep }
     /// Shortest distance from `p` to the outline; 0 when inside.
     public func distance(to p: FloorPoint) -> Double { contains(p) ? 0 : p.distance(to:closestPoint(to:p)) }
     /// Closest point on the outline, or `p` itself when inside.

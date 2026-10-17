@@ -10,6 +10,7 @@ public struct WorldObstacle: Identifiable, Equatable, Sendable {
     }
     public func projected(in area: StageArea) throws -> StageObstacle {
         guard vertices.allSatisfy({ abs($0.y-area.floorHeight) <= 0.10 }) else { throw LabError.invalid("기물의 바닥 높이를 다시 확인해주세요.") }
-        return try StageObstacle(id: id, name: name, kind: kind, vertices: vertices.map(area.floor))
+        let step=kind == .platform || kind == .stairs
+        return try StageObstacle(id: id, name: name, kind: kind, passage: step ? .passable : .prohibited, vertices: vertices.map(area.floor))
     }
 }

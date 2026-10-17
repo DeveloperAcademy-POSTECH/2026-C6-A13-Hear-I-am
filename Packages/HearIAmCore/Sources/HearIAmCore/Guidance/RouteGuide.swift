@@ -67,7 +67,7 @@ public struct RouteGuide: Sendable {
         if !route.area.contains(position) && !externalSegment { return .outsideStage }
         let a=route.points[targetIndex-1], b=route.points[targetIndex]
         if position.distance(toSegmentFrom:a,to:b) > Self.corridorRadius { return .offRoute }
-        if route.obstacles.contains(where: { $0.passage == .prohibited && $0.overlaps(position,b,clearance:settings.obstacleClearance) }) {
+        if route.obstacles.contains(where: { $0.blocksPath && $0.overlaps(position,b,clearance:settings.obstacleClearance) }) {
             return .obstacleProximity
         }
         return nil
