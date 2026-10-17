@@ -34,6 +34,8 @@ import HearIAmCore
     var corrections=CorrectionGate()
     var steps=StepGate()
     var arrivalShownAt: Double?
+    /// The warning pauses briefly on arrival so the ding is not masked.
+    var warningHoldUntil: Double?
     var escape: EscapeState?
     var guide: RouteGuide?
     var run: GuidanceRun?
@@ -106,7 +108,7 @@ import HearIAmCore
     /// Cancels pending speech callbacks and the countdown; late callbacks see a new generation.
     func invalidateTasks() {
         generation=UUID();countdownTask?.cancel();countdownTask=nil;voice.stop();instructionDone=false;arrivedName=nil;arrivalShownAt=nil
-        escape=nil;signals.setWarning(nil);signals.setWarningQuiet(false);haptics.stop()
+        escape=nil;warningHoldUntil=nil;signals.setWarning(nil);signals.setWarningQuiet(false);haptics.stop()
     }
     /// A pose no older than 0.5 s from a verified session, or nil.
     func freshPose() -> (point: FloorPoint, heading: Double, time: Double)? {
