@@ -39,6 +39,11 @@ struct SoundTestView: View {
                 }
             }
             SoundTestRow(label:"도착") { ActionButton(title:"띵",primary:false) { model.playArrival() } }
+            SoundTestRow(label:"방향 비프 (왼쪽 낮게 · 오른쪽 높게 · 앞뒤 중간)") {
+                ForEach(DirectionPattern.landmarks,id:\.self) { degrees in
+                    ActionButton(title:Self.label(degrees),primary:false) { model.beep(degrees) }
+                }
+            }
             SoundTestRow(label:"방향 교정 음성") {
                 ForEach([SignalCopy.turnLeft,SignalCopy.turnRight,SignalCopy.turnBack],id:\.self) { line in
                     ActionButton(title:line,primary:false) { model.speak(line) }
@@ -63,7 +68,12 @@ struct SoundTestView: View {
 
     private var haptics: some View {
         VStack(alignment:.leading,spacing:16) {
-            SoundTestRow(label:"45° 눈금 진동 (0° = 목표 방향, 좌우 같음)") {
+            SoundTestRow(label:"방향 신호 (안내에서도 이대로 써요)") {
+                ForEach(DirectionSignalMode.allCases,id:\.self) { mode in
+                    ActionButton(title:Self.modeLabel(mode),primary:model.directionMode == mode) { model.setDirectionMode(mode) }
+                }
+            }
+            SoundTestRow(label:"45° 눈금 (0° = 목표 방향, 진동은 좌우 같음)") {
                 ForEach(DirectionPattern.landmarks,id:\.self) { degrees in
                     ActionButton(title:Self.label(degrees),primary:false) { model.vibrate(degrees) }
                 }
@@ -110,6 +120,13 @@ struct SoundTestView: View {
 
     static func label(_ degrees: Int) -> String {
         degrees == 0 ? "앞" : degrees == 180 ? "뒤" : (degrees < 0 ? "왼쪽 " : "오른쪽 ")+"\(abs(degrees))°"
+    }
+    static func modeLabel(_ mode: DirectionSignalMode) -> String {
+        switch mode {
+        case .haptic: return "진동만"
+        case .beep: return "비프만"
+        case .both: return "진동 + 비프"
+        }
     }
     static func toneLabel(_ tone: WarningTone) -> String {
         switch tone {

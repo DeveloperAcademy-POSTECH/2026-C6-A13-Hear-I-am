@@ -18,6 +18,15 @@ public enum ToneRenderer {
                 let tone=sin(2 * .pi*arrivalHertz*t)+0.4*sin(2 * .pi*arrivalHertz*2*t)
                 return tone*exp(-t*7)*fade(t,length:arrivalLength,edge:0.003)
             })
+        case .direction(let degrees):
+            guard let beep=DirectionPattern.beep(signedDegrees:degrees) else { return [] }
+            let length=DirectionPattern.beepLength, period=length+DirectionPattern.beepGap
+            let total=Double(beep.count)*length+Double(beep.count-1)*DirectionPattern.beepGap
+            return normalized(samples(total) { t in
+                let within=t.truncatingRemainder(dividingBy:period)
+                guard within < length else { return 0 }
+                return sin(2 * .pi*beep.hertz*t)*fade(within,length:length,edge:0.008)
+            })
         case .buzz(let hertz, let harmonic):
             return normalized(samples(buzzLength) { t in
                 let pulse=0.5*(1-cos(2 * .pi*buzzRate*t))
@@ -30,17 +39,18 @@ public enum ToneRenderer {
     /// One beep, no longer than the shortest warning period (0.15 s).
     static func warningBeep(_ tone: WarningTone) -> [Float] {
         func sine(_ hertz: Double, _ t: Double) -> Double { sin(2 * .pi*hertz*t) }
+        let p=tone.pitches
         switch tone {
         case .sharp:
-            return samples(0.08) { t in (sine(950,t)+0.3*sine(2850,t))*fade(t,length:0.08,edge:0.005) }
+            return samples(0.08) { t in (sine(p[0],t)+0.3*sine(p[1],t))*fade(t,length:0.08,edge:0.005) }
         case .soft:
-            return samples(0.1) { t in sine(880,t)*fade(t,length:0.1,edge:0.02) }
+            return samples(0.1) { t in sine(p[0],t)*fade(t,length:0.1,edge:0.02) }
         case .low:
-            return samples(0.12) { t in (sine(440,t)+0.15*sine(880,t))*fade(t,length:0.12,edge:0.02) }
+            return samples(0.12) { t in (sine(p[0],t)+0.15*sine(p[1],t))*fade(t,length:0.12,edge:0.02) }
         case .pluck:
-            return samples(0.14) { t in sine(660,t)*exp(-t*30)*fade(t,length:0.14,edge:0.003) }
+            return samples(0.14) { t in sine(p[0],t)*exp(-t*30)*fade(t,length:0.14,edge:0.003) }
         case .thump:
-            return samples(0.12) { t in (sine(60,t)+0.4*sine(240,t))*fade(t,length:0.12,edge:0.015) }
+            return samples(0.12) { t in (sine(p[0],t)+0.4*sine(p[1],t))*fade(t,length:0.12,edge:0.015) }
         }
     }
     static func count(_ seconds: Double) -> Int { Int((seconds*sampleRate).rounded()) }

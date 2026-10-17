@@ -74,3 +74,15 @@ import HearIAmCore
         onEvent?(name,detail)
     }
 }
+
+extension DirectionHaptics {
+    /// Gives the direction for a 45° landmark the way the sound test tab saved it (#33): waist
+    /// vibration, earbud beep, or both at the same moment.
+    /// `mode` nil reads the saved choice.
+    func playDirection(signedDegrees: Int, signals: SignalPlayer, mode chosen: DirectionSignalMode? = nil) {
+        let mode=chosen ?? SignalPlayer.directionMode
+        event("signal_direction","\(DirectionPattern.name(signedDegrees:signedDegrees)) mode=\(mode.rawValue)")
+        if mode.vibrates { play(signedDegrees:signedDegrees) }
+        if mode.beeps { signals.play(.direction(signedDegrees:signedDegrees)) }
+    }
+}

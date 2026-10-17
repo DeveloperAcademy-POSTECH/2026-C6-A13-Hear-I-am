@@ -4,6 +4,7 @@ import XCTest
 final class SignalSoundTests: XCTestCase {
     let all: [SignalSound]=WarningLevel.allCases.flatMap { level in WarningTone.allCases.map { .warning(level,tone:$0) } }+[.arrival]
         + [40,60,80].flatMap { [SignalSound.buzz(hertz:$0,harmonic:false),.buzz(hertz:$0,harmonic:true)] }
+        + DirectionPattern.landmarks.map { SignalSound.direction(signedDegrees:$0) }
 
     func rms(_ s: ArraySlice<Float>) -> Float { (s.map { $0*$0 }.reduce(0,+)/Float(max(1,s.count))).squareRoot() }
 
@@ -46,8 +47,35 @@ final class SignalSoundTests: XCTestCase {
         XCTAssertLessThan(rms(plain[(trough-20)..<(trough+20)]),rms(plain[(crest-400)..<(crest+400)])*0.2)
         XCTAssertNotEqual(plain,ToneRenderer.render(.buzz(hertz:60,harmonic:true)))
     }
+    func testDirectionBeepCountsAndPitches() {
+        // Front once, back twice, sides once per 45°, all at PoC1 timings.
+        for (degrees,hertz,count) in [(0,990.0,1),(180,990,2),(-180,990,2),(45,1320,1),(90,1320,2),(135,1320,3),(-45,660,1),(-90,660,2),(-135,660,3)] {
+            let beep=try! XCTUnwrap(DirectionPattern.beep(signedDegrees:degrees))
+            XCTAssertEqual(beep.hertz,hertz,"\(degrees)");XCTAssertEqual(beep.count,count,"\(degrees)")
+            let length=Double(count)*DirectionPattern.beepLength+Double(count-1)*DirectionPattern.beepGap
+            XCTAssertEqual(ToneRenderer.render(.direction(signedDegrees:degrees)).count,ToneRenderer.count(length),"\(degrees)")
+        }
+        for degrees in [30,60,-120,10] {
+            XCTAssertNil(DirectionPattern.beep(signedDegrees:degrees));XCTAssertTrue(ToneRenderer.render(.direction(signedDegrees:degrees)).isEmpty)
+        }
+    }
+    func testDirectionBeepIsSilentBetweenBeeps() {
+        let s=ToneRenderer.render(.direction(signedDegrees:135))
+        let on=ToneRenderer.count(DirectionPattern.beepLength), gap=ToneRenderer.count(DirectionPattern.beepGap)
+        XCTAssertGreaterThan(rms(s[..<on]),0.3)
+        XCTAssertEqual(rms(s[(on+5)..<(on+gap-5)]),0)
+    }
+    /// The 「낮은 삑」 warning chosen on 10/18 must not share a pitch with any direction beep (#33).
+    func testChosenWarningSharesNoPitchWithDirectionBeeps() {
+        let direction=[DirectionPattern.leftHertz,DirectionPattern.centerHertz,DirectionPattern.rightHertz]
+        for pitch in WarningTone.low.pitches {
+            XCTAssertTrue(direction.allSatisfy { abs($0-pitch)/pitch > 0.1 },"\(pitch) Hz")
+        }
+        XCTAssertEqual(DirectionSignalMode.allCases.map { [$0.vibrates,$0.beeps] },[[true,false],[false,true],[true,true]])
+    }
     func testNamesAreDistinctForLogs() {
         XCTAssertEqual(Set(all.map(\.name)).count,all.count)
         XCTAssertEqual(SignalSound.buzz(hertz:40,harmonic:true).name,"buzz_40hz_harmonic")
+        XCTAssertEqual(SignalSound.direction(signedDegrees:-90).name,"direction_left_90")
     }
 }

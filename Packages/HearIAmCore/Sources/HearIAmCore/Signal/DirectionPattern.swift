@@ -22,6 +22,22 @@ public enum DirectionPattern {
             DirectionPulse(time:Double($0)*shortGap,duration:shortPulse,intensity:intensity,sharpness:sharpness)
         }
     }
+    // Direction beep (#33, decided 10/18): PoC1's beep rule, played at the same landmarks as the
+    // vibration. Left is low, right is high, front and back sit between them; front sounds once,
+    // back twice, a side once per 45°. PoC1 used 440 · 660 · 880 Hz; every pitch is raised by half so
+    // none is shared with the 「낮은 삑」 warning (440 Hz with an 880 Hz overtone).
+    public static let leftHertz=660.0, centerHertz=990.0, rightHertz=1320.0
+    /// PoC1 beep timings (AudioCue: 0.16 s on, 0.12 s off).
+    public static let beepLength=0.16, beepGap=0.12
+
+    /// Pitch and number of beeps; nil for angles that are not a 45° landmark.
+    public static func beep(signedDegrees: Int) -> (hertz: Double, count: Int)? {
+        let degrees=signedDegrees == -180 ? 180 : signedDegrees
+        guard landmarks.contains(degrees) else { return nil }
+        if degrees == 0 { return (centerHertz,1) }
+        if degrees == 180 { return (centerHertz,2) }
+        return (degrees < 0 ? leftHertz : rightHertz,abs(degrees)/45)
+    }
     /// Readable label for logs, e.g. "left_90" or "front".
     public static func name(signedDegrees: Int) -> String {
         let degrees=signedDegrees == -180 ? 180 : signedDegrees
@@ -29,4 +45,12 @@ public enum DirectionPattern {
         if degrees == 180 { return "back" }
         return (degrees < 0 ? "left_" : "right_")+String(abs(degrees))
     }
+}
+
+/// What carries the direction at each 45° landmark (#33): the waist vibration, the earbud beep, or both.
+/// Chosen in the sound test tab and saved, so guidance uses the same.
+public enum DirectionSignalMode: String, CaseIterable, Sendable {
+    case haptic, beep, both
+    public var vibrates: Bool { self != .beep }
+    public var beeps: Bool { self != .haptic }
 }

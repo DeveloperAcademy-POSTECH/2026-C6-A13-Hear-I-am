@@ -1,7 +1,8 @@
 import HearIAmCore
 
 /// 안내 중 · 일시정지: signals along the saved route, decided 10/17 (comparison option ②).
-/// Direction is the waist vibration (next target = 0°, every 45°). Speech only when needed:
+/// Direction is the waist vibration (next target = 0°, every 45°), with the earbud direction beep at
+/// the same moment unless the sound test tab chose only one of them (#33). Speech only when needed:
 /// corrections past 45° for 1 s, steps 1 m ahead. The earbud gives the obstacle warning and the arrival ding.
 /// Walking on track is silent.
 extension GuidanceViewModel {
@@ -53,7 +54,7 @@ extension GuidanceViewModel {
         let target=guide.route.points[guide.targetIndex]
         let bearing=StageHeading.bearing(from:pose.point,to:target,headingDegrees:pose.heading)
         // The detector takes the body relative to the target, the opposite sign of the bearing.
-        if let landmark=landmarks.update(relativeDegrees:-bearing) { haptics.play(signedDegrees:landmark) }
+        if let landmark=landmarks.update(relativeDegrees:-bearing) { haptics.playDirection(signedDegrees:landmark,signals:signals) }
         if let hold=warningHoldUntil, pose.time < hold {} else {
             warningHoldUntil=nil
             let warning=warnings.update(position:pose.point,headingDegrees:pose.heading,obstacles:guide.route.obstacles)

@@ -13,4 +13,16 @@ public enum WarningTone: String, CaseIterable, Sendable {
     case pluck
     /// 60 Hz with a 240 Hz overtone: a short low thump, closer to a vibration than a beep.
     case thump
+
+    /// Partials the beep is built from, loudest first. Kept here so they can be checked against the
+    /// direction beep pitches.
+    public var pitches: [Double] {
+        switch self {
+        case .sharp: return [950,2850]
+        case .soft: return [880]
+        case .low: return [440,880]
+        case .pluck: return [660]
+        case .thump: return [60,240]
+        }
+    }
 }
