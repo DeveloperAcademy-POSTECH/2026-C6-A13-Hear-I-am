@@ -34,6 +34,7 @@ import HearIAmCore
     var corrections=CorrectionGate()
     var steps=StepGate()
     var arrivalShownAt: Double?
+    var escape: EscapeState?
     var guide: RouteGuide?
     var run: GuidanceRun?
     var pendingRecord: GuidanceRecord?
@@ -105,7 +106,7 @@ import HearIAmCore
     /// Cancels pending speech callbacks and the countdown; late callbacks see a new generation.
     func invalidateTasks() {
         generation=UUID();countdownTask?.cancel();countdownTask=nil;voice.stop();instructionDone=false;arrivedName=nil;arrivalShownAt=nil
-        signals.setWarning(nil);haptics.stop()
+        escape=nil;signals.setWarning(nil);signals.setWarningQuiet(false);haptics.stop()
     }
     /// A pose no older than 0.5 s from a verified session, or nil.
     func freshPose() -> (point: FloorPoint, heading: Double, time: Double)? {
@@ -135,6 +136,7 @@ import HearIAmCore
         lastPoseTime=pose.time
         if let first=selected?.route?.points.first { startDistance=pose.point.distance(to:first) }
         if phase == .departure, let guide { tickDeparture(pose:pose,guide:guide);return }
+        if phase == .paused, escape != nil, let guide { tickEscape(pose:pose,guide:guide);return }
         guard phase == .guiding, let guide else { return }
         tickGuiding(pose:pose,guide:guide)
     }

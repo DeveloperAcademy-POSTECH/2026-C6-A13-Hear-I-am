@@ -28,6 +28,7 @@
 		34954D50303FCB804701535D /* HomeActionCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8142CDE35A01BAD95188EAE6 /* HomeActionCard.swift */; };
 		3583CA78556FBB1B2FEC58D7 /* GuidanceCameraPrompt.swift in Sources */ = {isa = PBXBuildFile; fileRef = 992EB1C95227759432EFEDA0 /* GuidanceCameraPrompt.swift */; };
 		38A50F961CC2647C3774AD17 /* GuidanceViewModel+Departure.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F311DF588BCA22DAF239C73 /* GuidanceViewModel+Departure.swift */; };
+		3A854B2A1760B393C4DD1BA1 /* EscapeState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 762A0C379B38BA796CA6B531 /* EscapeState.swift */; };
 		3A9C443951F302635D9488DE /* GuidanceViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 030CDDD2A61339C05266B734 /* GuidanceViewModel.swift */; };
 		3C78D4DE73CA2E1CA3C75EBD /* HearRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DE973F4CB37BC17C43B684D /* HearRootView.swift */; };
 		3E8F05B4CB93029E6189D535 /* SavedMeshView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8AE4B38D0E603747BD5F10EA /* SavedMeshView.swift */; };
@@ -43,6 +44,7 @@
 		5FE594079F690B65F4896B79 /* PreparationReviewCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48A40118D9761ED3FCD466AF /* PreparationReviewCard.swift */; };
 		60F735E417BC500B61ABA00B /* DirectionHaptics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C9D9C4A569E37093119B17B /* DirectionHaptics.swift */; };
 		675DFBBF004AF79494A918D1 /* LibrarySelectionState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 754DA2DEA96D2C68486BF8AB /* LibrarySelectionState.swift */; };
+		6A78B3A967DCEBA02C670868 /* GuidanceViewModel+Escape.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60A41F6BB4695818DC5DFBDC /* GuidanceViewModel+Escape.swift */; };
 		6C931CF06A765EF879E8006C /* TrackingProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D125F891BBE2F012455B982 /* TrackingProbe.swift */; };
 		6D3F26F42C09E75387311322 /* HearAudioSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CA33158518034C9C9B52FAE /* HearAudioSession.swift */; };
 		6FAC80BD5564AAF95A626D3E /* PreparationViewModel+Route.swift in Sources */ = {isa = PBXBuildFile; fileRef = 722D44DB888422F0F5634E0C /* PreparationViewModel+Route.swift */; };
@@ -140,6 +142,7 @@
 		5DE973F4CB37BC17C43B684D /* HearRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HearRootView.swift; sourceTree = "<group>"; };
 		5EA8335C58461D5FB4640BA3 /* PreparationViewModel+Scan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PreparationViewModel+Scan.swift"; sourceTree = "<group>"; };
 		5F6BE97480FA1127BFA3448F /* PreparationControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreparationControls.swift; sourceTree = "<group>"; };
+		60A41F6BB4695818DC5DFBDC /* GuidanceViewModel+Escape.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GuidanceViewModel+Escape.swift"; sourceTree = "<group>"; };
 		632BF65D7EB8F33AECF401A4 /* PreparationGuideCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreparationGuideCard.swift; sourceTree = "<group>"; };
 		69D315A1537CE1F82F929225 /* PreparationStepBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreparationStepBar.swift; sourceTree = "<group>"; };
 		69DD8BC79FE9BD967BC2BA9D /* PlanEditorTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanEditorTool.swift; sourceTree = "<group>"; };
@@ -150,6 +153,7 @@
 		736F3E79026A771CBBB15878 /* HomeViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeViewModel.swift; sourceTree = "<group>"; };
 		754DA2DEA96D2C68486BF8AB /* LibrarySelectionState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibrarySelectionState.swift; sourceTree = "<group>"; };
 		75897F93E4C7DD266125D339 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		762A0C379B38BA796CA6B531 /* EscapeState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EscapeState.swift; sourceTree = "<group>"; };
 		78FF7D9B0DF5D1D7F5A352F9 /* PreparationMiniMap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreparationMiniMap.swift; sourceTree = "<group>"; };
 		7B292D3CCCA31D747D6BB045 /* DirectionTrial.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DirectionTrial.swift; sourceTree = "<group>"; };
 		7CCEAAA341C35912CFF2B73B /* SoundTestViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoundTestViewModel.swift; sourceTree = "<group>"; };
@@ -390,6 +394,7 @@
 			children = (
 				030CDDD2A61339C05266B734 /* GuidanceViewModel.swift */,
 				3F311DF588BCA22DAF239C73 /* GuidanceViewModel+Departure.swift */,
+				60A41F6BB4695818DC5DFBDC /* GuidanceViewModel+Escape.swift */,
 				DA20BEEFF43A8B86171542D7 /* GuidanceViewModel+Finish.swift */,
 				C4F59C55D393611B5DE1F59A /* GuidanceViewModel+Guiding.swift */,
 				84FD5AFC85C7DB8F30B0D596 /* GuidanceViewModel+Interruption.swift */,
@@ -634,6 +639,7 @@
 		CA6CF33A7E60D202A05D1FB1 /* Model */ = {
 			isa = PBXGroup;
 			children = (
+				762A0C379B38BA796CA6B531 /* EscapeState.swift */,
 				32B68313ED2CA01EDDA42ECF /* GuidanceHeadline.swift */,
 				291F40B684F86DE80B690F81 /* GuidancePhase.swift */,
 			);
@@ -846,6 +852,7 @@
 				76F5F340BC6B937A42E72FBF /* Color+Hear.swift in Sources */,
 				60F735E417BC500B61ABA00B /* DirectionHaptics.swift in Sources */,
 				9765BD9D5E26E71C4AEC1456 /* DirectionTrial.swift in Sources */,
+				3A854B2A1760B393C4DD1BA1 /* EscapeState.swift in Sources */,
 				1D8CDE27966F1B9E8BF21CC0 /* GuidanceButton.swift in Sources */,
 				3583CA78556FBB1B2FEC58D7 /* GuidanceCameraPrompt.swift in Sources */,
 				D9D135CFA21039B850FD3A4A /* GuidanceControls.swift in Sources */,
@@ -861,6 +868,7 @@
 				7F88D42321F69BA0E7FFC174 /* GuidanceStageList.swift in Sources */,
 				22C3F3BAD4CEE503CB080699 /* GuidanceView.swift in Sources */,
 				38A50F961CC2647C3774AD17 /* GuidanceViewModel+Departure.swift in Sources */,
+				6A78B3A967DCEBA02C670868 /* GuidanceViewModel+Escape.swift in Sources */,
 				DD459BE5806939F062E519A3 /* GuidanceViewModel+Finish.swift in Sources */,
 				A04EF9E0E45F77619DD771C8 /* GuidanceViewModel+Guiding.swift in Sources */,
 				9445BC59091BFA94D472E62E /* GuidanceViewModel+Interruption.swift in Sources */,

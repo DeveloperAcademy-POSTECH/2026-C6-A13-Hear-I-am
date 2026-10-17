@@ -13,6 +13,8 @@ import HearIAmCore
     private(set) var warningTone=UserDefaults.standard.string(forKey:SignalPlayer.toneKey).flatMap(WarningTone.init(rawValue:)) ?? .soft
     static let toneKey="signal.warningTone"
     private(set) var speechActive=false
+    /// A long-running warning is softened so it does not drown the performance.
+    private(set) var warningQuiet=false
     private let engine=AVAudioEngine()
     private let warningNode=AVAudioPlayerNode()
     private let shotNode=AVAudioPlayerNode()
@@ -66,6 +68,10 @@ import HearIAmCore
         guard value != speechActive else { return }
         speechActive=value;applyVolumes()
     }
+    func setWarningQuiet(_ value: Bool) {
+        guard value != warningQuiet else { return }
+        warningQuiet=value;applyVolumes();event("signal_warning_quiet",value ? "on" : "off")
+    }
     func stop() {
         let wasWarning=warning
         warning=nil;warningNode.stop();shotNode.stop()
@@ -103,7 +109,7 @@ import HearIAmCore
     }
     private func applyVolumes() {
         let share=speechActive ? SignalVolume.duckedShare : 1
-        warningNode.volume=SignalVolume.warning*share;shotNode.volume=shotVolume*share
+        warningNode.volume=SignalVolume.warning*share*(warningQuiet ? SignalVolume.quietShare : 1);shotNode.volume=shotVolume*share
     }
     /// Route changes (earbud in/out) stop the engine. A running warning is restarted on the new route.
     private func configurationChanged() {
