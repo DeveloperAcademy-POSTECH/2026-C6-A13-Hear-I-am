@@ -14,7 +14,11 @@ final class PreparationViewModel: ObservableObject {
     @Published var scanConfirmed=false
     @Published var pendingObjectWorld: [Point3] = []
     @Published var obstacleName="장애물"
-    @Published var obstacleKind: ObstacleKind = .box
+    /// Changing the kind renames an object that still carries a default name, so the name always tells
+    /// the kind (field test 10/17: an object named "장애물" was saved as stairs and never warned).
+    @Published var obstacleKind: ObstacleKind = .box {
+        didSet { if ObstacleKind.allCases.map(\.defaultName).contains(obstacleName) { obstacleName=obstacleKind.defaultName } }
+    }
     @Published var scanName="무대 스캔"
     var editingObjectID: UUID?
 
