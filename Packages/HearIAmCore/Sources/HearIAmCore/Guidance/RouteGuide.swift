@@ -12,10 +12,7 @@ public struct RouteGuide: Sendable {
     public private(set) var state: GuideState = .idle
     public private(set) var targetIndex=1
     public private(set) var pauseReason: GuidePauseReason?
-    public var canAutomaticallyRecover: Bool {
-        state == .paused && (pauseReason == .unclearHeading ||
-            (!usesRouteCorridor && (pauseReason == .outsideStage || pauseReason == .sampleGap)))
-    }
+    public var canAutomaticallyRecover: Bool { state == .paused && (pauseReason == .outsideStage || pauseReason == .sampleGap || pauseReason == .unclearHeading) }
     public let route: StageRoute
     public let settings: GuideSettings
     /// Opt in for the portrait guidance flow. The legacy experiment keeps its original rules.
@@ -47,12 +44,9 @@ public struct RouteGuide: Sendable {
         return true
     }
     public mutating func pause() { pause(reason:.manual) }
-    public mutating func pauseForUnclearHeading() {
-        guard state == .guiding else { return }
-        pause(reason:.unclearHeading)
-    }
+    public mutating func pauseForUnclearHeading() { pause(reason:.unclearHeading) }
     private mutating func pause(reason: GuidePauseReason) {
-        guard state == .guiding || state == .paused else { return }
+        guard state == .guiding else { return }
         state = .paused; pauseReason=reason; arrivedSince=nil; reentrySince=nil; lastReentryTime=nil
     }
     @discardableResult public mutating func resume(position: FloorPoint, trackingValid: Bool) -> Bool {
@@ -82,18 +76,17 @@ public struct RouteGuide: Sendable {
         guard route.points.indices.contains(targetIndex) else { return nil }
         return GuidanceCue(position:position,goal:route.points[targetIndex],headingDegrees:headingDegrees,sector:sector)
     }
-    /// Portrait guidance only auto-recovers a tilt pause, within its active route corridor.
-    /// The caller may hold resumption until the correction speech has finished.
-    @discardableResult public mutating func observeAutomaticRecovery(time: Double, position: FloorPoint, headingDegrees: Double, trackingValid: Bool, allowsResume: Bool = true) -> Bool {
-        guard canAutomaticallyRecover else { return false }
+    /// Recoverable pauses resume after one second of fresh, verified in-bounds samples and a valid heading.
+    @discardableResult public mutating func observeAutomaticRecovery(time: Double, position: FloorPoint, headingDegrees: Double, trackingValid: Bool) -> Bool {
+        guard !usesRouteCorridor, canAutomaticallyRecover else { return false }
         guard time.isFinite, position.valid, headingDegrees.isFinite, trackingValid,
-              canResume(position:position,trackingValid:trackingValid),
+              route.area.contains(position,margin:settings.boundaryMargin),
               lastReentryTime.map({time > $0 && time-$0 <= 0.5}) ?? true else {
             reentrySince=nil; lastReentryTime=nil; return false
         }
         lastReentryTime=time
         guard let since=reentrySince else { reentrySince=time; return false }
-        guard time-since >= 1.0, allowsResume else { return false }
+        guard time-since >= 1.0 else { return false }
         return resume(position:position,trackingValid:true)
     }
     public mutating func observe(time: Double, position: FloorPoint, headingDegrees: Double, trackingValid: Bool, allowsTargetAdvance: Bool = true) -> GuideUpdate {
