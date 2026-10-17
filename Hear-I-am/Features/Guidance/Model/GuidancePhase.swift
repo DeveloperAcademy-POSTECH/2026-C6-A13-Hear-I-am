@@ -6,6 +6,9 @@ enum GuidancePhase {
 
     /// Phases that show the live route camera under a compact header.
     var showsRouteCamera: Bool { [.starting,.guiding,.paused,.finishing,.completed].contains(self) }
+    /// Phases that keep the camera visible behind a translucent instruction, so the saved route
+    /// stays in sight after the checkpoint (field test 10/17: it looked like the route vanished).
+    var showsCameraBehindInstruction: Bool { [.wear,.countdown,.departure].contains(self) }
     /// Phases where the wearer aims the phone by hand.
     var isCameraStep: Bool { self == .restoring || self == .checkpoint }
 
