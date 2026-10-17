@@ -33,6 +33,9 @@ extension ARSceneRenderer {
             line(guide.leftStart,guide.rightStart,color:.systemOrange)
             dashedGuide(guide.leftStart,guide.leftEnd)
             dashedGuide(guide.rightStart,guide.rightEnd)
+            if let backLeft=corners[3], let back=try? BackEdgeGuide(front:guide,backLeft:backLeft) {
+                dashedGuide(back.start,back.end,color:.systemTeal)
+            }
         }
         guard let area=content.area else { return }
         let edge=[FloorPoint(0,0),FloorPoint(area.width,0),FloorPoint(area.width,area.depth),FloorPoint(0,area.depth)]
@@ -82,7 +85,7 @@ extension ARSceneRenderer {
         group.addChildNode(tag)
         referenceLayer.addChildNode(group)
     }
-    private func dashedGuide(_ a: Point3,_ b: Point3) {
+    private func dashedGuide(_ a: Point3,_ b: Point3,color: UIColor = .systemOrange) {
         let length=hypot(b.x-a.x,b.z-a.z)
         guard length > 0 else {return}
         var start=0.0
@@ -91,7 +94,7 @@ extension ARSceneRenderer {
             let u=start/length, v=end/length
             let from=Point3(a.x+(b.x-a.x)*u,a.y,a.z+(b.z-a.z)*u)
             let to=Point3(a.x+(b.x-a.x)*v,a.y,a.z+(b.z-a.z)*v)
-            line(from,to,color:.systemOrange)
+            line(from,to,color:color)
             start += 0.55
         }
     }
