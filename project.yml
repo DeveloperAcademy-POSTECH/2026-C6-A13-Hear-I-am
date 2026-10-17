@@ -14,6 +14,7 @@ settings:
     CODE_SIGN_STYLE: Automatic
     GENERATE_INFOPLIST_FILE: YES
     INFOPLIST_KEY_NSCameraUsageDescription: 무대 메시 스캔과 착용 위치 추적을 위해 카메라를 사용합니다.
+    INFOPLIST_KEY_NSMotionUsageDescription: 에어팟으로 고개 방향을 재기 위해 움직임 정보를 사용합니다.
     INFOPLIST_KEY_CFBundleDisplayName: Hear I am 히얼아이엠
     INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
     INFOPLIST_KEY_UILaunchScreen_Generation: YES

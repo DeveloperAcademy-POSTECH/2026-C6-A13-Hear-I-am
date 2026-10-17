@@ -38,10 +38,12 @@
 		4D8CDD9238FE3E0573F34080 /* PreparationViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F89D9B131DFE570868F5074 /* PreparationViewModel.swift */; };
 		4F579CC72031A596A98D4695 /* GuidanceRouteOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55C3BE20F36262581E6A9451 /* GuidanceRouteOverlay.swift */; };
 		542E8181848569C07DF9D90C /* PreparationGuide.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD63D8392748436AA7668CD1 /* PreparationGuide.swift */; };
+		553B72480CC8AD35363BB284 /* SoundTestSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41628F2BA91F18783CEC31F0 /* SoundTestSection.swift */; };
 		598F8CF5BEC923DF613A7925 /* GuidanceRecordDetail.swift in Sources */ = {isa = PBXBuildFile; fileRef = E52F7F95F4EDC001AF688451 /* GuidanceRecordDetail.swift */; };
 		5FE594079F690B65F4896B79 /* PreparationReviewCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48A40118D9761ED3FCD466AF /* PreparationReviewCard.swift */; };
 		60F735E417BC500B61ABA00B /* DirectionHaptics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C9D9C4A569E37093119B17B /* DirectionHaptics.swift */; };
 		675DFBBF004AF79494A918D1 /* LibrarySelectionState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 754DA2DEA96D2C68486BF8AB /* LibrarySelectionState.swift */; };
+		6C931CF06A765EF879E8006C /* TrackingProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D125F891BBE2F012455B982 /* TrackingProbe.swift */; };
 		6D3F26F42C09E75387311322 /* HearAudioSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CA33158518034C9C9B52FAE /* HearAudioSession.swift */; };
 		6FAC80BD5564AAF95A626D3E /* PreparationViewModel+Route.swift in Sources */ = {isa = PBXBuildFile; fileRef = 722D44DB888422F0F5634E0C /* PreparationViewModel+Route.swift */; };
 		71561858F684178D7DBF87A7 /* SavedStagePreviewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D932B16EBAC3D722ABFF9582 /* SavedStagePreviewModel.swift */; };
@@ -58,8 +60,10 @@
 		920DF18E116D5EA38C24AD65 /* ARSceneRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38CE34E2EE5B2FB98E57F699 /* ARSceneRenderer.swift */; };
 		9445BC59091BFA94D472E62E /* GuidanceViewModel+Interruption.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84FD5AFC85C7DB8F30B0D596 /* GuidanceViewModel+Interruption.swift */; };
 		947CABFA03E10DDBD2617F24 /* CameraSample.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16CD1DF032786D48C6CB3E06 /* CameraSample.swift */; };
+		9765BD9D5E26E71C4AEC1456 /* DirectionTrial.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B292D3CCCA31D747D6BB045 /* DirectionTrial.swift */; };
 		97A9C15EA3A66F4DFA7969EA /* PlanEditorViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59994988530CF4EAB584EE3F /* PlanEditorViewModel.swift */; };
 		9925AB6DBC4EADA2A0090312 /* ARSessionController+Logging.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D12558E14C3CC7BF2D916EC /* ARSessionController+Logging.swift */; };
+		99652B1AE3D1EAD51642A2A8 /* HeadHeadingFeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71927A7C3556233E897B28B9 /* HeadHeadingFeed.swift */; };
 		9A971287D83B12DC1AE774A1 /* SessionBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6E2835565ECB9A2EF455409 /* SessionBridge.swift */; };
 		9E1B2F9D9594ADD9A807A08F /* PreparationViewModel+Objects.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3152853B746EEA41582F80F5 /* PreparationViewModel+Objects.swift */; };
 		A04EF9E0E45F77619DD771C8 /* GuidanceViewModel+Guiding.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4F59C55D393611B5DE1F59A /* GuidanceViewModel+Guiding.swift */; };
@@ -67,20 +71,25 @@
 		A5F02179B6F3D832E825E501 /* StageRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D05FD1427F1D8C0A3545E6F /* StageRow.swift */; };
 		A90C44D485E2338BBE54394F /* ARSessionController+Samples.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52755DE4FDB44174815FA35E /* ARSessionController+Samples.swift */; };
 		AD17F75881AD0B8688842F58 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = CEF3295A562F96FC1DE68889 /* Assets.xcassets */; };
+		B12DB1BBB33173F967876412 /* SoundTestLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86127854F38256585AE9495B /* SoundTestLog.swift */; };
 		B232EA0CB8328E7EBE25F83E /* CameraView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C34640BEB642B9BB9BB35D85 /* CameraView.swift */; };
 		B77F4E3AA6F6548C9189E5B0 /* ARSessionController+Lifecycle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84454DF442867536AF635936 /* ARSessionController+Lifecycle.swift */; };
 		BC1F1AE3EA5B843B67EC9124 /* HomeStageList.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9DE9AB83C23BCC3EB3BE325 /* HomeStageList.swift */; };
 		BD1D1793F763840FEC55AC18 /* PlanCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42B08A291AC63802A9B7E5D3 /* PlanCard.swift */; };
+		BDC2F11D3BD54A3FD7CF4480 /* SoundTestViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CCEAAA341C35912CFF2B73B /* SoundTestViewModel.swift */; };
 		C0FDC82C1C44B7F2C2598FEE /* HearAppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A01D241B9116A6B417F28C02 /* HearAppDelegate.swift */; };
 		C31D3E7F965D4D5EE1B1338E /* PreparationStep.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C09BEB5598BCE6775A10441 /* PreparationStep.swift */; };
 		C721F5F21C1E47CC76098B58 /* HomeViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 736F3E79026A771CBBB15878 /* HomeViewModel.swift */; };
 		C85CCE9F2D8B58C85C2825DC /* GuidanceViewModel+Restore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B81DBF94254939A59C1FA7C /* GuidanceViewModel+Restore.swift */; };
 		C923F71DB3EF15C01ACD2FA2 /* ScreenOrientation.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC2463CC15C59B86D72DD3D6 /* ScreenOrientation.swift */; };
 		C9ACA4BE60866FA5E8965725 /* HearIAmApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48B5C59AD079DE644F8F9E4F /* HearIAmApp.swift */; };
+		CA2EAC6BC68B00BD57B4FA92 /* SoundTestCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4096871A4392BB6DCA4CF531 /* SoundTestCard.swift */; };
 		CBEE9F01464EC8020B4ED083 /* StageLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 006AA0493BFEC5A4A79FB19D /* StageLibrary.swift */; };
 		CC368D60A6758EBD5BFEC567 /* PlanLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDB6273190FA1ACD948CD2D7 /* PlanLibraryView.swift */; };
 		CC685F09C4B2E6E46F73AA6E /* PreparationIntro.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9CA35B77A9AAF53D744A478 /* PreparationIntro.swift */; };
 		D031F1555D980E7F740F3CA1 /* PreparationViewModel+Scan.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EA8335C58461D5FB4640BA3 /* PreparationViewModel+Scan.swift */; };
+		D1FD4D95092C265A1A38FE83 /* BodyHeadingFeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFC56257AA968B76E20A8110 /* BodyHeadingFeed.swift */; };
+		D3E7E069A3068E057B2B76D9 /* SoundTestView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B81D859DA967D4DFD75AC8C5 /* SoundTestView.swift */; };
 		D9D0A74C0159862B2C3D7C18 /* SavedStagePreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EF1BCF0313E05CBD607C81C /* SavedStagePreview.swift */; };
 		D9D135CFA21039B850FD3A4A /* GuidanceControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B72D4A049E0D30EC0FA2D95 /* GuidanceControls.swift */; };
 		DBDABB4ECD537F03952AC515 /* PlanEditorTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE3C9616808248A6D0664732 /* PlanEditorTools.swift */; };
@@ -90,6 +99,7 @@
 		E5B4C504580D3346353F3ACE /* PlanEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1224A12D197323A7A538F47 /* PlanEditorView.swift */; };
 		E75CEB2508EF8CCE026387E5 /* MeshSnapshot+SceneKit.swift in Sources */ = {isa = PBXBuildFile; fileRef = F981725F347959DFE8E81B6F /* MeshSnapshot+SceneKit.swift */; };
 		EA96213F022A773E02980E9A /* LibrarySelectionBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAFBB4E908F155285F847CAF /* LibrarySelectionBar.swift */; };
+		EC15B260BEE1F3DE8852DDF7 /* SoundTestViewModel+Direction.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1666B8E29B23655E0936DAE /* SoundTestViewModel+Direction.swift */; };
 		F1157E6BE660B4C25E0A67A1 /* HearIAmCore in Frameworks */ = {isa = PBXBuildFile; productRef = 99B8B4E45662D06022066947 /* HearIAmCore */; };
 /* End PBXBuildFile section */
 
@@ -114,6 +124,8 @@
 		3C9D9C4A569E37093119B17B /* DirectionHaptics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DirectionHaptics.swift; sourceTree = "<group>"; };
 		3D8307AA2FCB90242FC33A85 /* HearIAmCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = HearIAmCore; path = Packages/HearIAmCore; sourceTree = SOURCE_ROOT; };
 		3F311DF588BCA22DAF239C73 /* GuidanceViewModel+Departure.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GuidanceViewModel+Departure.swift"; sourceTree = "<group>"; };
+		4096871A4392BB6DCA4CF531 /* SoundTestCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoundTestCard.swift; sourceTree = "<group>"; };
+		41628F2BA91F18783CEC31F0 /* SoundTestSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoundTestSection.swift; sourceTree = "<group>"; };
 		42B08A291AC63802A9B7E5D3 /* PlanCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanCard.swift; sourceTree = "<group>"; };
 		43B082D62023E7B7CA038611 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
 		440F206302B97A2A22A795C3 /* ARSessionController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ARSessionController.swift; sourceTree = "<group>"; };
@@ -133,27 +145,33 @@
 		69DD8BC79FE9BD967BC2BA9D /* PlanEditorTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanEditorTool.swift; sourceTree = "<group>"; };
 		6B81DBF94254939A59C1FA7C /* GuidanceViewModel+Restore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GuidanceViewModel+Restore.swift"; sourceTree = "<group>"; };
 		6FE7D72F999868C1D579BAA8 /* PreparationViewModel+Checkpoint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PreparationViewModel+Checkpoint.swift"; sourceTree = "<group>"; };
+		71927A7C3556233E897B28B9 /* HeadHeadingFeed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadHeadingFeed.swift; sourceTree = "<group>"; };
 		722D44DB888422F0F5634E0C /* PreparationViewModel+Route.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PreparationViewModel+Route.swift"; sourceTree = "<group>"; };
 		736F3E79026A771CBBB15878 /* HomeViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeViewModel.swift; sourceTree = "<group>"; };
 		754DA2DEA96D2C68486BF8AB /* LibrarySelectionState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibrarySelectionState.swift; sourceTree = "<group>"; };
 		75897F93E4C7DD266125D339 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		78FF7D9B0DF5D1D7F5A352F9 /* PreparationMiniMap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreparationMiniMap.swift; sourceTree = "<group>"; };
+		7B292D3CCCA31D747D6BB045 /* DirectionTrial.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DirectionTrial.swift; sourceTree = "<group>"; };
+		7CCEAAA341C35912CFF2B73B /* SoundTestViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoundTestViewModel.swift; sourceTree = "<group>"; };
 		7F6B1C19B0D60E8E8EB44AA5 /* SignalPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignalPlayer.swift; sourceTree = "<group>"; };
 		8142CDE35A01BAD95188EAE6 /* HomeActionCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeActionCard.swift; sourceTree = "<group>"; };
 		84454DF442867536AF635936 /* ARSessionController+Lifecycle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ARSessionController+Lifecycle.swift"; sourceTree = "<group>"; };
 		84FD5AFC85C7DB8F30B0D596 /* GuidanceViewModel+Interruption.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GuidanceViewModel+Interruption.swift"; sourceTree = "<group>"; };
 		854F7E3558CF686ECDA6A077 /* BrandMark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrandMark.swift; sourceTree = "<group>"; };
+		86127854F38256585AE9495B /* SoundTestLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoundTestLog.swift; sourceTree = "<group>"; };
 		86E24CC24791D6DD121C0202 /* GuidanceButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuidanceButton.swift; sourceTree = "<group>"; };
 		8AE4B38D0E603747BD5F10EA /* SavedMeshView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedMeshView.swift; sourceTree = "<group>"; };
 		8D12558E14C3CC7BF2D916EC /* ARSessionController+Logging.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ARSessionController+Logging.swift"; sourceTree = "<group>"; };
 		992EB1C95227759432EFEDA0 /* GuidanceCameraPrompt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuidanceCameraPrompt.swift; sourceTree = "<group>"; };
 		99F557F11BC7D746B83CD908 /* GuidanceRouteHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuidanceRouteHeader.swift; sourceTree = "<group>"; };
 		9CA33158518034C9C9B52FAE /* HearAudioSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HearAudioSession.swift; sourceTree = "<group>"; };
+		9D125F891BBE2F012455B982 /* TrackingProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackingProbe.swift; sourceTree = "<group>"; };
 		A01D241B9116A6B417F28C02 /* HearAppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HearAppDelegate.swift; sourceTree = "<group>"; };
 		A67574E0CF3F8D37E56F8088 /* ActionButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionButton.swift; sourceTree = "<group>"; };
 		A6E2835565ECB9A2EF455409 /* SessionBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionBridge.swift; sourceTree = "<group>"; };
 		B362518768849AEF2F09E2AB /* GuidanceRecordsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuidanceRecordsView.swift; sourceTree = "<group>"; };
 		B5C0796BE157B3FF48FCD4B9 /* GuidanceInstruction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuidanceInstruction.swift; sourceTree = "<group>"; };
+		B81D859DA967D4DFD75AC8C5 /* SoundTestView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoundTestView.swift; sourceTree = "<group>"; };
 		BD63D8392748436AA7668CD1 /* PreparationGuide.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreparationGuide.swift; sourceTree = "<group>"; };
 		C340F1B860A25307924F2BD3 /* PreparationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreparationView.swift; sourceTree = "<group>"; };
 		C34640BEB642B9BB9BB35D85 /* CameraView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraView.swift; sourceTree = "<group>"; };
@@ -161,6 +179,7 @@
 		C7E3CD6F4860EEF9E52CEA90 /* TrialLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrialLogger.swift; sourceTree = "<group>"; };
 		CE3C9616808248A6D0664732 /* PlanEditorTools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanEditorTools.swift; sourceTree = "<group>"; };
 		CEF3295A562F96FC1DE68889 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		D1666B8E29B23655E0936DAE /* SoundTestViewModel+Direction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SoundTestViewModel+Direction.swift"; sourceTree = "<group>"; };
 		D932B16EBAC3D722ABFF9582 /* SavedStagePreviewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedStagePreviewModel.swift; sourceTree = "<group>"; };
 		DA20BEEFF43A8B86171542D7 /* GuidanceViewModel+Finish.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GuidanceViewModel+Finish.swift"; sourceTree = "<group>"; };
 		DAFBB4E908F155285F847CAF /* LibrarySelectionBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibrarySelectionBar.swift; sourceTree = "<group>"; };
@@ -179,6 +198,7 @@
 		FC2463CC15C59B86D72DD3D6 /* ScreenOrientation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenOrientation.swift; sourceTree = "<group>"; };
 		FDB6273190FA1ACD948CD2D7 /* PlanLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanLibraryView.swift; sourceTree = "<group>"; };
 		FEC77E507C26088A784CBBCE /* Color+Hear.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Color+Hear.swift"; sourceTree = "<group>"; };
+		FFC56257AA968B76E20A8110 /* BodyHeadingFeed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BodyHeadingFeed.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -207,6 +227,14 @@
 				736F3E79026A771CBBB15878 /* HomeViewModel.swift */,
 			);
 			path = ViewModel;
+			sourceTree = "<group>";
+		};
+		1213B8448BE0E3A0C79A93C2 /* Parts */ = {
+			isa = PBXGroup;
+			children = (
+				4096871A4392BB6DCA4CF531 /* SoundTestCard.swift */,
+			);
+			path = Parts;
 			sourceTree = "<group>";
 		};
 		16B11A13A7FBA5CBAE71C9BA /* Parts */ = {
@@ -295,6 +323,17 @@
 			path = ViewModel;
 			sourceTree = "<group>";
 		};
+		3BC8F3A0098BE6B5E977D8C8 /* Sensor */ = {
+			isa = PBXGroup;
+			children = (
+				FFC56257AA968B76E20A8110 /* BodyHeadingFeed.swift */,
+				71927A7C3556233E897B28B9 /* HeadHeadingFeed.swift */,
+				86127854F38256585AE9495B /* SoundTestLog.swift */,
+				9D125F891BBE2F012455B982 /* TrackingProbe.swift */,
+			);
+			path = Sensor;
+			sourceTree = "<group>";
+		};
 		3D98CA643563BEA4EB60665B /* Parts */ = {
 			isa = PBXGroup;
 			children = (
@@ -340,6 +379,7 @@
 				5A5D4386ACC24D0305A2C172 /* Planning */,
 				7D72D7E7B1369BE7CDCA53FC /* Preparation */,
 				93804605A383D36621768212 /* Records */,
+				D68D3833E51BBBB75875D1FA /* SoundTest */,
 				CD7F24D5B9C54756988252F5 /* StagePreview */,
 			);
 			path = Features;
@@ -397,6 +437,15 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
+		753263CC2ADB4C1EC0FD7FC7 /* Model */ = {
+			isa = PBXGroup;
+			children = (
+				7B292D3CCCA31D747D6BB045 /* DirectionTrial.swift */,
+				41628F2BA91F18783CEC31F0 /* SoundTestSection.swift */,
+			);
+			path = Model;
+			sourceTree = "<group>";
+		};
 		7B5C17FC6D64E48A6515398D /* Sheet */ = {
 			isa = PBXGroup;
 			children = (
@@ -448,6 +497,15 @@
 				E98A678EB5F1C7FF30AC8C49 /* PlanLibraryViewModel.swift */,
 			);
 			path = ViewModel;
+			sourceTree = "<group>";
+		};
+		86D8982E2EE5B77AE30A659D /* View */ = {
+			isa = PBXGroup;
+			children = (
+				1213B8448BE0E3A0C79A93C2 /* Parts */,
+				9E40CB8670B9966023CE5116 /* Screen */,
+			);
+			path = View;
 			sourceTree = "<group>";
 		};
 		870FD69CE211DBBD2115FEA9 /* Screen */ = {
@@ -537,6 +595,14 @@
 			path = Parts;
 			sourceTree = "<group>";
 		};
+		9E40CB8670B9966023CE5116 /* Screen */ = {
+			isa = PBXGroup;
+			children = (
+				B81D859DA967D4DFD75AC8C5 /* SoundTestView.swift */,
+			);
+			path = Screen;
+			sourceTree = "<group>";
+		};
 		B2C4E7E0790B5166E6D86C44 /* Parts */ = {
 			isa = PBXGroup;
 			children = (
@@ -591,6 +657,17 @@
 				7F6B1C19B0D60E8E8EB44AA5 /* SignalPlayer.swift */,
 			);
 			path = Audio;
+			sourceTree = "<group>";
+		};
+		D68D3833E51BBBB75875D1FA /* SoundTest */ = {
+			isa = PBXGroup;
+			children = (
+				753263CC2ADB4C1EC0FD7FC7 /* Model */,
+				3BC8F3A0098BE6B5E977D8C8 /* Sensor */,
+				86D8982E2EE5B77AE30A659D /* View */,
+				F73A1F84B3224F5CA6C6ECE2 /* ViewModel */,
+			);
+			path = SoundTest;
 			sourceTree = "<group>";
 		};
 		E3FA878F36667D254D0F22D3 /* Model */ = {
@@ -657,6 +734,15 @@
 				35355DCEB93AAAA37B28413D /* GuidanceStageList.swift */,
 			);
 			path = Parts;
+			sourceTree = "<group>";
+		};
+		F73A1F84B3224F5CA6C6ECE2 /* ViewModel */ = {
+			isa = PBXGroup;
+			children = (
+				7CCEAAA341C35912CFF2B73B /* SoundTestViewModel.swift */,
+				D1666B8E29B23655E0936DAE /* SoundTestViewModel+Direction.swift */,
+			);
+			path = ViewModel;
 			sourceTree = "<group>";
 		};
 		FCF9C2F08769EB47E799CCF4 /* View */ = {
@@ -753,11 +839,13 @@
 				0A49810546EFB2AC5001FA64 /* ARSessionController+Save.swift in Sources */,
 				783835E5AAE955EA50F4C0BC /* ARSessionController.swift in Sources */,
 				90ECBDB56B9E051DE326E407 /* ActionButton.swift in Sources */,
+				D1FD4D95092C265A1A38FE83 /* BodyHeadingFeed.swift in Sources */,
 				E0FEAB78354C36DBFF6CC002 /* BrandMark.swift in Sources */,
 				947CABFA03E10DDBD2617F24 /* CameraSample.swift in Sources */,
 				B232EA0CB8328E7EBE25F83E /* CameraView.swift in Sources */,
 				76F5F340BC6B937A42E72FBF /* Color+Hear.swift in Sources */,
 				60F735E417BC500B61ABA00B /* DirectionHaptics.swift in Sources */,
+				9765BD9D5E26E71C4AEC1456 /* DirectionTrial.swift in Sources */,
 				1D8CDE27966F1B9E8BF21CC0 /* GuidanceButton.swift in Sources */,
 				3583CA78556FBB1B2FEC58D7 /* GuidanceCameraPrompt.swift in Sources */,
 				D9D135CFA21039B850FD3A4A /* GuidanceControls.swift in Sources */,
@@ -780,6 +868,7 @@
 				A0944E994D8D1D31755BBACC /* GuidanceViewModel+Selection.swift in Sources */,
 				82D51BB658F45CAF7E97DA6F /* GuidanceViewModel+Wear.swift in Sources */,
 				3A9C443951F302635D9488DE /* GuidanceViewModel.swift in Sources */,
+				99652B1AE3D1EAD51642A2A8 /* HeadHeadingFeed.swift in Sources */,
 				C0FDC82C1C44B7F2C2598FEE /* HearAppDelegate.swift in Sources */,
 				6D3F26F42C09E75387311322 /* HearAudioSession.swift in Sources */,
 				C9ACA4BE60866FA5E8965725 /* HearIAmApp.swift in Sources */,
@@ -820,9 +909,16 @@
 				C923F71DB3EF15C01ACD2FA2 /* ScreenOrientation.swift in Sources */,
 				9A971287D83B12DC1AE774A1 /* SessionBridge.swift in Sources */,
 				1E1B156B59E944E72CB42E88 /* SignalPlayer.swift in Sources */,
+				CA2EAC6BC68B00BD57B4FA92 /* SoundTestCard.swift in Sources */,
+				B12DB1BBB33173F967876412 /* SoundTestLog.swift in Sources */,
+				553B72480CC8AD35363BB284 /* SoundTestSection.swift in Sources */,
+				D3E7E069A3068E057B2B76D9 /* SoundTestView.swift in Sources */,
+				EC15B260BEE1F3DE8852DDF7 /* SoundTestViewModel+Direction.swift in Sources */,
+				BDC2F11D3BD54A3FD7CF4480 /* SoundTestViewModel.swift in Sources */,
 				CBEE9F01464EC8020B4ED083 /* StageLibrary.swift in Sources */,
 				7E1C4372DA56BCA7AE9AC943 /* StageMap.swift in Sources */,
 				A5F02179B6F3D832E825E501 /* StageRow.swift in Sources */,
+				6C931CF06A765EF879E8006C /* TrackingProbe.swift in Sources */,
 				1C0430C646CAFA2DA5795633 /* TrialLogger.swift in Sources */,
 				034D1FF4B9613DD7D2B6C526 /* View+LibrarySelection.swift in Sources */,
 			);
@@ -899,6 +995,7 @@
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "무대 메시 스캔과 착용 위치 추적을 위해 카메라를 사용합니다.";
+				INFOPLIST_KEY_NSMotionUsageDescription = "에어팟으로 고개 방향을 재기 위해 움직임 정보를 사용합니다.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIFileSharingEnabled = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -975,6 +1072,7 @@
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "무대 메시 스캔과 착용 위치 추적을 위해 카메라를 사용합니다.";
+				INFOPLIST_KEY_NSMotionUsageDescription = "에어팟으로 고개 방향을 재기 위해 움직임 정보를 사용합니다.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIFileSharingEnabled = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
