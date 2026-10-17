@@ -8,6 +8,8 @@ import HearIAmCore
     /// (event, detail) for the experiment log. Guidance forwards these to its trial log.
     var onEvent: ((String,String)->Void)?
     private(set) var warning: WarningLevel?
+    /// Timbre for the warning; a running warning switches at once.
+    private(set) var warningTone: WarningTone = .soft
     private(set) var speechActive=false
     private let engine=AVAudioEngine()
     private let warningNode=AVAudioPlayerNode()
@@ -43,11 +45,18 @@ import HearIAmCore
         guard let level else {
             warningNode.stop();event("signal_warning",(previous?.name ?? "")+"->off");return
         }
-        guard prepare("warning_"+level.name), let buffer=buffer(.warning(level)) else { warning=nil;return }
+        let sound=SignalSound.warning(level,tone:warningTone)
+        guard prepare(sound.name), let buffer=buffer(sound) else { warning=nil;return }
         applyVolumes()
         warningNode.scheduleBuffer(buffer,at:nil,options:[.loops,.interrupts])
         if !warningNode.isPlaying { warningNode.play() }
-        event("signal_warning",(previous?.name ?? "off")+"->"+level.name)
+        event("signal_warning",(previous?.name ?? "off")+"->"+level.name+" tone="+warningTone.rawValue)
+    }
+    func setWarningTone(_ tone: WarningTone) {
+        guard tone != warningTone else { return }
+        warningTone=tone;event("signal_warning_tone",tone.rawValue)
+        guard let level=warning else { return }
+        warning=nil;setWarning(level)
     }
     /// Lowers every tone while speech plays. Call with the speech's speaking state.
     func setSpeechActive(_ value: Bool) {
