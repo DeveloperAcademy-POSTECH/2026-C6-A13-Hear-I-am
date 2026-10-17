@@ -3,6 +3,8 @@ import XCTest
 
 /// Carried over from PoC1's AngleLandmarkDetectorTests with integer landmarks.
 final class LandmarkDetectorTests: XCTestCase {
+    /// PoC1's original 30° landmarks; the detector logic is the same for any spacing.
+    let poc1=[0,30,60,90,120,150,180,-150,-120,-90,-60,-30]
     func testEveryLandmarkFiresWhenReached() {
         for angle in DirectionPattern.landmarks {
             var d=LandmarkDetector()
@@ -20,7 +22,7 @@ final class LandmarkDetectorTests: XCTestCase {
         XCTAssertEqual(d.update(relativeDegrees:27),30)
     }
     func testCrossingOutsideWindowStillFiresAndDoesNotQueueOlderLandmarks() {
-        var d=LandmarkDetector()
+        var d=LandmarkDetector(landmarks:poc1)
         XCTAssertEqual(d.update(relativeDegrees:0),0)
         XCTAssertEqual(d.update(relativeDegrees:80),60)
         XCTAssertNil(d.update(relativeDegrees:81))
@@ -30,7 +32,7 @@ final class LandmarkDetectorTests: XCTestCase {
         XCTAssertEqual(d.update(relativeDegrees:0),0)
     }
     func testWrapBoundaryDoesNotCrossFrontLandmarks() {
-        var d=LandmarkDetector()
+        var d=LandmarkDetector(landmarks:poc1)
         XCTAssertNil(d.update(relativeDegrees:170))
         XCTAssertEqual(d.update(relativeDegrees:179),180)
         XCTAssertNil(d.update(relativeDegrees:-179))
@@ -54,6 +56,14 @@ final class LandmarkDetectorTests: XCTestCase {
         XCTAssertNil(d.update(relativeDegrees:30))
         d.reset()
         XCTAssertEqual(d.update(relativeDegrees:30),30)
+    }
+    func testDefaultUsesThe45DegreeFieldLandmarks() {
+        var d=LandmarkDetector()
+        XCTAssertEqual(d.landmarks,[-135,-90,-45,0,45,90,135,180])
+        d.update(relativeDegrees:0)
+        XCTAssertNil(d.update(relativeDegrees:30))
+        XCTAssertEqual(d.update(relativeDegrees:44),45)
+        XCTAssertEqual(d.update(relativeDegrees:100),90)
     }
     func testInvalidInputsAreSafe() {
         let d=LandmarkDetector(landmarks:[-180,0,180,Int.min,Int.max,30,30],entryTolerance:.nan,rearmTolerance:-1)

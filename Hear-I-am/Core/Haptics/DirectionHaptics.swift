@@ -13,7 +13,7 @@ import HearIAmCore
     private var reportedUnsupported=false
     private let log=Logger(subsystem:Bundle.main.bundleIdentifier ?? "HearIAm",category:"Haptics")
 
-    /// Plays the pattern for a 30° landmark; other angles are ignored.
+    /// Plays the pattern for a 45° landmark; other angles are ignored.
     func play(signedDegrees: Int) {
         let name=DirectionPattern.name(signedDegrees:signedDegrees)
         guard supported else {
@@ -21,7 +21,7 @@ import HearIAmCore
             return
         }
         guard let pulses=DirectionPattern.pulses(signedDegrees:signedDegrees) else {
-            event("haptic_error","\(signedDegrees) is not a 30° landmark",level:.error);return
+            event("haptic_error","\(signedDegrees) is not a 45° landmark",level:.error);return
         }
         do {
             let engine=try prepare()

@@ -1,27 +1,28 @@
 import Foundation
 
-/// The PoC1 direction rhythm (branch poc/1-orientation-haptics), carried over unchanged.
-/// 0° is the next target. Front: one short. Back: one long.
-/// Left: one long, then one short per 30°. Right: two quick, then one short per 30°.
+/// Direction vibration as used in the PoC1 field test (10/12), with 0° = the next target.
+/// PoC1 let each angle pick a rhythm in its settings; the field assignment, confirmed on 10/17, is
+/// 0°: long · 45°: one short · 90°: two short · 135°: three short · 180°: long.
+/// Left and right share a rhythm, as on the field. Rhythm timings are PoC1's "기존 리듬" presets
+/// (single · double · triple · long, branch poc/1-orientation-haptics HapticService), at full intensity.
 public enum DirectionPattern {
-    /// Only the 30° landmarks have a pattern, as in PoC1.
-    public static let landmarks=[0,30,60,90,120,150,180,-150,-120,-90,-60,-30]
-    static let sharpness: Float=0.8
+    public static let landmarks=[0,45,90,135,180,-135,-90,-45]
+    static let intensity: Float=1.0, sharpness: Float=0.8
+    static let shortPulse=0.065, shortGap=0.13, longPulse=0.30
 
-    /// nil for angles that are not a 30° landmark. Positive is right, negative is left.
+    /// nil for angles that are not a 45° landmark. Positive is right, negative is left.
     public static func pulses(signedDegrees: Int) -> [DirectionPulse]? {
         let degrees=signedDegrees == -180 ? 180 : signedDegrees
         guard landmarks.contains(degrees) else { return nil }
         let magnitude=abs(degrees)
-        let intensity: Float=magnitude == 30 ? 0.85 : magnitude == 60 ? 0.92 : 1.0
-        func pulse(_ time: Double, _ duration: Double, sharpness: Float=sharpness) -> DirectionPulse {
-            DirectionPulse(time:time,duration:duration,intensity:intensity,sharpness:sharpness)
+        if magnitude == 0 || magnitude == 180 {
+            return [DirectionPulse(time:0,duration:longPulse,intensity:intensity,sharpness:sharpness)]
         }
-        if magnitude == 0 || magnitude == 180 { return [pulse(0,magnitude == 0 ? 0.10 : 0.45)] }
-        let lead=degrees < 0 ? [pulse(0,0.10,sharpness:sharpness*0.5)] : [pulse(0,0.03),pulse(0.06,0.03)]
-        return lead+(0..<magnitude/30).map { pulse(0.16+Double($0)*0.09,0.035) }
+        return (0..<magnitude/45).map {
+            DirectionPulse(time:Double($0)*shortGap,duration:shortPulse,intensity:intensity,sharpness:sharpness)
+        }
     }
-    /// Readable label for logs, e.g. "left_60" or "front".
+    /// Readable label for logs, e.g. "left_90" or "front".
     public static func name(signedDegrees: Int) -> String {
         let degrees=signedDegrees == -180 ? 180 : signedDegrees
         if degrees == 0 { return "front" }

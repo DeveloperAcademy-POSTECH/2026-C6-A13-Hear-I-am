@@ -63,7 +63,7 @@ struct SoundTestView: View {
 
     private var haptics: some View {
         VStack(alignment:.leading,spacing:16) {
-            SoundTestRow(label:"30° 눈금 진동 (0° = 목표 방향)") {
+            SoundTestRow(label:"45° 눈금 진동 (0° = 목표 방향, 좌우 같음)") {
                 ForEach(DirectionPattern.landmarks,id:\.self) { degrees in
                     ActionButton(title:Self.label(degrees),primary:false) { model.vibrate(degrees) }
                 }
