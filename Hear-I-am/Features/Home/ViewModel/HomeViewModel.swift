@@ -13,7 +13,7 @@ final class HomeViewModel: ObservableObject {
     @Published var showingRename=false
     @Published var renaming=false
 
-    func showSettingsNotice() { notice="설정은 준비 중입니다." }
+    @Published var showingSettings=false
 
     // 이름 변경
     func startRename(_ record: ScanManifest) { renameTarget=record;editedName=record.name;showingRename=true }

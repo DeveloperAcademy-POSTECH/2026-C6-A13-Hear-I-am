@@ -4,7 +4,7 @@ import HearIAmCore
 /// 3 / 4 · 허리띠 착용: an 8-second countdown that reads the last three seconds aloud.
 extension GuidanceViewModel {
     func beginWear() {
-        guard phase == .wear || phase == .countdown, tracking.ready, active else { return }
+        guard (phase == .wear && canAdvanceInstruction) || phase == .countdown, tracking.ready, active else { return }
         invalidateTasks();phase = .countdown;countdown=8
         let operation=generation
         read(["지금부터 8초 동안 착용해주세요. 마지막 3초를 알려드릴게요."]) { [weak self] in

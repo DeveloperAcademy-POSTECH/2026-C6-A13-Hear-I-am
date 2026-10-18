@@ -90,6 +90,7 @@
 		E75CEB2508EF8CCE026387E5 /* MeshSnapshot+SceneKit.swift in Sources */ = {isa = PBXBuildFile; fileRef = F981725F347959DFE8E81B6F /* MeshSnapshot+SceneKit.swift */; };
 		EA96213F022A773E02980E9A /* LibrarySelectionBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAFBB4E908F155285F847CAF /* LibrarySelectionBar.swift */; };
 		F1157E6BE660B4C25E0A67A1 /* HearIAmCore in Frameworks */ = {isa = PBXBuildFile; productRef = 99B8B4E45662D06022066947 /* HearIAmCore */; };
+		FF831C64D02C6732D6831BF4 /* HomeSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC8A4BF4410000A803BAE8B2 /* HomeSettingsView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -157,6 +158,7 @@
 		C34640BEB642B9BB9BB35D85 /* CameraView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraView.swift; sourceTree = "<group>"; };
 		C4F59C55D393611B5DE1F59A /* GuidanceViewModel+Guiding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GuidanceViewModel+Guiding.swift"; sourceTree = "<group>"; };
 		C7E3CD6F4860EEF9E52CEA90 /* TrialLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrialLogger.swift; sourceTree = "<group>"; };
+		CC8A4BF4410000A803BAE8B2 /* HomeSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeSettingsView.swift; sourceTree = "<group>"; };
 		CE3C9616808248A6D0664732 /* PlanEditorTools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanEditorTools.swift; sourceTree = "<group>"; };
 		CEF3295A562F96FC1DE68889 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		D932B16EBAC3D722ABFF9582 /* SavedStagePreviewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedStagePreviewModel.swift; sourceTree = "<group>"; };
@@ -594,6 +596,7 @@
 		E412A6C66F7C034EF52F4774 /* Screen */ = {
 			isa = PBXGroup;
 			children = (
+				CC8A4BF4410000A803BAE8B2 /* HomeSettingsView.swift */,
 				43B082D62023E7B7CA038611 /* HomeView.swift */,
 			);
 			path = Screen;
@@ -772,6 +775,7 @@
 				C9ACA4BE60866FA5E8965725 /* HearIAmApp.swift in Sources */,
 				3C78D4DE73CA2E1CA3C75EBD /* HearRootView.swift in Sources */,
 				34954D50303FCB804701535D /* HomeActionCard.swift in Sources */,
+				FF831C64D02C6732D6831BF4 /* HomeSettingsView.swift in Sources */,
 				BC1F1AE3EA5B843B67EC9124 /* HomeStageList.swift in Sources */,
 				1E1BE1311FF9D7C759EC3F3F /* HomeView.swift in Sources */,
 				C721F5F21C1E47CC76098B58 /* HomeViewModel.swift in Sources */,
