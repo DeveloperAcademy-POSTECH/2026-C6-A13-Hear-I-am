@@ -38,7 +38,7 @@ extension GuidanceViewModel {
             guard let raw=n.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
                   AVAudioSession.InterruptionType(rawValue:raw) == .began else { return }
             Task { @MainActor in
-                self?.voice.audioWasInterrupted()
+                self?.voice.audioWasInterrupted();self?.signals.stop()
                 self?.interrupt("음성 재생이 중단됐어요. 확인점과 착용 상태를 다시 확인해주세요.",announce:false)
             }
         })

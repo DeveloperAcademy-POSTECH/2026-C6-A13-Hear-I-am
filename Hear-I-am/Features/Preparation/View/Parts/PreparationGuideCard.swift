@@ -30,7 +30,7 @@ struct PreparationGuideCard: View {
                     Text("Pro의 LiDAR 센서를 사용해야 정확하게 측정 가능합니다 · \(model.mapping)").font(.caption).foregroundStyle(.orange)
                 }
             }
-            if (step == .scan || step == .boundary) && model.supportsMesh {
+            if step <= .objects && model.supportsMesh {
                 Toggle("스캔 범위 표시",isOn:$model.showMesh).font(.caption).tint(.hearGreen)
             }
             if step == .boundary {
@@ -46,10 +46,11 @@ struct PreparationGuideCard: View {
             if step == .objects {
                 if model.objectEditing {
                     TextField("기물 이름",text:$model.obstacleName).textFieldStyle(.roundedBorder).font(.caption)
-                    Picker("종류",selection:$model.obstacleKind) {Text("장애물").tag(ObstacleKind.other); Text("단상").tag(ObstacleKind.platform)}.pickerStyle(.segmented)
+                    Picker("종류",selection:$model.obstacleKind) {Text("장애물").tag(ObstacleKind.other); Text("단상").tag(ObstacleKind.platform); Text("계단").tag(ObstacleKind.stairs)}.pickerStyle(.segmented)
+                    if let note=model.objectHeightNote {Text(note).font(.caption).foregroundStyle(.secondary)}
                 } else {
                     ScrollView {VStack(spacing:4) {ForEach(draft.objects) {o in
-                        HStack {Button(o.name) {model.beginObject(o.id)}; Spacer(); Button {model.deleteObject(o.id)} label:{Image(systemName:"trash")}.accessibilityLabel("\(o.name) 삭제")}.font(.caption).padding(.vertical,4)
+                        HStack {Button("\(o.name) · \(o.kind.defaultName)\(o.height.map { " · \(Int(($0*100).rounded()))cm" } ?? "")") {model.beginObject(o.id)}; Spacer(); Button {model.deleteObject(o.id)} label:{Image(systemName:"trash")}.accessibilityLabel("\(o.name) 삭제")}.font(.caption).padding(.vertical,4)
                     }}}.frame(maxHeight:60)
                 }
             }

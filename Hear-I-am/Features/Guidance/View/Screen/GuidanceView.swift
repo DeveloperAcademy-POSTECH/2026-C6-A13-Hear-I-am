@@ -19,7 +19,7 @@ struct GuidanceView: View {
                     if model.phase.showsRouteCamera { GuidanceRouteOverlay(model:model) }
                     else if model.phase.isCameraStep { GuidanceCameraPrompt(model:model) }
                     else if model.phase == .selection { Color(.systemBackground); GuidanceStageList(library:library,model:model) }
-                    else { Color(.systemBackground); GuidanceInstruction(model:model) }
+                    else { Color(.systemBackground).opacity(model.phase.showsCameraBehindInstruction ? 0.7 : 1); GuidanceInstruction(model:model) }
                 }.clipShape(RoundedRectangle(cornerRadius:model.phase.showsRouteCamera ? 18 : 0))
                     .padding(.horizontal,model.phase.showsRouteCamera ? 20 : 0)
             }

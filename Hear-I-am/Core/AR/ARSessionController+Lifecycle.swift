@@ -114,6 +114,7 @@ extension ARSessionController {
         if was && !gate.verified { invalidateWear("센서 표본 만료 · C 재검증 필요"); event("sample_expired") }
         canVerify=gate.canVerify(now:now); ready=gate.isReady(now:now)
         if let latest, now-latest.time>0.5 { canSave=false }
+        if purpose == .preparation { updateAim() }
         if let restoreStarted, now-restoreStarted>60, !ready, !canVerify {
             interrupt("복원 60초 초과 · 주변을 확인한 후 저장 공간을 다시 불러오세요",token:token)
         }

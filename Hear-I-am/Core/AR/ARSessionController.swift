@@ -27,6 +27,8 @@ final class ARSessionController: ObservableObject {
     @Published var preparationInterrupted=false
     @Published var errorMessage: String?
     @Published var showMesh=true { didSet { renderer.meshLayer.isHidden = !showMesh } }
+    /// Floor point under the crosshair during preparation, refreshed every tick; nil when none is found.
+    @Published var aimPoint: Point3?
 
     let purpose: Purpose
     let checkpointTolerance=0.15 // Experiment threshold, NOT an accuracy guarantee.
@@ -116,6 +118,7 @@ final class ARSessionController: ObservableObject {
             style:purpose == .preparation ? .preparation(routeFinished:preparedDraft?.routeFinished == true)
                                           : .guidance(target:visibleGuidanceTarget,completed:guidanceCompleted),
             checkpoint:checkpoint,corners:corners,area:area,routePoints:routePoints,obstacles:obstacles,pendingObject:pendingObject,
+            clearance:settings.obstacleClearance,
             dangerZones:preparedDraft?.dangerZones ?? manifest?.route?.dangerZones ?? []))
     }
 

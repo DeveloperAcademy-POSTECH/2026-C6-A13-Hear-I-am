@@ -56,10 +56,43 @@ extension ARSceneRenderer {
             }
             if i>0 {line(area.world(routePoints[i-1]),area.world(p),color:active ? .systemOrange : .systemGreen)}
         }
+        // What a route must keep clear of: a blocking object grown by the route clearance in red, a
+        // platform or stairs in blue with no clearance, since they are walked onto (#38). Shown while
+        // preparing and while guiding, so the area seen when testing is the one the checks use.
         for o in content.obstacles {
-            for i in o.vertices.indices {line(area.world(o.vertices[i]),area.world(o.vertices[(i+1)%o.vertices.count]),color:.systemRed)}
+            let color: UIColor=o.isStep ? .systemBlue : .systemRed
+            floorPatch(o.clearanceCells(clearance:o.blocksPath ? content.clearance : 0,cell:Self.patchCell),
+                       area:area,color:color.withAlphaComponent(o.blocksPath ? 0.28 : 0.2))
+            for i in o.vertices.indices {line(area.world(o.vertices[i]),area.world(o.vertices[(i+1)%o.vertices.count]),color:color)}
         }
-        for p in content.pendingObject {marker(area.world(p),label:"물체",color:.systemOrange)}
+        let pending=content.pendingObject
+        for (i,p) in pending.enumerated() {
+            marker(area.world(p),label:"물체",color:.systemOrange)
+            if i>0 {line(area.world(pending[i-1]),area.world(p),color:.systemOrange)}
+        }
+        if pending.count >= 3, let first=pending.first, let last=pending.last {dashedGuide(area.world(last),area.world(first))}
+    }
+
+    static let patchCell=0.04
+    /// One flat mesh of floor squares. Squares never overlap, so the colour is even across the patch.
+    /// It ignores depth and draws first: the floor mesh does not flicker through it, and lines stay on top.
+    private func floorPatch(_ cells: [FloorPoint],area: StageArea,color: UIColor) {
+        guard !cells.isEmpty else {return}
+        let h=Self.patchCell/2
+        var vertices: [SCNVector3]=[], indices: [Int32]=[]
+        for c in cells {
+            let base=Int32(vertices.count)
+            for (dx,dy) in [(-h,-h),(h,-h),(h,h),(-h,h)] {
+                let w=area.world(FloorPoint(c.x+dx,c.y+dy)); vertices.append(SCNVector3(Float(w.x),Float(w.y)+0.012,Float(w.z)))
+            }
+            indices+=[base,base+1,base+2,base,base+2,base+3]
+        }
+        let geometry=SCNGeometry(sources:[SCNGeometrySource(vertices:vertices)],elements:[SCNGeometryElement(indices:indices,primitiveType:.triangles)])
+        let material=SCNMaterial(); material.diffuse.contents=color; material.lightingModel = .constant; material.isDoubleSided=true
+        material.writesToDepthBuffer=false; material.readsFromDepthBuffer=false
+        geometry.materials=[material]
+        let node=SCNNode(geometry:geometry); node.renderingOrder = -10
+        referenceLayer.addChildNode(node)
     }
 
     private func cornerMarker(_ p: Point3,label: String) {

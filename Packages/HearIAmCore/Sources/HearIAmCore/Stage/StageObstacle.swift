@@ -8,8 +8,10 @@ public struct StageObstacle: Codable, Equatable, Sendable, Identifiable {
     public var kind: ObstacleKind
     public var passage: PassagePolicy
     public var vertices: [FloorPoint]
-    public init(id: UUID = UUID(), name: String, kind: ObstacleKind, passage: PassagePolicy = .prohibited, vertices: [FloorPoint]) throws {
-        self.id=id; self.name=name; self.kind=kind; self.passage=passage; self.vertices=vertices
+    /// Top above the stage floor in metres, measured from the scan mesh; nil for older saves or when not measured.
+    public var height: Double?
+    public init(id: UUID = UUID(), name: String, kind: ObstacleKind, passage: PassagePolicy = .prohibited, vertices: [FloorPoint], height: Double? = nil) throws {
+        self.id=id; self.name=name; self.kind=kind; self.passage=passage; self.vertices=vertices; self.height=height
         try validate()
     }
     public func validate() throws {
@@ -54,15 +56,39 @@ public struct StageObstacle: Codable, Equatable, Sendable, Identifiable {
         let t=n > 0 ? max(0,min(1,((p.x-a.x)*dx+(p.y-a.y)*dy)/n)) : 0
         return hypot(p.x-a.x-t*dx,p.y-a.y-t*dy)
     }
-    private static func segmentDistance(_ a: FloorPoint,_ b: FloorPoint,_ c: FloorPoint,_ d: FloorPoint) -> Double {
+    static func segmentDistance(_ a: FloorPoint,_ b: FloorPoint,_ c: FloorPoint,_ d: FloorPoint) -> Double {
         if intersects(a,b,c,d) { return 0 }
         return min(distancePointSegment(a,c,d),distancePointSegment(b,c,d),
                    distancePointSegment(c,a,b),distancePointSegment(d,a,b))
     }
+    /// Platforms and stairs are walked onto; everything else is an obstacle to keep away from.
+    public var isStep: Bool { kind == .platform || kind == .stairs }
+    /// Routes must keep clear of this outline. Platforms and stairs never block, even when an older
+    /// save still marks them prohibited, because the performer walks onto them (decided 10/17).
+    public var blocksPath: Bool { passage == .prohibited && !isStep }
+    /// Shortest distance from `p` to the outline; 0 when inside.
+    public func distance(to p: FloorPoint) -> Double { contains(p) ? 0 : p.distance(to:closestPoint(to:p)) }
+    /// Closest point on the outline, or `p` itself when inside.
+    public func closestPoint(to p: FloorPoint) -> FloorPoint {
+        if contains(p) { return p }
+        return vertices.indices.map { i -> FloorPoint in
+            let a=vertices[i], b=vertices[(i+1)%vertices.count], dx=b.x-a.x, dy=b.y-a.y, n=dx*dx+dy*dy
+            let t=n > 0 ? max(0,min(1,((p.x-a.x)*dx+(p.y-a.y)*dy)/n)) : 0
+            return FloorPoint(a.x+t*dx,a.y+t*dy)
+        }.min { p.distance(to:$0) < p.distance(to:$1) } ?? p
+    }
+    /// Fractions t ∈ [0, 1] along a→b where the segment crosses the outline, ascending.
+    public func crossings(from a: FloorPoint, to b: FloorPoint) -> [Double] {
+        let rx=b.x-a.x, ry=b.y-a.y
+        return vertices.indices.compactMap { i -> Double? in
+            let c=vertices[i], d=vertices[(i+1)%vertices.count], sx=d.x-c.x, sy=d.y-c.y
+            let denominator=rx*sy-ry*sx
+            guard abs(denominator) > 1e-12 else { return nil }
+            let t=((c.x-a.x)*sy-(c.y-a.y)*sx)/denominator, u=((c.x-a.x)*ry-(c.y-a.y)*rx)/denominator
+            return (0...1).contains(t) && (0...1).contains(u) ? t : nil
+        }.sorted()
+    }
     public func overlaps(_ a: FloorPoint,_ b: FloorPoint, clearance: Double) -> Bool {
-        if contains(a) || contains(b) { return true }
-        return vertices.indices.contains { i in
-            Self.segmentDistance(a,b,vertices[i],vertices[(i+1)%vertices.count]) <= clearance+1e-9
-        }
+        distance(from:a,to:b) <= clearance+1e-9
     }
 }
