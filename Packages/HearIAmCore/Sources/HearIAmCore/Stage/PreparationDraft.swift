@@ -12,6 +12,16 @@ public struct PreparationDraft: Sendable {
     public var objects: [WorldObstacle] = []
     public var checkpoint: Point3?
     public init() {}
+    public mutating func captureCorner(_ index: Int, at point: Point3) throws {
+        guard corners.indices.contains(index), point.valid else { throw LabError.invalid("유효한 무대 모서리를 지정해주세요.") }
+        var next=corners
+        next[index]=point
+        if let left=next[0], let right=next[1] {
+            let front=try FrontEdgeGuide(frontLeft:left,frontRight:right)
+            if let backLeft=next[3] { _ = try BackEdgeGuide(front:front,backLeft:backLeft) }
+        }
+        corners=next
+    }
     public var area: StageArea? {
         guard corners.allSatisfy({ $0 != nil }) else { return nil }
         return try? StageArea(corners: corners.compactMap { $0 })
