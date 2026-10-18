@@ -6,12 +6,27 @@ public struct StageRoute: Codable, Equatable, Sendable {
     /// p0 followed by p1...p5, all in stage floor metres.
     public var points: [FloorPoint]
     public var obstacles: [StageObstacle]
-    public init(area: StageArea, points: [FloorPoint], obstacles: [StageObstacle], allowsOutsideEndpoints: Bool = false) throws {
+    public var dangerZones: [StageDangerZone]
+    public init(area: StageArea, points: [FloorPoint], obstacles: [StageObstacle], allowsOutsideEndpoints: Bool = false, dangerZones: [StageDangerZone] = []) throws {
         version=allowsOutsideEndpoints ? 2 : 1; self.area=area; self.points=points; self.obstacles=obstacles
+        self.dangerZones=dangerZones
+        try validate()
+    }
+    enum CodingKeys: String, CodingKey { case version, area, points, obstacles, dangerZones }
+    public init(from decoder: Decoder) throws {
+        let c=try decoder.container(keyedBy:CodingKeys.self)
+        version=try c.decode(Int.self,forKey:.version)
+        area=try c.decode(StageArea.self,forKey:.area)
+        points=try c.decode([FloorPoint].self,forKey:.points)
+        obstacles=try c.decode([StageObstacle].self,forKey:.obstacles)
+        dangerZones=try c.decodeIfPresent([StageDangerZone].self,forKey:.dangerZones) ?? []
         try validate()
     }
     public func validate() throws {
         try area.validate()
+        guard Set(dangerZones.map(\.edge)).count == dangerZones.count else {
+            throw LabError.invalid("같은 무대 변에 위험 구역을 중복 설정할 수 없습니다.")
+        }
         guard [1,2].contains(version), ((version == 2 ? 3 : 2)...6).contains(points.count), points.allSatisfy(\.valid),
               Set(obstacles.map(\.id)).count == obstacles.count else { throw LabError.invalid("경로 버전, 순서 또는 점 개수가 유효하지 않습니다.") }
         for o in obstacles { try o.validate(); guard o.vertices.allSatisfy({area.contains($0)}) else { throw LabError.invalid("장애물이 무대 밖에 있습니다.") } }

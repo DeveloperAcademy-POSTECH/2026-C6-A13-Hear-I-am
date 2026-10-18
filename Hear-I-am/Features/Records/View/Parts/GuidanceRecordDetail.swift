@@ -9,7 +9,7 @@ struct GuidanceRecordDetail: View {
                 Label("안내 완료",systemImage:"checkmark.circle.fill").font(.headline).foregroundStyle(Color.hearGreen)
                 Text(record.stageName).font(.title.bold())
                 Text(record.completedAt,format:.dateTime.locale(Locale(identifier:"ko_KR")).year().month().day().hour().minute()).foregroundStyle(.secondary)
-                StageMap(width:record.route.area.width,depth:record.route.area.depth,points:record.route.points,objects:record.route.obstacles)
+                StageMap(width:record.route.area.width,depth:record.route.area.depth,points:record.route.points,objects:record.route.obstacles,dangerZones:record.route.dangerZones)
                     .frame(height:220).accessibilityLabel("완료한 안내의 저장 동선")
                 VStack(spacing:18) {
                     metric("안내 시간",record.activeDurationText)
