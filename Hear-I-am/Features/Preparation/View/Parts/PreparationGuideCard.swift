@@ -26,7 +26,7 @@ struct PreparationGuideCard: View {
             if step == .scan {
                 Text("\(model.meshCount)개 표면 · \(model.mapping)").font(.caption).foregroundStyle(.secondary)
             }
-            if step == .scan || step == .boundary {
+            if step <= .objects {
                 Toggle("스캔 범위 표시",isOn:$model.showMesh).font(.caption).tint(.hearGreen)
             }
             if step == .boundary {

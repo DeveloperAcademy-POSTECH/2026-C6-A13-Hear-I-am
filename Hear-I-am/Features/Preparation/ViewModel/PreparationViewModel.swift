@@ -66,7 +66,14 @@ final class PreparationViewModel: ObservableObject {
         PreparationGuide(step:step,draft:draft,nextCorner:nextCorner,objectEditing:objectEditing,pendingVertexCount:pendingObjectWorld.count)
     }
     var showsCrosshairHint: String {
-        interrupted ? "추적 중단" : (step == .scan ? "민트색 그물 = 스캔한 표면" : "십자선을 실제 바닥에 맞춰주세요")
+        if interrupted { return "추적 중단" }
+        if let hit=aimHit { return hit.message }
+        return step == .scan ? "민트색 그물 = 스캔한 표면" : "십자선을 실제 바닥에 맞춰주세요"
+    }
+    /// Why the point under the crosshair cannot join the route, shown before it is placed (#38).
+    var aimHit: ClearanceHit? {
+        guard step == .route, !draft.routeFinished, let aim=session.aimPoint else { return nil }
+        return draft.clearanceHit(adding:aim)
     }
 
     // Lifecycle
@@ -99,7 +106,8 @@ final class PreparationViewModel: ObservableObject {
         let changed=step != value
         step=value; review=false; selectedCorner=nil; guideCollapsed=false
         if !seen.contains(value) {seen.insert(value); intro=0} else {intro=nil}
-        if changed {session.showMesh = value == .scan || value == .boundary}
+        // Objects are outlined on top of the scanned surface (10/18), so the mesh stays on through that step.
+        if changed {session.showMesh = value <= .objects}
     }
     /// The boundary step shows two intro pages; every other step shows one.
     func nextIntroPage() {

@@ -19,6 +19,16 @@ extension ARSessionController {
               point.y < latest.world.y-0.15 else { throw LabError.invalid("기기 아래의 바닥을 5m 이내에서 선택하세요.") }
         return point
     }
+    /// Lets the route step tell whether a point can go here before it is placed (#38). Changes under 1 cm
+    /// are not published, so the screen does not redraw while the phone is held still.
+    func updateAim() {
+        let next=canPlacePoint ? try? centerFloorPoint() : nil
+        switch (aimPoint,next) {
+        case (nil,nil): return
+        case let (current?,new?) where current.distance(to:new) < 0.01: return
+        default: aimPoint=next
+        }
+    }
     /// Mirrors the preparation draft into anchors and the overlay. World coordinates stay authoritative.
     func applyPreparation(_ draft: PreparationDraft, pendingObject world: [Point3]) {
         preparedDraft=draft
