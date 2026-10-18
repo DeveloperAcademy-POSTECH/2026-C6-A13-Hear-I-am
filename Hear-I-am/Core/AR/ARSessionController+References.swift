@@ -31,6 +31,7 @@ extension ARSessionController {
             routePoints=draft.route.map(area.floor)
             obstacles=draft.objects.compactMap {try? $0.projected(in:area)}
             pendingObject=world.map(area.floor)
+            settings.obstacleClearance=draft.effectiveObstacleClearance
         } else { origin=nil; front=nil; stage=nil; routePoints=[]; obstacles=[]; pendingObject=[] }
         if let checkpoint {addReference(checkpoint,suffix:".check")}
         canSave=false; redrawReferences()

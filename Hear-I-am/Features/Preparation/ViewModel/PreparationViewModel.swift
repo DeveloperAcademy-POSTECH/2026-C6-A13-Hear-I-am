@@ -82,7 +82,7 @@ final class PreparationViewModel: ObservableObject {
         switch s {
         case .scan: return scanConfirmed
         case .boundary: return draft.area != nil
-        case .objects: return highest > .objects && draft.objectErrors.isEmpty
+        case .objects: return (highest > .objects || draft.planApplied) && draft.objectErrors.isEmpty
         case .route: return draft.routeFinished && draft.routeErrors.isEmpty
         case .checkpoint: return draft.checkpoint != nil && draft.checkpointErrors.isEmpty
         }
