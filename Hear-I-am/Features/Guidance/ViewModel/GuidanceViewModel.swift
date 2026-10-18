@@ -103,6 +103,13 @@ import HearIAmCore
     }
     /// A pose no older than 0.5 s from a verified session, or nil.
     func freshPose() -> (point: FloorPoint, heading: Double, time: Double)? {
+        if isPlanMode {
+            if tracking.stage == nil { _ = tracking.calibratePlanOrigin() }
+            guard let p=tracking.position else { return nil }
+            let h=tracking.heading ?? 0
+            let t=tracking.guidancePoseTime ?? ProcessInfo.processInfo.systemUptime
+            return (FloorPoint(p.x,p.y),h,t)
+        }
         guard tracking.ready, let p=tracking.position, let heading=tracking.heading, let time=tracking.guidancePoseTime,
               ProcessInfo.processInfo.systemUptime-time >= 0, ProcessInfo.processInfo.systemUptime-time <= 0.5 else { return nil }
         return (FloorPoint(p.x,p.y),heading,time)
@@ -112,17 +119,19 @@ import HearIAmCore
         guard active, !showExit else { return }
         if phase == .restoring { tickRestoring();return }
         if phase == .checkpoint { tickCheckpoint();return }
-        if [.wear,.countdown,.departure,.starting,.guiding,.paused].contains(phase), !tracking.ready {
+        if !isPlanMode, [.wear,.countdown,.departure,.starting,.guiding,.paused].contains(phase), !tracking.ready {
             interrupt("위치 추적이 끊겼어요. 확인점을 다시 확인해주세요.");return
         }
         if let p=tracking.position, let time=tracking.guidancePoseTime,
-           ProcessInfo.processInfo.systemUptime-time >= 0, ProcessInfo.processInfo.systemUptime-time <= 0.5,
+           isPlanMode || (ProcessInfo.processInfo.systemUptime-time >= 0 && ProcessInfo.processInfo.systemUptime-time <= 0.5),
            let first=activeRoute?.points.first {
             startDistance=FloorPoint(p.x,p.y).distance(to:first)
         } else { startDistance=nil }
         guard let pose=freshPose() else {
             if phase == .departure { departureReady=false;departureGate.reset();readyAnnounced=false }
-            if phase == .guiding || phase == .starting { if tracking.heading == nil { interrupt("몸이 향한 방향을 확인할 수 없어요. 착용 방향을 다시 확인해주세요.") } }
+            if !isPlanMode, phase == .guiding || phase == .starting {
+                if tracking.heading == nil { interrupt("몸이 향한 방향을 확인할 수 없어요. 착용 방향을 다시 확인해주세요.") }
+            }
             return
         }
         guard pose.time != lastPoseTime else { return }

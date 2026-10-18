@@ -23,6 +23,9 @@ extension ARSessionController {
     }
     func startPlan(_ plan: PerformancePlan) {
         guard !busy else { return }
+        reset()
+        activePlan=plan; scanID=plan.id; mode = .calibrated; ready=true; heading=0
+        renderer.meshLayer.isHidden=true; renderer.referenceLayer.isHidden=false
         busy=true
         let operation=token
         Task {
@@ -30,11 +33,7 @@ extension ARSessionController {
             guard supported else { errorMessage="이 기기는 AR 안내를 지원하지 않습니다."; return }
             guard await permission(), active, token==operation else { return }
             busy=false
-            reset()
-            activePlan=plan; scanID=plan.id; mode = .calibrated; ready=true
-            renderer.meshLayer.isHidden=true; renderer.referenceLayer.isHidden=false
             beginLog(source:"plan-calibrated")
-            guard logger.isOpen else {mode = .idle; return}
             startSession(map:nil)
             status="출발 지점에 서서 객석 정면을 바라보고 안내를 시작하세요"
         }

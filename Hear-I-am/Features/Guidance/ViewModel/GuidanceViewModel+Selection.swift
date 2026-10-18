@@ -24,7 +24,7 @@ extension GuidanceViewModel {
             read(["이 사전 동선에는 사용할 수 있는 경로가 없습니다. 동선을 다시 확인해주세요."]);return
         }
         selected=nil;selectedPlan=plan
-        guide=RouteGuide(route:calibrated.route,settings:calibrated.settings,usesRouteCorridor:true)
+        guide=RouteGuide(route:calibrated.route,settings:calibrated.settings,usesRouteCorridor:true,allowsFreeMovement:true)
         started=false;cue=nil;pendingRecord=nil
         run=GuidanceRun(stageID:plan.id,stageName:plan.name,route:calibrated.route)
         tracking.setGuidanceTarget(1)

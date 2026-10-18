@@ -47,9 +47,9 @@ struct GuidanceView: View {
         .task {await library.refresh();model.selectionDescription(empty:library.records.isEmpty && library.plans.isEmpty)}
         .onDisappear {model.finish();ScreenOrientation.set(.portrait)}
         .onChange(of:scenePhase) { _, value in
-            // Camera permission sheets may make the scene inactive during restoration.
+            // Camera permission sheets may make the scene inactive during restoration or plan startup.
             if value == .active { model.setActive(true) }
-            else if value == .background || (model.phase != .selection && model.phase != .restoring) { model.setActive(false) }
+            else if value == .background || (!model.isPlanMode && model.phase != .selection && model.phase != .restoring) { model.setActive(false) }
         }
     }
     private func close() { model.finish();dismiss() }

@@ -17,6 +17,8 @@ public struct RouteGuide: Sendable {
     public let settings: GuideSettings
     /// Opt in for the portrait guidance flow. The legacy experiment keeps its original rules.
     public let usesRouteCorridor: Bool
+    /// When true (No-Scan calibrated plan mode), does not pause when stepping outside the 60cm corridor or stage box.
+    public let allowsFreeMovement: Bool
     public static let corridorRadius = 0.60
     private var arrivedSince: Double?
     private var lastTime: Double?
@@ -24,8 +26,8 @@ public struct RouteGuide: Sendable {
     private var reentrySince: Double?
     private var lastReentryTime: Double?
     private var sector: Int?
-    public init(route: StageRoute, settings: GuideSettings, usesRouteCorridor: Bool = false) {
-        self.route=route; self.settings=settings; self.usesRouteCorridor=usesRouteCorridor
+    public init(route: StageRoute, settings: GuideSettings, usesRouteCorridor: Bool = false, allowsFreeMovement: Bool = false) {
+        self.route=route; self.settings=settings; self.usesRouteCorridor=usesRouteCorridor; self.allowsFreeMovement=allowsFreeMovement
     }
     public func ready(position: FloorPoint, headingDegrees: Double, trackingValid: Bool) -> Bool {
         guard route.version == 1 || usesRouteCorridor, trackingValid, position.valid, headingDegrees.isFinite,
@@ -63,10 +65,13 @@ public struct RouteGuide: Sendable {
     /// Only the active entry/exit segment may extend outside the stage. This is not obstacle detection.
     public func positionIssue(_ position: FloorPoint) -> GuidePauseReason? {
         guard position.valid, route.points.indices.contains(targetIndex), targetIndex > 0 else { return .invalidSample }
-        let externalSegment=route.version == 2 && (targetIndex == 1 || targetIndex == route.points.count-1)
-        if !route.area.contains(position) && !externalSegment { return .outsideStage }
-        let a=route.points[targetIndex-1], b=route.points[targetIndex]
-        if position.distance(toSegmentFrom:a,to:b) > Self.corridorRadius { return .offRoute }
+        let b=route.points[targetIndex]
+        if !allowsFreeMovement {
+            let externalSegment=route.version == 2 && (targetIndex == 1 || targetIndex == route.points.count-1)
+            if !route.area.contains(position) && !externalSegment { return .outsideStage }
+            let a=route.points[targetIndex-1]
+            if position.distance(toSegmentFrom:a,to:b) > Self.corridorRadius { return .offRoute }
+        }
         if route.obstacles.contains(where: { $0.passage == .prohibited && $0.overlaps(position,b,clearance:settings.obstacleClearance) }) {
             return .obstacleProximity
         }
@@ -94,8 +99,10 @@ public struct RouteGuide: Sendable {
         guard time.isFinite, position.valid, headingDegrees.isFinite, trackingValid else {
             pause(reason:.invalidSample); return GuideUpdate(state:state,targetIndex:targetIndex,announcement:nil)
         }
-        guard lastTime.map({time > $0 && time-$0 <= 0.5}) ?? true else {
-            pause(reason:.sampleGap); return GuideUpdate(state:state,targetIndex:targetIndex,announcement:nil)
+        if !allowsFreeMovement {
+            guard lastTime.map({time > $0 && time-$0 <= 0.5}) ?? true else {
+                pause(reason:.sampleGap); return GuideUpdate(state:state,targetIndex:targetIndex,announcement:nil)
+            }
         }
         let issue=usesRouteCorridor ? positionIssue(position) : (route.area.contains(position) ? nil : GuidePauseReason.outsideStage)
         if let issue {

@@ -7,17 +7,21 @@ extension ARSessionController {
         guard incoming==token, active, mode == .scanning || mode == .restoring || mode == .calibrated else { return }
         if mode == .calibrated {
             latest=sample
+            ready=true
             if tracking != sample.tracking { event("tracking",detail:sample.tracking) }
-            if stage == nil, sample.normal, sample.world.valid, sample.forward.valid {
+            if stage == nil, sample.world.valid, sample.forward.valid {
                 calibratePlanOrigin()
             }
             if sample.time-lastUI >= 0.05 {
                 lastUI=sample.time; tracking=sample.tracking; mapping=sample.mapping
-                ready=sample.normal && sample.world.valid && sample.forward.valid
-                if let stage, ready {
+                if let stage, sample.world.valid {
                     position=stagePosition(sample.world)
-                    heading=stage.heading(cameraForward:sample.forward)
-                } else { position=nil; heading=nil }
+                    if sample.forward.valid, let h=stage.heading(cameraForward:sample.forward) {
+                        heading=h
+                    } else if heading == nil {
+                        heading=0
+                    }
+                }
                 guidancePoseTime=sample.time
             }
             if sample.time-lastPoseLog>=0.05 {

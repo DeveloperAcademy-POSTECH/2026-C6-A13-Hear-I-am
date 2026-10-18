@@ -156,11 +156,8 @@ public struct PerformancePlan: Codable, Equatable, Identifiable, Sendable {
         }
         let horizontal = SIMD3<Double>(cameraForward.x, 0, cameraForward.z)
         let horizontalLen = simd_length(horizontal)
-        guard horizontalLen >= 0.25 else {
-            throw LabError.invalid("카메라가 정면을 향하도록 휴대폰을 세워주세요.")
-        }
-        // Audience direction in world X/Z is horizontal camera forward; backstage (+stage Y) is opposite.
-        let f = horizontal / horizontalLen
+        // Audience direction in world X/Z is horizontal camera forward; fallback to -Z if held flat.
+        let f = horizontalLen >= 0.05 ? (horizontal / horizontalLen) : SIMD3<Double>(0, 0, -1)
         let back = FloorPoint(-f.x, -f.z)
         // Audience-right (+stage X) is (-back.y, back.x) = (f.z, -f.x).
         let right = FloorPoint(f.z, -f.x)

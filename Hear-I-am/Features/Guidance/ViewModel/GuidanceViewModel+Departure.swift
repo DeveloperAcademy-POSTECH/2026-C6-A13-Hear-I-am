@@ -18,7 +18,7 @@ extension GuidanceViewModel {
     @discardableResult
     func recalibratePlanOrigin(announce: Bool = true) -> Bool {
         guard isPlanMode, let calibrated=tracking.calibratePlanOrigin() else { return false }
-        guide=RouteGuide(route:calibrated.route,settings:calibrated.settings,usesRouteCorridor:true)
+        guide=RouteGuide(route:calibrated.route,settings:calibrated.settings,usesRouteCorridor:true,allowsFreeMovement:true)
         if let plan=selectedPlan {
             run=GuidanceRun(stageID:plan.id,stageName:plan.name,route:calibrated.route)
         }
