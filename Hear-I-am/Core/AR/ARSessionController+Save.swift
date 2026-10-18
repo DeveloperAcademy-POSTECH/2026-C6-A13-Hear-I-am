@@ -26,7 +26,7 @@ extension ARSessionController {
                       self.referenceAnchorsPresent(sample) else {
                     self.busy=false; self.errorMessage=error?.localizedDescription ?? "공간 지도가 안정되지 않았습니다. 다시 시도하세요."; return
                 }
-                let parts=Array(self.meshes.values)
+                let parts=self.meshes.isEmpty ? Self.fallbackFloorMesh(area:area) : Array(self.meshes.values)
                 let id=self.scanID, name=rawName.trimmingCharacters(in:.whitespacesAndNewlines)
                 guard !name.isEmpty else {self.busy=false; self.errorMessage="스캔 이름을 입력하세요."; return}
                 guard [".origin",".front",".check"].allSatisfy({suffix in map.anchors.contains {$0.name==self.referencePrefix+suffix}}) else {
@@ -52,5 +52,9 @@ extension ARSessionController {
                 self.archiveWriteInProgress=false; self.busy=false; UIApplication.shared.isIdleTimerDisabled = self.mode == .scanning
             }
         }
+    }
+    private static func fallbackFloorMesh(area: StageArea) -> [MeshSnapshot] {
+        let identity: [Float] = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]
+        return [MeshSnapshot(id:UUID(), transform:identity, vertices:area.corners, indices:[0,1,2, 0,2,3])]
     }
 }

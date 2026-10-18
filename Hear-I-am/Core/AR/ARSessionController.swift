@@ -30,7 +30,8 @@ final class ARSessionController: ObservableObject {
 
     let purpose: Purpose
     let checkpointTolerance=0.15 // Experiment threshold, NOT an accuracy guarantee.
-    let supported=ARWorldTrackingConfiguration.isSupported && ARWorldTrackingConfiguration.supportsSceneReconstruction(.mesh)
+    let supportsMesh=ARWorldTrackingConfiguration.supportsSceneReconstruction(.mesh)
+    let supported=ARWorldTrackingConfiguration.isSupported
     let store: ScanStore
     let renderer=ARSceneRenderer()
     let logger: TrialLogger
@@ -78,7 +79,7 @@ final class ARSessionController: ObservableObject {
 
     var now: Double { ProcessInfo.processInfo.systemUptime }
     var referencePrefix: String { "PoC4.reference."+scanID.uuidString }
-    var canConfirmScan: Bool { mode == .scanning && !busy && !meshes.isEmpty && latest?.mapped == true && latest?.normal == true && now-(latest?.time ?? 0) < 0.5 }
+    var canConfirmScan: Bool { mode == .scanning && !busy && (!supportsMesh || !meshes.isEmpty) && latest?.mapped == true && latest?.normal == true && now-(latest?.time ?? 0) < 0.5 }
     var canPlacePoint: Bool { mode == .scanning && !busy && !preparationInterrupted && latest?.normal == true && now-(latest?.time ?? 0) < 0.5 }
 
     init(purpose: Purpose) {
@@ -120,8 +121,8 @@ final class ARSessionController: ObservableObject {
     func startSession(map: ARWorldMap?) {
         let config=ARWorldTrackingConfiguration()
         config.worldAlignment = .gravity; config.planeDetection=[.horizontal]
-        // Mesh creation only in pre-scan. During restoration use the saved snapshot.
-        if mode == .scanning { config.sceneReconstruction = .mesh }
+        // Mesh creation only in pre-scan when LiDAR is available. During restoration use the saved snapshot.
+        if mode == .scanning && supportsMesh { config.sceneReconstruction = .mesh }
         config.initialWorldMap=map
         let newSession=ARSession()
         bridge=SessionBridge(controller:self,token:token)
