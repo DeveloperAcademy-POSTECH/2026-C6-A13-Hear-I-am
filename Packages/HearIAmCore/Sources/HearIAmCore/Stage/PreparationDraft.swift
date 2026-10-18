@@ -40,6 +40,17 @@ public struct PreparationDraft: Sendable {
         guard !route.isEmpty else { return }
         route.removeLast(); routeFinished = false
     }
+    /// Projects a schematic 12×8 PerformancePlan proportionally onto the captured stage area.
+    public mutating func applyPlan(_ plan: PerformancePlan) throws {
+        guard let area else { throw LabError.invalid("무대의 네 모서리를 먼저 지정해주세요.") }
+        try plan.validate()
+        let sx = area.width / PerformancePlan.width
+        let sy = area.depth / PerformancePlan.depth
+        func mapped(_ p: FloorPoint) -> Point3 { area.world(FloorPoint(p.x * sx, p.y * sy)) }
+        objects = plan.objects.map { WorldObstacle(id: $0.id, name: $0.name, kind: $0.kind, vertices: $0.vertices.map(mapped)) }
+        route = plan.points.map(mapped)
+        routeFinished = plan.finished
+    }
     public func stageRoute() throws -> StageRoute {
         guard let area, routeFinished else { throw LabError.invalid("무대 범위와 도착점을 확정해주세요.") }
         guard route.allSatisfy({ abs($0.y-area.floorHeight) <= 0.10 }) else {
