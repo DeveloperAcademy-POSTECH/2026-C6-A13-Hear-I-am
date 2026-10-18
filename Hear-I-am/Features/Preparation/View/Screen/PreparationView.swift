@@ -58,7 +58,7 @@ struct PreparationView: View {
                     }.padding(24).background(.regularMaterial,in:RoundedRectangle(cornerRadius:20))
                 }
                 if model.choosingPlan {
-                    PreparationPlanPicker(plans:library.plans,onSelect:{model.applyPlan($0)},onCancel:{model.choosingPlan=false})
+                    PreparationPlanPicker(plans:library.plans,initialID:model.selectedPlan?.id,onConfirm:{model.applyPlan($0)},onCancel:{model.choosingPlan=false})
                 }
                 if model.review {PreparationReviewCard(model:model)}
                 if model.isSaving {
