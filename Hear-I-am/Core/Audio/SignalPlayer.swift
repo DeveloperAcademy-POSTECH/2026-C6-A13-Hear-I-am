@@ -34,18 +34,24 @@ import HearIAmCore
     private let format=AVAudioFormat(standardFormatWithSampleRate:ToneRenderer.sampleRate,channels:1)!
     private var buffers: [String:AVAudioPCMBuffer]=[:]
     private var shotVolume=SignalVolume.arrival
-    private var observer: NSObjectProtocol?
+    private var observers: [NSObjectProtocol]=[]
     private let log=Logger(subsystem:Bundle.main.bundleIdentifier ?? "HearIAm",category:"Signal")
 
     init() {
         for node in [warningNode,shotNode,directionNode] {
             engine.attach(node);engine.connect(node,to:engine.mainMixerNode,format:format)
         }
-        observer=NotificationCenter.default.addObserver(forName:.AVAudioEngineConfigurationChange,object:engine,queue:.main) { [weak self] _ in
+        observers.append(NotificationCenter.default.addObserver(forName:.AVAudioEngineConfigurationChange,object:engine,queue:.main) { [weak self] _ in
             Task { @MainActor in self?.configurationChanged() }
-        }
+        })
+        // Not every output change reaches the engine: on 10/18 the earbud joined after the engine had
+        // started on the speaker, and nothing was logged. The session reports each change.
+        observers.append(NotificationCenter.default.addObserver(forName:AVAudioSession.routeChangeNotification,object:nil,queue:.main) { [weak self] n in
+            let reason=(n.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt).flatMap(AVAudioSession.RouteChangeReason.init(rawValue:))
+            Task { @MainActor in self?.routeChanged(reason) }
+        })
     }
-    deinit { observer.map(NotificationCenter.default.removeObserver) }
+    deinit { observers.forEach(NotificationCenter.default.removeObserver) }
 
     /// Plays one sound once. A new one-shot replaces the previous one on its node (direction beeps
     /// replace direction beeps, other one-shots each other); the warning loop is untouched.
@@ -129,11 +135,26 @@ import HearIAmCore
         warningNode.volume=SignalVolume.warning*share*(warningQuiet ? SignalVolume.quietShare : 1);shotNode.volume=shotVolume*share
         directionNode.volume=SignalVolume.direction*share
     }
-    /// Route changes (earbud in/out) stop the engine. A running warning is restarted on the new route.
+    private func routeChanged(_ reason: AVAudioSession.RouteChangeReason?) {
+        event("signal_route",Self.name(reason)+" route="+HearAudioSession.route)
+    }
+    /// Route changes (earbud in/out) can stop the engine. A running warning is restarted on the new route.
     private func configurationChanged() {
-        event("signal_route","changed route="+HearAudioSession.route)
+        event("signal_engine","reconfigured route="+HearAudioSession.route)
         guard let level=warning else { return }
         warning=nil;setWarning(level)
+    }
+    private static func name(_ reason: AVAudioSession.RouteChangeReason?) -> String {
+        switch reason {
+        case .newDeviceAvailable: return "device_added"
+        case .oldDeviceUnavailable: return "device_removed"
+        case .categoryChange: return "category"
+        case .override: return "override"
+        case .wakeFromSleep: return "wake"
+        case .noSuitableRouteForCategory: return "no_route"
+        case .routeConfigurationChange: return "configuration"
+        default: return "unknown"
+        }
     }
     private func event(_ name: String, _ detail: String, level: OSLogType = .info) {
         log.log(level:level,"\(name, privacy:.public) \(detail, privacy:.public)")
