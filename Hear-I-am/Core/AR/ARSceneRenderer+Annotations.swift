@@ -79,7 +79,8 @@ extension ARSceneRenderer {
         text.font = .boldSystemFont(ofSize:12)
         text.firstMaterial?.diffuse.contents=UIColor.white
         let tag=SCNNode(geometry:text)
-        tag.scale=SCNVector3(0.018,0.018,0.018)
+//        tag.scale=SCNVector3(0.018,0.018,0.018)
+        tag.scale=SCNVector3(0.004,0.004,0.004)
         tag.position=SCNVector3(0,0.24,0)
         tag.constraints=[SCNBillboardConstraint()]
         group.addChildNode(tag)
