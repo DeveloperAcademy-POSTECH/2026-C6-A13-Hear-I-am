@@ -12,7 +12,7 @@ struct HomeView: View {
                         BrandMark().frame(width:44,height:44)
                         Text("Hear I am").font(.largeTitle.bold())
                         Spacer()
-                        Button {model.showSettingsNotice()} label: {Image(systemName:"gearshape").font(.title3).frame(width:44,height:44)}.accessibilityLabel("설정")
+                        Button {model.showingSettings=true} label: {Image(systemName:"gearshape").font(.title3).frame(width:44,height:44)}.accessibilityLabel("설정")
                     }
                     VStack(alignment:.leading,spacing:12) {
                         Text("무엇을 시작할까요?").font(.title3).foregroundStyle(.secondary)
@@ -51,6 +51,7 @@ struct HomeView: View {
                     Button("취소",role:.cancel) {model.cancelRename()}
                     Button("저장") {model.rename(in:library)}.disabled(!model.canSaveName)
                 } message: {Text("무대 이름을 80자 이내로 입력해주세요.")}
+                .sheet(isPresented:$model.showingSettings) {HomeSettingsView()}
                 .refreshable {await library.refresh()}
                 .fullScreenCover(isPresented:$model.preparing,onDismiss:{Task {await library.refresh()}}) {PreparationView()}
                 .fullScreenCover(isPresented:$model.guiding) {GuidanceView(library:library)}
