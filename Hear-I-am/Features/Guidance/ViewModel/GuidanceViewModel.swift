@@ -11,6 +11,7 @@ import HearIAmCore
         didSet { run?.setRunning(phase == .guiding,uptime:ProcessInfo.processInfo.systemUptime) }
     }
     @Published var selected: ScanManifest?
+    @Published var selectedPlan: PerformancePlan?
     @Published var instructionDone=false
     @Published var speaking=false
     @Published var spokenText=""
@@ -42,15 +43,17 @@ import HearIAmCore
     private var trackingSubscription: AnyCancellable?
     var currentInstruction: [String]=[]
 
+    var isPlanMode: Bool { selectedPlan != nil }
+    var activeRoute: StageRoute? { guide?.route ?? selected?.route }
     var hasStarted: Bool { started }
     var targetIndex: Int { guide?.targetIndex ?? 1 }
-    var targetName: String { GuidanceCopy.target(targetIndex,last:(selected?.route?.points.count ?? 2)-1) }
+    var targetName: String { GuidanceCopy.target(targetIndex,last:(activeRoute?.points.count ?? 2)-1) }
     var headline: GuidanceHeadline {
         GuidanceHeadline(phase:phase,targetName:targetName,hasStarted:started,departureReady:departureReady,
                          departureStatus:departureStatus,arrivedName:arrivedName,cue:cue,message:message)
     }
 
-    init() {
+    init(initialPlan: PerformancePlan? = nil) {
         tracking.showMesh=false
         trackingSubscription=tracking.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }
         voice.onSpeaking={ [weak self] in self?.speaking=$0 }
@@ -63,6 +66,7 @@ import HearIAmCore
             }
         }
         observeAudioSession()
+        if let initialPlan { selectPlan(initialPlan) }
         timer=Timer.scheduledTimer(withTimeInterval:0.1,repeats:true) { [weak self] _ in Task { @MainActor in self?.tick() } }
     }
     deinit {
@@ -113,7 +117,7 @@ import HearIAmCore
         }
         if let p=tracking.position, let time=tracking.guidancePoseTime,
            ProcessInfo.processInfo.systemUptime-time >= 0, ProcessInfo.processInfo.systemUptime-time <= 0.5,
-           let first=selected?.route?.points.first {
+           let first=activeRoute?.points.first {
             startDistance=FloorPoint(p.x,p.y).distance(to:first)
         } else { startDistance=nil }
         guard let pose=freshPose() else {
@@ -123,7 +127,7 @@ import HearIAmCore
         }
         guard pose.time != lastPoseTime else { return }
         lastPoseTime=pose.time
-        if let first=selected?.route?.points.first { startDistance=pose.point.distance(to:first) }
+        if let first=activeRoute?.points.first { startDistance=pose.point.distance(to:first) }
         if phase == .departure, let guide { tickDeparture(pose:pose,guide:guide);return }
         guard phase == .guiding, let guide else { return }
         tickGuiding(pose:pose,guide:guide)

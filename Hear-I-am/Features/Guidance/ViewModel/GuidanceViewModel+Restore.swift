@@ -5,6 +5,15 @@ extension GuidanceViewModel {
     var canVerify: Bool { phase == .checkpoint && instructionDone && tracking.canVerify && !speaking }
 
     func restore() {
+        if let plan=selectedPlan {
+            guard active, !tracking.busy else { return }
+            invalidateTasks();departureReady=false;departureGate.reset();readyAnnounced=false;lastPoseTime=nil
+            tracking.endSession();tracking.setActive(true);tracking.errorMessage=nil
+            tracking.startPlan(plan)
+            phase = .wear;message="사전 동선을 불러왔습니다. 출발 지점에서 착용을 준비해주세요."
+            read(["사전 동선을 불러왔습니다. 스캔 없이 바로 안내합니다.","휴대폰을 허리 앞쪽에 세로로 고정해주세요. 후면 카메라는 몸 바깥쪽을 향하고 렌즈는 가리지 말아주세요."])
+            return
+        }
         guard let selected, active, !tracking.busy else { return }
         invalidateTasks();departureReady=false;departureGate.reset();readyAnnounced=false;lastPoseTime=nil
         tracking.endSession();tracking.setActive(true);tracking.errorMessage=nil

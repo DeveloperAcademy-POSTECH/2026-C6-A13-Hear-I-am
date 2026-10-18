@@ -4,7 +4,30 @@ import HearIAmCore
 /// Camera frames and mesh anchors arriving from SessionBridge.
 extension ARSessionController {
     func receive(_ sample: CameraSample, token incoming: UUID) {
-        guard incoming==token, active, mode == .scanning || mode == .restoring else { return }
+        guard incoming==token, active, mode == .scanning || mode == .restoring || mode == .calibrated else { return }
+        if mode == .calibrated {
+            latest=sample
+            if tracking != sample.tracking { event("tracking",detail:sample.tracking) }
+            if stage == nil, sample.normal, sample.world.valid, sample.forward.valid {
+                calibratePlanOrigin()
+            }
+            if sample.time-lastUI >= 0.05 {
+                lastUI=sample.time; tracking=sample.tracking; mapping=sample.mapping
+                ready=sample.normal && sample.world.valid && sample.forward.valid
+                if let stage, ready {
+                    position=stagePosition(sample.world)
+                    heading=stage.heading(cameraForward:sample.forward)
+                } else { position=nil; heading=nil }
+                guidancePoseTime=sample.time
+            }
+            if sample.time-lastPoseLog>=0.05 {
+                lastPoseLog=sample.time
+                let raw=sample.world.valid ? stagePosition(sample.world) : nil
+                event("pose",detail:"observing",position:raw,
+                      heading:stage?.heading(cameraForward:sample.forward),time:sample.time)
+            }
+            return
+        }
         let wasVerified=gate.verified
         guard gate.observe(time:sample.time,normal:sample.normal && sample.world.valid && sample.forward.valid,anchorsPresent:referenceAnchorsPresent(sample)) else { return }
         latest=sample
@@ -14,7 +37,7 @@ extension ARSessionController {
             lastUI=sample.time; tracking=sample.tracking; mapping=sample.mapping
             ready=gate.isReady(now:now); canVerify=gate.canVerify(now:now)
             canSave=mode == .scanning && !busy && sample.normal && sample.mapped &&
-                referenceAnchorsPresent(sample) && !meshes.isEmpty && stage != nil && routeIsValid
+                referenceAnchorsPresent(sample) && (!meshes.isEmpty || !supportsMesh) && stage != nil && routeIsValid
             if let stage, ready {
                 position=stagePosition(sample.world)
                 heading=stage.heading(cameraForward:sample.forward)

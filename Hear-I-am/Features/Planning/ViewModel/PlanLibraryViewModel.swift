@@ -5,10 +5,12 @@ import HearIAmCore
 @MainActor
 final class PlanLibraryViewModel: ObservableObject {
     @Published var editing: PerformancePlan?
+    @Published var guiding: PerformancePlan?
     @Published var selection=LibrarySelectionState()
 
     func create() { editing=PerformancePlan() }
     func open(_ plan: PerformancePlan) { editing=plan }
+    func guide(_ plan: PerformancePlan) { guiding=plan }
     func deleteSelected(in library: StageLibrary) {
         guard !selection.deleting else {return}
         selection.deleting=true

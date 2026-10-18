@@ -19,7 +19,9 @@ struct PlanLibraryView: View {
                         }.frame(maxWidth:.infinity).padding(.vertical,35)
                     }
                     ForEach(library.plans) {plan in
-                        Button {model.open(plan)} label: {PlanCard(plan:plan)}.buttonStyle(.plain)
+                        Button {model.open(plan)} label: {
+                            PlanCard(plan:plan,onGuide:model.selection.selecting ? nil : { model.guide(plan) })
+                        }.buttonStyle(.plain)
                             .librarySelection(selecting:model.selection.selecting,selected:model.selection.contains(plan.id),onSelect:{
                                 model.selection.begin(with:plan.id)
                             },onToggle:{model.selection.toggle(plan.id)})
@@ -37,6 +39,7 @@ struct PlanLibraryView: View {
                 } message: {Text("저장한 사전 도면이 삭제되며 되돌릴 수 없어요. 실제 스캔 무대와 안내 기록은 유지돼요.")}
                 .refreshable {await library.refresh()}
                 .fullScreenCover(item:$model.editing) {plan in PlanEditorView(initial:plan,library:library)}
+                .fullScreenCover(item:$model.guiding) {plan in GuidanceView(library:library,initialPlan:plan)}
         }
     }
 }

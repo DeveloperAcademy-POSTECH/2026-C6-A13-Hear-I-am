@@ -11,11 +11,15 @@ struct GuidanceInstruction: View {
                 Text(headline.title).font(.largeTitle.bold()).fixedSize(horizontal:false,vertical:true)
                 Text(headline.detail).font(.title3).foregroundStyle(.secondary).fixedSize(horizontal:false,vertical:true)
                 if let selected=model.selected { Text(selected.name).font(.subheadline).foregroundStyle(.secondary) }
+                else if let plan=model.selectedPlan {
+                    Text(String(format:"%@ · 무대 %.1f×%.1f m (스캔 없음)",plan.name,plan.stageWidth,plan.stageDepth))
+                        .font(.subheadline).foregroundStyle(.secondary)
+                }
                 if model.phase == .departure {
-                    Label(model.tracking.ready ? "확인점 검증 완료" : "위치 확인 중",systemImage:model.tracking.ready ? "checkmark.circle.fill" : "circle")
-                    Label(model.tracking.heading != nil ? "몸의 방향 확인 완료" : "카메라를 몸 바깥쪽으로 향해주세요",systemImage:"location.north")
-                    if let distance=model.startDistance, !model.hasStarted { Text("출발점까지 \(distance,format:.number.precision(.fractionLength(1))) m").font(.headline.monospacedDigit()) }
-                    Text(model.hasStarted ? "안내를 중단했던 동선 위에서 재개할 수 있어요." : "출발점까지의 별도 길 안내는 제공하지 않아요. 출발점에서 잠시 멈춰주세요. 어느 방향을 바라봐도 몸의 방향에 맞춰 안내해요.")
+                    Label(model.tracking.ready ? (model.isPlanMode ? "출발점 영점(0,0) 설정 완료" : "확인점 검증 완료") : "위치 확인 중",systemImage:model.tracking.ready ? "checkmark.circle.fill" : "circle")
+                    Label(model.tracking.heading != nil ? (model.isPlanMode ? "정면(0°) 방향 설정 완료" : "몸의 방향 확인 완료") : "카메라를 몸 바깥쪽으로 향해주세요",systemImage:"location.north")
+                    if let distance=model.startDistance, !model.hasStarted { Text("출발점까지 \(distance,format:.number.precision(.fractionLength(2))) m").font(.headline.monospacedDigit()) }
+                    Text(model.hasStarted ? "안내를 중단했던 동선 위에서 재개할 수 있어요." : (model.isPlanMode ? "출발 지점에 서서 객석 정면을 바라보고 잠시 멈춰주세요. 현재 위치가 출발점(0,0), 바라보는 방향이 정면(0°)으로 자동 설정돼요." : "출발점까지의 별도 길 안내는 제공하지 않아요. 출발점에서 잠시 멈춰주세요. 어느 방향을 바라봐도 몸의 방향에 맞춰 안내해요."))
                         .font(.footnote).foregroundStyle(.secondary)
                 }
                 if model.phase == .failed {

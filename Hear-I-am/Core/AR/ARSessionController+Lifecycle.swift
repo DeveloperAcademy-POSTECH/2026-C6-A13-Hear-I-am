@@ -10,7 +10,7 @@ extension ARSessionController {
         let operation=token
         Task {
             defer { if token==operation {busy=false} }
-            guard supported else { errorMessage="LiDAR 메시 스캔을 지원하는 실제 iPhone이 필요합니다."; return }
+            guard supported else { errorMessage="AR 월드 트래킹을 지원하는 실제 iPhone이 필요합니다."; return }
             guard await permission(), active, token==operation else { return }
             busy=false
             reset()
@@ -20,6 +20,62 @@ extension ARSessionController {
             startSession(map:nil)
             status="네 꼭짓점, 경로, 장애물, 독립 확인점 C를 선택하세요"
         }
+    }
+    func startPlan(_ plan: PerformancePlan) {
+        guard !busy else { return }
+        busy=true
+        let operation=token
+        Task {
+            defer { if token==operation {busy=false} }
+            guard supported else { errorMessage="이 기기는 AR 안내를 지원하지 않습니다."; return }
+            guard await permission(), active, token==operation else { return }
+            busy=false
+            reset()
+            activePlan=plan; scanID=plan.id; mode = .calibrated; ready=true
+            renderer.meshLayer.isHidden=true; renderer.referenceLayer.isHidden=false
+            beginLog(source:"plan-calibrated")
+            guard logger.isOpen else {mode = .idle; return}
+            startSession(map:nil)
+            status="출발 지점에 서서 객석 정면을 바라보고 안내를 시작하세요"
+        }
+    }
+    @discardableResult
+    func calibratePlanOrigin() -> (area: StageArea, frame: StageFrame, route: StageRoute, settings: GuideSettings)? {
+        guard let plan=activePlan else { return nil }
+        let camWorld: Point3
+        let camForward: Point3
+        if let sample=latest, sample.world.valid, sample.forward.valid {
+            camWorld=sample.world; camForward=sample.forward
+        } else if let frame=session?.currentFrame {
+            let t=frame.camera.transform
+            camWorld=Point3(Double(t.columns.3.x),Double(t.columns.3.y),Double(t.columns.3.z))
+            camForward=Point3(Double(-t.columns.2.x),Double(-t.columns.2.y),Double(-t.columns.2.z))
+        } else {
+            return nil
+        }
+        var floorY=camWorld.y-1.25
+        if let arView=view {
+            let center=CGPoint(x:arView.bounds.midX,y:arView.bounds.midY)
+            if let query=arView.raycastQuery(from:center,allowing:.estimatedPlane,alignment:.horizontal),
+               let result=arView.session.raycast(query).first {
+                floorY=Double(result.worldTransform.columns.3.y)
+            }
+        }
+        guard let calibrated=try? plan.calibratedStage(startWorld:Point3(camWorld.x,floorY,camWorld.z),cameraForward:camForward) else {
+            return nil
+        }
+        area=calibrated.area; stage=calibrated.frame
+        origin=calibrated.frame.origin; front=calibrated.frame.front; checkpoint=nil
+        corners=calibrated.area.corners.map { Optional($0) }
+        routePoints=calibrated.route.points; obstacles=calibrated.route.obstacles; settings=calibrated.settings
+        renderer.meshLayer.isHidden=true; renderer.referenceLayer.isHidden=false
+        redrawReferences()
+        position=stagePosition(camWorld)
+        heading=calibrated.frame.heading(cameraForward:camForward)
+        guidancePoseTime=now; ready=true
+        status="출발점 영점 및 정면(0°) 설정 완료"
+        event("plan_origin_calibrated",position:position,heading:heading,time:now)
+        return calibrated
     }
     func restore(_ item: ScanManifest) {
         guard !busy else { return }
@@ -101,6 +157,10 @@ extension ARSessionController {
         }
     }
     func audioInterrupted() {
+        if mode == .calibrated {
+            event("audio_interrupted")
+            return
+        }
         gate.invalidate(); invalidateWear("오디오 중단 · C 재검증 필요")
         event("audio_interrupted")
     }
@@ -110,12 +170,14 @@ extension ARSessionController {
         if purpose == .guidance {renderer.referenceLayer.isHidden=true}
     }
     func tick() {
-        let was=gate.verified; gate.expire(now:now)
-        if was && !gate.verified { invalidateWear("센서 표본 만료 · C 재검증 필요"); event("sample_expired") }
-        canVerify=gate.canVerify(now:now); ready=gate.isReady(now:now)
-        if let latest, now-latest.time>0.5 { canSave=false }
-        if let restoreStarted, now-restoreStarted>60, !ready, !canVerify {
-            interrupt("복원 60초 초과 · 주변을 확인한 후 저장 공간을 다시 불러오세요",token:token)
+        if mode != .calibrated {
+            let was=gate.verified; gate.expire(now:now)
+            if was && !gate.verified { invalidateWear("센서 표본 만료 · C 재검증 필요"); event("sample_expired") }
+            canVerify=gate.canVerify(now:now); ready=gate.isReady(now:now)
+            if let latest, now-latest.time>0.5 { canSave=false }
+            if let restoreStarted, now-restoreStarted>60, !ready, !canVerify {
+                interrupt("복원 60초 초과 · 주변을 확인한 후 저장 공간을 다시 불러오세요",token:token)
+            }
         }
         let checkedToken=token
         logger.checkFailure { [weak self] failure in

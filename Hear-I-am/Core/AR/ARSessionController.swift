@@ -9,7 +9,7 @@ import HearIAmCore
 @MainActor
 final class ARSessionController: ObservableObject {
     enum Purpose { case preparation, guidance }
-    enum Mode: String { case idle, scanning, restoring, saved }
+    enum Mode: String { case idle, scanning, restoring, calibrated, saved }
 
     @Published var mode: Mode = .idle
     @Published var status="새 스캔 또는 저장 공간을 선택하세요"
@@ -30,7 +30,8 @@ final class ARSessionController: ObservableObject {
 
     let purpose: Purpose
     let checkpointTolerance=0.15 // Experiment threshold, NOT an accuracy guarantee.
-    let supported=ARWorldTrackingConfiguration.isSupported && ARWorldTrackingConfiguration.supportsSceneReconstruction(.mesh)
+    let supported=ARWorldTrackingConfiguration.isSupported
+    let supportsMesh=ARWorldTrackingConfiguration.supportsSceneReconstruction(.mesh)
     let store: ScanStore
     let renderer=ARSceneRenderer()
     let logger: TrialLogger
@@ -56,6 +57,7 @@ final class ARSessionController: ObservableObject {
     var saveAttempt=UUID()
     var archiveWriteInProgress=false
     var manifest: ScanManifest?
+    var activePlan: PerformancePlan?
     var meshes: [UUID:MeshSnapshot]=[:]
 
     // Stage geometry in AR world (corners, checkpoint) and stage floor metres (route, obstacles).
@@ -78,7 +80,7 @@ final class ARSessionController: ObservableObject {
 
     var now: Double { ProcessInfo.processInfo.systemUptime }
     var referencePrefix: String { "PoC4.reference."+scanID.uuidString }
-    var canConfirmScan: Bool { mode == .scanning && !busy && !meshes.isEmpty && latest?.mapped == true && latest?.normal == true && now-(latest?.time ?? 0) < 0.5 }
+    var canConfirmScan: Bool { mode == .scanning && !busy && (!meshes.isEmpty || !supportsMesh) && latest?.mapped == true && latest?.normal == true && now-(latest?.time ?? 0) < 0.5 }
     var canPlacePoint: Bool { mode == .scanning && !busy && !preparationInterrupted && latest?.normal == true && now-(latest?.time ?? 0) < 0.5 }
 
     init(purpose: Purpose) {
@@ -120,8 +122,8 @@ final class ARSessionController: ObservableObject {
     func startSession(map: ARWorldMap?) {
         let config=ARWorldTrackingConfiguration()
         config.worldAlignment = .gravity; config.planeDetection=[.horizontal]
-        // Mesh creation only in pre-scan. During restoration use the saved snapshot.
-        if mode == .scanning { config.sceneReconstruction = .mesh }
+        // Mesh creation only in pre-scan when LiDAR scene reconstruction is supported.
+        if mode == .scanning && supportsMesh { config.sceneReconstruction = .mesh }
         config.initialWorldMap=map
         let newSession=ARSession()
         bridge=SessionBridge(controller:self,token:token)
@@ -140,7 +142,7 @@ final class ARSessionController: ObservableObject {
         renderer.clearAnnotations()
         cornerAnchors.removeAll()
         renderer.meshLayer.isHidden = !showMesh; renderer.referenceLayer.isHidden=false
-        manifest=nil; origin=nil; front=nil; checkpoint=nil; stage=nil; area=nil
+        manifest=nil; activePlan=nil; origin=nil; front=nil; checkpoint=nil; stage=nil; area=nil
         corners=Array(repeating:nil,count:4); routePoints=[]; obstacles=[]; pendingObject=[]
         restoreStarted=nil; updateCounts(); lastUI = -.infinity; lastPoseLog = -.infinity
     }

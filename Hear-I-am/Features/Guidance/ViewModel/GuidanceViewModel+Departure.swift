@@ -15,12 +15,32 @@ extension GuidanceViewModel {
         }
         return departureReady ? "위치와 몸의 방향이 확인됐어요." : "위치와 방향을 확인 중이에요. 잠시 멈춰주세요."
     }
+    @discardableResult
+    func recalibratePlanOrigin(announce: Bool = true) -> Bool {
+        guard isPlanMode, let calibrated=tracking.calibratePlanOrigin() else { return false }
+        guide=RouteGuide(route:calibrated.route,settings:calibrated.settings,usesRouteCorridor:true)
+        if let plan=selectedPlan {
+            run=GuidanceRun(stageID:plan.id,stageName:plan.name,route:calibrated.route)
+        }
+        started=false;cue=nil;tracking.setGuidanceTarget(1)
+        departureGate.reset();departureReady=false;readyAnnounced=false
+        if announce {
+            message="현재 위치를 출발점(0,0), 정면을 0°로 재설정했습니다."
+            if phase != .departure && phase != .guiding { phase = .departure }
+            read(["현재 위치를 출발점 영점, 바라보는 정면을 영도로 다시 설정했습니다."])
+        }
+        return true
+    }
     /// Starts from departure, or resumes from a pause, after the start announcement finishes.
     func startGuidance() {
         guard (phase == .departure && departureReady || phase == .paused && canResume), instructionDone, !speaking else { return }
         phase = .starting
         read([started ? "안내를 다시 시작합니다." : "안내를 시작합니다.","\(targetName)으로 이동합니다."]) { [weak self] in
-            guard let self, self.phase == .starting, var guide=self.guide else { return }
+            guard let self, self.phase == .starting else { return }
+            if self.isPlanMode && !self.started {
+                _ = self.recalibratePlanOrigin(announce:false)
+            }
+            guard var guide=self.guide else { return }
             guard let pose=self.freshPose() else { self.interrupt("현재 위치를 확인할 수 없어요. 확인점을 다시 확인해주세요.");return }
             let success=self.started ? guide.resume(position:pose.point,trackingValid:true) : guide.start(position:pose.point,headingDegrees:pose.heading,trackingValid:true)
             guard success else {
@@ -31,6 +51,12 @@ extension GuidanceViewModel {
         }
     }
     func tickDeparture(pose: (point: FloorPoint, heading: Double, time: Double), guide: RouteGuide) {
+        if isPlanMode && !started {
+            let eligibleNow=guide.ready(position:pose.point,headingDegrees:pose.heading,trackingValid:true)
+            if !eligibleNow && pose.heading.isFinite {
+                if recalibratePlanOrigin(announce:false) { return }
+            }
+        }
         let eligible=started ? guide.canResume(position:pose.point,trackingValid:true) : guide.ready(position:pose.point,headingDegrees:pose.heading,trackingValid:true)
         departureReady=departureGate.observe(time:pose.time,eligible:eligible)
         if !eligible {

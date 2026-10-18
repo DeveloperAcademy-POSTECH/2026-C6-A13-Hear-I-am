@@ -31,19 +31,39 @@ struct GuidanceControls: View {
     @ViewBuilder private var primary: some View {
         switch model.phase {
         case .selection:
-            if library.records.isEmpty {GuidanceButton(title:"홈으로 돌아가기",action:close)}
-            else {GuidanceButton(title:"이 무대 사용하기",enabled:model.selected != nil && model.instructionDone && !model.speaking) {model.restore()}}
+            if library.records.isEmpty && library.plans.isEmpty {GuidanceButton(title:"홈으로 돌아가기",action:close)}
+            else {
+                GuidanceButton(
+                    title:model.isPlanMode ? "이 사전 동선으로 안내하기" : "이 무대 사용하기",
+                    enabled:(model.selected != nil || model.selectedPlan != nil) && model.instructionDone && !model.speaking
+                ) {model.restore()}
+            }
         case .restoring: GuidanceButton(title:"공간 확인 중…",enabled:false) {}
         case .checkpoint: GuidanceButton(title:"확인점 확인하기",enabled:model.canVerify) {model.verifyCheckpoint()}
-        case .wear: GuidanceButton(title:"착용 준비 시작",enabled:model.instructionDone && !model.speaking) {model.beginWear()}
-        case .countdown: GuidanceButton(title:"착용 시간 다시 시작",secondary:true) {model.beginWear()}
-        case .departure: GuidanceButton(title:model.hasStarted ? "안내 다시 시작" : "안내 시작",enabled:model.departureReady && model.instructionDone && !model.speaking) {model.startGuidance()}
+        case .wear:
+            if model.isPlanMode {
+                GuidanceButton(title:"건너뛰고 바로 출발 준비",secondary:true) {model.skipWearToDeparture()}
+            }
+            GuidanceButton(title:"착용 준비 시작",enabled:model.instructionDone && !model.speaking) {model.beginWear()}
+        case .countdown:
+            if model.isPlanMode {
+                GuidanceButton(title:"건너뛰고 바로 출발 준비",secondary:true) {model.skipWearToDeparture()}
+            }
+            GuidanceButton(title:"착용 시간 다시 시작",secondary:true) {model.beginWear()}
+        case .departure:
+            if model.isPlanMode {
+                GuidanceButton(title:"출발점·정면(0°) 영점 재설정",secondary:true) { _ = model.recalibratePlanOrigin(announce:true) }
+            }
+            GuidanceButton(title:model.hasStarted ? "안내 다시 시작" : "안내 시작",enabled:model.departureReady && model.instructionDone && !model.speaking) {model.startGuidance()}
         case .starting,.guiding: GuidanceButton(title:"일시정지") {model.pause()}
         case .paused:
-            GuidanceButton(title:"확인점 다시 확인",secondary:true) {model.restore()}
+            GuidanceButton(title:model.isPlanMode ? "출발점 영점 다시 설정" : "확인점 다시 확인",secondary:true) {
+                if model.isPlanMode { _ = model.recalibratePlanOrigin(announce:true) }
+                else { model.restore() }
+            }
             GuidanceButton(title:"안내 다시 시작",enabled:model.canResume && model.instructionDone && !model.speaking) {model.startGuidance()}
         case .interrupted:
-            GuidanceButton(title:"확인점 다시 확인") {model.restore()}
+            GuidanceButton(title:model.isPlanMode ? "사전 동선 다시 시작" : "확인점 다시 확인") {model.restore()}
         case .failed:
             GuidanceButton(title:"무대 다시 선택",secondary:true) {model.chooseAgain()}
             GuidanceButton(title:"공간 다시 확인",enabled:!model.tracking.busy) {model.restore()}

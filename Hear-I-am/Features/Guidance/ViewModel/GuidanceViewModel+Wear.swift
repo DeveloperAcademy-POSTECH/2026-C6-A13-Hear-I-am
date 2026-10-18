@@ -26,8 +26,15 @@ extension GuidanceViewModel {
                 }
                 guard self.generation == operation, self.active, self.tracking.ready else { return }
                 self.phase = .departure;self.countdownTask=nil;self.departureGate.reset();self.readyAnnounced=false
+                if self.isPlanMode && !self.started { _ = self.recalibratePlanOrigin(announce:false) }
                 self.read([self.started ? "착용 상태를 확인하고 있습니다. 안내를 중단한 동선 위에서 준비해주세요." : "착용 상태를 확인하고 있습니다. 지정한 출발점에서 잠시 멈춰주세요. 몸이 향한 방향을 기준으로 안내합니다."])
             }
         }
+    }
+    func skipWearToDeparture() {
+        guard (phase == .wear || phase == .countdown), isPlanMode, active else { return }
+        invalidateTasks();phase = .departure;departureGate.reset();readyAnnounced=false
+        _ = recalibratePlanOrigin(announce:false)
+        read(["출발 지점에서 객석 정면을 바라보고 잠시 멈춰주세요. 현재 위치가 출발점 영점, 바라보는 방향이 정면 영도로 설정됩니다."])
     }
 }
