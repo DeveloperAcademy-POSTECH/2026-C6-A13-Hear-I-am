@@ -10,7 +10,7 @@ struct PlanLibraryView: View {
             ScrollView {
                 VStack(alignment:.leading,spacing:20) {
                     Text("공연 전에 동선을 그려보세요").font(.title3.bold())
-                    Text("배치 연습용 도면입니다. 실제 스캔이나 안내와 연결되지 않아요.").font(.subheadline).foregroundStyle(.secondary)
+                    Text("미리 그린 공연 동선과 기물을 무대 준비 AR 공간에 그대로 불러올 수 있어요.").font(.subheadline).foregroundStyle(.secondary)
                     if library.plans.isEmpty {
                         VStack(spacing:16) {
                             Image("StageEmpty").resizable().scaledToFit().frame(height:190)
@@ -19,7 +19,9 @@ struct PlanLibraryView: View {
                         }.frame(maxWidth:.infinity).padding(.vertical,35)
                     }
                     ForEach(library.plans) {plan in
-                        Button {model.open(plan)} label: {PlanCard(plan:plan)}.buttonStyle(.plain)
+                        Button {model.open(plan)} label: {
+                            PlanCard(plan:plan,onPrepare:model.selection.selecting ? nil : {model.prepare(plan)})
+                        }.buttonStyle(.plain)
                             .librarySelection(selecting:model.selection.selecting,selected:model.selection.contains(plan.id),onSelect:{
                                 model.selection.begin(with:plan.id)
                             },onToggle:{model.selection.toggle(plan.id)})
@@ -37,6 +39,7 @@ struct PlanLibraryView: View {
                 } message: {Text("저장한 사전 도면이 삭제되며 되돌릴 수 없어요. 실제 스캔 무대와 안내 기록은 유지돼요.")}
                 .refreshable {await library.refresh()}
                 .fullScreenCover(item:$model.editing) {plan in PlanEditorView(initial:plan,library:library)}
+                .fullScreenCover(item:$model.preparingPlan,onDismiss:{Task {await library.refresh()}}) {plan in PreparationView(library:library,initialPlan:plan)}
         }
     }
 }

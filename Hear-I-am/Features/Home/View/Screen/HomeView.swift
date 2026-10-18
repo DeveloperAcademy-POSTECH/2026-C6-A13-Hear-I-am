@@ -53,7 +53,7 @@ struct HomeView: View {
                 } message: {Text("무대 이름을 80자 이내로 입력해주세요.")}
                 .sheet(isPresented:$model.showingSettings) {HomeSettingsView()}
                 .refreshable {await library.refresh()}
-                .fullScreenCover(isPresented:$model.preparing,onDismiss:{Task {await library.refresh()}}) {PreparationView()}
+                .fullScreenCover(isPresented:$model.preparing,onDismiss:{Task {await library.refresh()}}) {PreparationView(library:library)}
                 .fullScreenCover(isPresented:$model.guiding) {GuidanceView(library:library)}
                 .alert("Hear I am",isPresented:Binding(get:{model.notice != nil},set:{if !$0 {model.notice=nil}})) {Button("확인",role:.cancel) {model.notice=nil}} message: {Text(model.notice ?? "")}
         }

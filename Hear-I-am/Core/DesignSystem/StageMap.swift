@@ -76,6 +76,7 @@ struct StageMap: View {
                 guard scale > 0 else {return}
                 onTap?(FloorPoint(b.0+(event.location.x-ox)/scale,b.3-(event.location.y-oy)/scale))
             })
+            .allowsHitTesting(onTap != nil)
         }.background(Color(.systemGray6), in: RoundedRectangle(cornerRadius:16))
     }
 }

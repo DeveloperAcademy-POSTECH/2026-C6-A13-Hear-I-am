@@ -3,9 +3,14 @@ import HearIAmCore
 
 /// Landscape stage preparation over a full-screen camera.
 struct PreparationView: View {
-    @StateObject private var model=PreparationViewModel()
+    @ObservedObject var library: StageLibrary
+    @StateObject private var model: PreparationViewModel
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
+    init(library: StageLibrary, initialPlan: PerformancePlan? = nil) {
+        self.library=library
+        _model=StateObject(wrappedValue:PreparationViewModel(initialPlan:initialPlan))
+    }
     var body: some View {
         GeometryReader { safe in
         VStack(spacing:0) {
@@ -33,10 +38,12 @@ struct PreparationView: View {
                             .allowsHitTesting(false)
                     }
                     HStack {
-                        Text(model.showsCrosshairHint)
-                            .font(.caption).padding(8).background(.regularMaterial,in:Capsule())
+                        if let hint=model.showsCrosshairHint {
+                            Text(hint)
+                                .font(.caption).padding(8).background(.regularMaterial,in:Capsule())
+                        }
                         Spacer()
-                        PreparationControls(model:model)
+                        PreparationControls(model:model,hasPlans:!library.plans.isEmpty)
                     }
                 }.padding(.leading,safe.safeAreaInsets.leading+14)
                     .padding(.trailing,safe.safeAreaInsets.trailing+14)
@@ -57,6 +64,9 @@ struct PreparationView: View {
                         Text("입력한 정보는 유지됩니다. 같은 공간을 비추고 다시 시작해주세요.").font(.subheadline)
                         ActionButton(title:"추적 다시 시작") {model.resumeTracking()}
                     }.padding(24).background(.regularMaterial,in:RoundedRectangle(cornerRadius:20))
+                }
+                if model.choosingPlan {
+                    PreparationPlanPicker(plans:library.plans,initialID:model.selectedPlan?.id,onConfirm:{model.applyPlan($0)},onCancel:{model.choosingPlan=false})
                 }
                 if model.review {PreparationReviewCard(model:model)}
                 if model.isSaving {
