@@ -14,7 +14,11 @@ struct PreparationGuide {
             description="휴대폰을 양손으로 잡고 공연장과 백스테이지까지 충분히 담아주세요."
         case .boundary:
             title=nextCorner.map {"무대 \(names[$0])을 지정해주세요"} ?? "네 모서리가 연결됐어요"
-            description="객석에서 바라본 기준입니다. 네 점이 자동으로 연결됩니다. 위 이름을 눌러 다시 찍을 수 있어요."
+            if nextCorner == 2, draft.corners[0] != nil, draft.corners[1] != nil, draft.corners[3] != nil {
+                description="청록색 점선은 뒤 왼쪽에서 뒤 오른쪽으로 향하는 임시 가이드예요. 실제 바닥의 뒤 오른쪽 모서리를 직접 찍어주세요."
+            } else {
+                description="객석 기준 앞 오른쪽 → 앞 왼쪽 → 뒤 왼쪽 → 뒤 오른쪽 순서예요. 점선은 임시 방향 가이드이며 네 모서리는 직접 찍어주세요."
+            }
         case .objects:
             title=objectEditing ? "기물의 바닥 둘레를 지정해주세요" : "장애물과 단상을 등록하세요"
             description=objectEditing ? "십자선을 물체 주변 바닥 모서리에 맞추고 ‘둘레 점 추가’를 누르세요. 한 방향으로 3~8점을 찍고 등록하면 자동으로 닫힙니다. 현재 \(pendingVertexCount)/8점 · 윗면은 찍지 않아요." : "‘기물 추가’ 후 바닥 둘레를 직접 찍어요. 사각형은 네 모서리를 순서대로 지정하세요. 기물이 없으면 건너뛰세요."

@@ -32,16 +32,16 @@ struct GuidanceControls: View {
         switch model.phase {
         case .selection:
             if library.records.isEmpty {GuidanceButton(title:"홈으로 돌아가기",action:close)}
-            else {GuidanceButton(title:"이 무대 사용하기",enabled:model.selected != nil && model.instructionDone && !model.speaking) {model.restore()}}
+            else {GuidanceButton(title:"이 무대 사용하기",enabled:model.selected != nil && model.canAdvanceInstruction) {model.restore()}}
         case .restoring: GuidanceButton(title:"공간 확인 중…",enabled:false) {}
         case .checkpoint: GuidanceButton(title:"확인점 확인하기",enabled:model.canVerify) {model.verifyCheckpoint()}
-        case .wear: GuidanceButton(title:"착용 준비 시작",enabled:model.instructionDone && !model.speaking) {model.beginWear()}
+        case .wear: GuidanceButton(title:"착용 준비 시작",enabled:model.canAdvanceInstruction) {model.beginWear()}
         case .countdown: GuidanceButton(title:"착용 시간 다시 시작",secondary:true) {model.beginWear()}
-        case .departure: GuidanceButton(title:model.hasStarted ? "안내 다시 시작" : "안내 시작",enabled:model.departureReady && model.instructionDone && !model.speaking) {model.startGuidance()}
+        case .departure: GuidanceButton(title:model.hasStarted ? "안내 다시 시작" : "안내 시작",enabled:model.departureReady && model.canAdvanceInstruction) {model.startGuidance()}
         case .starting,.guiding: GuidanceButton(title:"일시정지") {model.pause()}
         case .paused:
             GuidanceButton(title:"확인점 다시 확인",secondary:true) {model.restore()}
-            GuidanceButton(title:"안내 다시 시작",enabled:model.canResume && model.instructionDone && !model.speaking) {model.startGuidance()}
+            GuidanceButton(title:"안내 다시 시작",enabled:model.canResume && model.canAdvanceInstruction) {model.startGuidance()}
         case .interrupted:
             GuidanceButton(title:"확인점 다시 확인") {model.restore()}
         case .failed:

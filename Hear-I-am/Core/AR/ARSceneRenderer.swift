@@ -18,6 +18,7 @@ final class ARSceneRenderer {
         var routePoints: [FloorPoint]
         var obstacles: [StageObstacle]
         var pendingObject: [FloorPoint]
+        var dangerZones: [StageDangerZone] = []
     }
 
     let meshLayer=SCNNode()
