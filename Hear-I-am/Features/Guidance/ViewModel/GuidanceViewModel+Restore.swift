@@ -2,10 +2,10 @@ import HearIAmCore
 
 /// 2 / 4 · 현장 확인: restoring the saved space, then verifying the checkpoint.
 extension GuidanceViewModel {
-    var canVerify: Bool { phase == .checkpoint && instructionDone && tracking.canVerify && !speaking }
+    var canVerify: Bool { phase == .checkpoint && canAdvanceInstruction && tracking.canVerify }
 
     func restore() {
-        guard let selected, active, !tracking.busy else { return }
+        guard let selected, active, !tracking.busy, phase != .selection || canAdvanceInstruction else { return }
         invalidateTasks();departureReady=false;departureGate.reset();readyAnnounced=false;lastPoseTime=nil
         tracking.endSession();tracking.setActive(true);tracking.errorMessage=nil
         message="저장한 공연장 위치를 확인하고 있어요."
@@ -15,6 +15,7 @@ extension GuidanceViewModel {
     }
     func verifyCheckpoint() {
         guard canVerify else { return }
+        invalidateTasks()
         tracking.errorMessage=nil;tracking.verifyCheckpoint()
         if tracking.ready {
             phase = .wear;message="확인점이 일치합니다."
@@ -27,7 +28,8 @@ extension GuidanceViewModel {
     func tickRestoring() {
         if let error=tracking.errorMessage { fail(error);return }
         if !tracking.busy && tracking.mode == .idle { fail(tracking.status);return }
-        if tracking.canVerify, instructionDone, !speaking {
+        if tracking.canVerify, canAdvanceInstruction {
+            invalidateTasks()
             phase = .checkpoint;message="중앙 조준점을 저장한 확인점에 맞춰주세요."
             read(["공연장을 찾았습니다. 저장한 확인점에 중앙 조준점을 맞춘 뒤 확인점 확인하기를 눌러주세요."])
         }
