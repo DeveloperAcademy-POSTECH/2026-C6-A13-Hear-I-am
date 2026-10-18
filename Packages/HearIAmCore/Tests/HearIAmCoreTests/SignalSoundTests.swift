@@ -65,11 +65,16 @@ final class SignalSoundTests: XCTestCase {
         XCTAssertGreaterThan(rms(s[..<on]),0.3)
         XCTAssertEqual(rms(s[(on+5)..<(on+gap-5)]),0)
     }
-    /// The 「낮은 삑」 warning chosen on 10/18 must not share a pitch with any direction beep (#33).
-    func testChosenWarningSharesNoPitchWithDirectionBeeps() {
+    /// No warning tone and not the arrival ding may share a pitch with a direction beep (#33).
+    /// 「날카로운 삑」 (950 Hz, near the front beep) was dropped on 10/17 and is kept only for comparison.
+    func testSignalsShareNoPitchWithDirectionBeeps() {
         let direction=[DirectionPattern.leftHertz,DirectionPattern.centerHertz,DirectionPattern.rightHertz]
+        let pitches=WarningTone.allCases.filter { $0 != .sharp }.map { ($0.rawValue,$0.pitches[0]) }+[("arrival",ToneRenderer.arrivalHertz)]
+        for (name,pitch) in pitches {
+            XCTAssertTrue(direction.allSatisfy { abs($0-pitch)/pitch > 0.1 },"\(name) \(pitch) Hz")
+        }
         for pitch in WarningTone.low.pitches {
-            XCTAssertTrue(direction.allSatisfy { abs($0-pitch)/pitch > 0.1 },"\(pitch) Hz")
+            XCTAssertTrue(direction.allSatisfy { abs($0-pitch)/pitch > 0.1 },"low \(pitch) Hz")
         }
         XCTAssertEqual(DirectionSignalMode.allCases.map { [$0.vibrates,$0.beeps] },[[true,false],[false,true],[true,true]])
     }

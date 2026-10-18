@@ -9,7 +9,7 @@ public enum WarningTone: String, CaseIterable, Sendable {
     case soft
     /// 440 Hz, mostly pure, an octave lower.
     case low
-    /// 660 Hz that dies away quickly, like a marimba tap.
+    /// C5 (523 Hz) that dies away quickly, like a marimba tap. It was 660 Hz, the left direction beep.
     case pluck
     /// 60 Hz with a 240 Hz overtone: a short low thump, closer to a vibration than a beep.
     case thump
@@ -21,7 +21,7 @@ public enum WarningTone: String, CaseIterable, Sendable {
         case .sharp: return [950,2850]
         case .soft: return [880]
         case .low: return [440,880]
-        case .pluck: return [660]
+        case .pluck: return [523.25]
         case .thump: return [60,240]
         }
     }
