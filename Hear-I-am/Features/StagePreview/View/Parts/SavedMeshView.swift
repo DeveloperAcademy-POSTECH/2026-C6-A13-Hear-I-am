@@ -33,6 +33,7 @@ struct SavedMeshView: UIViewRepresentable {
             n.geometry?.firstMaterial?.diffuse.contents=color; scene.rootNode.addChildNode(n)
         }
         if let route=scan.manifest.route {
+            for zone in route.dangerZones { scene.rootNode.addChildNode(StageDangerZoneOverlay.node(zone,in:route.area)) }
             for i in 0..<4 {line(route.area.corners[i],route.area.corners[(i+1)%4],.systemCyan)}
             for i in route.points.indices {
                 let p=route.area.world(route.points[i]); marker(p,.systemGreen)

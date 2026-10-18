@@ -33,10 +33,16 @@ extension ARSceneRenderer {
             line(guide.leftStart,guide.rightStart,color:.systemOrange)
             dashedGuide(guide.leftStart,guide.leftEnd)
             dashedGuide(guide.rightStart,guide.rightEnd)
+            if let backLeft=corners[3], let back=try? BackEdgeGuide(front:guide,backLeft:backLeft) {
+                dashedGuide(back.start,back.end,color:.systemTeal)
+            }
         }
         guard let area=content.area else { return }
         let edge=[FloorPoint(0,0),FloorPoint(area.width,0),FloorPoint(area.width,area.depth),FloorPoint(0,area.depth)]
         for i in 0..<4 { line(area.world(edge[i]),area.world(edge[(i+1)%4]),color:.systemCyan) }
+        for zone in content.dangerZones {
+            referenceLayer.addChildNode(StageDangerZoneOverlay.node(zone,in:area,live:true))
+        }
         let routePoints=content.routePoints
         for (i,p) in routePoints.enumerated() {
             let active = !preparing && !completed && i == target
@@ -109,13 +115,14 @@ extension ARSceneRenderer {
         text.font = .boldSystemFont(ofSize:12)
         text.firstMaterial?.diffuse.contents=UIColor.white
         let tag=SCNNode(geometry:text)
-        tag.scale=SCNVector3(0.018,0.018,0.018)
+//        tag.scale=SCNVector3(0.018,0.018,0.018)
+        tag.scale=SCNVector3(0.004,0.004,0.004)
         tag.position=SCNVector3(0,0.24,0)
         tag.constraints=[SCNBillboardConstraint()]
         group.addChildNode(tag)
         referenceLayer.addChildNode(group)
     }
-    private func dashedGuide(_ a: Point3,_ b: Point3) {
+    private func dashedGuide(_ a: Point3,_ b: Point3,color: UIColor = .systemOrange) {
         let length=hypot(b.x-a.x,b.z-a.z)
         guard length > 0 else {return}
         var start=0.0
@@ -124,7 +131,7 @@ extension ARSceneRenderer {
             let u=start/length, v=end/length
             let from=Point3(a.x+(b.x-a.x)*u,a.y,a.z+(b.z-a.z)*u)
             let to=Point3(a.x+(b.x-a.x)*v,a.y,a.z+(b.z-a.z)*v)
-            line(from,to,color:.systemOrange)
+            line(from,to,color:color)
             start += 0.55
         }
     }

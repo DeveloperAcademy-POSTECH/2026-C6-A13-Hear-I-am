@@ -17,7 +17,8 @@ extension GuidanceViewModel {
     }
     /// Starts from departure, or resumes from a pause, after the start announcement finishes.
     func startGuidance() {
-        guard (phase == .departure && departureReady || phase == .paused && canResume), instructionDone, !speaking else { return }
+        guard (phase == .departure && departureReady || phase == .paused && canResume), canAdvanceInstruction, active else { return }
+        invalidateTasks()
         phase = .starting
         read([started ? "안내를 다시 시작합니다." : "안내를 시작합니다.","\(targetName)으로 이동합니다."]) { [weak self] in
             guard let self, self.phase == .starting, var guide=self.guide else { return }

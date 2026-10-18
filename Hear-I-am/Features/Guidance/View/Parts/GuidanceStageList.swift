@@ -41,7 +41,7 @@ struct GuidanceStageList: View {
                         if library.pins.ids.contains(item.id) {Image(systemName:"star.fill").accessibilityLabel("고정한 무대")}
                     }
                     if model.selected?.id == item.id, let route=item.route {
-                        StageMap(width:route.area.width,depth:route.area.depth,points:route.points,objects:route.obstacles,
+                        StageMap(width:route.area.width,depth:route.area.depth,points:route.points,objects:route.obstacles,dangerZones:route.dangerZones,
                                  clearance:item.settings.obstacleClearance)
                             .frame(height:140).accessibilityHidden(true)
                     }

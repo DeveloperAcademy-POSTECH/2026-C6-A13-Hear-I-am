@@ -52,6 +52,10 @@ import HearIAmCore
     private var trackingSubscription: AnyCancellable?
     var currentInstruction: [String]=[]
 
+    let interactionSettings: GuidanceInteractionSettings
+    var canAdvanceInstruction: Bool {
+        interactionSettings.canAdvanceInstruction(done:instructionDone,speaking:speaking,audioFailed:audioIssue != nil)
+    }
     var hasStarted: Bool { started }
     var targetIndex: Int { guide?.targetIndex ?? 1 }
     var targetName: String { GuidanceCopy.target(targetIndex,last:(selected?.route?.points.count ?? 2)-1) }
@@ -60,7 +64,8 @@ import HearIAmCore
                          departureStatus:departureStatus,arrivedName:arrivedName,cue:cue,message:message)
     }
 
-    init() {
+    init(defaults: UserDefaults = .standard) {
+        interactionSettings=GuidanceInteractionSettings(defaults:defaults)
         tracking.showMesh=false
         trackingSubscription=tracking.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }
         voice.onSpeaking={ [weak self] in self?.speaking=$0;self?.signals.setSpeechActive($0) }

@@ -9,6 +9,7 @@ struct StageMap: View {
     var points: [FloorPoint] = []
     var finished = true
     var objects: [StageObstacle] = []
+    var dangerZones: [StageDangerZone] = []
     var checkpoint: FloorPoint?
     var cornerStates: [Bool]? = nil
     var activeCorner: Int? = nil
@@ -39,6 +40,12 @@ struct StageMap: View {
                 context.stroke(Path(rect), with: .color(.gray.opacity(0.4)), lineWidth: 1.5)
                 if showsLabels { context.draw(Text("무대").font(.caption.bold()).foregroundColor(.secondary), at: CGPoint(x:rect.midX,y:rect.minY+13))
                 context.draw(Text("객석 ↓").font(.system(size:10)).foregroundColor(.secondary), at: CGPoint(x:rect.midX,y:rect.maxY+14)) }
+                for zone in dangerZones {
+                    var polygon=Path()
+                    polygon.addLines(zone.vertices(width:width,depth:depth).map(project)); polygon.closeSubpath()
+                    context.fill(polygon,with:.color(.orange.opacity(0.28)))
+                    context.stroke(polygon,with:.color(.orange),style:StrokeStyle(lineWidth:1,dash:[4,3]))
+                }
                 for object in objects {
                     var polygon=Path(); polygon.addLines(object.vertices.map(project)); polygon.closeSubpath()
                     if let clearance, object.blocksPath {
@@ -87,6 +94,7 @@ struct StageMap: View {
                 guard scale > 0 else {return}
                 onTap?(FloorPoint(b.0+(event.location.x-ox)/scale,b.3-(event.location.y-oy)/scale))
             })
+            .allowsHitTesting(onTap != nil)
         }.background(Color(.systemGray6), in: RoundedRectangle(cornerRadius:16))
     }
 }
