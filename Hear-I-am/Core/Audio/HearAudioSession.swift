@@ -3,19 +3,33 @@ import AVFoundation
 /// The one audio session setup shared by speech and signal tones, so both can sound at the same time.
 @MainActor enum HearAudioSession {
     private(set) static var active=false
+    /// The output the active session was set up for; a changed setting is applied on the next sound.
+    private static var configuredForSpeaker: Bool?
+
+    /// Plays through the phone speaker even when AirPods are connected (10/19, so signals can be tried
+    /// with or without earbuds). Off: the connected AirPods, or the speaker when none is connected.
+    static let speakerKey="audio.forceSpeaker"
+    static var forcesSpeaker: Bool { UserDefaults.standard.bool(forKey:speakerKey) }
 
     static func activate() throws {
-        guard !active else { return }
+        let speaker=forcesSpeaker
+        guard !active || configuredForSpeaker != speaker else { return }
         let audio=AVAudioSession.sharedInstance()
-        try audio.setCategory(.playback,mode:.spokenAudio,options:[.mixWithOthers])
-        try audio.setActive(true);active=true
+        if speaker {
+            // .playback cannot override the route. .playAndRecord without Bluetooth options leaves only
+            // the built-in outputs, and .defaultToSpeaker picks the speaker over the receiver. Input is never used.
+            try audio.setCategory(.playAndRecord,mode:.default,options:[.defaultToSpeaker,.mixWithOthers])
+        } else {
+            try audio.setCategory(.playback,mode:.spokenAudio,options:[.mixWithOthers])
+        }
+        try audio.setActive(true);active=true;configuredForSpeaker=speaker
     }
     static func deactivate() {
-        active=false
+        active=false;configuredForSpeaker=nil
         try? AVAudioSession.sharedInstance().setActive(false,options:.notifyOthersOnDeactivation)
     }
     /// The system already deactivated the session; the next activate() sets it up again.
-    static func interrupted() { active=false }
+    static func interrupted() { active=false;configuredForSpeaker=nil }
 
     /// Output names for logs, e.g. "Headphones:AirPods Pro" or "Speaker:Speaker".
     static var route: String {
