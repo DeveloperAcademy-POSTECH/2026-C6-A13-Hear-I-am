@@ -24,6 +24,8 @@ struct PreparationControls: View {
                     }
                     ActionButton(title:"직접 입력") {model.advance()}
                 }
+                ActionButton(title:"위험 구역",primary:false,enabled:!model.busy) {model.editingDangerZones=true}
+                ActionButton(title:"다음 단계") {model.advance()}
             }
         case .objects:
             if model.objectEditing {
