@@ -28,7 +28,10 @@ public struct ScanManifest: Codable, Sendable {
         let c=try decoder.container(keyedBy:CodingKeys.self)
         version=try c.decode(Int.self,forKey:.version)
         route=try c.decodeIfPresent(StageRoute.self,forKey:.route)
-        settings=try c.decodeIfPresent(GuideSettings.self,forKey:.settings) ?? GuideSettings()
+        // Stages saved with the old 0.35 m clearance use the current one, so they need not be prepared again (#38).
+        var saved=try c.decodeIfPresent(GuideSettings.self,forKey:.settings) ?? GuideSettings()
+        saved.obstacleClearance=min(saved.obstacleClearance,GuideSettings.routeClearance)
+        settings=saved
         id=try c.decode(UUID.self,forKey:.id); name=try c.decode(String.self,forKey:.name)
         date=try c.decode(Date.self,forKey:.date); frame=try c.decode(StageFrame.self,forKey:.frame)
         checkpoint=try c.decode(Point3.self,forKey:.checkpoint)

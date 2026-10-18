@@ -13,16 +13,17 @@ final class ObstacleClearanceTests: XCTestCase {
     }
     func testPointInsideClearanceIsRefusedWithTheObjectAndOverlap() throws {
         var d=try draft()
-        let hit=try XCTUnwrap(d.clearanceHit(adding:Point3(0.8,0,-2)))
-        XCTAssertEqual(hit.name,"상자");XCTAssertTrue(hit.pointInside);XCTAssertEqual(hit.overlap,0.15,accuracy:1e-9)
-        XCTAssertEqual(hit.message,"십자선이 상자 여유 영역 안이에요 · 15cm 겹침")
-        XCTAssertThrowsError(try d.addRoutePoint(Point3(0.8,0,-2)))
+        let hit=try XCTUnwrap(d.clearanceHit(adding:Point3(0.9,0,-2)))
+        XCTAssertEqual(hit.name,"상자");XCTAssertTrue(hit.pointInside);XCTAssertEqual(hit.overlap,0.05,accuracy:1e-9)
+        XCTAssertEqual(hit.message,"십자선이 상자 여유 영역 안이에요 · 5cm 겹침")
+        XCTAssertThrowsError(try d.addRoutePoint(Point3(0.9,0,-2)))
+        XCTAssertNil(d.clearanceHit(adding:Point3(0.8,0,-2)))
         XCTAssertEqual(d.route.count,1)
     }
     func testSegmentThroughTheObjectIsRefusedEvenWhenThePointIsClear() throws {
         var d=try draft()
         let hit=try XCTUnwrap(d.clearanceHit(adding:Point3(3.5,0,-2)))
-        XCTAssertFalse(hit.pointInside);XCTAssertEqual(hit.overlap,0.35,accuracy:1e-9)
+        XCTAssertFalse(hit.pointInside);XCTAssertEqual(hit.overlap,PreparationDraft.obstacleClearance,accuracy:1e-9)
         XCTAssertThrowsError(try d.addRoutePoint(Point3(3.5,0,-2),asDestination:false))
     }
     func testPointsOutsideTheClearanceAndPlatformsAreAccepted() throws {
@@ -52,5 +53,14 @@ final class ObstacleClearanceTests: XCTestCase {
         XCTAssertEqual(Double(cells.count)*cell*cell,expected,accuracy:expected*0.03)
         XCTAssertTrue(cells.allSatisfy { square.distance(to:$0) <= clearance })
         XCTAssertTrue(square.clearanceCells(clearance:clearance,cell:0).isEmpty)
+    }
+    func testStagesSavedWithTheOldClearanceUseTheCurrentOne() throws {
+        let a=PerformancePlan.area
+        var old=GuideSettings();old.obstacleClearance=0.35
+        let m=ScanManifest(id:UUID(),name:"무대",frame:try StageFrame(origin:a.world(FloorPoint(0,0)),front:a.world(FloorPoint(0,-1))),
+                           checkpoint:a.corners[2],worldMapHash:"",meshHash:"",meshCount:1,vertexCount:3,device:"",appVersion:"",settings:old)
+        let decoded=try JSONDecoder().decode(ScanManifest.self,from:JSONEncoder().encode(m))
+        XCTAssertEqual(decoded.settings.obstacleClearance,GuideSettings.routeClearance)
+        XCTAssertEqual(GuideSettings().obstacleClearance,0.15)
     }
 }
