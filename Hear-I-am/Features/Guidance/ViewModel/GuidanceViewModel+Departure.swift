@@ -28,7 +28,8 @@ extension GuidanceViewModel {
                 self.phase = .departure;self.departureReady=false;self.departureGate.reset();self.readyAnnounced=false
                 self.read(["출발 조건이 달라졌습니다. 위치와 방향을 다시 확인해주세요."]);return
             }
-            self.guide=guide;self.run?.begin(at:Date(),uptime:ProcessInfo.processInfo.systemUptime);self.started=true;self.phase = .guiding;self.lastPoseTime=nil;self.announcingArrival=false
+            self.guide=guide;self.run?.begin(at:Date(),uptime:ProcessInfo.processInfo.systemUptime);self.started=true;self.phase = .guiding;self.lastPoseTime=nil
+            self.resetSignals()
         }
     }
     func tickDeparture(pose: (point: FloorPoint, heading: Double, time: Double), guide: RouteGuide) {

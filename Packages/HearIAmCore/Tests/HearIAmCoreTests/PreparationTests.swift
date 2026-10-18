@@ -33,12 +33,15 @@ final class PreparationTests: XCTestCase {
         XCTAssertFalse(d.checkpointErrors.isEmpty)
         XCTAssertThrowsError(try d.stageRoute())
     }
-    func testEntrySegmentCannotCrossPlatform() throws {
+    func testEntrySegmentCannotCrossObstacle() throws {
         var d = draft()
         try d.addRoutePoint(Point3(-1,0,-2)); try d.addRoutePoint(Point3(5,0,-2))
         try d.addRoutePoint(Point3(13,0,-2), asDestination: true)
-        d.objects = [WorldObstacle(name: "단상", kind: .platform, vertices: [Point3(1,0,-1),Point3(2,0,-1),Point3(2,0,-3),Point3(1,0,-3)])]
+        d.objects = [WorldObstacle(name: "상자", kind: .box, vertices: [Point3(1,0,-1),Point3(2,0,-1),Point3(2,0,-3),Point3(1,0,-3)])]
         XCTAssertFalse(d.routeErrors.isEmpty)
+        // A platform in the same place is walked onto, so the route is fine (decided 10/17).
+        d.objects = [WorldObstacle(name: "단상", kind: .platform, vertices: [Point3(1,0,-1),Point3(2,0,-1),Point3(2,0,-3),Point3(1,0,-3)])]
+        XCTAssertTrue(d.routeErrors.isEmpty)
     }
     func testSixPointLimitUndoAndWrongFloor() throws {
         var d = draft()
@@ -76,7 +79,7 @@ final class PreparationTests: XCTestCase {
     func testPlannerObjectConflictAfterFinishing() throws {
         var p = PerformancePlan()
         try p.append(FloorPoint(-1,2)); try p.append(FloorPoint(3,2)); try p.append(FloorPoint(13,2)); try p.finishRoute()
-        try p.addObject(at: FloorPoint(6,2), platform: true)
+        try p.addObject(at: FloorPoint(6,2), platform: false)
         XCTAssertThrowsError(try p.validate())
         try p.moveObject(p.objects[0].id, to: FloorPoint(6,5))
         XCTAssertNoThrow(try p.validate())

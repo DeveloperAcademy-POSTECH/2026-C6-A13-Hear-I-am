@@ -52,14 +52,15 @@ final class GuidanceTests: XCTestCase {
         XCTAssertEqual(g.pauseReason,.outsideStage)
         XCTAssertFalse(g.canResume(position:.init(6.1,2),trackingValid:true))
     }
-    func testDriftTowardRegisteredPlatformStopsEvenInsideCorridor() throws {
-        let obstacle=try StageObstacle(name:"단상",kind:.platform,vertices:[.init(2,2.5),.init(4,2.5),.init(4,3.5),.init(2,3.5)])
+    func testDriftTowardRegisteredObstacleStopsEvenInsideCorridor() throws {
+        let obstacle=try StageObstacle(name:"상자",kind:.box,vertices:[.init(2,2.5),.init(4,2.5),.init(4,3.5),.init(2,3.5)])
         let r=try route(obstacles:[obstacle]);var g=guide(r)
         XCTAssertTrue(g.start(position:r.points[0],headingDegrees:0,trackingValid:true))
         _=arrive(&g,at:r.points[1],from:1)
-        _=g.observe(time:2.2,position:.init(3,2.3),headingDegrees:0,trackingValid:true)
+        // 0.1 m from the box: inside the 0.15 m clearance (0.35 m until 10/18, when this was 0.2 m away).
+        _=g.observe(time:2.2,position:.init(3,2.4),headingDegrees:0,trackingValid:true)
         XCTAssertEqual(g.pauseReason,.obstacleProximity)
-        XCTAssertFalse(g.canResume(position:.init(3,2.3),trackingValid:true))
+        XCTAssertFalse(g.canResume(position:.init(3,2.4),trackingValid:true))
     }
     func testPauseAndTrackingFailurePreserveNextTarget() throws {
         let r=try route(); var g=guide(r)

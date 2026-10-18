@@ -5,7 +5,7 @@ import Foundation
 public struct PreparationDraft: Sendable {
     public static let captureOrder = [1, 0, 3, 2]
     public static let boundaryMargin = 0.01
-    public static let obstacleClearance = 0.35
+    public static let obstacleClearance = GuideSettings.routeClearance
     public var corners: [Point3?] = Array(repeating: nil, count: 4)
     public var route: [Point3] = []
     public var routeFinished = false
@@ -46,6 +46,7 @@ public struct PreparationDraft: Sendable {
             }
         }
         if let last = route.last, last.distance(to: point) < 0.05 { throw LabError.invalid("이전 점에서 조금 더 떨어진 위치를 선택해주세요.") }
+        if let hit = clearanceHit(adding: point) { throw LabError.invalid(hit.message+". 빨간 영역 밖을 찍어주세요.") }
         route.append(point); routeFinished = asDestination; planApplied = false
     }
     public mutating func removeLastRoutePoint() {

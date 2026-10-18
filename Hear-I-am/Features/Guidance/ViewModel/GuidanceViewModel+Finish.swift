@@ -6,6 +6,8 @@ extension GuidanceViewModel {
     func playCompletion() {
         guard phase != .finishing || !speaking else { return }
         if let guide { run?.arrive(guide:guide,at:Date(),uptime:ProcessInfo.processInfo.systemUptime) }
+        // The completion record is saved separately; without this line the trial log never said the run finished (10/17).
+        tracking.event("guidance_completed",detail:"points=\(guide?.route.points.count ?? 0)")
         invalidateTasks();phase = .finishing;cue=nil;message="종료 안내를 읽고 있어요."
         // Guidance stops now; the validation camera stays live until the user finishes.
         audioIssue=nil
@@ -41,6 +43,6 @@ extension GuidanceViewModel {
     func finish() {
         active=false;invalidateTasks();timer?.invalidate();timer=nil
         observations.forEach {NotificationCenter.default.removeObserver($0)};observations=[]
-        tracking.endSession();voice.deactivate()
+        tracking.endSession();signals.shutdown();haptics.shutdown();voice.deactivate()
     }
 }

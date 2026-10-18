@@ -26,6 +26,17 @@ import HearIAmCore
     @Published var saveError: String?
     let tracking=ARSessionController(purpose:.guidance)
     let voice=GuidanceSpeech()
+    /// Earbud tones (warning, arrival) and waist vibration for direction, decided 10/17.
+    let signals=SignalPlayer()
+    let haptics=DirectionHaptics()
+    var landmarks=LandmarkDetector()
+    var warnings=WarningGate()
+    var corrections=CorrectionGate()
+    var steps=StepGate()
+    var arrivalShownAt: Double?
+    /// The warning pauses briefly on arrival so the ding is not masked.
+    var warningHoldUntil: Double?
+    var escape: EscapeState?
     var guide: RouteGuide?
     var run: GuidanceRun?
     var pendingRecord: GuidanceRecord?
@@ -37,7 +48,6 @@ import HearIAmCore
     var generation=UUID()
     var active=true
     var started=false
-    var announcingArrival=false
     var observations: [NSObjectProtocol]=[]
     private var trackingSubscription: AnyCancellable?
     var currentInstruction: [String]=[]
@@ -58,7 +68,9 @@ import HearIAmCore
         interactionSettings=GuidanceInteractionSettings(defaults:defaults)
         tracking.showMesh=false
         trackingSubscription=tracking.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }
-        voice.onSpeaking={ [weak self] in self?.speaking=$0 }
+        voice.onSpeaking={ [weak self] in self?.speaking=$0;self?.signals.setSpeechActive($0) }
+        signals.onEvent={ [weak self] in self?.tracking.event($0,detail:$1) }
+        haptics.onEvent={ [weak self] in self?.tracking.event($0,detail:$1) }
         voice.onText={ [weak self] in self?.spokenText=$0 }
         voice.onError={ [weak self] text in
             guard let self else { return }
@@ -100,7 +112,8 @@ import HearIAmCore
     }
     /// Cancels pending speech callbacks and the countdown; late callbacks see a new generation.
     func invalidateTasks() {
-        generation=UUID();countdownTask?.cancel();countdownTask=nil;voice.stop();instructionDone=false;announcingArrival=false;arrivedName=nil
+        generation=UUID();countdownTask?.cancel();countdownTask=nil;voice.stop();instructionDone=false;arrivedName=nil;arrivalShownAt=nil
+        escape=nil;warningHoldUntil=nil;signals.setWarning(nil);signals.setWarningQuiet(false);haptics.stop()
     }
     /// A pose no older than 0.5 s from a verified session, or nil.
     func freshPose() -> (point: FloorPoint, heading: Double, time: Double)? {
@@ -130,6 +143,7 @@ import HearIAmCore
         lastPoseTime=pose.time
         if let first=selected?.route?.points.first { startDistance=pose.point.distance(to:first) }
         if phase == .departure, let guide { tickDeparture(pose:pose,guide:guide);return }
+        if phase == .paused, escape != nil, let guide { tickEscape(pose:pose,guide:guide);return }
         guard phase == .guiding, let guide else { return }
         tickGuiding(pose:pose,guide:guide)
     }

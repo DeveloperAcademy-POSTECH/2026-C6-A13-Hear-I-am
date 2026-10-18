@@ -8,7 +8,6 @@ import HearIAmCore
     private var utterance: AVSpeechUtterance?
     private var lineID: UUID?
     private var completion: ((Bool)->Void)?
-    private var audioActive=false
     var onSpeaking: ((Bool)->Void)?
     var onText: ((String)->Void)?
     var onError: ((String)->Void)?
@@ -34,20 +33,13 @@ import HearIAmCore
         synthesizer.stopSpeaking(at:.immediate)
         onSpeaking?(false);callback?(false)
     }
-    func deactivate() {
-        stop();audioActive=false
-        try? AVAudioSession.sharedInstance().setActive(false,options:.notifyOthersOnDeactivation)
-    }
-    func audioWasInterrupted() { stop();audioActive=false }
+    func deactivate() { stop();HearAudioSession.deactivate() }
+    func audioWasInterrupted() { stop();HearAudioSession.interrupted() }
 
     private func prepareAudio() -> Bool {
         do {
-            let audio=AVAudioSession.sharedInstance()
-            if !audioActive {
-                try audio.setCategory(.playback,mode:.spokenAudio,options:[.mixWithOthers])
-                try audio.setActive(true);audioActive=true
-            }
-            guard audio.outputVolume > 0 else {
+            try HearAudioSession.activate()
+            guard AVAudioSession.sharedInstance().outputVolume > 0 else {
                 onError?("소리가 꺼져 있어요. 휴대폰의 음량을 올리고 설명 다시 듣기를 눌러주세요.")
                 return false
             }
@@ -56,7 +48,7 @@ import HearIAmCore
     }
     private func speak(_ line: NarrationQueue.Line) {
         let next=AVSpeechUtterance(string:line.text)
-        next.voice=AVSpeechSynthesisVoice(language:"ko-KR");next.rate=0.48
+        next.voice=AVSpeechSynthesisVoice(language:"ko-KR");next.rate=0.48;next.volume=SignalVolume.speech
         utterance=next;lineID=line.id
         onSpeaking?(true);onText?(line.text);synthesizer.speak(next)
     }
