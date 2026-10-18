@@ -24,15 +24,23 @@ struct PreparationGuideCard: View {
             Text(guide.title).font(.system(size:19,weight:.bold))
             Text(guide.description).font(.system(size:12)).foregroundStyle(.secondary)
             if step == .scan {
-                Text("\(model.meshCount)개 표면 · \(model.mapping)").font(.caption).foregroundStyle(.secondary)
+                if model.supportsMesh {
+                    Text("\(model.meshCount)개 표면 · \(model.mapping)").font(.caption).foregroundStyle(.secondary)
+                } else {
+                    Text("Pro의 LiDAR 센서를 사용해야 정확하게 측정 가능합니다 · \(model.mapping)").font(.caption).foregroundStyle(.orange)
+                }
             }
-            if step <= .objects {
+            if step <= .objects && model.supportsMesh {
                 Toggle("스캔 범위 표시",isOn:$model.showMesh).font(.caption).tint(.hearGreen)
             }
             if step == .boundary {
                 HStack(spacing:5) {ForEach(PreparationDraft.captureOrder,id:\.self) {i in
                     Button(PreparationStep.cornerNames[i]) {model.selectedCorner=i}.font(.system(size:10)).buttonStyle(.bordered).tint(model.selectedCorner == i ? .hearGreen : .gray)
                 }}
+                if draft.area != nil {
+                    Text("‘위험 구역’에서 변과 거리(0.5m/1m)를 선택할 수 있어요.").font(.caption)
+                    Text(StageDangerZone.summary(draft.dangerZones)).font(.caption).foregroundStyle(.orange)
+                }
                 if model.allCornersCaptured, let error=draft.boundaryErrors.first {Text(error).font(.caption).foregroundStyle(.red)}
             }
             if step == .objects {

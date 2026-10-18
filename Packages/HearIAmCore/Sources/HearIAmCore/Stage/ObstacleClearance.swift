@@ -38,9 +38,11 @@ extension StageObstacle {
 
 extension PreparationDraft {
     /// The blocking object that the next route point, or the segment to it from the last point, comes
-    /// deepest into the clearance of; nil when the point can be placed.
-    public func clearanceHit(adding point: Point3, clearance: Double = Self.obstacleClearance) -> ClearanceHit? {
+    /// deepest into the clearance of; nil when the point can be placed. Uses the same clearance as
+    /// routeErrors, which shrinks with the stage when a performance plan was applied (#36).
+    public func clearanceHit(adding point: Point3, clearance: Double? = nil) -> ClearanceHit? {
         guard let area else { return nil }
+        let clearance=clearance ?? effectiveObstacleClearance
         let p=area.floor(point), previous=route.last.map(area.floor) ?? p
         return objects.compactMap { try? $0.projected(in:area) }.filter(\.blocksPath).compactMap { o -> ClearanceHit? in
             let line=o.distance(from:previous,to:p)

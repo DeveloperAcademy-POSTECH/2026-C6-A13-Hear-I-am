@@ -28,6 +28,8 @@ final class PreparationViewModel: ObservableObject {
     var kindChosen=false
     var applyingSuggestion=false
     @Published var scanName="무대 스캔"
+    @Published var selectedPlan: PerformancePlan?
+    @Published var choosingPlan=false
     var editingObjectID: UUID?
 
     // Screen state
@@ -37,13 +39,16 @@ final class PreparationViewModel: ObservableObject {
     @Published var selectedCorner: Int?
     @Published var objectEditing=false
     @Published var review=false
+    @Published var editingDangerZones=false
     @Published var guideCollapsed=false
     @Published var confirmingScan=false
     @Published var confirmingExit=false
     private var seen: Set<PreparationStep> = [.scan]
     private var sessionChanges: AnyCancellable?
 
-    init() {
+    init(initialPlan: PerformancePlan? = nil) {
+        self.selectedPlan=initialPlan
+        if let initialPlan { self.scanName=initialPlan.name }
         sessionChanges=session.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }
         session.onReset={ [weak self] in
             guard let self else { return }
@@ -53,6 +58,7 @@ final class PreparationViewModel: ObservableObject {
 
     // Session state the screen reads
     var supported: Bool { session.supported }
+    var supportsMesh: Bool { session.supportsMesh }
     var busy: Bool { session.busy }
     var interrupted: Bool { session.preparationInterrupted }
     var canPlacePoint: Bool { session.canPlacePoint }
@@ -65,10 +71,11 @@ final class PreparationViewModel: ObservableObject {
     var guide: PreparationGuide {
         PreparationGuide(step:step,draft:draft,nextCorner:nextCorner,objectEditing:objectEditing,pendingVertexCount:pendingObjectWorld.count)
     }
-    var showsCrosshairHint: String {
+    var showsCrosshairHint: String? {
         if interrupted { return "추적 중단" }
         if let hit=aimHit { return hit.message }
-        return step == .scan ? "민트색 그물 = 스캔한 표면" : "십자선을 실제 바닥에 맞춰주세요"
+        if step == .scan { return supportsMesh ? "민트색 그물 = 스캔한 표면" : nil }
+        return "십자선을 실제 바닥에 맞춰주세요"
     }
     /// Why the point under the crosshair cannot join the route, shown before it is placed (#38).
     var aimHit: ClearanceHit? {
@@ -87,20 +94,39 @@ final class PreparationViewModel: ObservableObject {
     }
     func resumeTracking() { session.resumePreparation() }
     /// Leaving with no scanned surface needs no confirmation.
-    var exitNeedsConfirmation: Bool { session.meshCount != 0 }
+    var exitNeedsConfirmation: Bool { session.meshCount != 0 || draft.corners.contains(where:{$0 != nil}) }
 
     // Steps
     func isComplete(_ s: PreparationStep) -> Bool {
         switch s {
         case .scan: return scanConfirmed
         case .boundary: return draft.area != nil
-        case .objects: return highest > .objects && draft.objectErrors.isEmpty
+        case .objects: return (highest > .objects || draft.planApplied) && draft.objectErrors.isEmpty
         case .route: return draft.routeFinished && draft.routeErrors.isEmpty
         case .checkpoint: return draft.checkpoint != nil && draft.checkpointErrors.isEmpty
         }
     }
     func canSelect(_ s: PreparationStep) -> Bool { !(busy || s == .scan || s > highest || objectEditing) }
-    func advance() { highest=max(highest,step.next); changeStep(step.next) }
+    func advance() {
+        if step == .boundary, let selectedPlan {
+            applyPlan(selectedPlan)
+            return
+        }
+        highest=max(highest,step.next); changeStep(step.next)
+    }
+    func applyPlan(_ plan: PerformancePlan) {
+        do {
+            var next=draft
+            try next.applyPlan(plan)
+            draft=next; selectedPlan=plan; choosingPlan=false
+            if scanName == "무대 스캔" || scanName.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty { scanName=plan.name }
+            synchronize()
+            highest = .checkpoint
+            changeStep(.checkpoint)
+        } catch {
+            session.errorMessage=error.localizedDescription
+        }
+    }
     func changeStep(_ value: PreparationStep) {
         guard value > .scan, value <= highest, !busy else {return}
         let changed=step != value

@@ -14,7 +14,7 @@ extension ARSessionController {
             lastUI=sample.time; tracking=sample.tracking; mapping=sample.mapping
             ready=gate.isReady(now:now); canVerify=gate.canVerify(now:now)
             canSave=mode == .scanning && !busy && sample.normal && sample.mapped &&
-                referenceAnchorsPresent(sample) && !meshes.isEmpty && stage != nil && routeIsValid
+                referenceAnchorsPresent(sample) && (!supportsMesh || !meshes.isEmpty) && stage != nil && routeIsValid
             if let stage, ready {
                 position=stagePosition(sample.world)
                 heading=stage.heading(cameraForward:sample.forward)

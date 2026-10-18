@@ -9,6 +9,9 @@ struct SavedStagePreview: View {
         VStack(spacing:16) {
             if let loaded=model.loaded {
                 SavedMeshView(scan:loaded,wireframe:model.wireframe,fit:model.fit).clipShape(RoundedRectangle(cornerRadius:20))
+                if let route=loaded.manifest.route, !route.dangerZones.isEmpty {
+                    Text(StageDangerZone.summary(route.dangerZones)).font(.caption).foregroundStyle(.orange)
+                }
                 HStack {Toggle("표면 선 보기",isOn:$model.wireframe); Button("전체 보기") {model.fitAll()}.buttonStyle(.bordered)}
                 Text("한 손가락 회전 · 두 손가락 이동 · 핀치 확대/축소").font(.caption)
                 Text("스캔된 표면만 보여요. 실제 사용 전에는 현장에서 공간을 다시 확인해야 합니다.").font(.footnote).foregroundStyle(.secondary)

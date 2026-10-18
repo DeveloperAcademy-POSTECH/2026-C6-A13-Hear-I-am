@@ -3,9 +3,14 @@ import HearIAmCore
 
 /// Landscape stage preparation over a full-screen camera.
 struct PreparationView: View {
-    @StateObject private var model=PreparationViewModel()
+    @ObservedObject var library: StageLibrary
+    @StateObject private var model: PreparationViewModel
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
+    init(library: StageLibrary, initialPlan: PerformancePlan? = nil) {
+        self.library=library
+        _model=StateObject(wrappedValue:PreparationViewModel(initialPlan:initialPlan))
+    }
     var body: some View {
         GeometryReader { safe in
         VStack(spacing:0) {
@@ -24,11 +29,21 @@ struct PreparationView: View {
                             .frame(width:min(260,geometry.size.width*0.35)).background(.regularMaterial,in:RoundedRectangle(cornerRadius:20))
                     }
                     Spacer(minLength:8)
+                    if model.step == .route, !model.draft.dangerZoneRoutePointLabels.isEmpty {
+                        Label("주의: \(model.draft.dangerZoneRoutePointLabels.joined(separator:" · ")) 위험 구역 포함",systemImage:"exclamationmark.triangle.fill")
+                            .font(.caption).foregroundStyle(.orange)
+                            .padding(.horizontal,12).padding(.vertical,6)
+                            .background(.regularMaterial,in:RoundedRectangle(cornerRadius:10))
+                            .fixedSize(horizontal:false,vertical:true)
+                            .allowsHitTesting(false)
+                    }
                     HStack {
-                        Text(model.showsCrosshairHint)
-                            .font(.caption).foregroundStyle(model.aimHit == nil ? .primary : Color.red).padding(8).background(.regularMaterial,in:Capsule())
+                        if let hint=model.showsCrosshairHint {
+                            Text(hint)
+                                .font(.caption).foregroundStyle(model.aimHit == nil ? .primary : Color.red).padding(8).background(.regularMaterial,in:Capsule())
+                        }
                         Spacer()
-                        PreparationControls(model:model)
+                        PreparationControls(model:model,hasPlans:!library.plans.isEmpty)
                     }
                 }.padding(.leading,safe.safeAreaInsets.leading+14)
                     .padding(.trailing,safe.safeAreaInsets.trailing+14)
@@ -50,6 +65,9 @@ struct PreparationView: View {
                         ActionButton(title:"추적 다시 시작") {model.resumeTracking()}
                     }.padding(24).background(.regularMaterial,in:RoundedRectangle(cornerRadius:20))
                 }
+                if model.choosingPlan {
+                    PreparationPlanPicker(plans:library.plans,initialID:model.selectedPlan?.id,onConfirm:{model.applyPlan($0)},onCancel:{model.choosingPlan=false})
+                }
                 if model.review {PreparationReviewCard(model:model)}
                 if model.isSaving {
                     Color.black.opacity(0.35)
@@ -60,6 +78,7 @@ struct PreparationView: View {
             }.ignoresSafeArea(.container,edges:[.horizontal,.bottom])
         }
         }.background(.white).preferredColorScheme(.light)
+            .sheet(isPresented:$model.editingDangerZones) { PreparationDangerZoneSheet(model:model) }
             .onAppear {ScreenOrientation.set(.landscape); model.appear()}
             .onDisappear {model.disappear(); ScreenOrientation.set(.portrait)}
             .onChange(of:scenePhase) {_,phase in model.scenePhaseChanged(phase)}
