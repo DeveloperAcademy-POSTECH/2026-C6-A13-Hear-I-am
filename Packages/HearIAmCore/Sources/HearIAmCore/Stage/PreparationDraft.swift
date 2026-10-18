@@ -5,7 +5,7 @@ import Foundation
 public struct PreparationDraft: Sendable {
     public static let captureOrder = [1, 0, 3, 2]
     public static let boundaryMargin = 0.01
-    public static let obstacleClearance = 0.35
+    public static let obstacleClearance = GuideSettings.routeClearance
     public var corners: [Point3?] = Array(repeating: nil, count: 4)
     public var route: [Point3] = []
     public var routeFinished = false
