@@ -10,7 +10,7 @@ struct PlanLibraryView: View {
             ScrollView {
                 VStack(alignment:.leading,spacing:20) {
                     Text("공연 전에 동선을 그려보세요").font(.title3.bold())
-                    Text("배치 연습용 도면입니다. 실제 스캔이나 안내와 연결되지 않아요.").font(.subheadline).foregroundStyle(.secondary)
+                    Text("실제 무대 치수(m)에 맞춰 동선을 설계하고 스캔 없이 바로 안내받을 수 있어요.").font(.subheadline).foregroundStyle(.secondary)
                     if library.plans.isEmpty {
                         VStack(spacing:16) {
                             Image("StageEmpty").resizable().scaledToFit().frame(height:190)

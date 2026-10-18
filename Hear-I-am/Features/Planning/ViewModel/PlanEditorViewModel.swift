@@ -19,6 +19,18 @@ final class PlanEditorViewModel: ObservableObject {
         do {try plan.validate(); return nil} catch {return error.localizedDescription}
     }
     var valid: Bool {validationMessage == nil}
+    var segmentSummary: String? {
+        let segments = plan.scaledSegments()
+        guard !segments.isEmpty else { return nil }
+        func pointName(_ index: Int) -> String {
+            if index == 0 { return "출발" }
+            if plan.finished && index == plan.points.count - 1 { return "도착" }
+            return "P\(index)"
+        }
+        return segments.map { seg in
+            String(format: "%@→%@ %.2fm(%+.0f°)", pointName(seg.fromIndex), pointName(seg.toIndex), seg.distanceMeters, seg.angleDegrees)
+        }.joined(separator: " · ")
+    }
 
     /// A tap moves the selected object, selects an object under the finger, or adds with the current tool.
     func tap(_ point: FloorPoint) {
