@@ -4,6 +4,7 @@ import HearIAmCore
 /// Temporary fourth tab for real-device signal checks. Remove with the SoundTest folder after testing.
 struct SoundTestView: View {
     @StateObject private var model=SoundTestViewModel()
+    @AppStorage(HearAudioSession.speakerKey) private var forcesSpeaker=false
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -12,6 +13,9 @@ struct SoundTestView: View {
                         Text("실기기 확인용 임시 화면이에요. 테스트가 끝나면 지워요.").font(.subheadline).foregroundStyle(.secondary)
                         Text("마지막 기록: "+model.lastEvent).font(.caption.monospaced()).lineLimit(2)
                         Text(model.logStatus).font(.caption).foregroundStyle(.secondary)
+                        // Same setting as 홈 설정 › 소리 출력; the next sound plays through the new output.
+                        Toggle("폰 스피커로 듣기 (끄면 에어팟)",isOn:$forcesSpeaker).font(.subheadline)
+                            .onChange(of:forcesSpeaker) {_,value in model.record("audio_output",value ? "speaker" : "auto")}
                     }
                     SoundTestCard(section:.signals) { signals }
                     SoundTestCard(section:.haptics) { haptics }
