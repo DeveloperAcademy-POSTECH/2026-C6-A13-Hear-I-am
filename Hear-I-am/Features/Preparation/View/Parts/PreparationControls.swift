@@ -4,6 +4,7 @@ import HearIAmCore
 /// Bottom-right action buttons for the current step.
 struct PreparationControls: View {
     @ObservedObject var model: PreparationViewModel
+    var hasPlans=false
     var body: some View {
         let draft=model.draft
         switch model.step {
@@ -15,6 +16,14 @@ struct PreparationControls: View {
             }
             if let next=model.nextCorner {ActionButton(title:"모서리 지정",enabled:model.canPlacePoint) {model.captureCorner(next)}}
             if draft.area != nil {
+                if let plan=model.selectedPlan {
+                    ActionButton(title:"‘\(plan.name)’ 동선 적용") {model.applyPlan(plan)}
+                } else {
+                    if hasPlans {
+                        ActionButton(title:"사전 저장 동선 불러오기",primary:false) {model.choosingPlan=true}
+                    }
+                    ActionButton(title:"직접 입력") {model.advance()}
+                }
                 ActionButton(title:"위험 구역",primary:false,enabled:!model.busy) {model.editingDangerZones=true}
                 ActionButton(title:"다음 단계") {model.advance()}
             }

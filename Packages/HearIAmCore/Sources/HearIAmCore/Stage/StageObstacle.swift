@@ -15,7 +15,7 @@ public struct StageObstacle: Codable, Equatable, Sendable, Identifiable {
     public func validate() throws {
         guard !name.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty,
               (3...8).contains(vertices.count), vertices.allSatisfy(\.valid),
-              abs(Self.area(vertices)) >= 0.02 else { throw LabError.invalid("장애물 영역에 유효한 꼭짓점 3~8개가 필요합니다.") }
+              abs(Self.area(vertices)) >= 0.0005 else { throw LabError.invalid("장애물 영역에 유효한 꼭짓점 3~8개가 필요합니다.") }
         for i in vertices.indices {
             for j in vertices.indices where j > i+1 && !(i == 0 && j == vertices.count-1) {
                 if Self.intersects(vertices[i],vertices[(i+1)%vertices.count],vertices[j],vertices[(j+1)%vertices.count]) {

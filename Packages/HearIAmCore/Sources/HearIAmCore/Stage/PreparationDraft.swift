@@ -11,6 +11,7 @@ public struct PreparationDraft: Sendable {
     public var routeFinished = false
     public var objects: [WorldObstacle] = []
     public var checkpoint: Point3?
+    public var planApplied = false
     public var dangerZones: [StageDangerZone] = []
     public init() {}
     public mutating func captureCorner(_ index: Int, at point: Point3) throws {
@@ -45,11 +46,28 @@ public struct PreparationDraft: Sendable {
             }
         }
         if let last = route.last, last.distance(to: point) < 0.05 { throw LabError.invalid("이전 점에서 조금 더 떨어진 위치를 선택해주세요.") }
-        route.append(point); routeFinished = asDestination
+        route.append(point); routeFinished = asDestination; planApplied = false
     }
     public mutating func removeLastRoutePoint() {
         guard !route.isEmpty else { return }
-        route.removeLast(); routeFinished = false
+        route.removeLast(); routeFinished = false; planApplied = false
+    }
+    /// Projects a schematic 12×8 PerformancePlan proportionally onto the captured stage area.
+    public mutating func applyPlan(_ plan: PerformancePlan) throws {
+        guard let area else { throw LabError.invalid("무대의 네 모서리를 먼저 지정해주세요.") }
+        try plan.validate()
+        let sx = area.width / PerformancePlan.width
+        let sy = area.depth / PerformancePlan.depth
+        func mapped(_ p: FloorPoint) -> Point3 { area.world(FloorPoint(p.x * sx, p.y * sy)) }
+        objects = plan.objects.map { WorldObstacle(id: $0.id, name: $0.name, kind: $0.kind, vertices: $0.vertices.map(mapped)) }
+        route = plan.points.map(mapped)
+        routeFinished = plan.finished
+        planApplied = true
+    }
+    public var effectiveObstacleClearance: Double {
+        guard planApplied, let area else { return Self.obstacleClearance }
+        let scale = min(area.width / PerformancePlan.width, area.depth / PerformancePlan.depth)
+        return min(Self.obstacleClearance, 0.15 * scale)
     }
     public func stageRoute() throws -> StageRoute {
         guard let area, routeFinished else { throw LabError.invalid("무대 범위와 도착점을 확정해주세요.") }
@@ -82,7 +100,7 @@ public struct PreparationDraft: Sendable {
         }
     }
     public var routeErrors: [String] {
-        do { return try stageRoute().conflicts(boundaryMargin: Self.boundaryMargin, obstacleClearance: Self.obstacleClearance) }
+        do { return try stageRoute().conflicts(boundaryMargin: Self.boundaryMargin, obstacleClearance: effectiveObstacleClearance) }
         catch { return [error.localizedDescription] }
     }
     public var checkpointErrors: [String] {
