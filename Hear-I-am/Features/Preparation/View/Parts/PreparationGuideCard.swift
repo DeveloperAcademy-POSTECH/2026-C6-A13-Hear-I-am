@@ -24,9 +24,13 @@ struct PreparationGuideCard: View {
             Text(guide.title).font(.system(size:19,weight:.bold))
             Text(guide.description).font(.system(size:12)).foregroundStyle(.secondary)
             if step == .scan {
-                Text("\(model.meshCount)개 표면 · \(model.mapping)").font(.caption).foregroundStyle(.secondary)
+                if model.supportsMesh {
+                    Text("\(model.meshCount)개 표면 · \(model.mapping)").font(.caption).foregroundStyle(.secondary)
+                } else {
+                    Text("Pro의 LiDAR 센서를 사용해야 정확하게 측정 가능합니다 · \(model.mapping)").font(.caption).foregroundStyle(.orange)
+                }
             }
-            if step == .scan || step == .boundary {
+            if (step == .scan || step == .boundary) && model.supportsMesh {
                 Toggle("스캔 범위 표시",isOn:$model.showMesh).font(.caption).tint(.hearGreen)
             }
             if step == .boundary {

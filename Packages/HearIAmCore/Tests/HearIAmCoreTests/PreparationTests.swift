@@ -198,4 +198,29 @@ final class PreparationTests: XCTestCase {
         pins.toggle(m.id)
         XCTAssertEqual(pins.groups([m]).recent.count, 1)
     }
+    func testApplyPerformancePlanProjectsRouteAndObstaclesToStageArea() throws {
+        var plan = PerformancePlan()
+        plan.name = "리허설 동선"
+        try plan.append(FloorPoint(-1, 2))
+        try plan.append(FloorPoint(6, 4))
+        try plan.append(FloorPoint(13, 6))
+        try plan.addObject(at: FloorPoint(3, 6), platform: true)
+        try plan.finishRoute()
+
+        var d = PreparationDraft()
+        // 6m × 4m stage (half scale of 12×8 schematic plan)
+        d.corners = [Point3(0, 0, 0), Point3(6, 0, 0), Point3(6, 0, -4), Point3(0, 0, -4)]
+        try d.applyPlan(plan)
+
+        XCTAssertTrue(d.routeFinished)
+        XCTAssertEqual(d.route.count, 3)
+        XCTAssertEqual(d.objects.count, 1)
+        let route = try d.stageRoute()
+        XCTAssertEqual(route.points[0].x, -0.5, accuracy: 1e-6)
+        XCTAssertEqual(route.points[0].y, 1.0, accuracy: 1e-6)
+        XCTAssertEqual(route.points[1].x, 3.0, accuracy: 1e-6)
+        XCTAssertEqual(route.points[1].y, 2.0, accuracy: 1e-6)
+        XCTAssertEqual(route.points[2].x, 6.5, accuracy: 1e-6)
+        XCTAssertEqual(route.points[2].y, 3.0, accuracy: 1e-6)
+    }
 }
