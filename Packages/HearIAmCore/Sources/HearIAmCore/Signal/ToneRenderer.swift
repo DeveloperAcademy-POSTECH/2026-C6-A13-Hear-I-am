@@ -5,7 +5,8 @@ import Foundation
 public enum ToneRenderer {
     public static let sampleRate=44_100.0
     public static let peak: Float=0.9
-    static let arrivalHertz=1318.5, arrivalLength=0.6
+    /// G6. It was E6 (1318.5 Hz) until 10/18, almost the right direction beep (1320 Hz).
+    static let arrivalHertz=1568.0, arrivalLength=0.6
     static let buzzRate=12.0, buzzLength=0.6
 
     public static func render(_ sound: SignalSound) -> [Float] {
