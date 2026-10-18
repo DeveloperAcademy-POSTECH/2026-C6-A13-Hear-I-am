@@ -198,4 +198,63 @@ final class PreparationTests: XCTestCase {
         pins.toggle(m.id)
         XCTAssertEqual(pins.groups([m]).recent.count, 1)
     }
+    func testPlanDimensionScalingAndSegments() throws {
+        var plan = PerformancePlan()
+        plan.stageWidth = 6.0
+        plan.stageDepth = 4.0
+        // Schematic (6, 6) -> real (3.0, 3.0)
+        // Schematic (6, 2) -> real (3.0, 1.0) -> 2.0m straight toward audience (0°)
+        // Schematic (2, 2) -> real (1.0, 1.0) -> 2.0m to performer's right (+90°)
+        try plan.append(FloorPoint(6, 6))
+        try plan.append(FloorPoint(6, 2))
+        try plan.append(FloorPoint(2, 2))
+        try plan.addObject(at: FloorPoint(9, 5), platform: true)
+        try plan.finishRoute()
+
+        let scaled = plan.scaledPoints()
+        XCTAssertEqual(scaled.count, 3)
+        XCTAssertEqual(scaled[0].x, 3.0, accuracy: 1e-6)
+        XCTAssertEqual(scaled[0].y, 3.0, accuracy: 1e-6)
+        XCTAssertEqual(scaled[1].x, 3.0, accuracy: 1e-6)
+        XCTAssertEqual(scaled[1].y, 1.0, accuracy: 1e-6)
+
+        let relative = plan.relativePointsFromStart()
+        XCTAssertEqual(relative[0], FloorPoint(0, 0))
+        XCTAssertEqual(relative[1].x, 0.0, accuracy: 1e-6)
+        XCTAssertEqual(relative[1].y, -2.0, accuracy: 1e-6)
+        XCTAssertEqual(relative[2].x, -2.0, accuracy: 1e-6)
+        XCTAssertEqual(relative[2].y, -2.0, accuracy: 1e-6)
+
+        let segments = plan.scaledSegments()
+        XCTAssertEqual(segments.count, 2)
+        XCTAssertEqual(segments[0].distanceMeters, 2.0, accuracy: 1e-6)
+        XCTAssertEqual(segments[0].angleDegrees, 0.0, accuracy: 1e-6)
+        XCTAssertEqual(segments[1].distanceMeters, 2.0, accuracy: 1e-6)
+        XCTAssertEqual(segments[1].angleDegrees, 90.0, accuracy: 1e-6)
+    }
+    func testPlanZeroPointCalibrationAnchorsStartAndAudienceHeading() throws {
+        var plan = PerformancePlan()
+        plan.stageWidth = 3.0
+        plan.stageDepth = 2.0
+        try plan.append(FloorPoint(6, 6))
+        try plan.append(FloorPoint(6, 2))
+        try plan.append(FloorPoint(10, 2))
+        try plan.addObject(at: FloorPoint(2, 5), platform: false)
+        try plan.finishRoute()
+
+        let startWorld = Point3(1.5, -1.25, -2.0)
+        let cameraForward = Point3(0.6, -0.1, -0.8)
+        let calibrated = try plan.calibratedStage(startWorld: startWorld, cameraForward: cameraForward)
+
+        let projectedStart = calibrated.area.floor(startWorld)
+        XCTAssertEqual(projectedStart.x, calibrated.route.points[0].x, accuracy: 1e-6)
+        XCTAssertEqual(projectedStart.y, calibrated.route.points[0].y, accuracy: 1e-6)
+
+        let heading = try XCTUnwrap(calibrated.frame.heading(cameraForward: cameraForward))
+        XCTAssertEqual(heading, 0.0, accuracy: 1e-6)
+
+        var guide = RouteGuide(route: calibrated.route, settings: calibrated.settings, usesRouteCorridor: true)
+        XCTAssertTrue(guide.ready(position: projectedStart, headingDegrees: heading, trackingValid: true))
+        XCTAssertTrue(guide.start(position: projectedStart, headingDegrees: heading, trackingValid: true))
+    }
 }
