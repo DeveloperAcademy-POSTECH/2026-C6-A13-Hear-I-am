@@ -15,7 +15,7 @@ struct PreparationView: View {
                 CameraView(model:model.session).frame(maxWidth:.infinity,maxHeight:.infinity)
                 if !model.supported {Color(.systemGray6)}
                 if model.supported {
-                Image(systemName:"plus").font(.system(size:30,weight:.light)).foregroundStyle(.white).shadow(color:.black,radius:2).accessibilityHidden(true)
+                Image(systemName:"plus").font(.system(size:30,weight:.light)).foregroundStyle(model.aimHit == nil ? .white : .red).shadow(color:.black,radius:2).accessibilityHidden(true)
                 VStack {
                     HStack(alignment:.top) {
                         if model.step != .scan {PreparationMiniMap(model:model).frame(width:180,height:125).padding(10).background(.regularMaterial,in:RoundedRectangle(cornerRadius:18))}
@@ -26,7 +26,7 @@ struct PreparationView: View {
                     Spacer(minLength:8)
                     HStack {
                         Text(model.showsCrosshairHint)
-                            .font(.caption).padding(8).background(.regularMaterial,in:Capsule())
+                            .font(.caption).foregroundStyle(model.aimHit == nil ? .primary : Color.red).padding(8).background(.regularMaterial,in:Capsule())
                         Spacer()
                         PreparationControls(model:model)
                     }

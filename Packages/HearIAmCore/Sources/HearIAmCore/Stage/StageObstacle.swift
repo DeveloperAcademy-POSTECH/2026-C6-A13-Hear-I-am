@@ -56,7 +56,7 @@ public struct StageObstacle: Codable, Equatable, Sendable, Identifiable {
         let t=n > 0 ? max(0,min(1,((p.x-a.x)*dx+(p.y-a.y)*dy)/n)) : 0
         return hypot(p.x-a.x-t*dx,p.y-a.y-t*dy)
     }
-    private static func segmentDistance(_ a: FloorPoint,_ b: FloorPoint,_ c: FloorPoint,_ d: FloorPoint) -> Double {
+    static func segmentDistance(_ a: FloorPoint,_ b: FloorPoint,_ c: FloorPoint,_ d: FloorPoint) -> Double {
         if intersects(a,b,c,d) { return 0 }
         return min(distancePointSegment(a,c,d),distancePointSegment(b,c,d),
                    distancePointSegment(c,a,b),distancePointSegment(d,a,b))
@@ -89,9 +89,6 @@ public struct StageObstacle: Codable, Equatable, Sendable, Identifiable {
         }.sorted()
     }
     public func overlaps(_ a: FloorPoint,_ b: FloorPoint, clearance: Double) -> Bool {
-        if contains(a) || contains(b) { return true }
-        return vertices.indices.contains { i in
-            Self.segmentDistance(a,b,vertices[i],vertices[(i+1)%vertices.count]) <= clearance+1e-9
-        }
+        distance(from:a,to:b) <= clearance+1e-9
     }
 }

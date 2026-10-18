@@ -18,6 +18,8 @@ final class ARSceneRenderer {
         var routePoints: [FloorPoint]
         var obstacles: [StageObstacle]
         var pendingObject: [FloorPoint]
+        /// Route clearance around blocking objects, filled in red in both preparation and guidance (#38).
+        var clearance: Double
     }
 
     let meshLayer=SCNNode()

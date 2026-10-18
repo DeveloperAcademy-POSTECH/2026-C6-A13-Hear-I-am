@@ -13,6 +13,11 @@ struct StageMap: View {
     var cornerStates: [Bool]? = nil
     var activeCorner: Int? = nil
     var selectedObject: UUID? = nil
+    /// When set, blocking objects are drawn grown by this route clearance in red (#38).
+    var clearance: Double? = nil
+    /// Crosshair floor point while placing route points; red when it cannot be placed.
+    var aim: FloorPoint? = nil
+    var aimBlocked = false
     var onTap: ((FloorPoint) -> Void)? = nil
     private var bounds: (Double, Double, Double, Double) {
         let x = points.map(\.x), y = points.map(\.y)
@@ -36,8 +41,17 @@ struct StageMap: View {
                 context.draw(Text("객석 ↓").font(.system(size:10)).foregroundColor(.secondary), at: CGPoint(x:rect.midX,y:rect.maxY+14)) }
                 for object in objects {
                     var polygon=Path(); polygon.addLines(object.vertices.map(project)); polygon.closeSubpath()
-                    context.fill(polygon, with:.color(object.id == selectedObject ? .orange.opacity(0.3) : .gray.opacity(0.3)))
-                    context.stroke(polygon, with:.color(object.id == selectedObject ? .orange : .hearInk), lineWidth:2)
+                    if let clearance, object.blocksPath {
+                        // A round-joined stroke as wide as twice the clearance is the outline grown by it.
+                        var band=context; band.opacity=0.28
+                        band.drawLayer { layer in
+                            layer.fill(polygon, with:.color(.red))
+                            layer.stroke(polygon, with:.color(.red), style:StrokeStyle(lineWidth:2*clearance*scale,lineJoin:.round))
+                        }
+                    }
+                    let selected=object.id == selectedObject
+                    context.fill(polygon, with:.color(selected ? .orange.opacity(0.3) : (object.isStep ? .blue.opacity(0.2) : .gray.opacity(0.3))))
+                    context.stroke(polygon, with:.color(selected ? .orange : (object.isStep ? .blue : .hearInk)), lineWidth:2)
                 }
                 for i in points.indices {
                     let p=project(points[i])
@@ -57,6 +71,10 @@ struct StageMap: View {
                         context.fill(Path(ellipseIn:CGRect(x:p.x-5,y:p.y-5,width:10,height:10)),with:.color(done ? .hearGreen : .red))
                         if activeCorner == i {context.stroke(Path(ellipseIn:CGRect(x:p.x-10,y:p.y-10,width:20,height:20)),with:.color(.red),lineWidth:2)}
                     }
+                }
+                if let aim {
+                    let p=project(aim)
+                    context.stroke(Path(ellipseIn:CGRect(x:p.x-6,y:p.y-6,width:12,height:12)),with:.color(aimBlocked ? .red : .hearGreen),lineWidth:2)
                 }
                 if let checkpoint {
                     let p=project(checkpoint)
