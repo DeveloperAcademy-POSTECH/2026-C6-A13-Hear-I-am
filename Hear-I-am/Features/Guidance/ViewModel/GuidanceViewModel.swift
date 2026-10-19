@@ -33,6 +33,7 @@ import HearIAmCore
     var warnings=WarningGate()
     var corrections=CorrectionGate()
     var steps=StepGate()
+    var distances=DistanceGate()
     var arrivalShownAt: Double?
     /// The warning pauses briefly on arrival so the ding is not masked.
     var warningHoldUntil: Double?
