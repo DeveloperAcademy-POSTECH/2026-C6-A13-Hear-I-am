@@ -137,6 +137,27 @@ final class GuidanceTests: XCTestCase {
         _=g.observe(time:3.4,position:.init(3,4),headingDegrees:0,trackingValid:true,allowsTargetAdvance:false)
         XCTAssertEqual(g.pauseReason,.offRoute)
     }
+    /// 10/19: the performer overshoots a point while turning to the next leg. Leaving the new corridor
+    /// within 2 s and 1 m of the point is not a pause; leaving the stage still is.
+    func testOffRouteRightAfterArrivalWaitsButLeavingTheStageDoesNot() throws {
+        let r=try route([.init(-1,2),.init(3,2),.init(3,5),.init(7,2)]); var g=guide(r)
+        XCTAssertTrue(g.start(position:r.points[0],headingDegrees:0,trackingValid:true))
+        _=arrive(&g,at:r.points[1],from:1)
+        XCTAssertEqual(g.targetIndex,2)
+        // 0.8 m past the point, 0.8 m from the new leg (3,2)→(3,5): off the 0.6 m corridor.
+        let past=FloorPoint(3.8,2)
+        // Arrived at t = 1.8 (dwell 0.8 s from t = 1), so the grace runs to t = 3.8.
+        for i in 1...9 { XCTAssertEqual(g.observe(time:2+Double(i)*0.2,position:past,headingDegrees:0,trackingValid:true).state,.guiding,"\(i)") }
+        _=g.observe(time:4.0,position:past,headingDegrees:0,trackingValid:true)
+        XCTAssertEqual(g.pauseReason,.offRoute)
+
+        var edge=guide(try route([.init(-1,2),.init(5.9,2),.init(3,4),.init(7,2)]))
+        XCTAssertTrue(edge.start(position:.init(-1,2),headingDegrees:0,trackingValid:true))
+        _=arrive(&edge,at:.init(5.9,2),from:1)
+        XCTAssertEqual(edge.targetIndex,2)
+        _=edge.observe(time:2.2,position:.init(6.1,2),headingDegrees:0,trackingValid:true)
+        XCTAssertEqual(edge.pauseReason,.outsideStage)
+    }
 }
 
 private extension RouteGuide {
