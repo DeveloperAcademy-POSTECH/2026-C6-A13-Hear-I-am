@@ -19,6 +19,13 @@ import HearIAmCore
     @Published var headStatus="확인 전"
     @Published var trial: DirectionTrial?
     @Published var results: [DirectionTrialResult]=[]
+    @Published var manualBearing=90.0
+    @Published var continuousHertz: Double?
+    @Published var continuousStatus="시작 전"
+    let continuous=ContinuousTonePlayer()
+    var continuousGate=ContinuousDirectionGate()
+    var continuousTimer: Timer?
+    var lastPitchLog: Double?
     let signals=SignalPlayer()
     let haptics=DirectionHaptics()
     let voice=GuidanceSpeech()
@@ -30,6 +37,11 @@ import HearIAmCore
     var sweepGate=DirectionSweepGate()
 
     init() {
+        continuous.onUnavailable={ [weak self] reason in
+            guard let self else { return }
+            self.voice.stop();self.finishTrial(found:false)
+            self.continuousStatus=reason;self.record("continuous_stopped",reason)
+        }
         signals.onEvent={ [weak self] in self?.record($0,$1) }
         haptics.onEvent={ [weak self] in self?.record($0,$1) }
         voice.onSpeaking={ [weak self] value in self?.speaking=value;self?.signals.setSpeechActive(value) }
@@ -48,7 +60,7 @@ import HearIAmCore
     }
     func disappear() {
         if trial != nil { finishTrial(found:false) }
-        setWarning(nil);signals.shutdown();haptics.shutdown();voice.deactivate()
+        continuous.stop();setWarning(nil);signals.shutdown();haptics.shutdown();voice.deactivate()
         body.stop();head.stop();probe.stop();probing=false
         record("tab_close","");log.close()
     }

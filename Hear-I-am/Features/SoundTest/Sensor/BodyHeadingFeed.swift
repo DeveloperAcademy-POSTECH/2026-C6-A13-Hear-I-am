@@ -5,6 +5,7 @@ import HearIAmCore
 @MainActor final class BodyHeadingFeed {
     private let manager=CMMotionManager()
     private(set) var heading: Double?
+    private(set) var lastSample: Double?
 
     /// Returns an error message when the sensor is unavailable.
     func start(_ onHeading: @escaping (Double?) -> Void) -> String? {
@@ -17,9 +18,10 @@ import HearIAmCore
             guard let self, let r=data?.attitude.rotationMatrix else { return }
             heading=HeadingMath.screenHeadingDegrees(.init(m11:r.m11,m12:r.m12,m13:r.m13,m21:r.m21,m22:r.m22,m23:r.m23,
                                                             m31:r.m31,m32:r.m32,m33:r.m33))
+            lastSample=ProcessInfo.processInfo.systemUptime
             onHeading(heading)
         }
         return nil
     }
-    func stop() { manager.stopDeviceMotionUpdates();heading=nil }
+    func stop() { manager.stopDeviceMotionUpdates();heading=nil;lastSample=nil }
 }
