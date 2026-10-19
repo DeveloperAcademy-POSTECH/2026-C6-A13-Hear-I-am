@@ -5,6 +5,10 @@ import Foundation
 public struct PreparationDraft: Sendable {
     public static let captureOrder = [1, 0, 3, 2]
     public static let boundaryMargin = 0.01
+    /// How far a route point stays inside the stage edge and outside a danger zone (decided 10/19).
+    /// On 10/19 a point 6.5 cm from the edge sent the performer off the stage the moment they arrived,
+    /// as a point 1.4 cm from the edge had on 10/17. Only placement checks it, so saved stages still load.
+    public static let pointMargin = 0.15
     public static let obstacleClearance = GuideSettings.routeClearance
     public var corners: [Point3?] = Array(repeating: nil, count: 4)
     public var route: [Point3] = []
@@ -46,6 +50,7 @@ public struct PreparationDraft: Sendable {
             }
         }
         if let last = route.last, last.distance(to: point) < 0.05 { throw LabError.invalid("이전 점에서 조금 더 떨어진 위치를 선택해주세요.") }
+        if let issue = edgeIssue(adding: point, asDestination: asDestination) { throw LabError.invalid(issue) }
         if let hit = clearanceHit(adding: point) { throw LabError.invalid(hit.message+". 빨간 영역 밖을 찍어주세요.") }
         route.append(point); routeFinished = asDestination; planApplied = false
     }
@@ -88,7 +93,21 @@ public struct PreparationDraft: Sendable {
             } catch { return "\(object.name): \(error.localizedDescription)" }
         }
     }
-    /// Informational only: never included in validation errors or placement guards.
+    /// Why `point` cannot be the next route point because it is within `pointMargin` of the stage edge
+    /// (interior points only; the start and destination may stand outside) or of a danger zone; nil when it can.
+    public func edgeIssue(adding point: Point3, asDestination: Bool = false) -> String? {
+        guard let area, point.valid else { return nil }
+        let p = area.floor(point), cm = Int((Self.pointMargin*100).rounded())
+        guard area.contains(p) else { return nil }
+        if !route.isEmpty && !asDestination && !area.contains(p, margin: Self.pointMargin) {
+            return "내부 지점은 무대 가장자리에서 \(cm)cm 이상 안쪽에 찍어주세요"
+        }
+        if let zone = dangerZones.first(where: { $0.distance(to: p, width: area.width, depth: area.depth) < Self.pointMargin }) {
+            return "위험 구역(\(zone.edge.label))에서 \(cm)cm 이상 떨어진 곳을 찍어주세요"
+        }
+        return nil
+    }
+    /// Points already in a danger zone, e.g. from a performance plan. New points are refused by `edgeIssue`.
     public var dangerZoneRoutePointLabels: [String] {
         guard let area else { return [] }
         return route.enumerated().compactMap { index, point in
