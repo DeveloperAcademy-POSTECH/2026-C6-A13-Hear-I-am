@@ -10,11 +10,20 @@ public struct StageObstacle: Codable, Equatable, Sendable, Identifiable {
     public var vertices: [FloorPoint]
     /// Top above the stage floor in metres, measured from the scan mesh; nil for older saves or when not measured.
     public var height: Double?
-    public init(id: UUID = UUID(), name: String, kind: ObstacleKind, passage: PassagePolicy = .prohibited, vertices: [FloorPoint], height: Double? = nil) throws {
+    /// nil preserves unrestricted access in older saves; an empty list closes every edge.
+    public var entryEdges: [Int]?
+    public var exitEdges: [Int]?
+    public init(id: UUID = UUID(), name: String, kind: ObstacleKind, passage: PassagePolicy = .prohibited, vertices: [FloorPoint], height: Double? = nil, entryEdges: [Int]? = nil, exitEdges: [Int]? = nil) throws {
         self.id=id; self.name=name; self.kind=kind; self.passage=passage; self.vertices=vertices; self.height=height
+        self.entryEdges=entryEdges; self.exitEdges=exitEdges
         try validate()
     }
     public func validate() throws {
+        for edges in [entryEdges,exitEdges].compactMap({$0}) {
+            guard Set(edges).count == edges.count, edges.allSatisfy({vertices.indices.contains($0)}) else {
+                throw LabError.invalid("승하강 변 번호가 올바르지 않습니다.")
+            }
+        }
         guard !name.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty,
               (3...8).contains(vertices.count), vertices.allSatisfy(\.valid),
               abs(Self.area(vertices)) >= 0.0005 else { throw LabError.invalid("장애물 영역에 유효한 꼭짓점 3~8개가 필요합니다.") }
@@ -62,6 +71,34 @@ public struct StageObstacle: Codable, Equatable, Sendable, Identifiable {
                    distancePointSegment(c,a,b),distancePointSegment(d,a,b))
     }
     /// Platforms and stairs are walked onto; everything else is an obstacle to keep away from.
+    public func permitsEntry(_ edge: Int) -> Bool { entryEdges?.contains(edge) ?? true }
+    public func permitsExit(_ edge: Int) -> Bool { exitEdges?.contains(edge) ?? true }
+    public func blocksTravel(from a: FloorPoint, to b: FloorPoint, clearance: Double) -> Bool {
+        if blocksPath { return overlaps(a,b,clearance:clearance) }
+        guard isStep else { return false }
+        let winding=Self.area(vertices) >= 0 ? 1.0 : -1.0
+        for i in vertices.indices {
+            let c=vertices[i], d=vertices[(i+1)%vertices.count]
+            if !permitsEntry(i) && !permitsExit(i),
+               Self.segmentDistance(a,b,c,d) <= clearance+1e-9 { return true }
+            guard Self.intersects(a,b,c,d) else { continue }
+            let before=Self.cross(c,d,a)*winding, after=Self.cross(c,d,b)*winding
+            if after > before+1e-9 && !permitsEntry(i) { return true }
+            if after < before-1e-9 && !permitsExit(i) { return true }
+        }
+        return false
+    }
+    /// Nearest side forbidden from the current side of the object; open edges stay quiet.
+    public func blockingPoint(from p: FloorPoint) -> FloorPoint? {
+        if !isStep { return blocksPath ? closestPoint(to:p) : nil }
+        let inside=contains(p)
+        return vertices.indices.filter { inside ? !permitsExit($0) : !permitsEntry($0) }.map { i in
+            let a=vertices[i], b=vertices[(i+1)%vertices.count]
+            let dx=b.x-a.x, dy=b.y-a.y, length=dx*dx+dy*dy
+            let t=length > 0 ? max(0,min(1,((p.x-a.x)*dx+(p.y-a.y)*dy)/length)) : 0
+            return FloorPoint(a.x+t*dx,a.y+t*dy)
+        }.min { p.distance(to:$0) < p.distance(to:$1) }
+    }
     public var isStep: Bool { kind == .platform || kind == .stairs }
     /// Routes must keep clear of this outline. Platforms and stairs never block, even when an older
     /// save still marks them prohibited, because the performer walks onto them (decided 10/17).

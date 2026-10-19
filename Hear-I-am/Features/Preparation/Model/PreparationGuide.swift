@@ -24,7 +24,7 @@ struct PreparationGuide {
             description=objectEditing ? "스캔 면 위에서 십자선을 물체 주변 바닥 모서리에 맞추고 ‘둘레 점 추가’를 누르세요. 한 방향으로 3~8점을 찍고 등록하면 자동으로 닫힙니다. 현재 \(pendingVertexCount)/8점 · 윗면은 찍지 않아요." : "‘기물 추가’ 후 바닥 둘레를 직접 찍어요. 사각형은 네 모서리를 순서대로 지정하세요. 기물이 없으면 건너뛰세요."
         case .route:
             title=draft.routeFinished ? "경로가 연결됐어요" : (draft.route.isEmpty ? "출발점을 지정해주세요" : "다음 위치를 지정해주세요")
-            description="출발·도착은 같은 높이의 무대 밖도 가능해요. 내부 지점은 무대 안에 지정하세요. 빨간 영역은 장애물에서 \(Int((draft.effectiveObstacleClearance*100).rounded()))cm 여유라 지나갈 수 없어요. \(draft.route.count)/6점"
+            description="출발·도착은 같은 높이의 무대 밖도 가능해요. 내부 지점은 무대 안 바닥 또는 등록한 단상·계단 윗면에 지정하세요. 승하강은 허용한 변으로만 가능해요. 빨간 영역은 장애물에서 \(Int((draft.effectiveObstacleClearance*100).rounded()))cm 여유라 지나갈 수 없어요. \(draft.route.count)/6점"
         case .checkpoint:
             title=draft.checkpoint == nil ? "확인점 한 개를 지정해주세요" : "확인점을 지정했어요"
             description="무대 중앙 또는 특징적인 바닥 지점을 선택하세요. 모서리에서 0.5m 이상 떨어져야 해요."

@@ -11,12 +11,12 @@ extension ARSessionController {
         guard let query=view.raycastQuery(from:center,allowing:.existingPlaneGeometry,alignment:.horizontal),
               let hit=session.raycast(query).first,
               let plane=hit.anchor as? ARPlaneAnchor, plane.alignment == .horizontal else {
-            throw LabError.invalid("십자선 아래 확인된 수평면이 없습니다. 실제 무대 바닥을 천천히 비추세요.")
+            throw LabError.invalid("십자선 아래 인식된 수평면이 없어요. 바닥이나 기물 윗면을 여러 각도에서 천천히 비춰주세요.")
         }
         let p=hit.worldTransform.columns.3
         let point=Point3(Double(p.x),Double(p.y),Double(p.z))
         guard point.valid, point.distance(to:latest.world)<=5,
-              point.y < latest.world.y-0.15 else { throw LabError.invalid("기기 아래의 바닥을 5m 이내에서 선택하세요.") }
+              point.y < latest.world.y-0.15 else { throw LabError.invalid("휴대폰보다 15cm 이상 아래에 있는 수평면을 5m 이내에서 선택해주세요.") }
         return point
     }
     /// Lets the route step tell whether a point can go here before it is placed (#38). Changes under 1 cm
