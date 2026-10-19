@@ -43,13 +43,17 @@ struct SoundTestView: View {
                 }
             }
             SoundTestRow(label:"도착") { ActionButton(title:"띵",primary:false) { model.playArrival() } }
+            SoundTestRow(label:"방향 유도음 (톡톡톡 · 왼쪽 낮게 / 오른쪽 높게)") {
+                ActionButton(title:"왼쪽 톡",primary:false) { model.tick(toRight:false) }
+                ActionButton(title:"오른쪽 톡",primary:false) { model.tick(toRight:true) }
+            }
             SoundTestRow(label:"방향 비프 (왼쪽 낮게 · 오른쪽 높게 · 앞뒤 중간)") {
                 ForEach(DirectionPattern.landmarks,id:\.self) { degrees in
                     ActionButton(title:Self.label(degrees),primary:false) { model.beep(degrees) }
                 }
             }
-            SoundTestRow(label:"방향 교정 음성") {
-                ForEach([SignalCopy.turnLeft,SignalCopy.turnRight,SignalCopy.turnBack],id:\.self) { line in
+            SoundTestRow(label:"방향 안내 · 교정 음성") {
+                ForEach([SignalCopy.left,SignalCopy.right,SignalCopy.turnLeft,SignalCopy.turnRight,SignalCopy.turnBack],id:\.self) { line in
                     ActionButton(title:line,primary:false) { model.speak(line) }
                 }
             }
@@ -65,7 +69,7 @@ struct SoundTestView: View {
                 }
             }
             SoundTestRow(label:"겹침") {
-                ActionButton(title:"경고 0.6m + \"왼쪽으로\"",primary:false) { model.playOverlap() }
+                ActionButton(title:"경고 0.6m + \"왼쪽\"",primary:false) { model.playOverlap() }
             }
         }
     }
@@ -103,12 +107,18 @@ struct SoundTestView: View {
 
     private var direction: some View {
         VStack(alignment:.leading,spacing:16) {
+            SoundTestRow(label:"무음 구간 ±n° (안내에도 그대로 적용)") {
+                ForEach([8.0,12.0,15.0,20.0],id:\.self) { degrees in
+                    ActionButton(title:"±\(Int(degrees))°",primary:model.deadbandDegrees == degrees) { model.setDeadband(degrees) }
+                }
+            }
             VStack(alignment:.leading,spacing:4) {
                 Text("에어팟: \(model.headStatus)")
                 Text("몸 \(Self.angle(model.bodyAngle)) · 고개 \(Self.angle(model.headAngle))").monospacedDigit()
                 if let trial=model.trial { Text("진행 중 · \(trial.mode.rawValue) · 목표 \(trial.target)°").bold() }
             }.font(.subheadline)
             SoundTestRow(label:"시작") {
+                ActionButton(title:"톡톡톡으로 찾기",enabled:model.trial == nil) { model.startTrial(.tick) }
                 ActionButton(title:"몸으로 찾기",enabled:model.trial == nil) { model.startTrial(.body) }
                 ActionButton(title:"고개로 찾기",enabled:model.trial == nil) { model.startTrial(.head) }
                 ActionButton(title:"그만",primary:false,enabled:model.trial != nil) { model.finishTrial(found:false) }

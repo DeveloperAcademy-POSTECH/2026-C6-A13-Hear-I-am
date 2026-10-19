@@ -8,6 +8,7 @@ import HearIAmCore
     @Published var warning: WarningLevel?
     @Published var warningTone=SignalPlayer.savedWarningTone
     @Published var directionMode=SignalPlayer.directionMode
+    @Published var deadbandDegrees=SignalPlayer.directionDeadbandDegrees
     @Published var speaking=false
     @Published var lastEvent="아직 없음"
     @Published var logStatus=""
@@ -27,6 +28,7 @@ import HearIAmCore
     let probe=TrackingProbe()
     let log=SoundTestLog()
     var detector=LandmarkDetector()
+    var directionTicks=DirectionTickGate(deadbandDegrees:SignalPlayer.directionDeadbandDegrees)
 
     init() {
         signals.onEvent={ [weak self] in self?.record($0,$1) }
@@ -61,9 +63,16 @@ import HearIAmCore
     func setWarningTone(_ tone: WarningTone) { warningTone=tone;signals.setWarningTone(tone) }
     func playArrival() { signals.play(.arrival) }
     func beep(_ degrees: Int) { signals.play(.direction(signedDegrees:degrees)) }
+    func tick(toRight: Bool) { signals.play(.directionTick(toRight:toRight)) }
+    func setDeadband(_ degrees: Double) {
+        deadbandDegrees=degrees
+        SignalPlayer.directionDeadbandDegrees=degrees
+        directionTicks.deadbandDegrees=degrees
+        record("direction_deadband",String(format:"±%.0f°",degrees))
+    }
     func speak(_ text: String) { record("test_speech",text);voice.play([text]) }
     /// Warning and a correction line together, to hear whether the words are masked.
-    func playOverlap() { record("test_overlap","warning_near + "+SignalCopy.turnLeft);setWarning(.near);speak(SignalCopy.turnLeft) }
+    func playOverlap() { record("test_overlap","warning_near + "+SignalCopy.left);setWarning(.near);speak(SignalCopy.left) }
 
     // ② haptics
     /// Plays the landmark the way guidance will: vibration, beep, or both, as chosen below.
