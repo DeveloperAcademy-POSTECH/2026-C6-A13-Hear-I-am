@@ -38,6 +38,16 @@ struct SoundTestView: View {
                 }
                 ActionButton(title:"정렬 삐빅",primary:false,enabled:model.trial == nil) { model.previewAlignment() }
             }
+            SoundTestRow(label:"남은 거리 · 좌우 기물 미리듣기") {
+                ForEach([1.5,3.2,0.7],id:\.self) { meters in
+                    ActionButton(title:String(format:"%.1f m",meters),primary:false) {
+                        if let line=DistanceAnnouncement(meters:meters)?.line { model.speak(line) }
+                    }
+                }
+                ForEach(["오른쪽 책장","왼쪽 책상","단상 접근"],id:\.self) { line in
+                    ActionButton(title:line,primary:false) { model.speak(line) }
+                }
+            }
             SoundTestRow(label:"경고 소리 종류 (고른 뒤 아래 거리를 눌러요)") {
                 ForEach(WarningTone.allCases,id:\.self) { tone in
                     ActionButton(title:Self.toneLabel(tone),primary:model.warningTone == tone) { model.setWarningTone(tone) }
@@ -62,7 +72,7 @@ struct SoundTestView: View {
                 }
             }
             SoundTestRow(label:"단상 · 계단 음성") {
-                ForEach([SignalCopy.stepUp(stairs:false),SignalCopy.stepUp(stairs:true),SignalCopy.stepDown],id:\.self) { line in
+                ForEach(["단상 접근",SignalCopy.stepUp(stairs:true),SignalCopy.stepDown],id:\.self) { line in
                     ActionButton(title:line,primary:false) { model.speak(line) }
                 }
             }

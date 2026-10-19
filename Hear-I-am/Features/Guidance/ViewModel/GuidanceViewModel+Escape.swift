@@ -6,6 +6,7 @@ extension GuidanceViewModel {
     static let escapeReasons: [GuidePauseReason]=[.obstacleProximity,.offRoute,.outsideStage]
 
     func beginEscape(reason: GuidePauseReason, pose: (point: FloorPoint, heading: Double, time: Double), guide: RouteGuide) {
+        cancelRouteSpeech();routeNarration.suspendMotion();narrationReadyAt=nil
         directionSweep.reset();signals.stopDirection()
         phase = .paused
         escape=EscapeState(reason:reason,startedAt:pose.time,lastSpoken:pose.time)
@@ -48,6 +49,7 @@ extension GuidanceViewModel {
     private func endEscape(pose: (point: FloorPoint, heading: Double, time: Double)) {
         guard let state=escape, var guide, guide.resume(position:pose.point,trackingValid:true) else { return }
         self.guide=guide;escape=nil;phase = .guiding
+        routeNarration.suspendMotion();narrationReadyAt=nil
         signals.setWarningQuiet(false);directionSweep.reset();signals.stopDirection();steps.reset()
         voice.play(["다시 안내합니다"])
         tracking.event("escape_end",detail:String(format:"reason=%@ seconds=%.1f quiet=%@","\(state.reason)",pose.time-state.startedAt,state.quiet ? "yes" : "no"))

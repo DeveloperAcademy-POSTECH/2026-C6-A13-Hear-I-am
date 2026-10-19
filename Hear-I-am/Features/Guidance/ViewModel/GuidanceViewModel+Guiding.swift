@@ -1,3 +1,4 @@
+import Foundation
 import HearIAmCore
 
 /// #48: body-relative rising (left) / falling (right) mono glides and a latched double beep.
@@ -17,6 +18,7 @@ extension GuidanceViewModel {
     }
     /// Clears every signal rule; called when guidance starts or resumes.
     func resetSignals() {
+        cancelRouteSpeech();routeNarration.suspendMotion();narrationReadyAt=nil
         directionSweep.reset();warnings.reset();steps.reset();arrivalShownAt=nil;warningHoldUntil=nil
         signals.stop()
     }
@@ -39,6 +41,7 @@ extension GuidanceViewModel {
 
     /// The next target starts a new direction-alignment cycle after the arrival ding finishes.
     private func arrived(_ previous: Int, guide: RouteGuide, time: Double) {
+        cancelRouteSpeech();narrationReadyAt=nil
         let name=GuidanceCopy.target(previous,last:guide.route.points.count-1)
         arrivedName=name;arrivalShownAt=time
         directionSweep.reset();signals.stopDirection()
@@ -50,6 +53,9 @@ extension GuidanceViewModel {
         guard guide.route.points.indices.contains(guide.targetIndex) else { return }
         let target=guide.route.points[guide.targetIndex]
         let bearing=StageHeading.bearing(from:pose.point,to:target,headingDegrees:pose.heading)
+        let distance=pose.point.distance(to:target)
+        routeNarration.observe(targetIndex:guide.targetIndex,time:pose.time,position:pose.point,
+                               heading:pose.heading,obstacles:guide.route.obstacles)
         if let hold=warningHoldUntil, pose.time < hold {} else {
             warningHoldUntil=nil
             let warning=warnings.update(position:pose.point,headingDegrees:pose.heading,obstacles:guide.route.obstacles)
@@ -60,15 +66,32 @@ extension GuidanceViewModel {
         }
         guard phase == .guiding, audioIssue == nil else { return }
         if let step=steps.update(position:pose.point,target:target,obstacles:guide.route.obstacles) {
-            voice.play([step.line]);tracking.event("signal_step",detail:step.detail)
+            cancelRouteSpeech()
+            voice.play([step.guidanceLine]);tracking.event("signal_step",detail:step.detail+" line="+step.guidanceLine)
         }
         guard phase == .guiding, audioIssue == nil else { return }
         // Within arrival radius, the target bearing is unstable and arrival dwell owns the feedback.
-        if pose.point.distance(to:target) <= guide.settings.arrivalRadius ||
+        if distance <= guide.settings.arrivalRadius ||
             arrivalShownAt.map({pose.time-$0 < Self.arrivalDirectionPause}) == true {
-            suspendDirection();return
+            cancelRouteSpeech();suspendDirection();return
+        }
+        // Corrective direction/warnings interrupt optional speech immediately. A passed landmark
+        // must not finish describing a side that is no longer true.
+        if let active=routeSpeech {
+            var obsolete=abs(bearing) >= DirectionSweepGate.exitDegrees || signals.warning != nil
+            if case .landmarks(let items)=active.cue {
+                obsolete = obsolete || !SideLandmarkGate.stillBeside(items,position:pose.point,heading:pose.heading,obstacles:guide.route.obstacles)
+            }
+            if obsolete { cancelRouteSpeech() }
         }
         updateDirection(bearing:bearing,time:pose.time,context:"route target=\(guide.targetIndex)")
+        let eligible=phase == .guiding && audioIssue == nil && !speaking && signals.warning == nil &&
+            directionSweep.isAligned && abs(bearing) < DirectionSweepGate.exitDegrees &&
+            narrationReadyAt.map({pose.time >= $0}) == true
+        if let cue=routeNarration.candidate(time:pose.time,meters:distance,eligible:eligible,
+                                            position:pose.point,heading:pose.heading,obstacles:guide.route.obstacles) {
+            speakRouteCue(cue,time:pose.time,targetIndex:guide.targetIndex)
+        }
     }
     func suspendDirection() {
         directionSweep.suspend();signals.stopDirection()
@@ -80,11 +103,29 @@ extension GuidanceViewModel {
         if update.stopPrevious { signals.stopDirection() }
         if let sound=update.sound {
             if signals.play(sound) {
+                if sound == .directionAligned { narrationReadyAt=time+0.35 }
                 tracking.event("signal_sweep_reason",detail:String(format:"%@ bearing=%+.1f %@",context,bearing,sound.name))
             } else { directionSweep.reset() }
         }
     }
+    func cancelRouteSpeech() {
+        guard routeSpeech != nil else { return }
+        routeSpeech=nil;voice.stop()
+    }
+    private func speakRouteCue(_ cue: RouteNarrationCue, time: Double, targetIndex: Int) {
+        let id=UUID()
+        routeSpeech=(id,cue)
+        let started=voice.play([cue.line]) { [weak self] _ in
+            guard self?.routeSpeech?.id == id else { return }
+            self?.routeSpeech=nil
+        }
+        if started {
+            routeNarration.didSpeak(cue,time:time)
+            tracking.event("signal_"+cue.logName,detail:"target=\(targetIndex) \(cue.detail)")
+        } else if routeSpeech?.id == id { routeSpeech=nil }
+    }
     private func paused(guide: RouteGuide) {
+        cancelRouteSpeech();routeNarration.suspendMotion();narrationReadyAt=nil
         directionSweep.reset();signals.stop()
         phase = .paused
         switch guide.pauseReason {

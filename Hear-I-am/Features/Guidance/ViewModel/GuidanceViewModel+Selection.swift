@@ -11,6 +11,7 @@ extension GuidanceViewModel {
         guard let route=item.route, route.conflicts(boundaryMargin:item.settings.boundaryMargin,obstacleClearance:item.settings.obstacleClearance).isEmpty else {
             read(["이 무대에는 사용할 수 있는 동선이 없습니다. 무대를 다시 준비해주세요."]);return
         }
+        routeNarration.reset();routeSpeech=nil;narrationReadyAt=nil
         selected=item;guide=RouteGuide(route:route,settings:item.settings,usesRouteCorridor:true)
         started=false;cue=nil;pendingRecord=nil
         run=GuidanceRun(stageID:item.id,stageName:item.name,route:route)

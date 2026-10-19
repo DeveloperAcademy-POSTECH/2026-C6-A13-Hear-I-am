@@ -29,6 +29,10 @@ import HearIAmCore
     /// Mono pitch glides for body direction; warnings and arrival retain their own sounds.
     let signals=SignalPlayer()
     var directionSweep=DirectionSweepGate()
+    var routeNarration=RouteNarrationGate()
+    var routeSpeech: (id: UUID, cue: RouteNarrationCue)?
+    /// Leave room for the complete alignment double beep before starting speech.
+    var narrationReadyAt: Double?
     var warnings=WarningGate()
     var steps=StepGate()
     var arrivalShownAt: Double?
@@ -85,6 +89,7 @@ import HearIAmCore
 
     private func handleAudioIssue(_ text: String) {
         audioIssue=text;instructionDone=false
+        cancelRouteSpeech();routeNarration.suspendMotion();narrationReadyAt=nil
         directionSweep.reset();signals.stop();escape=nil
         if phase == .guiding || phase == .starting || phase == .paused {
             guide?.pause();phase = started ? .paused : .departure
@@ -108,6 +113,7 @@ import HearIAmCore
         read(currentInstruction)
     }
     func read(_ texts: [String], after: (()->Void)? = nil) {
+        routeSpeech=nil
         audioIssue=nil;instructionDone=false;currentInstruction=texts
         let operation=generation
         voice.play(texts) { [weak self] finished in
@@ -117,6 +123,7 @@ import HearIAmCore
     }
     /// Cancels pending speech callbacks and the countdown; late callbacks see a new generation.
     func invalidateTasks() {
+        routeSpeech=nil;routeNarration.suspendMotion();narrationReadyAt=nil
         generation=UUID();countdownTask?.cancel();countdownTask=nil;voice.stop();instructionDone=false;arrivedName=nil;arrivalShownAt=nil
         escape=nil;warningHoldUntil=nil;directionSweep.reset();signals.stop();signals.setWarningQuiet(false)
     }

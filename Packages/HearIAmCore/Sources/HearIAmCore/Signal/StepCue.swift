@@ -25,6 +25,15 @@ public struct StepCue: Equatable, Sendable {
         case .over: return SignalCopy.stepOver(stairs:stairs)
         }
     }
+    /// Short current-guidance wording; keep descent information for a narrow platform.
+    public var guidanceLine: String {
+        guard !stairs else { return line }
+        switch kind {
+        case .up: return "단상 접근"
+        case .over: return "단상 접근. 바로 내려감."
+        case .down: return SignalCopy.stepDown
+        }
+    }
     public var detail: String {
         var text=String(format:"%@ %@ %.2fm",kind.rawValue,name,distance)
         if let across { text+=String(format:" across=%.2fm",across) }
