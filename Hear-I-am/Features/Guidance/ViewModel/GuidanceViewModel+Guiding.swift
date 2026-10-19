@@ -47,7 +47,7 @@ extension GuidanceViewModel {
         landmarks.reset();corrections.reset()
         signals.setWarning(nil);warningHoldUntil=time+Self.arrivalWarningPause
         signals.play(.arrival)
-        tracking.event("signal_arrival",detail:"\(name) next=\(guide.targetIndex)")
+        logSignal("signal_arrival","\(name) next=\(guide.targetIndex)")
     }
     private func signal(pose: (point: FloorPoint, heading: Double, time: Double), guide: RouteGuide) {
         guard guide.route.points.indices.contains(guide.targetIndex) else { return }
@@ -60,14 +60,14 @@ extension GuidanceViewModel {
             let warning=warnings.update(position:pose.point,headingDegrees:pose.heading,obstacles:guide.route.obstacles)
             if warning?.level != signals.warning {
                 signals.setWarning(warning?.level)
-                tracking.event("signal_warning_reason",detail:warning?.detail ?? "off")
+                logSignal("signal_warning_reason",warning?.detail ?? "off")
             }
         }
         if let step=steps.update(position:pose.point,target:target,obstacles:guide.route.obstacles) {
-            voice.play([step.line]);tracking.event("signal_step",detail:step.detail)
+            voice.play([step.line]);logSignal("signal_step",step.detail)
         } else if let correction=corrections.update(time:pose.time,bearing:bearing) {
             voice.direction(correction.line)
-            tracking.event("signal_correction",detail:String(format:"%@ bearing %+.0f°",correction.rawValue,bearing))
+            logSignal("signal_correction",String(format:"%@ bearing %+.0f°",correction.rawValue,bearing))
         }
     }
     private func paused(guide: RouteGuide) {
