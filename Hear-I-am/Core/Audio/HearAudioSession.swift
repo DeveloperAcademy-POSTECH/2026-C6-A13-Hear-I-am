@@ -47,6 +47,7 @@ enum SignalVolume {
     /// Below the warning, like speech: the direction beep should not hide how close an obstacle is.
     static let direction: Float=0.8
     /// Tones drop to this share of their level while speech plays, so words are not masked.
+    /// The arrival ding is the exception (10/19).
     static let duckedShare: Float=0.6
     /// Warning level after 10 s of failing to step away from an obstacle.
     static let quietShare: Float=0.3
