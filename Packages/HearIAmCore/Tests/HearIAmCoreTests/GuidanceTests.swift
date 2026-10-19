@@ -35,10 +35,10 @@ final class GuidanceTests: XCTestCase {
         let r=try route(); var g=guide(r)
         XCTAssertFalse(RouteGuide(route:r,settings:GuideSettings()).startForTest(r.points[0]))
         XCTAssertTrue(g.start(position:r.points[0],headingDegrees:0,trackingValid:true))
-        let result=g.observe(time:1,position:.init(-1,3),headingDegrees:0,trackingValid:true)
+        let result=g.observe(time:1,position:.init(-1,3.1),headingDegrees:0,trackingValid:true)
         XCTAssertEqual(result.state,.paused); XCTAssertEqual(g.pauseReason,.offRoute)
         XCTAssertEqual(g.targetIndex,1)
-        XCTAssertFalse(g.resume(position:.init(-1,3),trackingValid:true))
+        XCTAssertFalse(g.resume(position:.init(-1,3.1),trackingValid:true))
         for i in 0...10 { XCTAssertFalse(g.observeAutomaticRecovery(time:2+Double(i)*0.2,position:r.points[0],headingDegrees:0,trackingValid:true)) }
         XCTAssertTrue(g.resume(position:r.points[0],trackingValid:true))
         XCTAssertEqual(g.targetIndex,1)
@@ -137,18 +137,15 @@ final class GuidanceTests: XCTestCase {
         _=g.observe(time:3.4,position:.init(3,4),headingDegrees:0,trackingValid:true,allowsTargetAdvance:false)
         XCTAssertEqual(g.pauseReason,.offRoute)
     }
-    /// 10/19: the performer overshoots a point while turning to the next leg. Leaving the new corridor
-    /// within 2 s and 1 m of the point is not a pause; leaving the stage still is.
-    func testOffRouteRightAfterArrivalWaitsButLeavingTheStageDoesNot() throws {
+    /// 10/19: overshooting a point by up to 0.87 m is not off the route; 1 m past the line still is,
+    /// and stepping off the stage still stops at once.
+    func testOvershootWithinOneMetreKeepsGuidingButLeavingTheStageStops() throws {
         let r=try route([.init(-1,2),.init(3,2),.init(3,5),.init(7,2)]); var g=guide(r)
         XCTAssertTrue(g.start(position:r.points[0],headingDegrees:0,trackingValid:true))
         _=arrive(&g,at:r.points[1],from:1)
         XCTAssertEqual(g.targetIndex,2)
-        // 0.8 m past the point, 0.8 m from the new leg (3,2)→(3,5): off the 0.6 m corridor.
-        let past=FloorPoint(3.8,2)
-        // Arrived at t = 1.8 (dwell 0.8 s from t = 1), so the grace runs to t = 3.8.
-        for i in 1...9 { XCTAssertEqual(g.observe(time:2+Double(i)*0.2,position:past,headingDegrees:0,trackingValid:true).state,.guiding,"\(i)") }
-        _=g.observe(time:4.0,position:past,headingDegrees:0,trackingValid:true)
+        for i in 1...10 { XCTAssertEqual(g.observe(time:2+Double(i)*0.2,position:.init(3.9,2),headingDegrees:0,trackingValid:true).state,.guiding,"\(i)") }
+        _=g.observe(time:4.2,position:.init(4.05,2),headingDegrees:0,trackingValid:true)
         XCTAssertEqual(g.pauseReason,.offRoute)
 
         var edge=guide(try route([.init(-1,2),.init(5.9,2),.init(3,4),.init(7,2)]))
