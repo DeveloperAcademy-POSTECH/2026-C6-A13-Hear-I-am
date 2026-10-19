@@ -34,6 +34,8 @@ import HearIAmCore
     private let format=AVAudioFormat(standardFormatWithSampleRate:ToneRenderer.sampleRate,channels:1)!
     private var buffers: [String:AVAudioPCMBuffer]=[:]
     private var shotVolume=SignalVolume.arrival
+    /// The arrival ding is not ducked under speech (10/19: it was easy to miss).
+    private var shotIsArrival=false
     private var observers: [NSObjectProtocol]=[]
     private let log=Logger(subsystem:Bundle.main.bundleIdentifier ?? "HearIAm",category:"Signal")
 
@@ -58,7 +60,10 @@ import HearIAmCore
     func play(_ sound: SignalSound) {
         guard prepare(sound.name), let buffer=buffer(sound) else { return }
         let node: AVAudioPlayerNode
-        if case .direction=sound { node=directionNode } else { node=shotNode;shotVolume=volume(sound) }
+        if case .direction=sound { node=directionNode } else {
+            node=shotNode;shotVolume=volume(sound)
+            if case .arrival=sound { shotIsArrival=true } else { shotIsArrival=false }
+        }
         applyVolumes()
         node.scheduleBuffer(buffer,at:nil,options:.interrupts)
         if !node.isPlaying { node.play() }
@@ -132,7 +137,7 @@ import HearIAmCore
     }
     private func applyVolumes() {
         let share=speechActive ? SignalVolume.duckedShare : 1
-        warningNode.volume=SignalVolume.warning*share*(warningQuiet ? SignalVolume.quietShare : 1);shotNode.volume=shotVolume*share
+        warningNode.volume=SignalVolume.warning*share*(warningQuiet ? SignalVolume.quietShare : 1);shotNode.volume=shotVolume*(shotIsArrival ? 1 : share)
         directionNode.volume=SignalVolume.direction*share
     }
     private func routeChanged(_ reason: AVAudioSession.RouteChangeReason?) {

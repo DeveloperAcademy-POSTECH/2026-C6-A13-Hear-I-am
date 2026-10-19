@@ -3,6 +3,7 @@ import HearIAmCore
 
 /// 안내 완료: the final announcement, then saving one completion record.
 extension GuidanceViewModel {
+    static let dingBeforeSpeech=0.7
     func playCompletion() {
         guard phase != .finishing || !speaking else { return }
         let arriving=phase == .guiding
@@ -18,10 +19,17 @@ extension GuidanceViewModel {
         // Guidance stops now; the validation camera stays live until the user finishes.
         audioIssue=nil
         let operation=generation
-        voice.play([GuidanceCopy.completed],final:true) { [weak self] finished in
-            guard let self, finished, self.generation == operation, self.active else { return }
-            self.phase = .completed;self.instructionDone=true;self.message="출발부터 마지막 지점까지 안내를 완료했어요."
+        let speak={ [weak self] in
+            guard let self, self.generation == operation, self.active else { return }
+            self.voice.play([GuidanceCopy.completed],final:true) { [weak self] finished in
+                guard let self, finished, self.generation == operation, self.active else { return }
+                self.phase = .completed;self.instructionDone=true;self.message="출발부터 마지막 지점까지 안내를 완료했어요."
+            }
         }
+        // Let the ding ring out before the closing line covers it.
+        if arriving {
+            Task { @MainActor in try? await Task.sleep(nanoseconds:UInt64(Self.dingBeforeSpeech*1e9));speak() }
+        } else { speak() }
     }
     func completedRecord() throws -> GuidanceRecord {
         guard phase == .completed, guide?.state == .completed, let run else {

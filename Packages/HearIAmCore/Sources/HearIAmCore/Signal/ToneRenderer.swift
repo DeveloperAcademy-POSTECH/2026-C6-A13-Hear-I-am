@@ -6,7 +6,9 @@ public enum ToneRenderer {
     public static let sampleRate=44_100.0
     public static let peak: Float=0.9
     /// G6. It was E6 (1318.5 Hz) until 10/18, almost the right direction beep (1320 Hz).
-    static let arrivalHertz=1568.0, arrivalLength=0.6
+    /// Since 10/19 it rings for 1 s with two overtones instead of 0.6 s with one, so it carries more
+    /// energy at the same peak: the performer walked past points without noticing it.
+    static let arrivalHertz=1568.0, arrivalLength=1.0, arrivalDecay=4.0
     static let buzzRate=12.0, buzzLength=0.6
 
     public static func render(_ sound: SignalSound) -> [Float] {
@@ -16,8 +18,8 @@ public enum ToneRenderer {
             return pulse+[Float](repeating:0,count:max(0,count(level.period)-pulse.count))
         case .arrival:
             return normalized(samples(arrivalLength) { t in
-                let tone=sin(2 * .pi*arrivalHertz*t)+0.4*sin(2 * .pi*arrivalHertz*2*t)
-                return tone*exp(-t*7)*fade(t,length:arrivalLength,edge:0.003)
+                let tone=sin(2 * .pi*arrivalHertz*t)+0.5*sin(2 * .pi*arrivalHertz*2*t)+0.2*sin(2 * .pi*arrivalHertz*3*t)
+                return tone*exp(-t*arrivalDecay)*fade(t,length:arrivalLength,edge:0.003)
             })
         case .direction(let degrees):
             guard let beep=DirectionPattern.beep(signedDegrees:degrees) else { return [] }
