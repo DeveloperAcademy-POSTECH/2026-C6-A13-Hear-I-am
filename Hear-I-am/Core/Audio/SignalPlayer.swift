@@ -18,6 +18,12 @@ import HearIAmCore
     static var savedWarningTone: WarningTone {
         UserDefaults.standard.string(forKey:toneKey).flatMap(WarningTone.init(rawValue:)) ?? .low
     }
+    static let directionBeepKey="signal.directionBeep"
+    /// How the direction beep sounds; chosen in the sound test tab (10/19). Until then it is the #33 beep.
+    static var directionBeepStyle: DirectionBeepStyle {
+        get { UserDefaults.standard.string(forKey:directionBeepKey).flatMap(DirectionBeepStyle.init(rawValue:)) ?? .plain }
+        set { UserDefaults.standard.set(newValue.rawValue,forKey:directionBeepKey) }
+    }
     static let directionModeKey="signal.directionMode"
     /// How guidance gives the direction at each 45° landmark; chosen in the sound test tab (#33).
     static var directionMode: DirectionSignalMode {

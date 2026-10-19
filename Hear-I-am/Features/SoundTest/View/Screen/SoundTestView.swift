@@ -43,6 +43,11 @@ struct SoundTestView: View {
                 }
             }
             SoundTestRow(label:"도착") { ActionButton(title:"띵",primary:false) { model.playArrival() } }
+            SoundTestRow(label:"방향 비프 소리 (고르면 안내에서도 이대로 써요)") {
+                ForEach(DirectionBeepStyle.allCases,id:\.self) { style in
+                    ActionButton(title:Self.beepLabel(style),primary:model.beepStyle == style) { model.setBeepStyle(style) }
+                }
+            }
             SoundTestRow(label:"방향 비프 (왼쪽 낮게 · 오른쪽 높게 · 앞뒤 중간)") {
                 ForEach(DirectionPattern.landmarks,id:\.self) { degrees in
                     ActionButton(title:Self.label(degrees),primary:false) { model.beep(degrees) }
@@ -130,6 +135,14 @@ struct SoundTestView: View {
         case .haptic: return "진동만"
         case .beep: return "비프만"
         case .both: return "진동 + 비프"
+        }
+    }
+    static func beepLabel(_ style: DirectionBeepStyle) -> String {
+        switch style {
+        case .plain: return "지금 소리"
+        case .pluck: return "톡"
+        case .low: return "낮게"
+        case .quiet: return "작게"
         }
     }
     static func toneLabel(_ tone: WarningTone) -> String {

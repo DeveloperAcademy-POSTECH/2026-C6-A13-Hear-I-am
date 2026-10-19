@@ -83,6 +83,6 @@ extension DirectionHaptics {
         let mode=chosen ?? SignalPlayer.directionMode
         event("signal_direction","\(DirectionPattern.name(signedDegrees:signedDegrees)) mode=\(mode.rawValue)")
         if mode.vibrates { play(signedDegrees:signedDegrees) }
-        if mode.beeps { signals.play(.direction(signedDegrees:signedDegrees)) }
+        if mode.beeps { signals.play(.direction(signedDegrees:signedDegrees,style:SignalPlayer.directionBeepStyle)) }
     }
 }

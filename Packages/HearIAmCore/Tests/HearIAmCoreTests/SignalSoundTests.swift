@@ -68,13 +68,15 @@ final class SignalSoundTests: XCTestCase {
     /// No warning tone and not the arrival ding may share a pitch with a direction beep (#33).
     /// 「날카로운 삑」 (950 Hz, near the front beep) was dropped on 10/17 and is kept only for comparison.
     func testSignalsShareNoPitchWithDirectionBeeps() {
-        let direction=[DirectionPattern.leftHertz,DirectionPattern.centerHertz,DirectionPattern.rightHertz]
         let pitches=WarningTone.allCases.filter { $0 != .sharp }.map { ($0.rawValue,$0.pitches[0]) }+[("arrival",ToneRenderer.arrivalHertz)]
-        for (name,pitch) in pitches {
-            XCTAssertTrue(direction.allSatisfy { abs($0-pitch)/pitch > 0.1 },"\(name) \(pitch) Hz")
-        }
-        for pitch in WarningTone.low.pitches {
-            XCTAssertTrue(direction.allSatisfy { abs($0-pitch)/pitch > 0.1 },"low \(pitch) Hz")
+        for style in DirectionBeepStyle.allCases {
+            let p=style.pitches, direction=[p.left,p.center,p.right]
+            for (name,pitch) in pitches {
+                XCTAssertTrue(direction.allSatisfy { abs($0-pitch)/pitch > 0.1 },"\(style) \(name) \(pitch) Hz")
+            }
+            for pitch in WarningTone.low.pitches {
+                XCTAssertTrue(direction.allSatisfy { abs($0-pitch)/pitch > 0.1 },"\(style) low \(pitch) Hz")
+            }
         }
         XCTAssertEqual(DirectionSignalMode.allCases.map { [$0.vibrates,$0.beeps] },[[true,false],[false,true],[true,true]])
     }
@@ -82,5 +84,19 @@ final class SignalSoundTests: XCTestCase {
         XCTAssertEqual(Set(all.map(\.name)).count,all.count)
         XCTAssertEqual(SignalSound.buzz(hertz:40,harmonic:true).name,"buzz_40hz_harmonic")
         XCTAssertEqual(SignalSound.direction(signedDegrees:-90).name,"direction_left_90")
+    }
+    /// 10/19: beep candidates keep the timing and counts; 「톡」 dies away, 「작게」 is half as loud.
+    func testBeepStylesKeepTimingAndDiffer() {
+        let on=ToneRenderer.count(DirectionPattern.beepLength)
+        let plain=ToneRenderer.render(.direction(signedDegrees:90))
+        for style in DirectionBeepStyle.allCases {
+            XCTAssertEqual(ToneRenderer.render(.direction(signedDegrees:90,style:style)).count,plain.count,"\(style)")
+        }
+        let pluck=ToneRenderer.render(.direction(signedDegrees:0,style:.pluck))
+        XCTAssertLessThan(rms(pluck[(on*3/4)..<on]),rms(pluck[..<(on/4)])*0.3)
+        let quiet=ToneRenderer.render(.direction(signedDegrees:90,style:.quiet))
+        XCTAssertEqual(rms(quiet[..<on])/rms(plain[..<on]),0.5,accuracy:0.01)
+        XCTAssertEqual(DirectionPattern.beep(signedDegrees:-45,style:.low)?.hertz,330)
+        XCTAssertEqual(SignalSound.direction(signedDegrees:-90,style:.pluck).name,"direction_left_90_pluck")
     }
 }
