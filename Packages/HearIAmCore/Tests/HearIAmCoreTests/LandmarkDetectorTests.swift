@@ -82,4 +82,16 @@ final class LandmarkDetectorTests: XCTestCase {
         let flat=ReferenceToDeviceRotation(m11:1,m12:0,m13:0,m21:0,m22:1,m23:0,m31:0,m32:0,m33:1)
         XCTAssertNil(HeadingMath.screenHeadingDegrees(flat))
     }
+    /// 10/19: walking straight sways the body by more than 6°, so 「앞」 repeated every 1–2 s.
+    func testFrontFiresAgainOnlyAfterLeavingTwentyDegrees() {
+        var d=LandmarkDetector()
+        XCTAssertEqual(d.update(relativeDegrees:0),0)
+        for angle in [8.0,-12,19,-19.9,4,0] { XCTAssertNil(d.update(relativeDegrees:angle),"\(angle)") }
+        XCTAssertNil(d.update(relativeDegrees:21))
+        XCTAssertEqual(d.update(relativeDegrees:2),0)
+        // Other landmarks keep the ±6° rearm.
+        XCTAssertEqual(d.update(relativeDegrees:45),45)
+        XCTAssertNil(d.update(relativeDegrees:37))
+        XCTAssertEqual(d.update(relativeDegrees:44),45)
+    }
 }
