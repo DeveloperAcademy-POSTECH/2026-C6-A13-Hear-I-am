@@ -34,9 +34,8 @@ public struct PreparationDraft: Sendable {
         catch { return [error.localizedDescription] }
     }
     public mutating func addRoutePoint(_ point: Point3, asDestination: Bool = false) throws {
-        guard let area, point.valid, abs(point.y-area.floorHeight) <= 0.10 else {
-            throw LabError.invalid("무대와 같은 높이의 바닥을 선택해주세요.")
-        }
+        guard let area else { throw LabError.invalid("무대 영역을 먼저 지정해주세요.") }
+        if let error=routeSurfaceError(point,in:area) { throw LabError.invalid(error) }
         guard !routeFinished, route.count < 6 else { throw LabError.invalid("경로는 출발·도착을 포함해 최대 6개입니다.") }
         if asDestination {
             guard route.count >= 2 else { throw LabError.invalid("출발점과 내부 지점을 먼저 지정해주세요.") }
@@ -47,7 +46,37 @@ public struct PreparationDraft: Sendable {
         }
         if let last = route.last, last.distance(to: point) < 0.05 { throw LabError.invalid("이전 점에서 조금 더 떨어진 위치를 선택해주세요.") }
         if let hit = clearanceHit(adding: point) { throw LabError.invalid(hit.message+". 빨간 영역 밖을 찍어주세요.") }
+        if let previous=route.last, let blocked=objects.compactMap({try? $0.projected(in:area)}).first(where: {
+            $0.isStep && $0.blocksTravel(from:area.floor(previous),to:area.floor(point),clearance:effectiveObstacleClearance)
+        }) { throw LabError.invalid("\(blocked.name)의 허용된 올라가는 변·내려오는 변으로 경로를 지정해주세요.") }
         route.append(point); routeFinished = asDestination; planApplied = false
+    }
+    /// Validate observed horizontal surfaces against the registered outline and measured height.
+    public func routeSurfaceError(_ point: Point3, in area: StageArea) -> String? {
+        guard point.valid else { return "선택한 위치를 측정하지 못했어요. 다시 비춰주세요." }
+        let h=point.y-area.floorHeight
+        if abs(h) <= 0.10 { return nil }
+        guard h > 0 else { return "선택한 면이 무대 바닥보다 낮아요. 무대 바닥과 네 모서리를 확인해주세요." }
+        guard h <= ObjectHeight.ceiling else { return "선택한 면이 무대 바닥보다 2.5m 넘게 높아요. 무대 바닥과 선택 위치를 확인해주세요." }
+        let covered=objects.filter { object in
+            guard object.kind == .platform || object.kind == .stairs,
+                  let shape=try? object.projected(in:area) else { return false }
+            return shape.contains(area.floor(point))
+        }
+        guard !covered.isEmpty else {
+            return "선택한 면은 바닥보다 약 \(Int((h*100).rounded()))cm 높지만 등록한 단상·계단 둘레 밖이에요. 기물 종류와 바닥 둘레를 확인해주세요."
+        }
+        guard covered.contains(where: { object in
+            guard let top=object.height else { return true }
+            guard top > 0 else { return false }
+            return object.kind == .stairs ? h <= top+0.15+1e-9 : abs(h-top) <= 0.15+1e-9
+        }) else {
+            return "선택한 면은 바닥보다 약 \(Int((h*100).rounded()))cm 높아요. 단상은 추정 높이 ±15cm, 계단은 추정 최고 높이 +15cm 이하의 면을 선택해주세요. 기물 높이와 스캔 상태를 확인해주세요."
+        }
+        return nil
+    }
+    public func acceptsRouteSurface(_ point: Point3, in area: StageArea) -> Bool {
+        routeSurfaceError(point,in:area) == nil
     }
     public mutating func removeLastRoutePoint() {
         guard !route.isEmpty else { return }
@@ -60,7 +89,7 @@ public struct PreparationDraft: Sendable {
         let sx = area.width / PerformancePlan.width
         let sy = area.depth / PerformancePlan.depth
         func mapped(_ p: FloorPoint) -> Point3 { area.world(FloorPoint(p.x * sx, p.y * sy)) }
-        objects = plan.objects.map { WorldObstacle(id: $0.id, name: $0.name, kind: $0.kind, vertices: $0.vertices.map(mapped)) }
+        objects = plan.objects.map { WorldObstacle(id: $0.id, name: $0.name, kind: $0.kind, vertices: $0.vertices.map(mapped), height:$0.height, entryEdges:$0.entryEdges, exitEdges:$0.exitEdges) }
         route = plan.points.map(mapped)
         routeFinished = plan.finished
         planApplied = true
@@ -72,11 +101,11 @@ public struct PreparationDraft: Sendable {
     }
     public func stageRoute() throws -> StageRoute {
         guard let area, routeFinished else { throw LabError.invalid("무대 범위와 도착점을 확정해주세요.") }
-        guard route.allSatisfy({ abs($0.y-area.floorHeight) <= 0.10 }) else {
+        guard route.allSatisfy({ acceptsRouteSurface($0,in:area) }) else {
             throw LabError.invalid("경로가 새 무대 바닥과 높이가 다릅니다. 경로를 다시 지정해주세요.")
         }
         let obstacles = try objects.map { try $0.projected(in: area) }
-        return try StageRoute(area: area, points: route.map(area.floor), obstacles: obstacles, allowsOutsideEndpoints: true, dangerZones: dangerZones)
+        return try StageRoute(area: area, points: route.map(area.floor), obstacles: obstacles, allowsOutsideEndpoints: true, dangerZones: dangerZones, pointHeights:route.map {$0.y-area.floorHeight})
     }
     public var objectErrors: [String] {
         guard let area else { return boundaryErrors }

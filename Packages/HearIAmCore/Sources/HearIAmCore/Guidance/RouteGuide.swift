@@ -19,6 +19,7 @@ public struct RouteGuide: Sendable {
     public let usesRouteCorridor: Bool
     public static let corridorRadius = 0.60
     private var arrivedSince: Double?
+    private var lastPosition: FloorPoint?
     private var lastTime: Double?
     private var lastSpeech: Double = -.infinity
     private var reentrySince: Double?
@@ -40,6 +41,7 @@ public struct RouteGuide: Sendable {
     }
     @discardableResult public mutating func start(position: FloorPoint, headingDegrees: Double, trackingValid: Bool) -> Bool {
         guard state == .idle, ready(position:position,headingDegrees:headingDegrees,trackingValid:trackingValid) else { return false }
+        lastPosition=position
         state = .guiding; targetIndex=1; arrivedSince=nil; lastTime=nil; lastSpeech = -.infinity; sector=nil; pauseReason=nil
         return true
     }
@@ -51,6 +53,7 @@ public struct RouteGuide: Sendable {
     }
     @discardableResult public mutating func resume(position: FloorPoint, trackingValid: Bool) -> Bool {
         guard canResume(position:position,trackingValid:trackingValid) else { return false }
+        lastPosition=position
         state = .guiding; pauseReason=nil; arrivedSince=nil; lastTime=nil; lastSpeech = -.infinity
         reentrySince=nil; lastReentryTime=nil; sector=nil
         return true
@@ -67,7 +70,7 @@ public struct RouteGuide: Sendable {
         if !route.area.contains(position) && !externalSegment { return .outsideStage }
         let a=route.points[targetIndex-1], b=route.points[targetIndex]
         if position.distance(toSegmentFrom:a,to:b) > Self.corridorRadius { return .offRoute }
-        if route.obstacles.contains(where: { $0.blocksPath && $0.overlaps(position,b,clearance:settings.obstacleClearance) }) {
+        if route.obstacles.contains(where: { $0.blocksTravel(from:position,to:b,clearance:settings.obstacleClearance) }) {
             return .obstacleProximity
         }
         return nil
@@ -97,6 +100,13 @@ public struct RouteGuide: Sendable {
         guard lastTime.map({time > $0 && time-$0 <= 0.5}) ?? true else {
             pause(reason:.sampleGap); return GuideUpdate(state:state,targetIndex:targetIndex,announcement:nil)
         }
+        if let previous=lastPosition, route.obstacles.contains(where: {
+            $0.isStep && $0.blocksTravel(from:previous,to:position,clearance:0)
+        }) {
+            pause(reason:.obstacleProximity)
+            return GuideUpdate(state:state,targetIndex:targetIndex,announcement:nil)
+        }
+        lastPosition=position
         let issue=usesRouteCorridor ? positionIssue(position) : (route.area.contains(position) ? nil : GuidePauseReason.outsideStage)
         if let issue {
             pause(reason:issue); return GuideUpdate(state:state,targetIndex:targetIndex,announcement:nil)
