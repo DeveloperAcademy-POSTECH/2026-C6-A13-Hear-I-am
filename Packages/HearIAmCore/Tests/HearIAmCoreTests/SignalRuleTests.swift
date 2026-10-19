@@ -181,4 +181,31 @@ final class SignalRuleTests: XCTestCase {
         XCTAssertEqual(SignalCopy.escape(bearing:136),"멈추세요. 뒤로 도세요")
         XCTAssertEqual(SignalCopy.escape(bearing:-170),"멈추세요. 뒤로 도세요")
     }
+    // MARK: distance
+    func testDistanceMarksEveryMetreThenHalfAndOncePerLeg() {
+        var gate=DistanceGate()
+        let target=FloorPoint(0,0)
+        XCTAssertNil(gate.update(position:.init(0,3.05),target:target))
+        var said: [Double]=[]
+        for y in stride(from:3.0,through:0.3,by:-0.05) {
+            if let mark=gate.update(position:.init(0,y),target:target) { said.append(mark) }
+        }
+        XCTAssertEqual(said,[2,1,0.5])
+        // Swaying back across 0.5 m does not say it again.
+        XCTAssertNil(gate.update(position:.init(0,0.6),target:target))
+        XCTAssertNil(gate.update(position:.init(0,0.45),target:target))
+        XCTAssertEqual(said.map(SignalCopy.distance),["2미터","1미터","50센티"])
+    }
+    func testDistanceStartsBelowTheStartAndRestartsForANewTarget() {
+        var gate=DistanceGate()
+        // Starting 1.05 m away: 1 m is too close to the start to be news.
+        XCTAssertNil(gate.update(position:.init(0,1.05),target:.init(0,0)))
+        XCTAssertNil(gate.update(position:.init(0,0.95),target:.init(0,0)))
+        // A jump past several marks says only the nearest.
+        XCTAssertEqual(gate.update(position:.init(0,0.4),target:.init(0,0)),0.5)
+        XCTAssertNil(gate.update(position:.init(0,0.4),target:.init(0,2.5)))
+        XCTAssertEqual(gate.update(position:.init(0,1.55),target:.init(0,2.5)),1)
+        gate.reset()
+        XCTAssertNil(gate.update(position:.init(0,1.55),target:.init(0,2.5)))
+    }
 }

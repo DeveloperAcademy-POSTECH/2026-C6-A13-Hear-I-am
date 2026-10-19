@@ -3,7 +3,8 @@ import HearIAmCore
 /// 안내 중 · 일시정지: signals along the saved route, decided 10/17 (comparison option ②).
 /// Direction is the waist vibration (next target = 0°, every 45°), with the earbud direction beep at
 /// the same moment unless the sound test tab chose only one of them (#33). Speech only when needed:
-/// corrections past 45° for 1 s, steps 1 m ahead. The earbud gives the obstacle warning and the arrival ding.
+/// corrections past 45° for 1 s, steps 1 m ahead, the remaining distance at a few marks (10/19).
+/// The earbud gives the obstacle warning and the arrival ding.
 /// Walking on track is silent.
 extension GuidanceViewModel {
     static let arrivalShownSeconds=2.0, arrivalWarningPause=1.5
@@ -20,7 +21,7 @@ extension GuidanceViewModel {
     }
     /// Clears every signal rule; called when guidance starts or resumes.
     func resetSignals() {
-        landmarks.reset();warnings.reset();corrections.reset();steps.reset();arrivalShownAt=nil;warningHoldUntil=nil
+        landmarks.reset();warnings.reset();corrections.reset();steps.reset();distances.reset();arrivalShownAt=nil;warningHoldUntil=nil
         signals.setWarning(nil)
     }
     func tickGuiding(pose: (point: FloorPoint, heading: Double, time: Double), guide current: RouteGuide) {
@@ -63,11 +64,21 @@ extension GuidanceViewModel {
                 logSignal("signal_warning_reason",warning?.detail ?? "off")
             }
         }
+        // Every tick, so a mark passed while something else speaks is dropped rather than said late.
+        let mark=distances.update(position:pose.point,target:target)
         if let step=steps.update(position:pose.point,target:target,obstacles:guide.route.obstacles) {
             voice.play([step.line]);logSignal("signal_step",step.detail)
+            if let mark { logSignal("signal_distance_skipped","\(SignalCopy.distance(mark)) reason=step") }
         } else if let correction=corrections.update(time:pose.time,bearing:bearing) {
             voice.direction(correction.line)
             logSignal("signal_correction",String(format:"%@ bearing %+.0f°",correction.rawValue,bearing))
+            if let mark { logSignal("signal_distance_skipped","\(SignalCopy.distance(mark)) reason=correction") }
+        } else if let mark {
+            // Safety signals first: no distance over an obstacle warning or another line.
+            let line=SignalCopy.distance(mark)
+            if signals.warning != nil || speaking {
+                logSignal("signal_distance_skipped","\(line) reason=\(speaking ? "speaking" : "warning")")
+            } else { voice.direction(line);logSignal("signal_distance",line) }
         }
     }
     private func paused(guide: RouteGuide) {
