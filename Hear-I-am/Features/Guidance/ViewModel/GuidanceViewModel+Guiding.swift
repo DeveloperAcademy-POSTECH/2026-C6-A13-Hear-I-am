@@ -7,7 +7,9 @@ import HearIAmCore
 /// The earbud gives the obstacle warning and the arrival ding.
 /// Walking on track is silent.
 extension GuidanceViewModel {
-    static let arrivalShownSeconds=2.0, arrivalWarningPause=1.5
+    /// About as long as the ding rings. On 10/19 a point brought up to seven sounds within 3 s; 1.5 s of
+    /// silence was considered, but at 0.5 m/s it lets the performer walk 0.75 m on without a new direction.
+    static let arrivalShownSeconds=2.0, arrivalQuietSeconds=0.7
 
     var canResume: Bool {
         guard let pose=freshPose(), let guide else { return false }
@@ -21,7 +23,7 @@ extension GuidanceViewModel {
     }
     /// Clears every signal rule; called when guidance starts or resumes.
     func resetSignals() {
-        landmarks.reset();warnings.reset();corrections.reset();steps.reset();distances.reset();arrivalShownAt=nil;warningHoldUntil=nil
+        landmarks.reset();warnings.reset();corrections.reset();steps.reset();distances.reset();arrivalShownAt=nil;quietUntil=nil
         signals.setWarning(nil)
     }
     func tickGuiding(pose: (point: FloorPoint, heading: Double, time: Double), guide current: RouteGuide) {
@@ -41,12 +43,13 @@ extension GuidanceViewModel {
         signal(pose:pose,guide:guide)
     }
 
-    /// Ding once; the new target becomes 0° so the next vibration points the way. No speech.
+    /// Ding once, then one direction signal for the new target once it has rung. No speech.
+    /// The obstacle warning keeps playing: it used to stop for 1.5 s so the ding was not masked, but a
+    /// masked ding is better than a missing warning (10/19).
     private func arrived(_ previous: Int, guide: RouteGuide, time: Double) {
         let name=GuidanceCopy.target(previous,last:guide.route.points.count-1)
         arrivedName=name;arrivalShownAt=time
-        landmarks.reset();corrections.reset()
-        signals.setWarning(nil);warningHoldUntil=time+Self.arrivalWarningPause
+        landmarks.reset();corrections.reset();quietUntil=time+Self.arrivalQuietSeconds
         signals.play(.arrival)
         logSignal("signal_arrival","\(name) next=\(guide.targetIndex)")
     }
@@ -54,21 +57,29 @@ extension GuidanceViewModel {
         guard guide.route.points.indices.contains(guide.targetIndex) else { return }
         let target=guide.route.points[guide.targetIndex]
         let bearing=StageHeading.bearing(from:pose.point,to:target,headingDegrees:pose.heading)
+        let quiet=quietUntil.map { pose.time < $0 } ?? false
         // The detector takes the body relative to the target, the opposite sign of the bearing.
-        if let landmark=landmarks.update(relativeDegrees:-bearing) { haptics.playDirection(signedDegrees:landmark,signals:signals) }
-        if let hold=warningHoldUntil, pose.time < hold {} else {
-            warningHoldUntil=nil
-            let warning=warnings.update(position:pose.point,headingDegrees:pose.heading,obstacles:guide.route.obstacles)
-            if warning?.level != signals.warning {
-                signals.setWarning(warning?.level)
-                logSignal("signal_warning_reason",warning?.detail ?? "off")
-            }
+        if !quiet, quietUntil != nil {
+            quietUntil=nil
+            let landmark=DirectionPattern.nearest(-bearing)
+            haptics.playDirection(signedDegrees:landmark,signals:signals)
+            // Seed the detector so the same landmark does not fire again on the next tick.
+            landmarks.reset();_=landmarks.update(relativeDegrees:-bearing)
+        } else if !quiet, let landmark=landmarks.update(relativeDegrees:-bearing) {
+            haptics.playDirection(signedDegrees:landmark,signals:signals)
+        }
+        let warning=warnings.update(position:pose.point,headingDegrees:pose.heading,obstacles:guide.route.obstacles)
+        if warning?.level != signals.warning {
+            signals.setWarning(warning?.level)
+            logSignal("signal_warning_reason",warning?.detail ?? "off")
         }
         // Every tick, so a mark passed while something else speaks is dropped rather than said late.
         let mark=distances.update(position:pose.point,target:target)
         if let step=steps.update(position:pose.point,target:target,obstacles:guide.route.obstacles) {
             voice.play([step.line]);logSignal("signal_step",step.detail)
             if let mark { logSignal("signal_distance_skipped","\(SignalCopy.distance(mark)) reason=step") }
+        } else if quiet {
+            if let mark { logSignal("signal_distance_skipped","\(SignalCopy.distance(mark)) reason=arrival") }
         } else if let correction=corrections.update(time:pose.time,bearing:bearing) {
             voice.direction(correction.line)
             logSignal("signal_correction",String(format:"%@ bearing %+.0f°",correction.rawValue,bearing))
