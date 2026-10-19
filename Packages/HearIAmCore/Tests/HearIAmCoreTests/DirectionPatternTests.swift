@@ -34,4 +34,7 @@ final class DirectionPatternTests: XCTestCase {
         XCTAssertEqual(DirectionPattern.name(signedDegrees:-45),"left_45")
         XCTAssertEqual(DirectionPattern.name(signedDegrees:90),"right_90")
     }
+    func testNearestLandmark() {
+        XCTAssertEqual([0.0,22,23,-67,-68,170,-170,-180,200,359].map(DirectionPattern.nearest),[0,0,45,-45,-90,180,180,180,180,0])
+    }
 }

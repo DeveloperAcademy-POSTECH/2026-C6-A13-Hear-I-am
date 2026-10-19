@@ -38,6 +38,11 @@ public enum DirectionPattern {
         if degrees == 180 { return (centerHertz,2) }
         return (degrees < 0 ? leftHertz : rightHertz,abs(degrees)/45)
     }
+    /// The 45° landmark closest to `degrees`, 180 for straight behind.
+    public static func nearest(_ degrees: Double) -> Int {
+        let landmark=Int((HeadingMath.wrapDegrees(degrees)/45).rounded())*45
+        return landmark == -180 ? 180 : landmark
+    }
     /// Readable label for logs, e.g. "left_90" or "front".
     public static func name(signedDegrees: Int) -> String {
         let degrees=signedDegrees == -180 ? 180 : signedDegrees
