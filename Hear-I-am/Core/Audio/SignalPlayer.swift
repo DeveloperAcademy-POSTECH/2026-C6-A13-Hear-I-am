@@ -1,5 +1,4 @@
 import AVFoundation
-import UIKit
 import os
 import HearIAmCore
 
@@ -172,67 +171,5 @@ import HearIAmCore
     private func event(_ name: String, _ detail: String, level: OSLogType = .info) {
         log.log(level:level,"\(name, privacy:.public) \(detail, privacy:.public)")
         onEvent?(name,detail)
-    }
-}
-
-/// Test-only continuous mono oscillator. One render stream, no replayed audio clips.
-@MainActor final class ContinuousTonePlayer {
-    var onUnavailable: ((String)->Void)?
-    private let engine=AVAudioEngine()
-    private let state=ContinuousToneRenderState()
-    private var observers: [NSObjectProtocol]=[]
-    private var active=false
-    init() {
-        let state=self.state
-        let format=AVAudioFormat(standardFormatWithSampleRate:ToneRenderer.sampleRate,channels:1)!
-        let source=AVAudioSourceNode(format:format) { _,_,frames,buffers in
-            state.render(frames:Int(frames),buffers:buffers)
-            return noErr
-        }
-        engine.attach(source);engine.connect(source,to:engine.mainMixerNode,format:format)
-        for name in [AVAudioSession.interruptionNotification,AVAudioSession.routeChangeNotification,
-                     UIApplication.willResignActiveNotification] {
-            observers.append(NotificationCenter.default.addObserver(forName:name,object:nil,queue:.main) { [weak self] note in
-                if note.name == AVAudioSession.routeChangeNotification,
-                   let raw=note.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt,
-                   AVAudioSession.RouteChangeReason(rawValue:raw) == .categoryChange { return }
-                let interruption=note.name == AVAudioSession.interruptionNotification
-                Task { @MainActor in
-                    guard let self, self.active else { return }
-                    self.stop()
-                    if interruption { HearAudioSession.interrupted() }
-                    self.onUnavailable?(interruption ? "오디오 중단" : "출력 변경 또는 화면 비활성화")
-                }
-            })
-        }
-    }
-    deinit { observers.forEach(NotificationCenter.default.removeObserver) }
-    @discardableResult func start() -> Bool {
-        do {
-            try HearAudioSession.activate()
-            guard AVAudioSession.sharedInstance().outputVolume > 0 else { onUnavailable?("휴대폰 음량을 확인해주세요.");return false }
-            state.command.withLock { $0=ContinuousToneCommand(hertz:nil,updatedAt:ProcessInfo.processInfo.systemUptime) }
-            if !engine.isRunning { try engine.start() }
-            active=true;return true
-        } catch { stop();onUnavailable?("지속음을 시작할 수 없어요: "+error.localizedDescription);return false }
-    }
-    func setHertz(_ hertz: Double?) {
-        state.command.withLock { $0=ContinuousToneCommand(hertz:hertz,updatedAt:ProcessInfo.processInfo.systemUptime) }
-    }
-    func stop() { active=false;setHertz(nil);engine.stop() }
-}
-
-/// Main writes one small command; the render thread never waits on its lock or allocates samples.
-private final class ContinuousToneRenderState: @unchecked Sendable {
-    let command=OSAllocatedUnfairLock(initialState:ContinuousToneCommand(hertz:nil,updatedAt:0))
-    private var latest=ContinuousToneCommand(hertz:nil,updatedAt:0)
-    private var oscillator=ContinuousSineOscillator()
-    func render(frames: Int, buffers: UnsafeMutablePointer<AudioBufferList>) {
-        if let next=command.withLockIfAvailable({ $0 }) { latest=next }
-        let target=latest.activeHertz(at:ProcessInfo.processInfo.systemUptime)
-        // The source format is mono non-interleaved Float32.
-        guard let data=buffers.pointee.mBuffers.mData else { return }
-        oscillator.render(into:UnsafeMutableBufferPointer(start:data.assumingMemoryBound(to:Float.self),count:frames),
-                          targetHertz:target,sampleRate:ToneRenderer.sampleRate)
     }
 }

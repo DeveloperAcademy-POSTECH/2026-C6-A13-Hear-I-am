@@ -111,7 +111,7 @@ struct SoundTestView: View {
         VStack(alignment:.leading,spacing:16) {
             ForEach([false,true],id:\.self) { harmonic in
                 SoundTestRow(label:harmonic ? "높은 소리 섞음" : "낮은 소리만") {
-                    ForEach([40.0,60,80],id:\.self) { hertz in
+                    ForEach([40.0,50,60,70,80],id:\.self) { hertz in
                         ActionButton(title:"\(Int(hertz))Hz",primary:false) { model.playBuzz(hertz,harmonic:harmonic) }
                     }
                 }
@@ -126,17 +126,17 @@ struct SoundTestView: View {
                 Text("몸 \(Self.angle(model.bodyAngle)) · 고개 \(Self.angle(model.headAngle))").monospacedDigit()
                 if let trial=model.trial { Text("진행 중 · \(trial.mode.rawValue) · 목표 \(trial.target)°").bold() }
             }.font(.subheadline)
-            Text("지속음은 시작할 때 방향을 목표로 잡아요. 왼쪽으로 돌아야 하면 400~600Hz, 오른쪽이면 600~800Hz예요. 멈추면 같은 음높이를 유지하고, 맞추면 띠링 후 조용해져요.")
+            Text("시작할 때 방향이 목표예요. 오른쪽으로 돌아야 하면 40·50Hz, 정렬 기준은 60Hz, 왼쪽이면 70·80Hz예요. 높은 소리를 섞은 삐비빅을 짧게 반복하고, 정렬되면 60Hz와 띠링 후 조용해져요.")
                 .font(.subheadline)
-            SoundTestRow(label:"새 실험 · 끊김 없는 지속음") {
-                ActionButton(title:"몸으로 찾기 · 지속음",enabled:model.trial == nil) { model.startTrial(.pitchBody) }
-                ActionButton(title:"고개로 찾기 · 지속음",enabled:model.trial == nil) { model.startTrial(.pitchHead) }
+            SoundTestRow(label:"새 실험 · 10Hz 단계 삐비빅") {
+                ActionButton(title:"몸으로 찾기 · 단계음",enabled:model.trial == nil) { model.startTrial(.pitchBody) }
+                ActionButton(title:"고개로 찾기 · 단계음",enabled:model.trial == nil) { model.startTrial(.pitchHead) }
                 ActionButton(title:"슬라이더로 듣기",primary:false,enabled:model.trial == nil) { model.startTrial(.pitchSlider) }
-                ActionButton(title:"기준음 600Hz",primary:false,enabled:model.trial == nil) { model.startTrial(.pitchReference) }
+                ActionButton(title:"기준음 60Hz",primary:false,enabled:model.trial == nil) { model.startTrial(.pitchReference) }
                 ActionButton(title:"그만",primary:false,enabled:model.trial != nil) { model.finishTrial(found:false) }
             }
-            Text("\(model.continuousStatus) · \(model.continuousHertz.map { String(format: "%.1f Hz",$0) } ?? "무음")")
-                .font(.subheadline.monospacedDigit()).accessibilityLabel("지속음 상태, \(model.continuousStatus)")
+            Text("\(model.pitchStatus) · \(model.stepHertz.map { String(format: "%.1f Hz",$0) } ?? "무음")")
+                .font(.subheadline.monospacedDigit()).accessibilityLabel("단계음 상태, \(model.pitchStatus)")
             if model.trial?.mode == .pitchSlider {
                 VStack(alignment:.leading,spacing:8) {
                     Text("목표 상대각 \(Self.angle(model.manualBearing)) · 0°가 정렬")

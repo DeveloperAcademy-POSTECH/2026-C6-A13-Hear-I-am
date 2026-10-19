@@ -1,4 +1,6 @@
 import SwiftUI
+import AVFoundation
+import UIKit
 import HearIAmCore
 
 /// Temporary tab for checking signals on a real device. Delete the SoundTest folder and its
@@ -20,12 +22,13 @@ import HearIAmCore
     @Published var trial: DirectionTrial?
     @Published var results: [DirectionTrialResult]=[]
     @Published var manualBearing=90.0
-    @Published var continuousHertz: Double?
-    @Published var continuousStatus="시작 전"
-    let continuous=ContinuousTonePlayer()
-    var continuousGate=ContinuousDirectionGate()
-    var continuousTimer: Timer?
+    @Published var stepHertz: Double?
+    @Published var pitchStatus="시작 전"
+    var stepGate=SteppedDirectionGate()
+    var pitchTimer: Timer?
     var lastPitchLog: Double?
+    var lastReferenceAt: Double?
+    var pitchObservers: [NSObjectProtocol]=[]
     let signals=SignalPlayer()
     let haptics=DirectionHaptics()
     let voice=GuidanceSpeech()
@@ -37,20 +40,43 @@ import HearIAmCore
     var sweepGate=DirectionSweepGate()
 
     init() {
-        continuous.onUnavailable={ [weak self] reason in
+        for name in [AVAudioSession.interruptionNotification,AVAudioSession.routeChangeNotification,
+                     UIApplication.willResignActiveNotification] {
+            pitchObservers.append(NotificationCenter.default.addObserver(forName:name,object:nil,queue:.main) { [weak self] note in
+                if note.name == AVAudioSession.routeChangeNotification,
+                   let raw=note.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt,
+                   AVAudioSession.RouteChangeReason(rawValue:raw) == .categoryChange { return }
+                let interrupted=note.name == AVAudioSession.interruptionNotification
+                Task { @MainActor in
+                    guard let self, self.trial?.mode.isStepped == true else { return }
+                    self.finishTrial(found:false)
+                    if interrupted { HearAudioSession.interrupted() }
+                    self.pitchStatus="출력 변경 또는 중단";self.record("stepped_stopped",self.pitchStatus)
+                }
+            })
+        }
+        signals.onError={ [weak self] text in
             guard let self else { return }
-            self.voice.stop();self.finishTrial(found:false)
-            self.continuousStatus=reason;self.record("continuous_stopped",reason)
+            if self.trial?.mode.isStepped == true { self.finishTrial(found:false);self.pitchStatus=text }
+            self.record("signal_error",text)
         }
         signals.onEvent={ [weak self] in self?.record($0,$1) }
         haptics.onEvent={ [weak self] in self?.record($0,$1) }
-        voice.onSpeaking={ [weak self] value in self?.speaking=value;self?.signals.setSpeechActive(value) }
+        voice.onSpeaking={ [weak self] value in
+            guard let self else { return }
+            self.speaking=value;self.signals.setSpeechActive(value)
+            if value, self.trial?.mode.isStepped == true {
+                self.signals.stopDirection();self.stepGate.suspend();self.lastReferenceAt=nil
+            }
+        }
         voice.onError={ [weak self] in self?.record("speech_error",$0) }
         head.onStatus={ [weak self] in self?.headStatus=$0;self?.record("head_status",$0) }
         probe.onUpdate={ [weak self] state,jitter in
             self?.trackingText=state;self?.jitterText=jitter.map { String(format:"%.1f cm",$0) } ?? "모으는 중"
         }
     }
+
+    deinit { pitchObservers.forEach(NotificationCenter.default.removeObserver) }
 
     func appear() {
         logStatus=log.open().map { $0 } ?? "기록 파일: SoundTests/"+(log.fileName ?? "")
@@ -60,7 +86,7 @@ import HearIAmCore
     }
     func disappear() {
         if trial != nil { finishTrial(found:false) }
-        continuous.stop();setWarning(nil);signals.shutdown();haptics.shutdown();voice.deactivate()
+        setWarning(nil);signals.shutdown();haptics.shutdown();voice.deactivate()
         body.stop();head.stop();probe.stop();probing=false
         record("tab_close","");log.close()
     }
