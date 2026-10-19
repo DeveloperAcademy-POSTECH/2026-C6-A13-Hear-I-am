@@ -10,6 +10,10 @@ public enum SignalSound: Equatable, Sendable {
     case directionSweep(DirectionSweep)
     /// Two short equal-pitch beeps: heading aligned, not waypoint arrival.
     case directionAligned
+    /// Three pulses with the same higher harmonic as the sound-test buzz.
+    case directionBuzz(hertz: Int)
+    /// One 60 Hz pulse group, then the alignment bell.
+    case directionBuzzAligned
     /// Direction beep for a 45° landmark; see DirectionPattern.beep.
     case direction(signedDegrees: Int)
     /// A low tone pulsed about 12 times a second so it reads as a buzz rather than a note.
@@ -23,6 +27,8 @@ public enum SignalSound: Equatable, Sendable {
         case .arrival: return "arrival"
         case .directionSweep(let sweep): return "direction_sweep_\(sweep.turn.rawValue)_\(sweep.extent)"
         case .directionAligned: return "direction_aligned"
+        case .directionBuzz(let hertz): return "direction_buzz_\(hertz)hz_harmonic"
+        case .directionBuzzAligned: return "direction_buzz_aligned_60hz_bell"
         case .direction(let degrees): return "direction_"+DirectionPattern.name(signedDegrees:degrees)
         case .buzz(let hertz, let harmonic): return "buzz_\(Int(hertz))hz"+(harmonic ? "_harmonic" : "")
         }

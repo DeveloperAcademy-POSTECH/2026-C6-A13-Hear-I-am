@@ -34,6 +34,11 @@ public enum ToneRenderer {
                 guard within < length else { return 0 }
                 return sin(2 * .pi*1100*t)*fade(within,length:length,edge:0.01)
             })
+        case .directionBuzz(let hertz):
+            guard SteppedDirectionGate.pitches.contains(hertz) else { return [] }
+            return harmonicBurst(Double(hertz))
+        case .directionBuzzAligned:
+            return harmonicBurst(60)+[Float](repeating:0,count:count(SteppedDirectionGate.alignmentGap))+render(.arrival)
         case .direction(let degrees):
             guard let beep=DirectionPattern.beep(signedDegrees:degrees) else { return [] }
             let length=DirectionPattern.beepLength, period=length+DirectionPattern.beepGap
@@ -52,6 +57,15 @@ public enum ToneRenderer {
         }
     }
 
+    /// The existing high-harmonic buzz timbre, shortened to exactly three 12 Hz pulses.
+    static func harmonicBurst(_ hertz: Double) -> [Float] {
+        let length=SteppedDirectionGate.burstLength
+        return normalized(samples(length) { t in
+            let pulse=0.5*(1-cos(2 * .pi*buzzRate*t))
+            let tone=sin(2 * .pi*hertz*t)+0.35*sin(2 * .pi*hertz*4*t)
+            return tone*pulse*fade(t,length:length,edge:0.01)
+        })
+    }
     /// One beep, no longer than the shortest warning period (0.15 s).
     static func warningBeep(_ tone: WarningTone) -> [Float] {
         func sine(_ hertz: Double, _ t: Double) -> Double { sin(2 * .pi*hertz*t) }
