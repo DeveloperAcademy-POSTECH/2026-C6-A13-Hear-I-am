@@ -37,6 +37,8 @@ import HearIAmCore
     var arrivalShownAt: Double?
     /// Direction, correction and distance signals wait while the ding rings (10/19); safety signals do not.
     var quietUntil: Double?
+    /// One direction signal is owed: after the ding, or after leaving the circle around the target.
+    var directionPending=false
     var escape: EscapeState?
     var guide: RouteGuide?
     var run: GuidanceRun?
@@ -116,7 +118,7 @@ import HearIAmCore
     /// Cancels pending speech callbacks and the countdown; late callbacks see a new generation.
     func invalidateTasks() {
         generation=UUID();countdownTask?.cancel();countdownTask=nil;voice.stop();instructionDone=false;arrivedName=nil;arrivalShownAt=nil
-        escape=nil;quietUntil=nil;signals.setWarning(nil);signals.setWarningQuiet(false);haptics.stop()
+        escape=nil;quietUntil=nil;directionPending=false;signals.setWarning(nil);signals.setWarningQuiet(false);haptics.stop()
     }
     /// A pose no older than 0.5 s from a verified session, or nil.
     func freshPose() -> (point: FloorPoint, heading: Double, time: Double)? {

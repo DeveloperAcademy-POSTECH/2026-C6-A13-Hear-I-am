@@ -10,6 +10,9 @@ extension GuidanceViewModel {
     /// About as long as the ding rings. On 10/19 a point brought up to seven sounds within 3 s; 1.5 s of
     /// silence was considered, but at 0.5 m/s it lets the performer walk 0.75 m on without a new direction.
     static let arrivalShownSeconds=2.0, arrivalQuietSeconds=0.7
+    /// Within this of the target its bearing swings with every step (10/19: −65° to −176° at 0.02 m), so
+    /// direction signals and corrections stop; 「50센티」 and the ding take over. 8 of 29 beeps came from here.
+    static let nearTargetRadius=0.5
 
     var canResume: Bool {
         guard let pose=freshPose(), let guide else { return false }
@@ -23,7 +26,7 @@ extension GuidanceViewModel {
     }
     /// Clears every signal rule; called when guidance starts or resumes.
     func resetSignals() {
-        landmarks.reset();warnings.reset();corrections.reset();steps.reset();distances.reset();arrivalShownAt=nil;quietUntil=nil
+        landmarks.reset();warnings.reset();corrections.reset();steps.reset();distances.reset();arrivalShownAt=nil;quietUntil=nil;directionPending=false
         signals.setWarning(nil)
     }
     func tickGuiding(pose: (point: FloorPoint, heading: Double, time: Double), guide current: RouteGuide) {
@@ -49,7 +52,7 @@ extension GuidanceViewModel {
     private func arrived(_ previous: Int, guide: RouteGuide, time: Double) {
         let name=GuidanceCopy.target(previous,last:guide.route.points.count-1)
         arrivedName=name;arrivalShownAt=time
-        landmarks.reset();corrections.reset();quietUntil=time+Self.arrivalQuietSeconds
+        landmarks.reset();corrections.reset();quietUntil=time+Self.arrivalQuietSeconds;directionPending=true
         signals.play(.arrival)
         logSignal("signal_arrival","\(name) next=\(guide.targetIndex)")
     }
@@ -58,9 +61,14 @@ extension GuidanceViewModel {
         let target=guide.route.points[guide.targetIndex]
         let bearing=StageHeading.bearing(from:pose.point,to:target,headingDegrees:pose.heading)
         let quiet=quietUntil.map { pose.time < $0 } ?? false
-        // The detector takes the body relative to the target, the opposite sign of the bearing.
-        if !quiet, quietUntil != nil {
-            quietUntil=nil
+        let near=pose.point.distance(to:target) < Self.nearTargetRadius
+        if !quiet { quietUntil=nil }
+        // Landmarks take the body relative to the target, the opposite sign of the bearing.
+        if near {
+            // On leaving, one signal from the angle then, not from one seen before the swing.
+            landmarks.reset();corrections.reset();directionPending=true
+        } else if !quiet, directionPending {
+            directionPending=false
             let landmark=DirectionPattern.nearest(-bearing)
             haptics.playDirection(signedDegrees:landmark,signals:signals)
             // Seed the detector so the same landmark does not fire again on the next tick.
@@ -80,7 +88,7 @@ extension GuidanceViewModel {
             if let mark { logSignal("signal_distance_skipped","\(SignalCopy.distance(mark)) reason=step") }
         } else if quiet {
             if let mark { logSignal("signal_distance_skipped","\(SignalCopy.distance(mark)) reason=arrival") }
-        } else if let correction=corrections.update(time:pose.time,bearing:bearing) {
+        } else if !near, let correction=corrections.update(time:pose.time,bearing:bearing) {
             voice.direction(correction.line)
             logSignal("signal_correction",String(format:"%@ bearing %+.0f°",correction.rawValue,bearing))
             if let mark { logSignal("signal_distance_skipped","\(SignalCopy.distance(mark)) reason=correction") }
