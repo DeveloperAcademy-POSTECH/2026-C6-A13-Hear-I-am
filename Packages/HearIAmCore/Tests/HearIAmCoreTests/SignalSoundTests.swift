@@ -2,7 +2,8 @@ import XCTest
 @testable import HearIAmCore
 
 final class SignalSoundTests: XCTestCase {
-    let all: [SignalSound]=WarningLevel.allCases.flatMap { level in WarningTone.allCases.map { .warning(level,tone:$0) } }+[.arrival]
+    let all: [SignalSound]=WarningLevel.allCases.flatMap { level in WarningTone.allCases.map { .warning(level,tone:$0) } }+[.arrival,.directionAligned]
+        + [DirectionSweep.Turn.left,.right].flatMap { side in [15.0,90,180].map { SignalSound.directionSweep(DirectionSweep(turn:side,errorDegrees:$0)) } }
         + [40,60,80].flatMap { [SignalSound.buzz(hertz:$0,harmonic:false),.buzz(hertz:$0,harmonic:true)] }
         + DirectionPattern.landmarks.map { SignalSound.direction(signedDegrees:$0) }
 

@@ -19,6 +19,21 @@ public enum ToneRenderer {
                 let tone=sin(2 * .pi*arrivalHertz*t)+0.4*sin(2 * .pi*arrivalHertz*2*t)
                 return tone*exp(-t*7)*fade(t,length:arrivalLength,edge:0.003)
             })
+        case .directionSweep(let sweep):
+            let duration=DirectionSweep.duration
+            let slope=(sweep.endHertz-sweep.startHertz)/duration
+            return normalized(samples(duration) { t in
+                // Integrating frequency gives a continuous phase without clicks or pitch jumps.
+                let phase=2 * Double.pi*(sweep.startHertz*t+0.5*slope*t*t)
+                return sin(phase)*fade(t,length:duration,edge:0.02)
+            })
+        case .directionAligned:
+            let length=0.10, gap=0.09, period=length+gap
+            return normalized(samples(2*length+gap) { t in
+                let within=t.truncatingRemainder(dividingBy:period)
+                guard within < length else { return 0 }
+                return sin(2 * .pi*1100*t)*fade(within,length:length,edge:0.01)
+            })
         case .direction(let degrees):
             guard let beep=DirectionPattern.beep(signedDegrees:degrees) else { return [] }
             let length=DirectionPattern.beepLength, period=length+DirectionPattern.beepGap

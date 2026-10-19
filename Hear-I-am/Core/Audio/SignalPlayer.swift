@@ -8,6 +8,7 @@ import HearIAmCore
 @MainActor final class SignalPlayer {
     /// (event, detail) for the experiment log. Guidance forwards these to its trial log.
     var onEvent: ((String,String)->Void)?
+    var onError: ((String)->Void)?
     private(set) var warning: WarningLevel?
     /// Timbre for the warning; a running warning switches at once. The choice made in the sound test
     /// tab is saved, so guidance plays the same sound.
@@ -55,15 +56,21 @@ import HearIAmCore
 
     /// Plays one sound once. A new one-shot replaces the previous one on its node (direction beeps
     /// replace direction beeps, other one-shots each other); the warning loop is untouched.
-    func play(_ sound: SignalSound) {
-        guard prepare(sound.name), let buffer=buffer(sound) else { return }
+    @discardableResult func play(_ sound: SignalSound) -> Bool {
+        guard prepare(sound.name), let buffer=buffer(sound) else { return false }
         let node: AVAudioPlayerNode
-        if case .direction=sound { node=directionNode } else { node=shotNode;shotVolume=volume(sound) }
+        switch sound {
+        case .direction,.directionSweep,.directionAligned: node=directionNode
+        default: node=shotNode;shotVolume=volume(sound)
+        }
         applyVolumes()
         node.scheduleBuffer(buffer,at:nil,options:.interrupts)
         if !node.isPlaying { node.play() }
         event("signal_play",sound.name)
+        return true
     }
+    /// Cancel the current direction glide or confirmation immediately; arrival has its own node.
+    func stopDirection() { directionNode.stop() }
     /// Starts, changes or stops (nil) the looping obstacle warning.
     func setWarning(_ level: WarningLevel?) {
         guard level != warning else { return }
@@ -105,10 +112,14 @@ import HearIAmCore
     private func prepare(_ name: String) -> Bool {
         do {
             try HearAudioSession.activate()
+            guard AVAudioSession.sharedInstance().outputVolume > 0 else {
+                onError?("소리가 꺼져 있어요. 휴대폰의 음량을 확인해주세요.");return false
+            }
             if !engine.isRunning { try engine.start();event("signal_engine","started route="+HearAudioSession.route) }
             return true
         } catch {
-            event("signal_error","\(name) \(error.localizedDescription)",level:.error);return false
+            event("signal_error","\(name) \(error.localizedDescription)",level:.error)
+            onError?("안내 신호를 재생할 수 없어요. 소리 출력을 확인해주세요.");return false
         }
     }
     private func buffer(_ sound: SignalSound) -> AVAudioPCMBuffer? {
@@ -116,7 +127,8 @@ import HearIAmCore
         let samples=ToneRenderer.render(sound)
         guard !samples.isEmpty, let buffer=AVAudioPCMBuffer(pcmFormat:format,frameCapacity:AVAudioFrameCount(samples.count)),
               let channel=buffer.floatChannelData?[0] else {
-            event("signal_error","\(sound.name) buffer",level:.error);return nil
+            event("signal_error","\(sound.name) buffer",level:.error)
+            onError?("안내 신호를 만들 수 없어요. 안내를 다시 시작해주세요.");return nil
         }
         buffer.frameLength=AVAudioFrameCount(samples.count)
         samples.withUnsafeBufferPointer { channel.update(from:$0.baseAddress!,count:samples.count) }
@@ -126,7 +138,7 @@ import HearIAmCore
         switch sound {
         case .warning: return SignalVolume.warning
         case .arrival: return SignalVolume.arrival
-        case .direction: return SignalVolume.direction
+        case .direction,.directionSweep,.directionAligned: return SignalVolume.direction
         case .buzz: return SignalVolume.buzz
         }
     }
