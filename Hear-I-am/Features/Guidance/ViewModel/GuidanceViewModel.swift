@@ -26,12 +26,10 @@ import HearIAmCore
     @Published var saveError: String?
     let tracking=ARSessionController(purpose:.guidance)
     let voice=GuidanceSpeech()
-    /// Earbud tones (warning, arrival) and waist vibration for direction, decided 10/17.
+    /// Mono pitch glides for body direction; warnings and arrival retain their own sounds.
     let signals=SignalPlayer()
-    let haptics=DirectionHaptics()
-    var landmarks=LandmarkDetector()
+    var directionSweep=DirectionSweepGate()
     var warnings=WarningGate()
-    var corrections=CorrectionGate()
     var steps=StepGate()
     var arrivalShownAt: Double?
     /// The warning pauses briefly on arrival so the ding is not masked.
@@ -68,23 +66,30 @@ import HearIAmCore
         interactionSettings=GuidanceInteractionSettings(defaults:defaults)
         tracking.showMesh=false
         trackingSubscription=tracking.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }
-        voice.onSpeaking={ [weak self] in self?.speaking=$0;self?.signals.setSpeechActive($0) }
-        signals.onEvent={ [weak self] in self?.tracking.event($0,detail:$1) }
-        haptics.onEvent={ [weak self] in self?.tracking.event($0,detail:$1) }
-        voice.onText={ [weak self] in self?.spokenText=$0 }
-        voice.onError={ [weak self] text in
+        voice.onSpeaking={ [weak self] value in
             guard let self else { return }
-            self.audioIssue=text;self.instructionDone=false
-            if self.phase == .guiding || self.phase == .starting {
-                self.guide?.pause();self.phase = self.started ? .paused : .departure;self.message="음성 재생을 확인한 후 다시 시작해주세요."
-            }
+            self.speaking=value;self.signals.setSpeechActive(value)
+            if value { self.suspendDirection() }
         }
+        signals.onEvent={ [weak self] in self?.tracking.event($0,detail:$1) }
+        voice.onText={ [weak self] in self?.spokenText=$0 }
+        voice.onError={ [weak self] in self?.handleAudioIssue($0) }
+        signals.onError={ [weak self] in self?.handleAudioIssue($0) }
         observeAudioSession()
         timer=Timer.scheduledTimer(withTimeInterval:0.1,repeats:true) { [weak self] _ in Task { @MainActor in self?.tick() } }
     }
     deinit {
         timer?.invalidate();countdownTask?.cancel()
         observations.forEach {NotificationCenter.default.removeObserver($0)}
+    }
+
+    private func handleAudioIssue(_ text: String) {
+        audioIssue=text;instructionDone=false
+        directionSweep.reset();signals.stop();escape=nil
+        if phase == .guiding || phase == .starting || phase == .paused {
+            guide?.pause();phase = started ? .paused : .departure
+            message="소리 출력을 확인한 후 다시 시작해주세요."
+        }
     }
 
     /// Re-reads the instruction for the current phase.
@@ -113,7 +118,7 @@ import HearIAmCore
     /// Cancels pending speech callbacks and the countdown; late callbacks see a new generation.
     func invalidateTasks() {
         generation=UUID();countdownTask?.cancel();countdownTask=nil;voice.stop();instructionDone=false;arrivedName=nil;arrivalShownAt=nil
-        escape=nil;warningHoldUntil=nil;signals.setWarning(nil);signals.setWarningQuiet(false);haptics.stop()
+        escape=nil;warningHoldUntil=nil;directionSweep.reset();signals.stop();signals.setWarningQuiet(false)
     }
     /// A pose no older than 0.5 s from a verified session, or nil.
     func freshPose() -> (point: FloorPoint, heading: Double, time: Double)? {
@@ -136,7 +141,9 @@ import HearIAmCore
         } else { startDistance=nil }
         guard let pose=freshPose() else {
             if phase == .departure { departureReady=false;departureGate.reset();readyAnnounced=false }
-            if phase == .guiding || phase == .starting { if tracking.heading == nil { interrupt("몸이 향한 방향을 확인할 수 없어요. 착용 방향을 다시 확인해주세요.") } }
+            if phase == .guiding || phase == .starting || (phase == .paused && escape != nil) {
+                interrupt(tracking.heading == nil ? "몸이 향한 방향을 확인할 수 없어요. 착용 방향을 다시 확인해주세요." : "현재 위치를 확인할 수 없어요. 확인점을 다시 확인해주세요.")
+            }
             return
         }
         guard pose.time != lastPoseTime else { return }

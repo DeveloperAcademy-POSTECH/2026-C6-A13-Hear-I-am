@@ -20,7 +20,9 @@ extension GuidanceViewModel {
         guard (phase == .departure && departureReady || phase == .paused && canResume), canAdvanceInstruction, active else { return }
         invalidateTasks()
         phase = .starting
-        read([started ? "안내를 다시 시작합니다." : "안내를 시작합니다.","\(targetName)으로 이동합니다."]) { [weak self] in
+        let instructions=started ? ["안내를 다시 시작합니다."] : ["안내를 시작합니다.",
+            "소리가 높아지면 왼쪽으로, 낮아지면 오른쪽으로 몸을 돌려주세요. 방향이 맞으면 삐빅 소리가 납니다. 지점 도착은 띵 소리로 알려드립니다."]
+        read(instructions+["\(targetName)으로 이동합니다."]) { [weak self] in
             guard let self, self.phase == .starting, var guide=self.guide else { return }
             guard let pose=self.freshPose() else { self.interrupt("현재 위치를 확인할 수 없어요. 확인점을 다시 확인해주세요.");return }
             let success=self.started ? guide.resume(position:pose.point,trackingValid:true) : guide.start(position:pose.point,headingDegrees:pose.heading,trackingValid:true)

@@ -1,61 +1,55 @@
 import HearIAmCore
 
-/// 빠져나오기: instead of waiting for a button, say which way to step aside, point it with the
-/// waist vibration, and resume by itself after one safe second. After 10 s the warning softens
-/// and only the line repeats every 5 s.
+/// Recovery uses the route-return/obstacle-away bearing with the same pitch-glide vocabulary.
+/// The double beep confirms heading only; automatic route re-entry still needs one safe second.
 extension GuidanceViewModel {
     static let escapeReasons: [GuidePauseReason]=[.obstacleProximity,.offRoute,.outsideStage]
 
     func beginEscape(reason: GuidePauseReason, pose: (point: FloorPoint, heading: Double, time: Double), guide: RouteGuide) {
-        phase = .paused;landmarks.reset()
-        let right=escapeBearing(pose:pose,guide:guide) > 0
+        directionSweep.reset();signals.stopDirection()
+        phase = .paused
         escape=EscapeState(reason:reason,startedAt:pose.time,lastSpoken:pose.time)
-        message=SignalCopy.escape(toRight:right)
+        message=recoveryInstruction(reason,bearing:guide.recoveryBearing(position:pose.point,headingDegrees:pose.heading))
         voice.play([message])
-        tracking.event("escape_start",detail:"reason=\(reason) side=\(right ? "right" : "left")")
+        tracking.event("escape_start",detail:"reason=\(reason) direction=pitch_sweep")
     }
     func tickEscape(pose: (point: FloorPoint, heading: Double, time: Double), guide: RouteGuide) {
         guard var state=escape else { return }
-        let bearing=escapeBearing(pose:pose,guide:guide)
-        if let landmark=landmarks.update(relativeDegrees:-bearing) { haptics.playDirection(signedDegrees:landmark,signals:signals) }
         let warning=warnings.update(position:pose.point,headingDegrees:pose.heading,obstacles:guide.route.obstacles)
         if warning?.level != signals.warning { signals.setWarning(warning?.level);tracking.event("signal_warning_reason",detail:warning?.detail ?? "off") }
+        guard audioIssue == nil else { return }
         if !state.quiet && pose.time-state.startedAt >= EscapeState.quietAfter {
             state.quiet=true;signals.setWarningQuiet(true);tracking.event("escape_quiet")
         }
         if state.quiet && pose.time-state.lastSpoken >= EscapeState.repeatEvery && !speaking {
-            state.lastSpoken=pose.time;message=SignalCopy.escape(toRight:bearing > 0);voice.play([message])
+            state.lastSpoken=pose.time;message=recoveryInstruction(state.reason,bearing:guide.recoveryBearing(position:pose.point,headingDegrees:pose.heading));voice.play([message])
         }
+        guard audioIssue == nil else { return }
         if guide.canResume(position:pose.point,trackingValid:true) {
             let since=state.safeSince ?? pose.time
             state.safeSince=since
             if pose.time-since >= EscapeState.safeSeconds { escape=state;endEscape(pose:pose);return }
         } else { state.safeSince=nil }
+        guard audioIssue == nil else { return }
         escape=state
+        if state.safeSince != nil { suspendDirection();return }
+        if let bearing=guide.recoveryBearing(position:pose.point,headingDegrees:pose.heading) {
+            updateDirection(bearing:bearing,time:pose.time,context:"recovery reason=\(state.reason)")
+        } else { suspendDirection() }
     }
-    /// Steps aside toward the route: the closest point of the current segment, or, when already on it,
-    /// away from the nearest blocking obstacle. Positive bearing means to the right.
-    private func escapeBearing(pose: (point: FloorPoint, heading: Double, time: Double), guide: RouteGuide) -> Double {
-        let points=guide.route.points, i=guide.targetIndex
-        if i > 0, points.indices.contains(i) {
-            let toward=Self.closest(on:points[i-1],points[i],to:pose.point)
-            if pose.point.distance(to:toward) > 0.1 { return StageHeading.bearing(from:pose.point,to:toward,headingDegrees:pose.heading) }
+    private func recoveryInstruction(_ reason: GuidePauseReason, bearing: Double?) -> String {
+        if reason == .obstacleProximity {
+            guard let bearing else { return "멈추세요. 등록한 기물과 가까워졌어요. 이동할 공간을 확인해주세요." }
+            let turn=abs(bearing) > 135 ? "뒤로 돌아주세요." : bearing > 10 ? "오른쪽으로 돌아주세요." : bearing < -10 ? "왼쪽으로 돌아주세요." : "몸 방향을 유지해주세요."
+            return "멈추세요. 등록한 기물과 가까워졌어요. \(turn) 경고가 끝나면 방향음으로 안내합니다."
         }
-        guard let blocked=guide.route.obstacles.compactMap({$0.blockingPoint(from:pose.point)}).min(by: {
-            pose.point.distance(to:$0) < pose.point.distance(to:$1)
-        }) else { return 0 }
-        return HeadingMath.wrapDegrees(StageHeading.bearing(from:pose.point,to:blocked,headingDegrees:pose.heading)+180)
+        return "멈추세요. 동선에서 벗어났어요. 방향음으로 복귀할 방향을 찾으세요. 삐빅은 방향이 맞았다는 뜻입니다."
     }
     private func endEscape(pose: (point: FloorPoint, heading: Double, time: Double)) {
         guard let state=escape, var guide, guide.resume(position:pose.point,trackingValid:true) else { return }
         self.guide=guide;escape=nil;phase = .guiding
-        signals.setWarningQuiet(false);landmarks.reset();corrections.reset();steps.reset()
+        signals.setWarningQuiet(false);directionSweep.reset();signals.stopDirection();steps.reset()
         voice.play(["다시 안내합니다"])
         tracking.event("escape_end",detail:String(format:"reason=%@ seconds=%.1f quiet=%@","\(state.reason)",pose.time-state.startedAt,state.quiet ? "yes" : "no"))
-    }
-    private static func closest(on a: FloorPoint, _ b: FloorPoint, to p: FloorPoint) -> FloorPoint {
-        let dx=b.x-a.x, dy=b.y-a.y, n=dx*dx+dy*dy
-        let t=n > 0 ? max(0,min(1,((p.x-a.x)*dx+(p.y-a.y)*dy)/n)) : 0
-        return FloorPoint(a.x+t*dx,a.y+t*dy)
     }
 }

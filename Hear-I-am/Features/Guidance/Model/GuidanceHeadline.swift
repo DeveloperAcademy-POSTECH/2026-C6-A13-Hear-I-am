@@ -34,7 +34,7 @@ struct GuidanceHeadline {
         case .wear: detail="후면 카메라는 몸 바깥쪽으로, 렌즈가 가려지지 않게 해주세요."
         case .countdown: detail="착용 시간이 끝나면 위치와 방향을 확인해요."
         case .departure: detail=departureReady ? "하단 버튼을 누르면 \(targetName)으로 안내해요." : departureStatus
-        case .starting: detail="시작 음성이 끝나면 허리 진동으로 방향을 알려드려요."
+        case .starting: detail="상승음은 왼쪽, 하강음은 오른쪽 회전이에요. 삐빅은 방향 정렬, 띵은 지점 도착이에요."
         case .guiding: detail=cue.map {arrivedName != nil ? "다음 지점 · \($0.direction) " + String(format:"%.1f m",$0.distance) : String(format:"%.1f m",$0.distance)} ?? "위치 확인 중"
         default: detail=message
         }
