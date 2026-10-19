@@ -2,7 +2,7 @@ import Foundation
 
 /// One run of section ④: find a target direction by body or by head.
 struct DirectionTrial {
-    enum Mode: String { case body="몸", head="고개" }
+    enum Mode: String { case tick="톡톡톡", body="몸", head="고개" }
     let mode: Mode
     /// Target relative to the facing direction at start. Positive is right.
     let target: Int

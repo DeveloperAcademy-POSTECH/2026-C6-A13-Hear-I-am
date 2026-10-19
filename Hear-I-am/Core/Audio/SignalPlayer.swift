@@ -24,6 +24,15 @@ import HearIAmCore
         get { UserDefaults.standard.string(forKey:directionModeKey).flatMap(DirectionSignalMode.init(rawValue:)) ?? .both }
         set { UserDefaults.standard.set(newValue.rawValue,forKey:directionModeKey) }
     }
+    static let directionDeadbandKey="signal.directionDeadbandDegrees"
+    /// Deadband angle (±n°) inside which direction ticks stay silent (#44).
+    static var directionDeadbandDegrees: Double {
+        get {
+            let v=UserDefaults.standard.double(forKey:directionDeadbandKey)
+            return v >= 3 && v <= 45 ? v : DirectionTickGate.defaultDeadbandDegrees
+        }
+        set { UserDefaults.standard.set(max(3,min(45,newValue)),forKey:directionDeadbandKey) }
+    }
     private(set) var speechActive=false
     /// A long-running warning is softened so it does not drown the performance.
     private(set) var warningQuiet=false
@@ -58,11 +67,19 @@ import HearIAmCore
     func play(_ sound: SignalSound) {
         guard prepare(sound.name), let buffer=buffer(sound) else { return }
         let node: AVAudioPlayerNode
-        if case .direction=sound { node=directionNode } else { node=shotNode;shotVolume=volume(sound) }
+        switch sound {
+        case .direction, .directionTick: node=directionNode
+        default: node=shotNode;shotVolume=volume(sound)
+        }
         applyVolumes()
         node.scheduleBuffer(buffer,at:nil,options:.interrupts)
         if !node.isPlaying { node.play() }
         event("signal_play",sound.name)
+    }
+    /// Immediately stops any in-flight direction beep or tick when entering the ±n° aligned deadband (#44).
+    func stopDirection() {
+        guard directionNode.isPlaying else { return }
+        directionNode.stop()
     }
     /// Starts, changes or stops (nil) the looping obstacle warning.
     func setWarning(_ level: WarningLevel?) {
@@ -126,7 +143,7 @@ import HearIAmCore
         switch sound {
         case .warning: return SignalVolume.warning
         case .arrival: return SignalVolume.arrival
-        case .direction: return SignalVolume.direction
+        case .direction, .directionTick: return SignalVolume.direction
         case .buzz: return SignalVolume.buzz
         }
     }

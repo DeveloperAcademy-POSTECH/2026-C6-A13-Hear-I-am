@@ -5,6 +5,7 @@ final class SignalSoundTests: XCTestCase {
     let all: [SignalSound]=WarningLevel.allCases.flatMap { level in WarningTone.allCases.map { .warning(level,tone:$0) } }+[.arrival]
         + [40,60,80].flatMap { [SignalSound.buzz(hertz:$0,harmonic:false),.buzz(hertz:$0,harmonic:true)] }
         + DirectionPattern.landmarks.map { SignalSound.direction(signedDegrees:$0) }
+        + [.directionTick(toRight:false),.directionTick(toRight:true)]
 
     func rms(_ s: ArraySlice<Float>) -> Float { (s.map { $0*$0 }.reduce(0,+)/Float(max(1,s.count))).squareRoot() }
 
@@ -65,6 +66,15 @@ final class SignalSoundTests: XCTestCase {
         XCTAssertGreaterThan(rms(s[..<on]),0.3)
         XCTAssertEqual(rms(s[(on+5)..<(on+gap-5)]),0)
     }
+    func testDirectionTickIsShortPercussiveAndDistinguishesLeftAndRight() {
+        let left=ToneRenderer.render(.directionTick(toRight:false))
+        let right=ToneRenderer.render(.directionTick(toRight:true))
+        XCTAssertEqual(left.count,ToneRenderer.count(ToneRenderer.tickLength))
+        XCTAssertEqual(right.count,ToneRenderer.count(ToneRenderer.tickLength))
+        XCTAssertNotEqual(left,right)
+        let window=ToneRenderer.count(0.01)
+        XCTAssertLessThan(rms(left.suffix(window)),rms(left.prefix(window))*0.35)
+    }
     /// No warning tone and not the arrival ding may share a pitch with a direction beep (#33).
     /// 「날카로운 삑」 (950 Hz, near the front beep) was dropped on 10/17 and is kept only for comparison.
     func testSignalsShareNoPitchWithDirectionBeeps() {
@@ -82,5 +92,7 @@ final class SignalSoundTests: XCTestCase {
         XCTAssertEqual(Set(all.map(\.name)).count,all.count)
         XCTAssertEqual(SignalSound.buzz(hertz:40,harmonic:true).name,"buzz_40hz_harmonic")
         XCTAssertEqual(SignalSound.direction(signedDegrees:-90).name,"direction_left_90")
+        XCTAssertEqual(SignalSound.directionTick(toRight:false).name,"direction_tick_left")
+        XCTAssertEqual(SignalSound.directionTick(toRight:true).name,"direction_tick_right")
     }
 }

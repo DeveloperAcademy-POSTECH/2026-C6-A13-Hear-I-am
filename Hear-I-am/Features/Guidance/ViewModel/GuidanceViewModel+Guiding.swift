@@ -20,8 +20,9 @@ extension GuidanceViewModel {
     }
     /// Clears every signal rule; called when guidance starts or resumes.
     func resetSignals() {
-        landmarks.reset();warnings.reset();corrections.reset();steps.reset();arrivalShownAt=nil;warningHoldUntil=nil
-        signals.setWarning(nil)
+        directionTicks.deadbandDegrees=SignalPlayer.directionDeadbandDegrees
+        directionTicks.reset();landmarks.reset();warnings.reset();corrections.reset();steps.reset();arrivalShownAt=nil;warningHoldUntil=nil
+        signals.setWarning(nil);signals.stopDirection()
     }
     func tickGuiding(pose: (point: FloorPoint, heading: Double, time: Double), guide current: RouteGuide) {
         var guide=current
@@ -40,11 +41,12 @@ extension GuidanceViewModel {
         signal(pose:pose,guide:guide)
     }
 
-    /// Ding once; the new target becomes 0° so the next vibration points the way. No speech.
+    /// Ding once; the new target becomes 0° so the direction tick gate immediately guides toward the next spot.
     private func arrived(_ previous: Int, guide: RouteGuide, time: Double) {
         let name=GuidanceCopy.target(previous,last:guide.route.points.count-1)
         arrivedName=name;arrivalShownAt=time
-        landmarks.reset();corrections.reset()
+        directionTicks.reset();landmarks.reset();corrections.reset()
+        signals.stopDirection()
         signals.setWarning(nil);warningHoldUntil=time+Self.arrivalWarningPause
         signals.play(.arrival)
         tracking.event("signal_arrival",detail:"\(name) next=\(guide.targetIndex)")
@@ -53,8 +55,6 @@ extension GuidanceViewModel {
         guard guide.route.points.indices.contains(guide.targetIndex) else { return }
         let target=guide.route.points[guide.targetIndex]
         let bearing=StageHeading.bearing(from:pose.point,to:target,headingDegrees:pose.heading)
-        // The detector takes the body relative to the target, the opposite sign of the bearing.
-        if let landmark=landmarks.update(relativeDegrees:-bearing) { haptics.playDirection(signedDegrees:landmark,signals:signals) }
         if let hold=warningHoldUntil, pose.time < hold {} else {
             warningHoldUntil=nil
             let warning=warnings.update(position:pose.point,headingDegrees:pose.heading,obstacles:guide.route.obstacles)
@@ -65,9 +65,17 @@ extension GuidanceViewModel {
         }
         if let step=steps.update(position:pose.point,target:target,obstacles:guide.route.obstacles) {
             voice.play([step.line]);tracking.event("signal_step",detail:step.detail)
-        } else if let correction=corrections.update(time:pose.time,bearing:bearing) {
-            voice.direction(correction.line)
-            tracking.event("signal_correction",detail:String(format:"%@ bearing %+.0f°",correction.rawValue,bearing))
+        }
+        if let cue=directionTicks.update(time:pose.time,bearing:bearing) {
+            if let word=cue.spokenWord {
+                voice.direction(word)
+                tracking.event("signal_direction_word",detail:String(format:"%@ bearing %+.0f°",word,bearing))
+            }
+            if cue.shouldTick {
+                signals.play(.directionTick(toRight:cue.toRight))
+            }
+        } else {
+            signals.stopDirection()
         }
     }
     private func paused(guide: RouteGuide) {

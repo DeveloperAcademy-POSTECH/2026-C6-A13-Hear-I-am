@@ -2,6 +2,8 @@ import Foundation
 
 /// Spoken lines for the signal design decided on 10/17: short, four directions, no distances.
 public enum SignalCopy {
+    public static let left="왼쪽"
+    public static let right="오른쪽"
     public static let turnLeft="왼쪽으로"
     public static let turnRight="오른쪽으로"
     public static let turnBack="뒤로 도세요"

@@ -8,6 +8,7 @@ public enum ToneRenderer {
     /// G6. It was E6 (1318.5 Hz) until 10/18, almost the right direction beep (1320 Hz).
     static let arrivalHertz=1568.0, arrivalLength=0.6
     static let buzzRate=12.0, buzzLength=0.6
+    public static let tickLeftHertz=587.33, tickRightHertz=783.99, tickLength=0.045
 
     public static func render(_ sound: SignalSound) -> [Float] {
         switch sound {
@@ -27,6 +28,12 @@ public enum ToneRenderer {
                 let within=t.truncatingRemainder(dividingBy:period)
                 guard within < length else { return 0 }
                 return sin(2 * .pi*beep.hertz*t)*fade(within,length:length,edge:0.008)
+            })
+        case .directionTick(let toRight):
+            let f=toRight ? tickRightHertz : tickLeftHertz
+            return normalized(samples(tickLength) { t in
+                let body=sin(2 * .pi*f*t)+0.25*sin(2 * .pi*f*2.4*t)
+                return body*exp(-t*65)*fade(t,length:tickLength,edge:0.002)
             })
         case .buzz(let hertz, let harmonic):
             return normalized(samples(buzzLength) { t in

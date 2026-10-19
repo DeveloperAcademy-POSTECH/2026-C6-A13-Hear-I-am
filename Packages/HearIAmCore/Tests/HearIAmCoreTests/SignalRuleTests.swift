@@ -99,6 +99,55 @@ final class SignalRuleTests: XCTestCase {
         XCTAssertNil(other.update(time:2,bearing:.nan))
     }
 
+    // MARK: direction tick (#44)
+    func testDirectionTickDeadbandSpokenOnceAndStopsOnEntry() throws {
+        var gate=DirectionTickGate(deadbandDegrees:12)
+        // Within ±12° is completely silent (nil).
+        XCTAssertNil(gate.update(time:0,bearing:0))
+        XCTAssertNil(gate.update(time:0.5,bearing:11.9))
+        XCTAssertNil(gate.update(time:1.0,bearing:-12.0))
+
+        // Stepping outside to the right (+30°): speaks "오른쪽" once and ticks immediately.
+        let first=try XCTUnwrap(gate.update(time:2.0,bearing:30))
+        XCTAssertEqual(first.spokenWord,"오른쪽")
+        XCTAssertTrue(first.toRight)
+        XCTAssertTrue(first.shouldTick)
+
+        // Immediately after, neither speech nor tick fires until the interval elapses.
+        let waiting=try XCTUnwrap(gate.update(time:2.05,bearing:30))
+        XCTAssertNil(waiting.spokenWord)
+        XCTAssertFalse(waiting.shouldTick)
+
+        // After the interval elapses, only the tick repeats (no repeated speech).
+        let interval30=gate.interval(forAbsBearing:30)
+        let second=try XCTUnwrap(gate.update(time:2.0+interval30+0.001,bearing:30))
+        XCTAssertNil(second.spokenWord)
+        XCTAssertTrue(second.shouldTick)
+        XCTAssertTrue(second.toRight)
+
+        // Entering ±12° immediately returns nil so active ticks stop.
+        XCTAssertNil(gate.update(time:3.0,bearing:8))
+        XCTAssertNil(gate.update(time:3.2,bearing:5))
+    }
+    func testDirectionTickSideSwitchAndProportionalCadence() throws {
+        var gate=DirectionTickGate(deadbandDegrees:12)
+        // Faster cadence as angle approaches ±n°.
+        XCTAssertLessThan(gate.interval(forAbsBearing:15),gate.interval(forAbsBearing:45))
+        XCTAssertLessThan(gate.interval(forAbsBearing:45),gate.interval(forAbsBearing:90))
+        XCTAssertLessThan(gate.interval(forAbsBearing:90),gate.interval(forAbsBearing:180))
+        XCTAssertEqual(gate.interval(forAbsBearing:12),DirectionTickGate.minInterval,accuracy:1e-9)
+        XCTAssertEqual(gate.interval(forAbsBearing:180),DirectionTickGate.maxInterval,accuracy:1e-9)
+
+        // Left side speaks "왼쪽", overshooting across to right speaks "오른쪽".
+        let left=try XCTUnwrap(gate.update(time:0,bearing:-40))
+        XCTAssertEqual(left.spokenWord,"왼쪽");XCTAssertFalse(left.toRight);XCTAssertTrue(left.shouldTick)
+        let right=try XCTUnwrap(gate.update(time:0.1,bearing:25))
+        XCTAssertEqual(right.spokenWord,"오른쪽");XCTAssertTrue(right.toRight);XCTAssertTrue(right.shouldTick)
+
+        // Invalid bearing clears state and returns nil.
+        XCTAssertNil(gate.update(time:0.2,bearing:.nan))
+    }
+
     // MARK: step
     func testStepUpOnceWithinOneMetreAndStepDownWhenLeaving() throws {
         let platform=try square(5,0,size:2,kind:.platform,name:"단상")

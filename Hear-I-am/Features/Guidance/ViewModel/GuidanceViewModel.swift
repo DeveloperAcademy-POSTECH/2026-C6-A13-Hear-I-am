@@ -30,6 +30,7 @@ import HearIAmCore
     let signals=SignalPlayer()
     let haptics=DirectionHaptics()
     var landmarks=LandmarkDetector()
+    var directionTicks=DirectionTickGate(deadbandDegrees:SignalPlayer.directionDeadbandDegrees)
     var warnings=WarningGate()
     var corrections=CorrectionGate()
     var steps=StepGate()
