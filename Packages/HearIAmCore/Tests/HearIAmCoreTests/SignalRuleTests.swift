@@ -155,4 +155,23 @@ final class SignalRuleTests: XCTestCase {
         var plain=StepGate()
         XCTAssertNil(plain.update(position:.init(4.5,1),target:.init(6,1),obstacles:[try square(5,0,size:2)]))
     }
+    /// Field test 10/19 (scan 80DA77CD): 「내려갑니다」 on arriving on the platform, then overshooting past
+    /// its corner clipped it by 0.06 m and added 「올라갔다 내려갑니다」 in the same second.
+    func testOvershootPastAPlatformCornerAfterStepDownIsQuiet() throws {
+        let platform=try StageObstacle(name:"단상",kind:.platform,passage:.passable,
+            vertices:[.init(1.5319868935240273,1.236119042969031),.init(1.2262760832529627,1.1928760903779199),
+                      .init(1.2267799840371716,1.500336987005577),.init(1.4978151934113444,1.5283740496398153)])
+        let target=FloorPoint(1.3451606103406586,0.508620136078461)
+        var gate=StepGate(), cues: [StepCue]=[]
+        for p in [FloorPoint(1.484,1.349),.init(1.512,1.354),.init(1.541,1.36),.init(1.571,1.364),.init(1.63,1.377),.init(1.72,1.405),.init(1.81,1.41)] {
+            if let cue=gate.update(position:p,target:target,obstacles:[platform]) { cues.append(cue) }
+        }
+        XCTAssertEqual(cues.map(\.kind),[.down],cues.map(\.detail).joined(separator:" | "))
+    }
+    func testWayClippingACornerByLessThanTenCentimetresIsNotAStep() throws {
+        let platform=try square(5,0,size:2,kind:.platform,name:"단상")
+        var gate=StepGate()
+        // Through the corner (5,0) region: in at (5,0.05), out at (5.05,0), about 0.07 m on the platform.
+        XCTAssertNil(gate.update(position:.init(4.5,0.55),target:.init(5.6,-0.55),obstacles:[platform]))
+    }
 }
