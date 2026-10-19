@@ -2,7 +2,7 @@ import Foundation
 
 /// One run of section ④: find a target direction by body or by head.
 struct DirectionTrial {
-    enum Mode: String { case body="몸", head="고개" }
+    enum Mode: String { case body="몸", head="고개", sweep="새 방향음 360°" }
     let mode: Mode
     /// Target relative to the facing direction at start. Positive is right.
     let target: Int
@@ -25,7 +25,7 @@ struct DirectionTrialResult: Identifiable {
     let headFoundSeconds: Double?
 
     var summary: String {
-        var parts=["\(mode.rawValue) · 목표 \(target)°",found ? String(format:"%.1f초",seconds) : "중단 "+String(format:"%.1f초",seconds)]
+        var parts=["\(mode.rawValue) · 목표 \(target)°",found ? String(format:"%.1f초",seconds) : (mode == .sweep ? "종료 " : "중단 ")+String(format:"%.1f초",seconds)]
         if let bodyError { parts.append(String(format:"몸 %+.0f°",bodyError)) }
         if let headError { parts.append(String(format:"고개 %+.0f°",headError)) }
         if let headFoundSeconds { parts.append(String(format:"고개로 찾음 %.1f초",headFoundSeconds)) }

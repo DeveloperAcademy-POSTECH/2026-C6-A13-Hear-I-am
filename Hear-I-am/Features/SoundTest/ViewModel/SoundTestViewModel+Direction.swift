@@ -13,26 +13,39 @@ extension SoundTestViewModel {
         guard trial == nil else { return }
         guard let bodyStart=body.heading else { record("direction_error","몸 방향 값이 없어요. 폰을 허리에 세워 주세요.");return }
         if mode == .head && !headReceiving { record("direction_error","고개 값이 안 들어와요. 에어팟을 확인해 주세요.");return }
-        let target=Self.targets.randomElement() ?? 90
-        detector.reset()
+        let target=mode == .sweep ? 0 : (Self.targets.randomElement() ?? 90)
+        detector.reset();sweepGate.reset();signals.stopDirection()
         trial=DirectionTrial(mode:mode,target:target,bodyStart:bodyStart,headStart:head.heading,
                              startedAt:ProcessInfo.processInfo.systemUptime)
         record("direction_start","mode=\(mode.rawValue) target=\(target)")
-        speak("방향을 찾아 주세요")
+        speak(mode == .sweep ? "지금 몸 방향이 목표입니다. 제자리에서 한 바퀴 돌아보세요. 높아지면 왼쪽, 낮아지면 오른쪽, 방향이 맞으면 삐빅입니다." : "방향을 찾아 주세요")
     }
     func finishTrial(found: Bool) {
         guard let current=trial else { return }
         let now=ProcessInfo.processInfo.systemUptime
         let result=DirectionTrialResult(mode:current.mode,target:current.target,found:found,seconds:now-current.startedAt,
             bodyError:bodyError(current),headError:headError(current),headFoundSeconds:current.headFoundAt.map { $0-current.startedAt })
-        trial=nil;results.insert(result,at:0)
+        trial=nil;results.insert(result,at:0);sweepGate.reset();signals.stopDirection()
         record("direction_result",result.summary)
         if found { signals.play(.arrival) }
     }
 
     func bodySample(_ heading: Double?) {
         bodyAngle=heading.flatMap { h in trial.map { HeadingMath.wrapDegrees(h-$0.bodyStart) } }
-        guard var current=trial, let error=bodyError(current) else { return }
+        guard var current=trial else { return }
+        guard let error=bodyError(current), error.isFinite else {
+            if current.mode == .sweep { sweepGate.reset();signals.stopDirection() }
+            return
+        }
+        if current.mode == .sweep {
+            guard !speaking, signals.warning == nil else { sweepGate.suspend();signals.stopDirection();return }
+            let update=sweepGate.update(time:ProcessInfo.processInfo.systemUptime,bearing:-error)
+            if update.stopPrevious { signals.stopDirection() }
+            if let sound=update.sound {
+                signals.play(sound);record("sweep_trial",String(format:"bearing=%+.1f %@",-error,sound.name))
+            }
+            return // Keep the target fixed and keep listening until the user ends the trial.
+        }
         if let landmark=detector.update(relativeDegrees:error), current.mode == .body || landmark == 0 {
             haptics.play(signedDegrees:landmark)
         }

@@ -27,6 +27,7 @@ import HearIAmCore
     let probe=TrackingProbe()
     let log=SoundTestLog()
     var detector=LandmarkDetector()
+    var sweepGate=DirectionSweepGate()
 
     init() {
         signals.onEvent={ [weak self] in self?.record($0,$1) }
@@ -60,6 +61,11 @@ import HearIAmCore
     func setWarning(_ level: WarningLevel?) { warning=level;signals.setWarning(level) }
     func setWarningTone(_ tone: WarningTone) { warningTone=tone;signals.setWarningTone(tone) }
     func playArrival() { signals.play(.arrival) }
+    func previewSweep(_ degrees: Int) {
+        guard trial == nil else { return }
+        signals.play(.directionSweep(DirectionSweep(turn:degrees < 0 ? .left : .right,errorDegrees:Double(degrees))))
+    }
+    func previewAlignment() { guard trial == nil else { return };signals.play(.directionAligned) }
     func beep(_ degrees: Int) { signals.play(.direction(signedDegrees:degrees)) }
     func speak(_ text: String) { record("test_speech",text);voice.play([text]) }
     /// Warning and a correction line together, to hear whether the words are masked.

@@ -30,6 +30,14 @@ struct SoundTestView: View {
 
     private var signals: some View {
         VStack(alignment:.leading,spacing:16) {
+            Text("현재 안내: 상승음은 왼쪽, 하강음은 오른쪽. 삐빅은 방향 정렬, 띵은 지점 도착이에요.")
+                .font(.subheadline)
+            SoundTestRow(label:"새 방향음 · 큰 회전 / 작은 회전") {
+                ForEach([-135,-25,25,135],id:\.self) { degrees in
+                    ActionButton(title:Self.label(degrees),primary:false,enabled:model.trial == nil) { model.previewSweep(degrees) }
+                }
+                ActionButton(title:"정렬 삐빅",primary:false,enabled:model.trial == nil) { model.previewAlignment() }
+            }
             SoundTestRow(label:"경고 소리 종류 (고른 뒤 아래 거리를 눌러요)") {
                 ForEach(WarningTone.allCases,id:\.self) { tone in
                     ActionButton(title:Self.toneLabel(tone),primary:model.warningTone == tone) { model.setWarningTone(tone) }
@@ -43,7 +51,7 @@ struct SoundTestView: View {
                 }
             }
             SoundTestRow(label:"도착") { ActionButton(title:"띵",primary:false) { model.playArrival() } }
-            SoundTestRow(label:"방향 비프 (왼쪽 낮게 · 오른쪽 높게 · 앞뒤 중간)") {
+            SoundTestRow(label:"기존 방향 비프 비교 (현재 안내에는 미사용)") {
                 ForEach(DirectionPattern.landmarks,id:\.self) { degrees in
                     ActionButton(title:Self.label(degrees),primary:false) { model.beep(degrees) }
                 }
@@ -72,7 +80,7 @@ struct SoundTestView: View {
 
     private var haptics: some View {
         VStack(alignment:.leading,spacing:16) {
-            SoundTestRow(label:"방향 신호 (안내에서도 이대로 써요)") {
+            SoundTestRow(label:"기존 방식 비교 (이 테스트에만 적용)") {
                 ForEach(DirectionSignalMode.allCases,id:\.self) { mode in
                     ActionButton(title:Self.modeLabel(mode),primary:model.directionMode == mode) { model.setDirectionMode(mode) }
                 }
@@ -108,7 +116,10 @@ struct SoundTestView: View {
                 Text("몸 \(Self.angle(model.bodyAngle)) · 고개 \(Self.angle(model.headAngle))").monospacedDigit()
                 if let trial=model.trial { Text("진행 중 · \(trial.mode.rawValue) · 목표 \(trial.target)°").bold() }
             }.font(.subheadline)
+            Text("새 방향음 360°는 시작할 때 몸 방향을 고정 목표로 삼아요. 제자리에서 돌며 확인하고 ‘그만’으로 끝내세요.")
+                .font(.subheadline)
             SoundTestRow(label:"시작") {
+                ActionButton(title:"새 방향음 360°",enabled:model.trial == nil) { model.startTrial(.sweep) }
                 ActionButton(title:"몸으로 찾기",enabled:model.trial == nil) { model.startTrial(.body) }
                 ActionButton(title:"고개로 찾기",enabled:model.trial == nil) { model.startTrial(.head) }
                 ActionButton(title:"그만",primary:false,enabled:model.trial != nil) { model.finishTrial(found:false) }
