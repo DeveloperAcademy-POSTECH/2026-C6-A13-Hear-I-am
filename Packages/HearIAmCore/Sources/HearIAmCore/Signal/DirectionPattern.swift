@@ -31,12 +31,13 @@ public enum DirectionPattern {
     public static let beepLength=0.16, beepGap=0.12
 
     /// Pitch and number of beeps; nil for angles that are not a 45° landmark.
-    public static func beep(signedDegrees: Int) -> (hertz: Double, count: Int)? {
+    public static func beep(signedDegrees: Int, style: DirectionBeepStyle = .plain) -> (hertz: Double, count: Int)? {
         let degrees=signedDegrees == -180 ? 180 : signedDegrees
         guard landmarks.contains(degrees) else { return nil }
-        if degrees == 0 { return (centerHertz,1) }
-        if degrees == 180 { return (centerHertz,2) }
-        return (degrees < 0 ? leftHertz : rightHertz,abs(degrees)/45)
+        let p=style.pitches
+        if degrees == 0 { return (p.center,1) }
+        if degrees == 180 { return (p.center,2) }
+        return (degrees < 0 ? p.left : p.right,abs(degrees)/45)
     }
     /// The 45° landmark closest to `degrees`, 180 for straight behind.
     public static func nearest(_ degrees: Double) -> Int {
@@ -58,4 +59,23 @@ public enum DirectionSignalMode: String, CaseIterable, Sendable {
     case haptic, beep, both
     public var vibrates: Bool { self != .beep }
     public var beeps: Bool { self != .haptic }
+}
+
+/// How the direction beep sounds. On 10/19 the plain beep (an even 0.16 s sine) sounded too strong
+/// when turning, so candidates are compared in the sound test tab before one is fixed, as the warning
+/// tones were. Timing and beep counts are the same for every style.
+public enum DirectionBeepStyle: String, CaseIterable, Sendable {
+    /// The #33 beep: 660 · 990 · 1320 Hz at an even level.
+    case plain
+    /// Same pitches, struck and dying away like a marimba.
+    case pluck
+    /// Lower and softer: 330 · 392 · 660 Hz. An octave down would put the centre at 495 Hz, within
+    /// 10% of the 「톡」 warning (523 Hz), so the centre is G4 instead.
+    case low
+    /// The plain beep at half the level.
+    case quiet
+
+    public var pitches: (left: Double, center: Double, right: Double) {
+        self == .low ? (330,392,660) : (DirectionPattern.leftHertz,DirectionPattern.centerHertz,DirectionPattern.rightHertz)
+    }
 }

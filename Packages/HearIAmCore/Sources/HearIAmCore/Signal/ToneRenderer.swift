@@ -21,15 +21,17 @@ public enum ToneRenderer {
                 let tone=sin(2 * .pi*arrivalHertz*t)+0.5*sin(2 * .pi*arrivalHertz*2*t)+0.2*sin(2 * .pi*arrivalHertz*3*t)
                 return tone*exp(-t*arrivalDecay)*fade(t,length:arrivalLength,edge:0.003)
             })
-        case .direction(let degrees):
-            guard let beep=DirectionPattern.beep(signedDegrees:degrees) else { return [] }
+        case .direction(let degrees, let style):
+            guard let beep=DirectionPattern.beep(signedDegrees:degrees,style:style) else { return [] }
             let length=DirectionPattern.beepLength, period=length+DirectionPattern.beepGap
             let total=Double(beep.count)*length+Double(beep.count-1)*DirectionPattern.beepGap
-            return normalized(samples(total) { t in
+            let rendered=normalized(samples(total) { t in
                 let within=t.truncatingRemainder(dividingBy:period)
                 guard within < length else { return 0 }
-                return sin(2 * .pi*beep.hertz*t)*fade(within,length:length,edge:0.008)
+                let strike=style == .pluck ? exp(-within*25) : 1
+                return sin(2 * .pi*beep.hertz*t)*strike*fade(within,length:length,edge:style == .pluck ? 0.002 : 0.008)
             })
+            return style == .quiet ? rendered.map { $0*0.5 } : rendered
         case .buzz(let hertz, let harmonic):
             return normalized(samples(buzzLength) { t in
                 let pulse=0.5*(1-cos(2 * .pi*buzzRate*t))
