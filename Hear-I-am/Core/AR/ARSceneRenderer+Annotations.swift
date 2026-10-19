@@ -44,17 +44,22 @@ extension ARSceneRenderer {
             referenceLayer.addChildNode(StageDangerZoneOverlay.node(zone,in:area,live:true))
         }
         let routePoints=content.routePoints
-        for (i,p) in routePoints.enumerated() {
+        func routeWorld(_ index: Int) -> Point3 {
+            var p=area.world(routePoints[index])
+            if let heights=content.routeHeights, heights.indices.contains(index) { p.y += heights[index] }
+            return p
+        }
+        for i in routePoints.indices {
             let active = !preparing && !completed && i == target
             let label=i == 0 ? "출발" : ((!preparing || routeFinished) && i == routePoints.count-1 ? "도착" : "P\(i)")
             let color: UIColor=active ? .systemOrange : .systemGreen
-            marker(area.world(p),label:label+(active ? " · 현재 목표" : ""),color:color)
+            marker(routeWorld(i),label:label+(active ? " · 현재 목표" : ""),color:color)
             if active {
                 let ring=SCNNode(geometry:SCNTorus(ringRadius:0.12,pipeRadius:0.015))
-                let world=area.world(p);ring.position=SCNVector3(Float(world.x),Float(world.y)+0.02,Float(world.z))
+                let world=routeWorld(i);ring.position=SCNVector3(Float(world.x),Float(world.y)+0.02,Float(world.z))
                 ring.geometry?.firstMaterial?.diffuse.contents=color;referenceLayer.addChildNode(ring)
             }
-            if i>0 {line(area.world(routePoints[i-1]),area.world(p),color:active ? .systemOrange : .systemGreen)}
+            if i>0 {line(routeWorld(i-1),routeWorld(i),color:active ? .systemOrange : .systemGreen)}
         }
         // What a route must keep clear of: a blocking object grown by the route clearance in red, a
         // platform or stairs in blue with no clearance, since they are walked onto (#38). Shown while
@@ -63,11 +68,14 @@ extension ARSceneRenderer {
             let color: UIColor=o.isStep ? .systemBlue : .systemRed
             floorPatch(o.clearanceCells(clearance:o.blocksPath ? content.clearance : 0,cell:Self.patchCell),
                        area:area,color:color.withAlphaComponent(o.blocksPath ? 0.28 : 0.2))
-            for i in o.vertices.indices {line(area.world(o.vertices[i]),area.world(o.vertices[(i+1)%o.vertices.count]),color:color)}
+            for i in o.vertices.indices {
+                let edgeColor: UIColor = !o.isStep ? color : (o.permitsEntry(i) && o.permitsExit(i) ? .systemGreen : (o.permitsEntry(i) ? .systemBlue : (o.permitsExit(i) ? .systemOrange : .systemRed)))
+                line(area.world(o.vertices[i]),area.world(o.vertices[(i+1)%o.vertices.count]),color:edgeColor)
+            }
         }
         let pending=content.pendingObject
         for (i,p) in pending.enumerated() {
-            marker(area.world(p),label:"물체",color:.systemOrange)
+            marker(area.world(p),label:"점 \(i+1)",color:.systemOrange)
             if i>0 {line(area.world(pending[i-1]),area.world(p),color:.systemOrange)}
         }
         if pending.count >= 3, let first=pending.first, let last=pending.last {dashedGuide(area.world(last),area.world(first))}

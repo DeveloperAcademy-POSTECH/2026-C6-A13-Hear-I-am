@@ -47,6 +47,20 @@ struct PreparationGuideCard: View {
                 if model.objectEditing {
                     TextField("기물 이름",text:$model.obstacleName).textFieldStyle(.roundedBorder).font(.caption)
                     Picker("종류",selection:$model.obstacleKind) {Text("장애물").tag(ObstacleKind.other); Text("단상").tag(ObstacleKind.platform); Text("계단").tag(ObstacleKind.stairs)}.pickerStyle(.segmented)
+                    if (model.obstacleKind == .platform || model.obstacleKind == .stairs), model.pendingObjectWorld.count >= 3 {
+                        Text("변 번호는 둘레 점 순서입니다. 복수 선택 가능하며, 같은 변에 올라감·내려감을 모두 허용할 수 있어요. 미선택 측면은 통과 금지입니다. 둘레 점을 바꾸면 선택이 초기화됩니다.").font(.caption)
+                        ForEach(0..<model.pendingObjectWorld.count,id:\.self) { i in
+                            HStack {
+                                Text("변 \(i+1) · \(i+1)→\((i+1)%model.pendingObjectWorld.count+1)").font(.caption)
+                                edgeButton("올라감",selected:model.entryEdges.contains(i),color:.blue) {
+                                    if !model.entryEdges.insert(i).inserted {model.entryEdges.remove(i)}
+                                }
+                                edgeButton("내려감",selected:model.exitEdges.contains(i),color:.orange) {
+                                    if !model.exitEdges.insert(i).inserted {model.exitEdges.remove(i)}
+                                }
+                            }.font(.caption)
+                        }
+                    }
                     if let note=model.objectHeightNote {Text(note).font(.caption).foregroundStyle(.secondary)}
                 } else {
                     ScrollView {VStack(spacing:4) {ForEach(draft.objects) {o in
@@ -58,4 +72,16 @@ struct PreparationGuideCard: View {
             if step == .checkpoint, draft.checkpoint != nil, let error=draft.checkpointErrors.first {Text(error).font(.caption).foregroundStyle(.red)}
         }.padding(.horizontal,14).padding(.bottom,14)
     }
+    private func edgeButton(_ title: String, selected: Bool, color: Color, action: @escaping () -> Void) -> some View {
+        Button(action:action) {
+            Label(title,systemImage:selected ? "checkmark.circle.fill" : "circle")
+                .font(.caption.bold()).frame(maxWidth:.infinity,minHeight:44)
+                .foregroundStyle(selected ? Color.white : color)
+                .background(selected ? color : color.opacity(0.1),in:RoundedRectangle(cornerRadius:10))
+                .overlay(RoundedRectangle(cornerRadius:10).stroke(color,lineWidth:selected ? 2 : 1))
+        }.buttonStyle(.plain)
+            .accessibilityValue(selected ? "선택됨" : "선택 안 됨")
+            .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
 }
