@@ -8,11 +8,12 @@ extension GuidanceViewModel {
 
     func beginEscape(reason: GuidePauseReason, pose: (point: FloorPoint, heading: Double, time: Double), guide: RouteGuide) {
         phase = .paused;landmarks.reset()
-        let right=escapeBearing(pose:pose,guide:guide) > 0
+        let bearing=escapeBearing(pose:pose,guide:guide)
         escape=EscapeState(reason:reason,startedAt:pose.time,lastSpoken:pose.time)
-        message=SignalCopy.escape(toRight:right)
+        message=SignalCopy.escape(bearing:bearing)
         voice.play([message])
-        logSignal("escape_start","reason=\(reason) side=\(right ? "right" : "left")")
+        let side=abs(bearing) > 135 ? "back" : bearing > 0 ? "right" : "left"
+        logSignal("escape_start",String(format:"reason=%@ side=%@ bearing=%+.0f°","\(reason)",side,bearing))
     }
     func tickEscape(pose: (point: FloorPoint, heading: Double, time: Double), guide: RouteGuide) {
         guard var state=escape else { return }
@@ -24,7 +25,7 @@ extension GuidanceViewModel {
             state.quiet=true;signals.setWarningQuiet(true);tracking.event("escape_quiet")
         }
         if state.quiet && pose.time-state.lastSpoken >= EscapeState.repeatEvery && !speaking {
-            state.lastSpoken=pose.time;message=SignalCopy.escape(toRight:bearing > 0);voice.play([message])
+            state.lastSpoken=pose.time;message=SignalCopy.escape(bearing:bearing);voice.play([message])
         }
         if guide.canResume(position:pose.point,trackingValid:true) {
             let since=state.safeSince ?? pose.time

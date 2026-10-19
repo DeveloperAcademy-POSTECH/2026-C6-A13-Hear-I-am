@@ -174,4 +174,11 @@ final class SignalRuleTests: XCTestCase {
         // Through the corner (5,0) region: in at (5,0.05), out at (5.05,0), about 0.07 m on the platform.
         XCTAssertNil(gate.update(position:.init(4.5,0.55),target:.init(5.6,-0.55),obstacles:[platform]))
     }
+    /// 10/19: past ±135° the escape line said 「오른쪽」 while the vibration said 「뒤」.
+    func testEscapeLineFollowsTheVibrationBehind() {
+        XCTAssertEqual(SignalCopy.escape(bearing:40),"멈추세요. 오른쪽으로 비켜서세요")
+        XCTAssertEqual(SignalCopy.escape(bearing:-135),"멈추세요. 왼쪽으로 비켜서세요")
+        XCTAssertEqual(SignalCopy.escape(bearing:136),"멈추세요. 뒤로 도세요")
+        XCTAssertEqual(SignalCopy.escape(bearing:-170),"멈추세요. 뒤로 도세요")
+    }
 }
