@@ -17,19 +17,16 @@ public struct RouteGuide: Sendable {
     public let settings: GuideSettings
     /// Opt in for the portrait guidance flow. The legacy experiment keeps its original rules.
     public let usesRouteCorridor: Bool
-    public static let corridorRadius = 0.60
-    /// Right after an arrival the performer is still walking the old way and turns toward the new leg.
-    /// For this long, and while within `arrivalGraceRadius` of the point just reached, leaving the new
-    /// corridor is not a pause (10/19). Leaving the stage still is: past the edge may be a drop, and both
-    /// 10/19 overshoots (8 cm and 15 cm past the edge) were real.
-    public static let arrivalGrace = 2.0, arrivalGraceRadius = 1.0
+    /// How far from the active segment counts as off the route. It was 0.6 m until 10/19; in two runs
+    /// that day all five off-route stops came from overshooting a point and stopped 0.60–0.87 m from the
+    /// line. Stepping off the stage and coming near an object still stop at once.
+    public static let corridorRadius = 1.0
     private var arrivedSince: Double?
     private var lastTime: Double?
     private var lastSpeech: Double = -.infinity
     private var reentrySince: Double?
     private var lastReentryTime: Double?
     private var sector: Int?
-    private var grace: (until: Double, point: FloorPoint)?
     public init(route: StageRoute, settings: GuideSettings, usesRouteCorridor: Bool = false) {
         self.route=route; self.settings=settings; self.usesRouteCorridor=usesRouteCorridor
     }
@@ -46,7 +43,7 @@ public struct RouteGuide: Sendable {
     }
     @discardableResult public mutating func start(position: FloorPoint, headingDegrees: Double, trackingValid: Bool) -> Bool {
         guard state == .idle, ready(position:position,headingDegrees:headingDegrees,trackingValid:trackingValid) else { return false }
-        state = .guiding; targetIndex=1; arrivedSince=nil; lastTime=nil; lastSpeech = -.infinity; sector=nil; pauseReason=nil; grace=nil
+        state = .guiding; targetIndex=1; arrivedSince=nil; lastTime=nil; lastSpeech = -.infinity; sector=nil; pauseReason=nil
         return true
     }
     public mutating func pause() { pause(reason:.manual) }
@@ -58,7 +55,7 @@ public struct RouteGuide: Sendable {
     @discardableResult public mutating func resume(position: FloorPoint, trackingValid: Bool) -> Bool {
         guard canResume(position:position,trackingValid:trackingValid) else { return false }
         state = .guiding; pauseReason=nil; arrivedSince=nil; lastTime=nil; lastSpeech = -.infinity
-        reentrySince=nil; lastReentryTime=nil; sector=nil; grace=nil
+        reentrySince=nil; lastReentryTime=nil; sector=nil
         return true
     }
     public func canResume(position: FloorPoint, trackingValid: Bool) -> Bool {
@@ -104,7 +101,7 @@ public struct RouteGuide: Sendable {
             pause(reason:.sampleGap); return GuideUpdate(state:state,targetIndex:targetIndex,announcement:nil)
         }
         let issue=usesRouteCorridor ? positionIssue(position) : (route.area.contains(position) ? nil : GuidePauseReason.outsideStage)
-        if let issue, !inArrivalGrace(issue,time:time,position:position) {
+        if let issue {
             pause(reason:issue); return GuideUpdate(state:state,targetIndex:targetIndex,announcement:nil)
         }
         lastTime=time
@@ -118,7 +115,6 @@ public struct RouteGuide: Sendable {
                     return GuideUpdate(state:state,targetIndex:targetIndex,announcement:GuidanceCopy.completed)
                 }
                 arrivedIndex=targetIndex
-                grace=(time+Self.arrivalGrace,route.points[targetIndex])
                 targetIndex += 1; arrivedSince=nil; sector=nil
                 goal=route.points[targetIndex]; distance=position.distance(to:goal)
             }
@@ -141,9 +137,5 @@ public struct RouteGuide: Sendable {
         guard time-lastSpeech >= settings.repeatInterval else { return GuideUpdate(state:state,targetIndex:targetIndex,announcement:nil) }
         lastSpeech=time
         return GuideUpdate(state:state,targetIndex:targetIndex,announcement:direction)
-    }
-    private func inArrivalGrace(_ issue: GuidePauseReason, time: Double, position: FloorPoint) -> Bool {
-        guard issue == .offRoute, let grace else { return false }
-        return time <= grace.until && position.distance(to:grace.point) <= Self.arrivalGraceRadius
     }
 }
