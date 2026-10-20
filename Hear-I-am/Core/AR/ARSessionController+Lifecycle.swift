@@ -91,7 +91,7 @@ extension ARSessionController {
         }
         if !value { interrupt("앱 비활성화 · 저장 공간을 다시 불러오거나 새 스캔을 시작하세요",token:token) }
     }
-    func endSession() { interrupt("측정 종료",token:token) }
+    func endSession() { interrupt("측정 종료",token:token); clearPhotos() }
 
     func permission() async -> Bool {
         switch AVCaptureDevice.authorizationStatus(for:.video) {

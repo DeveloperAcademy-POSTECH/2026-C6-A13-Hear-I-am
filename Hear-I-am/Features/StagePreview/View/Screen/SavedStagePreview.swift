@@ -1,24 +1,123 @@
 import SwiftUI
-import SceneKit
 import HearIAmCore
 
 struct SavedStagePreview: View {
     @StateObject private var model: SavedStagePreviewModel
-    init(record: ScanManifest, store: ScanStore) { _model=StateObject(wrappedValue:SavedStagePreviewModel(record:record,store:store)) }
+    init(record: ScanManifest, store: ScanStore, camera: ReplayCamera = .overview, selection: ReplaySelection? = nil) {
+        let model=SavedStagePreviewModel(record:record,store:store)
+        model.cameraMode=camera;model.selection=selection
+        _model=StateObject(wrappedValue:model)
+    }
     var body: some View {
-        VStack(spacing:16) {
-            if let loaded=model.loaded {
-                SavedMeshView(scan:loaded,wireframe:model.wireframe,fit:model.fit).clipShape(RoundedRectangle(cornerRadius:20))
-                if let route=loaded.manifest.route, !route.dangerZones.isEmpty {
-                    Text(StageDangerZone.summary(route.dangerZones)).font(.caption).foregroundStyle(.orange)
+        GeometryReader { geometry in
+            ScrollView {
+                VStack(alignment:.leading,spacing:14) {
+                    if let scan=model.loaded {
+                        Picker("공간 표시",selection:$model.display) {
+                            ForEach(ReplayDisplay.allCases,id:\.self) {Text($0.rawValue).tag($0)}
+                        }.pickerStyle(.segmented)
+                        ZStack(alignment:.bottomTrailing) {
+                            SavedMeshView(scan:scan,model:model)
+                                .accessibilityLabel("저장된 무대 3D 공간. 아래 목록에서도 지점과 기물을 선택할 수 있어요.")
+                            if let photo=model.selectedPhoto {
+                                VStack(alignment:.leading,spacing:4) {
+                                    HStack {
+                                        Button {model.photoExpanded=true} label:{
+                                            Label("스캔 당시 사진",systemImage:"arrow.up.left.and.arrow.down.right").font(.caption.bold())
+                                        }.buttonStyle(.plain)
+                                        Button {model.photoCardCollapsed.toggle()} label:{
+                                            Image(systemName:model.photoCardCollapsed ? "chevron.up" : "chevron.down").font(.caption)
+                                        }.accessibilityLabel(model.photoCardCollapsed ? "사진 펼치기" : "사진 접기")
+                                    }
+                                    if !model.photoCardCollapsed {
+                                        Button {model.photoExpanded=true} label:{
+                                            SavedPhotoImage(store:model.store,scanID:scan.manifest.id,photo:photo)
+                                                .frame(width:140,height:85)
+                                        }.buttonStyle(.plain)
+                                    }
+                                }.padding(8).background(.regularMaterial,in:RoundedRectangle(cornerRadius:12)).padding(10)
+                            }
+                        }.frame(height:max(260,min(geometry.size.height*0.55,520))).clipShape(RoundedRectangle(cornerRadius:20))
+                        HStack {
+                            ForEach(ReplayCamera.allCases,id:\.self) { mode in
+                                Button {model.setCamera(mode)} label:{
+                                    Text(mode.rawValue).font(.subheadline.weight(.semibold)).frame(maxWidth:.infinity).padding(.vertical,10)
+                                        .background(model.cameraMode==mode ? Color.hearGreen : Color(.systemGray6),in:Capsule())
+                                        .foregroundStyle(model.cameraMode==mode ? Color.white : Color.primary)
+                                }.buttonStyle(.plain).accessibilityAddTraits(model.cameraMode==mode ? .isSelected : [])
+                            }
+                        }
+                        if model.display == .scan {Toggle("표면 선 보기",isOn:$model.wireframe)}
+                        Text("한 손가락 회전 · 두 손가락 이동 · 핀치 확대").font(.caption).foregroundStyle(.secondary)
+                        if let route=scan.manifest.route {
+                            ScrollView(.horizontal) {
+                                HStack {
+                                    ForEach(route.points.indices,id:\.self) {i in
+                                        selectionButton("\(i+1) "+(i==0 ? "출발" : i==route.points.count-1 ? "도착" : "이동"),.point(i))
+                                    }
+                                }
+                            }
+                            if !route.obstacles.isEmpty {
+                                ScrollView(.horizontal) {HStack {ForEach(route.obstacles) {o in selectionButton(o.name,.object(o.id))}}}
+                            }
+                            VStack(alignment:.leading,spacing:8) {
+                                Text(model.selectionTitle).font(.headline)
+                                if let object=model.selectedObject {
+                                    let p=ObjectPlacement(object)
+                                    Text("표시: \(object.kind == .platform ? "단상" : object.kind == .stairs ? "계단 영역" : p.appearance.model.title)")
+                                    Text(p.measuredHeight ? String(format:"측정 높이 %.2f m",p.height) : "높이 미측정 · 표시용 기본 높이")
+                                    if object.kind == .stairs {Text("계단의 단 수와 진입 방향은 이 모형에 포함되지 않아요.")}
+                                }
+                                Text("기본 도형으로 표시한 모형이에요. 인물은 선택 지점의 위치와 방향을 보여줘요.")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }.padding(14).frame(maxWidth:.infinity,alignment:.leading)
+                                .background(Color(.systemGray6),in:RoundedRectangle(cornerRadius:16))
+                            if !route.dangerZones.isEmpty {Text(StageDangerZone.summary(route.dangerZones)).font(.caption).foregroundStyle(.orange)}
+                        } else {
+                            Text("이 저장 공간에는 동선이 없어 스캔 표면을 표시해요.").font(.caption)
+                        }
+                        if !scan.manifest.photos.isEmpty {
+                            Toggle("사진 촬영 위치 표시",isOn:$model.showPhotoPins)
+                            ScrollView(.horizontal) {
+                                LazyHStack {
+                                    ForEach(scan.manifest.photos) {photo in
+                                        Button {model.select(.photo(photo.id))} label:{
+                                            SavedPhotoImage(store:model.store,scanID:scan.manifest.id,photo:photo)
+                                                .frame(width:110,height:76).background(Color(.systemGray6))
+                                                .clipShape(RoundedRectangle(cornerRadius:10))
+                                                .overlay(RoundedRectangle(cornerRadius:10).stroke(model.selectedPhoto?.id==photo.id ? Color.hearGreen : .clear,lineWidth:3))
+                                        }.buttonStyle(.plain).accessibilityLabel("사진 \(scan.manifest.photos.firstIndex(of:photo).map {$0+1} ?? 1) 선택")
+                                    }
+                                }.padding(3)
+                            }
+                            if let photo=model.selectedPhoto {
+                                Text(photo.capturedAt,format:.dateTime.year().month().day().hour().minute()).font(.caption).foregroundStyle(.secondary)
+                            }
+                        } else {Label("저장된 현장 사진이 없어요",systemImage:"photo").font(.caption).foregroundStyle(.secondary)}
+                        Text("스캔된 표면과 등록 정보를 보여줘요. 실제 사용 전에는 현장에서 공간을 확인해주세요.")
+                            .font(.footnote).foregroundStyle(.secondary)
+                    } else if let error=model.error {
+                        ContentUnavailableView("3D 공간을 열 수 없어요",systemImage:"exclamationmark.triangle",description:Text(error))
+                        Button("다시 시도") {Task {await model.load()}}
+                    } else {ProgressView("공간을 불러오는 중입니다…").frame(maxWidth:.infinity,minHeight:300)}
+                }.padding(16)
+            }
+        }.navigationTitle(model.record.name).navigationBarTitleDisplayMode(.inline)
+            .task {await model.load()}
+            .sheet(isPresented:$model.photoExpanded) {
+                NavigationStack {
+                    if let photo=model.selectedPhoto {
+                        SavedPhotoImage(store:model.store,scanID:model.record.id,photo:photo,thumbnail:false)
+                            .padding().navigationTitle("스캔 당시 사진").navigationBarTitleDisplayMode(.inline)
+                            .toolbar {ToolbarItem(placement:.confirmationAction) {Button("닫기") {model.photoExpanded=false}}}
+                    }
                 }
-                HStack {Toggle("표면 선 보기",isOn:$model.wireframe); Button("전체 보기") {model.fitAll()}.buttonStyle(.bordered)}
-                Text("한 손가락 회전 · 두 손가락 이동 · 핀치 확대/축소").font(.caption)
-                Text("스캔된 표면만 보여요. 실제 사용 전에는 현장에서 공간을 다시 확인해야 합니다.").font(.footnote).foregroundStyle(.secondary)
-            } else if let error=model.error {
-                ContentUnavailableView("3D 공간을 열 수 없어요",systemImage:"exclamationmark.triangle",description:Text(error))
-                Button("다시 시도") {Task {await model.load()}}.buttonStyle(.borderedProminent)
-            } else {ProgressView("스캔 공간을 불러오는 중입니다…").frame(maxWidth:.infinity,maxHeight:.infinity)}
-        }.padding().navigationTitle(model.record.name).navigationBarTitleDisplayMode(.inline).task {await model.load()}
+            }
+    }
+    private func selectionButton(_ text: String,_ value: ReplaySelection) -> some View {
+        Button {model.select(value)} label:{
+            Text(text).font(.subheadline).padding(.horizontal,14).padding(.vertical,10)
+                .background(model.selection==value ? Color.hearGreen.opacity(0.15) : Color(.systemGray6),in:Capsule())
+        }.buttonStyle(.plain).accessibilityAddTraits(model.selection==value ? .isSelected : [])
     }
 }
