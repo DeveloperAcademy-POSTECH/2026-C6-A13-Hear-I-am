@@ -59,7 +59,7 @@ final class GuidanceReplayTests: XCTestCase {
         let route=try route();var run=GuidanceRun(stageID:UUID(),stageName:"검증",route:route)
         run.capture(position:.init(1,2),heading:0,targetIndex:1,status:.guiding,uptime:9)
         run.begin(at:Date(timeIntervalSince1970:1000),uptime:10)
-        run.capture(position:.init(1,2),heading:0,targetIndex:1,status:.guiding,uptime:10,force:true)
+        run.capture(position:.init(1,2),heading:0,targetIndex:1,status:.guiding,uptime:10.0001,force:true)
         for i in 1...10 {run.capture(position:.init(1+Double(i)*0.02,2),heading:0,targetIndex:1,status:.guiding,uptime:10+Double(i)*0.02)}
         run.setRunning(false,uptime:11)
         run.capture(position:.init(2,2),heading:0,targetIndex:1,status:.paused,uptime:11,force:true)
@@ -74,6 +74,7 @@ final class GuidanceReplayTests: XCTestCase {
         run.capture(position:.init(9,2),heading:0,targetIndex:2,status:.guiding,uptime:17)
         let record=try run.record(completionSpoken:true,finishedAt:Date(timeIntervalSince1970:1007))
         XCTAssertEqual(record.activeSeconds,3);XCTAssertEqual(record.replay?.duration,6)
+        XCTAssertNotNil(record.replay?.pose(at:0),"Synchronous departure pose is visible before playing")
         XCTAssertEqual(record.replay?.samples.last?.position?.x,5)
         XCTAssertEqual(record.replay?.samples.filter {$0.time<1}.count,2)
         XCTAssertTrue(record.replay!.samples.contains {$0.status == .untracked})

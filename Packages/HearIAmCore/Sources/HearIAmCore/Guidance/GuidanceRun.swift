@@ -39,7 +39,11 @@ public struct GuidanceRun: Sendable {
     public mutating func capture(position: FloorPoint?,heading: Double?,targetIndex: Int,status: GuidanceReplayStatus,uptime: Double,force: Bool = false) {
         guard let start=replayStart,completedAt==nil,uptime.isFinite,uptime>=start,
               route.points.indices.contains(targetIndex),targetIndex>0 else {return}
-        let time=uptime-start,valid=position?.valid == true && status != .untracked
+        let elapsed=uptime-start
+        // The synchronous departure observer follows begin by a few microseconds. Keep that pose at t=0.
+        // A genuinely delayed first sample must leave its preceding interval unrecorded.
+        let time=replaySamples.isEmpty && elapsed<0.01 ? 0 : elapsed
+        let valid=position?.valid == true && status != .untracked
         let value=GuidanceReplaySample(time:time,position:valid ? position : nil,
             heading:valid ? heading.flatMap {$0.isFinite ? HeadingMath.wrapDegrees($0) : nil} : nil,
             targetIndex:targetIndex,status:valid ? status : .untracked)
