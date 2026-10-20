@@ -3,9 +3,9 @@ import HearIAmCore
 
 struct SavedStagePreview: View {
     @StateObject private var model: SavedStagePreviewModel
-    init(record: ScanManifest, store: ScanStore, camera: ReplayCamera = .overview, selection: ReplaySelection? = nil) {
+    init(record: ScanManifest, store: ScanStore, camera: ReplayCamera = .overview, display: ReplayDisplay = .scan, selection: ReplaySelection? = nil) {
         let model=SavedStagePreviewModel(record:record,store:store)
-        model.cameraMode=camera;model.selection=selection
+        model.cameraMode=camera;model.display=display;model.selection=selection
         _model=StateObject(wrappedValue:model)
     }
     var body: some View {
@@ -70,7 +70,7 @@ struct SavedStagePreview: View {
                                 }
                                 Text(model.display == .scan
                                      ? "스캔한 표면과 등록한 기물 영역이에요. 인물은 선택 지점의 위치와 방향을 보여줘요."
-                                     : "기본 도형으로 표시한 모형이에요. 인물은 선택 지점의 위치와 방향을 보여줘요.")
+                                     : "갈색 원목과 웜그레이로 정돈한 공간이에요. 재질은 보기용이며 실제 촬영 색상과 다를 수 있어요.")
                                     .font(.caption).foregroundStyle(.secondary)
                             }.padding(14).frame(maxWidth:.infinity,alignment:.leading)
                                 .background(Color(.systemGray6),in:RoundedRectangle(cornerRadius:16))
