@@ -224,8 +224,10 @@ final class ReplaySceneController: NSObject {
             direction=SIMD3(Float(area.right.x-area.back.x),1.4,Float(area.right.y-area.back.y))
         } else {direction=SIMD3(1,1.4,1)}
         if mode == .overhead {
-            camera.simdPosition=center+SIMD3(0,max(radius*3,5),0)
             let back=scan.manifest.route?.area.back ?? FloorPoint(0,-1)
+            let height=max(radius*3,5), inset=height*tan(Float.pi/180)
+            // Start at 89 degrees: the exact 90-degree pole can flip turntable orbit on a later drag.
+            camera.simdPosition=center+SIMD3(-Float(back.x)*inset,height,-Float(back.y)*inset)
             camera.look(at:SCNVector3(center),up:SCNVector3(back.x,0,back.y),localFront:SCNVector3(0,0,-1))
         } else {
             let axis=simd_normalize(direction)
@@ -249,6 +251,11 @@ final class ReplaySceneController: NSObject {
         controls.worldUp=SCNVector3(0,1,0)
         controls.target=SCNVector3(center)
         controls.pointOfView=camera
+        controls.interactionMode = .orbitTurntable
+        // SceneKit uses world-space elevation: keep manual orbit in the upper hemisphere.
+        // Configure after each preset, with its initial orientation already inside the range.
+        controls.minimumVerticalAngle=15
+        controls.maximumVerticalAngle=89.5
         view.pointOfView=camera
     }
     @objc func tapped(_ recognizer: UITapGestureRecognizer) {

@@ -38,6 +38,14 @@ struct SavedStagePreview: View {
                                 }.padding(8).background(.regularMaterial,in:RoundedRectangle(cornerRadius:12)).padding(10)
                             }
                         }.frame(height:max(260,min(geometry.size.height*0.55,520))).clipShape(RoundedRectangle(cornerRadius:20))
+                            .overlay(alignment:.topTrailing) {
+                                Button {model.setCamera(.overview)} label:{
+                                    Label("시점 초기화",systemImage:"arrow.counterclockwise")
+                                        .font(.caption.weight(.semibold)).padding(.horizontal,12).frame(minHeight:44)
+                                        .background(.regularMaterial,in:Capsule())
+                                }.buttonStyle(.plain).padding(10)
+                                    .accessibilityHint("회전, 이동, 확대를 초기화하고 전체 시점으로 돌아갑니다.")
+                            }
                         HStack {
                             ForEach(ReplayCamera.allCases,id:\.self) { mode in
                                 Button {model.setCamera(mode)} label:{

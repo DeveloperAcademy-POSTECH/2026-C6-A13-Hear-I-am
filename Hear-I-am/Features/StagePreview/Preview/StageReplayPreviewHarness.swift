@@ -95,9 +95,9 @@ struct StageReplayPreviewHarness: View {
                 }
                 try verifyCameraPresets(loaded,cleanSurfaces:model.cleanSurfaces)
                 try await verifyLegacyAndZeroHeights(loaded)
-                print("REPLAY_QA_OK: oak asset, clean surroundings, raw restoration, camera round trips, photo capture, saved route heights")
+                print("REPLAY_QA_OK: oak asset, clean surroundings, raw restoration, camera round trips, photo capture, saved route heights, orbit limits, camera reset")
             }
-        } catch {record=nil;self.error=error.localizedDescription}
+        } catch {record=nil;self.error=error.localizedDescription;print("REPLAY_QA_FAILED: \(error.localizedDescription)")}
     }
     /// Real SceneKit regression: every preset round trip restores both orientation and position.
     private func verifyCameraPresets(_ scan: LoadedScan,cleanSurfaces: [ReplaySurfaceMesh]) throws {
@@ -125,6 +125,7 @@ struct StageReplayPreviewHarness: View {
                     throw LabError.invalid("수동 회전 뒤 카메라 복귀 검증 실패")
                 }
             }
+            try verifyCameraInteraction(scene,view:view,display:display,revision:&revision)
             try verifyRouteHeights(scene,view:view)
             let raw=display == .scan
             do {
@@ -162,6 +163,48 @@ struct StageReplayPreviewHarness: View {
         guard floor.geometry?.sources(for:.texcoord).first?.vectorCount==4,
               abs(floor.boundingBox.max.y+0.002)<0.0001 else {
             throw LabError.invalid("원목 바닥 좌표·겹침 방지 검증 실패")
+        }
+    }
+    /// Exercise SceneKit's real controls, including repeated drags beyond the limit and a translated/zoomed view.
+    private func verifyCameraInteraction(_ scene: ReplaySceneController,view: SCNView,display: ReplayDisplay,revision: inout Int) throws {
+        let controls=view.defaultCameraController
+        let viewport=view.bounds.size,origin=CGPoint(x:view.bounds.midX,y:view.bounds.midY)
+        for mode in ReplayCamera.allCases {
+            for delta: CGFloat in [-2000,2000] {
+                scene.frame(mode)
+                for _ in 0..<8 {
+                    // Gesture interaction applies SceneKit's angle limits; raw rotateBy bypasses them.
+                    let end=CGPoint(x:origin.x+80,y:origin.y+delta)
+                    controls.beginInteraction(origin,withViewport:viewport)
+                    controls.continueInteraction(end,withViewport:viewport,sensitivity:1)
+                    controls.endInteraction(end,withViewport:viewport,velocity:.zero)
+                    let forward=simd_act(scene.camera.simdWorldOrientation,SIMD3<Float>(0,0,-1))
+                    let elevation=asin(max(-1,min(1,-forward.y)))*180 / .pi
+                    guard elevation>=14.99,elevation<=90.01 else {
+                        throw LabError.invalid("카메라 하한 검증 실패: \(mode) \(elevation)")
+                    }
+                }
+            }
+        }
+        scene.frame(.overview)
+        let initial=scene.camera.simdTransform,initialTarget=controls.target
+        // The reset button and both preset buttons share this revision-driven model action.
+        let model=SavedStagePreviewModel(record:scene.scan.manifest,store:store)
+        for startingMode in ReplayCamera.allCases {
+            scene.frame(startingMode)
+            controls.rotateBy(x:45,y:10)
+            controls.translateInCameraSpaceBy(x:1,y:1,z:0)
+            controls.dolly(toTarget:0.5)
+            model.cameraRevision=revision
+            model.setCamera(.overview)
+            revision=model.cameraRevision
+            scene.update(display:display,wireframe:false,showPhotos:true,selection:.point(0),
+                         cameraMode:model.cameraMode,revision:revision)
+            guard (0..<4).allSatisfy({simd_length(scene.camera.simdTransform[$0]-initial[$0])<0.0001}),
+                  controls.target.x==initialTarget.x,controls.target.y==initialTarget.y,controls.target.z==initialTarget.z,
+                  scene.camera.camera?.usesOrthographicProjection==false else {
+                throw LabError.invalid("이동·확대 후 시점 초기화 검증 실패")
+            }
         }
     }
     /// Check rendered geometry, not only the height helper: the measured surface may differ from a confirmed route point.
