@@ -5,8 +5,10 @@ import Foundation
 public enum ToneRenderer {
     public static let sampleRate=44_100.0
     public static let peak: Float=0.9
-    /// G6. It was E6 (1318.5 Hz) until 10/18, almost the right direction beep (1320 Hz).
-    static let arrivalHertz=1568.0, arrivalLength=CountedDirectionGate.alignmentLength
+    /// Rising G5–D6–G6 bells, with a longer tail on the final note.
+    public static let arrivalLength=0.52, arrivalSpeechDelay=0.60
+    static let arrivalPitches=[784.0,1174.66,1568.0]
+    static let alignmentHertz=1568.0
     static let buzzRate=12.0, buzzLength=0.6
 
     public static func render(_ sound: SignalSound) -> [Float] {
@@ -16,8 +18,16 @@ public enum ToneRenderer {
             return pulse+[Float](repeating:0,count:max(0,count(level.period)-pulse.count))
         case .arrival:
             return normalized(samples(arrivalLength) { t in
-                let tone=sin(2 * .pi*arrivalHertz*t)+0.4*sin(2 * .pi*arrivalHertz*2*t)
-                return tone*exp(-t*7)*fade(t,length:arrivalLength,edge:0.003)
+                var value=0.0
+                for (index,hertz) in arrivalPitches.enumerated() {
+                    let local=t-Double(index)*0.11
+                    let length=index == 2 ? 0.30 : 0.20
+                    guard local >= 0, local < length else { continue }
+                    let phase=2 * Double.pi*hertz*local
+                    let tone=sin(phase)+0.2*sin(phase*2)
+                    value += tone*exp(-local*10)*fade(local,length:length,edge:0.006)
+                }
+                return value
             })
         case .directionSweep(let sweep):
             let duration=DirectionSweep.duration
@@ -38,9 +48,13 @@ public enum ToneRenderer {
             guard SteppedDirectionGate.pitches.contains(hertz) else { return [] }
             return harmonicBurst(Double(hertz))
         case .directionBuzzAligned:
-            return harmonicBurst(60)+[Float](repeating:0,count:count(SteppedDirectionGate.alignmentGap))+render(.arrival)
+            return harmonicBurst(60)+[Float](repeating:0,count:count(SteppedDirectionGate.alignmentGap))+render(.countDirectionAligned)
         case .countDirectionAligned:
-            return render(.arrival)
+            let length=CountedDirectionGate.alignmentLength
+            return normalized(samples(length) { t in
+                let tone=sin(2 * .pi*alignmentHertz*t)+0.4*sin(2 * .pi*alignmentHertz*2*t)
+                return tone*exp(-t*7)*fade(t,length:length,edge:0.003)
+            })
         case .countDirection(let right, let count):
             guard (1...3).contains(count) else { return [] }
             let hertz=right ? CountedDirectionGate.rightHertz : CountedDirectionGate.leftHertz

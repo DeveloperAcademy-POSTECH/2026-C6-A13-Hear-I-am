@@ -46,9 +46,31 @@ final class SignalSoundTests: XCTestCase {
             XCTAssertEqual(rms(far[pulse...]),0,tone.rawValue)
         }
     }
-    func testArrivalDecays() {
-        let s=ToneRenderer.render(.arrival), window=ToneRenderer.count(0.1)
+    func testAlignmentBellDecays() {
+        let s=ToneRenderer.render(.countDirectionAligned), window=ToneRenderer.count(0.1)
         XCTAssertLessThan(rms(s.suffix(window)),rms(s.prefix(window))*0.3)
+    }
+    func testArrivalHasThreeRisingBellNotesAndCompletesBeforeSpeech() {
+        let sound=ToneRenderer.render(.arrival)
+        XCTAssertEqual(sound.count,ToneRenderer.count(ToneRenderer.arrivalLength))
+        XCTAssertGreaterThan(ToneRenderer.arrivalSpeechDelay,Double(sound.count)/ToneRenderer.sampleRate)
+        // Measure the waveform, including overlapping note tails, instead of trusting metadata.
+        func power(_ hertz: Double, from: Double, to: Double) -> Double {
+            var real=0.0, imaginary=0.0
+            for i in ToneRenderer.count(from)..<ToneRenderer.count(to) {
+                let phase=2 * Double.pi*hertz*Double(i)/ToneRenderer.sampleRate
+                real += Double(sound[i])*cos(phase);imaginary += Double(sound[i])*sin(phase)
+            }
+            return real*real+imaginary*imaginary
+        }
+        for (index,start) in [0.02,0.13,0.24].enumerated() {
+            let powers=[784.0,1174.66,1568.0].map { power($0,from:start,to:start+0.06) }
+            for other in 0..<3 where other != index { XCTAssertGreaterThan(powers[index],powers[other]*2) }
+        }
+        let tail=sound[ToneRenderer.count(0.45)...]
+        let lastAttack=sound[ToneRenderer.count(0.23)..<ToneRenderer.count(0.30)]
+        XCTAssertLessThan(rms(tail),rms(lastAttack)*0.3)
+        XCTAssertNotEqual(sound,ToneRenderer.render(.countDirectionAligned))
     }
     func testBuzzPulsesAndHarmonicChangesTheSound() {
         let plain=ToneRenderer.render(.buzz(hertz:60,harmonic:false))
@@ -80,7 +102,7 @@ final class SignalSoundTests: XCTestCase {
     /// 「날카로운 삑」 (950 Hz, near the front beep) was dropped on 10/17 and is kept only for comparison.
     func testSignalsShareNoPitchWithDirectionBeeps() {
         let direction=[DirectionPattern.leftHertz,DirectionPattern.centerHertz,DirectionPattern.rightHertz]
-        let pitches=WarningTone.allCases.filter { $0 != .sharp }.map { ($0.rawValue,$0.pitches[0]) }+[("arrival",ToneRenderer.arrivalHertz)]
+        let pitches=WarningTone.allCases.filter { $0 != .sharp }.map { ($0.rawValue,$0.pitches[0]) }+[("alignment",ToneRenderer.alignmentHertz)]+ToneRenderer.arrivalPitches.map { ("arrival",$0) }
         for (name,pitch) in pitches {
             XCTAssertTrue(direction.allSatisfy { abs($0-pitch)/pitch > 0.1 },"\(name) \(pitch) Hz")
         }

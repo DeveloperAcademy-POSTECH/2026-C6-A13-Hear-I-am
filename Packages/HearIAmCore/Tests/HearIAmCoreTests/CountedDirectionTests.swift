@@ -112,7 +112,7 @@ final class CountedDirectionTests: XCTestCase {
                 XCTAssertLessThan(Double(samples.count)/ToneRenderer.sampleRate,CountedDirectionGate.interval)
             }
         }
-        XCTAssertEqual(ToneRenderer.render(.countDirectionAligned),ToneRenderer.render(.arrival))
+        XCTAssertNotEqual(ToneRenderer.render(.countDirectionAligned),ToneRenderer.render(.arrival))
         XCTAssertTrue(ToneRenderer.render(.countDirection(toRight:true,count:0)).isEmpty)
         XCTAssertTrue(ToneRenderer.render(.countDirection(toRight:false,count:4)).isEmpty)
     }

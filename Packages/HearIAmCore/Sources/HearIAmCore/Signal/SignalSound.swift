@@ -4,7 +4,7 @@ import Foundation
 public enum SignalSound: Equatable, Sendable {
     /// One period of the looping warning: a short beep followed by silence.
     case warning(WarningLevel, tone: WarningTone = .soft)
-    /// A single bell-like ding when a point is reached.
+    /// Three rising bell notes when a waypoint or the final point is reached.
     case arrival
     /// Rising for left, falling for right; width encodes remaining angle.
     case directionSweep(DirectionSweep)

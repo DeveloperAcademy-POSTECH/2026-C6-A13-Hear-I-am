@@ -125,7 +125,7 @@ final class SteppedDirectionTests: XCTestCase {
     }
     func testAlignmentPlaysSixtyThenSilenceThenTheBell() {
         let samples=ToneRenderer.render(.directionBuzzAligned)
-        let sixty=ToneRenderer.render(.directionBuzz(hertz:60)), bell=ToneRenderer.render(.arrival)
+        let sixty=ToneRenderer.render(.directionBuzz(hertz:60)), bell=ToneRenderer.render(.countDirectionAligned)
         let gap=ToneRenderer.count(SteppedDirectionGate.alignmentGap)
         XCTAssertEqual(Array(samples.prefix(sixty.count)),sixty)
         XCTAssertTrue(samples[sixty.count..<sixty.count+gap].allSatisfy {$0 == 0})
