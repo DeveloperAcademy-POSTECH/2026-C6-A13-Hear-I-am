@@ -32,11 +32,11 @@ import HearIAmCore
     var landmarks=LandmarkDetector()
     var directionTicks=DirectionTickGate(deadbandDegrees:SignalPlayer.directionDeadbandDegrees)
     var warnings=WarningGate()
-    var corrections=CorrectionGate()
     var steps=StepGate()
+    var distances=DistanceGate()
     var arrivalShownAt: Double?
-    /// The warning pauses briefly on arrival so the ding is not masked.
-    var warningHoldUntil: Double?
+    /// Direction, correction and distance signals wait while the ding rings (10/19); safety signals do not.
+    var quietUntil: Double?
     var escape: EscapeState?
     var guide: RouteGuide?
     var run: GuidanceRun?
@@ -44,6 +44,8 @@ import HearIAmCore
     var departureGate=DepartureGate()
     var readyAnnounced=false
     var lastPoseTime: Double?
+    /// The pose of the current tick, written next to every signal in the trial log.
+    var signalPose: (point: FloorPoint, heading: Double, time: Double)?
     var timer: Timer?
     var countdownTask: Task<Void,Never>?
     var generation=UUID()
@@ -70,9 +72,9 @@ import HearIAmCore
         tracking.showMesh=false
         trackingSubscription=tracking.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }
         voice.onSpeaking={ [weak self] in self?.speaking=$0;self?.signals.setSpeechActive($0) }
-        signals.onEvent={ [weak self] in self?.tracking.event($0,detail:$1) }
-        haptics.onEvent={ [weak self] in self?.tracking.event($0,detail:$1) }
-        voice.onText={ [weak self] in self?.spokenText=$0 }
+        signals.onEvent={ [weak self] in self?.logSignal($0,$1) }
+        haptics.onEvent={ [weak self] in self?.logSignal($0,$1) }
+        voice.onText={ [weak self] in self?.spokenText=$0;self?.logSignal("voice",$0) }
         voice.onError={ [weak self] text in
             guard let self else { return }
             self.audioIssue=text;self.instructionDone=false
@@ -114,7 +116,7 @@ import HearIAmCore
     /// Cancels pending speech callbacks and the countdown; late callbacks see a new generation.
     func invalidateTasks() {
         generation=UUID();countdownTask?.cancel();countdownTask=nil;voice.stop();instructionDone=false;arrivedName=nil;arrivalShownAt=nil
-        escape=nil;warningHoldUntil=nil;signals.setWarning(nil);signals.setWarningQuiet(false);haptics.stop()
+        escape=nil;quietUntil=nil;signals.setWarning(nil);signals.setWarningQuiet(false);haptics.stop()
     }
     /// A pose no older than 0.5 s from a verified session, or nil.
     func freshPose() -> (point: FloorPoint, heading: Double, time: Double)? {
@@ -141,11 +143,30 @@ import HearIAmCore
             return
         }
         guard pose.time != lastPoseTime else { return }
-        lastPoseTime=pose.time
+        lastPoseTime=pose.time;signalPose=pose
         if let first=selected?.route?.points.first { startDistance=pose.point.distance(to:first) }
         if phase == .departure, let guide { tickDeparture(pose:pose,guide:guide);return }
         if phase == .paused, escape != nil, let guide { tickEscape(pose:pose,guide:guide);return }
         guard phase == .guiding, let guide else { return }
         tickGuiding(pose:pose,guide:guide)
+    }
+}
+
+extension GuidanceViewModel {
+    /// Logs a sound, vibration or spoken line with where the wearer stood and where the target was.
+    /// Until 10/19 the log said which signal played but not where, so a run could not be read point by point.
+    func logSignal(_ name: String, _ detail: String) {
+        guard let pose=signalPose else { tracking.event(name,detail:detail);return }
+        var context=String(format:"x=%.2f y=%.2f heading=%.0f",pose.point.x,pose.point.y,pose.heading)
+        // The pose is the last fresh one; say so when tracking has not given a new one since.
+        let age=ProcessInfo.processInfo.systemUptime-pose.time
+        if age > 0.5 { context+=String(format:" pose_age=%.1fs",age) }
+        if let guide, guide.route.points.indices.contains(guide.targetIndex) {
+            let target=guide.route.points[guide.targetIndex]
+            context+=String(format:" target=p%d(%@) dist=%.2f bearing=%+.0f",guide.targetIndex,
+                GuidanceCopy.target(guide.targetIndex,last:guide.route.points.count-1),pose.point.distance(to:target),
+                StageHeading.bearing(from:pose.point,to:target,headingDegrees:pose.heading))
+        }
+        tracking.event(name,detail:"\(detail) @ \(context) phase=\(phase)")
     }
 }

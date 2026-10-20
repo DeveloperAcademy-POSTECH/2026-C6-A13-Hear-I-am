@@ -34,7 +34,12 @@ extension GuidanceViewModel {
     }
     func tickDeparture(pose: (point: FloorPoint, heading: Double, time: Double), guide: RouteGuide) {
         let eligible=started ? guide.canResume(position:pose.point,trackingValid:true) : guide.ready(position:pose.point,headingDegrees:pose.heading,trackingValid:true)
+        let wasReady=departureReady
         departureReady=departureGate.observe(time:pose.time,eligible:eligible)
+        // The start is a point too: ding once the wearer has settled on it (10/19).
+        if departureReady, !wasReady, !started {
+            signals.play(.arrival);logSignal("signal_arrival","\(GuidanceCopy.target(0,last:guide.route.points.count-1)) ready")
+        }
         if !eligible {
             if readyAnnounced {read(["출발 위치 또는 방향이 달라졌습니다. 다시 확인해주세요."])}
             readyAnnounced=false

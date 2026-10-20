@@ -226,4 +226,16 @@ final class PreparationTests: XCTestCase {
         XCTAssertEqual(route.points[2].x, 6.5, accuracy: 1e-6)
         XCTAssertEqual(route.points[2].y, 3.0, accuracy: 1e-6)
     }
+    /// 10/19: an interior point keeps 0.15 m inside the stage edge; the start and destination may stand outside.
+    func testInteriorPointsKeepClearOfTheStageEdge() throws {
+        var d = draft()
+        try d.addRoutePoint(Point3(0.05,0,-2))
+        XCTAssertEqual(d.edgeIssue(adding: Point3(0.1,0,-3)), "내부 지점은 무대 가장자리에서 15cm 이상 안쪽에 찍어주세요")
+        XCTAssertThrowsError(try d.addRoutePoint(Point3(0.1,0,-3)))
+        XCTAssertThrowsError(try d.addRoutePoint(Point3(5,0,-7.9)))
+        try d.addRoutePoint(Point3(0.2,0,-3))
+        XCTAssertNil(d.edgeIssue(adding: Point3(11.95,0,-3), asDestination: true))
+        try d.addRoutePoint(Point3(11.95,0,-3), asDestination: true)
+        XCTAssertTrue(d.routeErrors.isEmpty)
+    }
 }

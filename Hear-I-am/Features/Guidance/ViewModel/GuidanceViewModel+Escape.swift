@@ -8,23 +8,24 @@ extension GuidanceViewModel {
 
     func beginEscape(reason: GuidePauseReason, pose: (point: FloorPoint, heading: Double, time: Double), guide: RouteGuide) {
         phase = .paused;landmarks.reset()
-        let right=escapeBearing(pose:pose,guide:guide) > 0
+        let bearing=escapeBearing(pose:pose,guide:guide)
         escape=EscapeState(reason:reason,startedAt:pose.time,lastSpoken:pose.time)
-        message=SignalCopy.escape(toRight:right)
+        message=SignalCopy.escape(bearing:bearing)
         voice.play([message])
-        tracking.event("escape_start",detail:"reason=\(reason) side=\(right ? "right" : "left")")
+        let side=abs(bearing) > 135 ? "back" : bearing > 0 ? "right" : "left"
+        logSignal("escape_start",String(format:"reason=%@ side=%@ bearing=%+.0f°","\(reason)",side,bearing))
     }
     func tickEscape(pose: (point: FloorPoint, heading: Double, time: Double), guide: RouteGuide) {
         guard var state=escape else { return }
         let bearing=escapeBearing(pose:pose,guide:guide)
         if let landmark=landmarks.update(relativeDegrees:-bearing) { haptics.playDirection(signedDegrees:landmark,signals:signals) }
         let warning=warnings.update(position:pose.point,headingDegrees:pose.heading,obstacles:guide.route.obstacles)
-        if warning?.level != signals.warning { signals.setWarning(warning?.level);tracking.event("signal_warning_reason",detail:warning?.detail ?? "off") }
+        if warning?.level != signals.warning { signals.setWarning(warning?.level);logSignal("signal_warning_reason",warning?.detail ?? "off") }
         if !state.quiet && pose.time-state.startedAt >= EscapeState.quietAfter {
             state.quiet=true;signals.setWarningQuiet(true);tracking.event("escape_quiet")
         }
         if state.quiet && pose.time-state.lastSpoken >= EscapeState.repeatEvery && !speaking {
-            state.lastSpoken=pose.time;message=SignalCopy.escape(toRight:bearing > 0);voice.play([message])
+            state.lastSpoken=pose.time;message=SignalCopy.escape(bearing:bearing);voice.play([message])
         }
         if guide.canResume(position:pose.point,trackingValid:true) {
             let since=state.safeSince ?? pose.time
@@ -47,9 +48,9 @@ extension GuidanceViewModel {
     private func endEscape(pose: (point: FloorPoint, heading: Double, time: Double)) {
         guard let state=escape, var guide, guide.resume(position:pose.point,trackingValid:true) else { return }
         self.guide=guide;escape=nil;phase = .guiding
-        signals.setWarningQuiet(false);landmarks.reset();corrections.reset();steps.reset()
+        signals.setWarningQuiet(false);landmarks.reset();directionTicks.reset();steps.reset();distances.reset()
         voice.play(["다시 안내합니다"])
-        tracking.event("escape_end",detail:String(format:"reason=%@ seconds=%.1f quiet=%@","\(state.reason)",pose.time-state.startedAt,state.quiet ? "yes" : "no"))
+        logSignal("escape_end",String(format:"reason=%@ seconds=%.1f quiet=%@","\(state.reason)",pose.time-state.startedAt,state.quiet ? "yes" : "no"))
     }
     private static func closest(on a: FloorPoint, _ b: FloorPoint, to p: FloorPoint) -> FloorPoint {
         let dx=b.x-a.x, dy=b.y-a.y, n=dx*dx+dy*dy

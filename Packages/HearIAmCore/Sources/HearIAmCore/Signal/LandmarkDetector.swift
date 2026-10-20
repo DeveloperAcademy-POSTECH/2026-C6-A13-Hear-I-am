@@ -4,20 +4,24 @@ import Foundation
 /// The default landmarks are the 45° field set in DirectionPattern.
 /// Feed the body angle relative to the next target (0° = facing it). A landmark fires when the
 /// angle enters ±3° of it or a fast turn jumps across it, and fires again only after leaving ±6°.
+/// 0° (facing the target) fires again only after leaving ±`frontRearmTolerance`: walking straight sways
+/// the body by more than 6°, and on 10/19 「앞」 repeated every 1–2 s on a straight leg.
 /// Consecutive samples are assumed to be less than 180° apart. Call reset() after a sensor gap.
 public struct LandmarkDetector: Sendable {
     public let landmarks: [Int]
     public let entryTolerance: Double
     public let rearmTolerance: Double
+    public let frontRearmTolerance: Double
     private var latched: Set<Int>=[]
     private var previousWrapped: Double?
     private var previousContinuous: Double?
 
-    public init(landmarks: [Int]=DirectionPattern.landmarks, entryTolerance: Double=3, rearmTolerance: Double=6) {
+    public init(landmarks: [Int]=DirectionPattern.landmarks, entryTolerance: Double=3, rearmTolerance: Double=6, frontRearmTolerance: Double=20) {
         self.landmarks=Array(Set(landmarks.filter { (-180...180).contains($0) }.map { $0 == -180 ? 180 : $0 })).sorted()
         let entry=entryTolerance.isFinite && (0..<90).contains(entryTolerance) ? entryTolerance : 3
         self.entryTolerance=entry
         self.rearmTolerance=rearmTolerance.isFinite && rearmTolerance > entry && rearmTolerance < 180 ? rearmTolerance : max(6,entry+1)
+        self.frontRearmTolerance=frontRearmTolerance.isFinite && frontRearmTolerance < 180 ? max(self.rearmTolerance,frontRearmTolerance) : self.rearmTolerance
     }
     public mutating func reset() { latched.removeAll(); previousWrapped=nil; previousContinuous=nil }
 
@@ -34,8 +38,9 @@ public struct LandmarkDetector: Sendable {
             let base=Double(landmark)
             let occurrence=base+360*((current-base)/360).rounded()
             let distance=abs(current-occurrence)
+            let rearm=landmark == 0 ? frontRearmTolerance : rearmTolerance
             if latched.contains(landmark) {
-                if distance > rearmTolerance { latched.remove(landmark) }
+                if distance > rearm { latched.remove(landmark) }
                 continue
             }
             let crossed: Bool
@@ -44,7 +49,7 @@ public struct LandmarkDetector: Sendable {
             else { crossed=false }
             guard distance <= entryTolerance || crossed else { continue }
             // A fast sample that already left the outer window stays armed.
-            if distance <= rearmTolerance { latched.insert(landmark) }
+            if distance <= rearm { latched.insert(landmark) }
             let progress=previous != nil && delta != 0 ? (crossed ? abs(occurrence-previous!)/abs(delta) : 1) : -distance
             if latest == nil || progress > latest!.progress { latest=(landmark,progress) }
         }
