@@ -4,6 +4,8 @@ import Foundation
 /// - Within `±deadbandDegrees` of the next target: silent (stops ticking immediately).
 /// - Outside the deadband: speaks "왼쪽" or "오른쪽" once on entry (or if turning the opposite side),
 ///   and emits a short woodblock click ("톡") whose interval shrinks as the body approaches the target angle.
+/// - Once aligned, ticking starts again only past `deadbandDegrees + releaseMarginDegrees`, so sway at the
+///   edge does not restart it (10/20: the margin was documented but not applied).
 public struct DirectionTickGate: Sendable {
     public struct Cue: Equatable, Sendable {
         public let toRight: Bool
@@ -21,6 +23,8 @@ public struct DirectionTickGate: Sendable {
     /// Hysteresis margin so slight sway right at the deadband edge does not re-trigger speech immediately.
     public var releaseMarginDegrees: Double
     private(set) public var activeSide: Bool?
+    /// True from entering the deadband until leaving it by the release margin.
+    private(set) public var isAligned=false
     private var lastTickTime: Double?
 
     public init(deadbandDegrees: Double = Self.defaultDeadbandDegrees, releaseMarginDegrees: Double = 3.0) {
@@ -31,6 +35,7 @@ public struct DirectionTickGate: Sendable {
     public mutating func reset() {
         activeSide = nil
         lastTickTime = nil
+        isAligned = false
     }
 
     /// Interval between ticks for a given absolute bearing error in `[deadbandDegrees, 180]`.
@@ -50,14 +55,16 @@ public struct DirectionTickGate: Sendable {
         let angle = HeadingMath.wrapDegrees(bearing)
         let absAngle = abs(angle)
 
-        // Inside the deadband: aligned with the target direction -> immediate silence.
-        if absAngle <= deadbandDegrees {
-            reset()
+        // Inside the deadband, or still within the release margin after being inside: aligned, silent.
+        // Right after reset (a new target) only the deadband applies.
+        if absAngle <= deadbandDegrees || (isAligned && absAngle <= deadbandDegrees + releaseMarginDegrees) {
+            activeSide = nil
+            lastTickTime = nil
+            isAligned = true
             return nil
         }
+        isAligned = false
 
-        // If not yet active, require crossing `deadbandDegrees + releaseMarginDegrees` when re-entering from aligned,
-        // except on the very first observation after reset/target change where `deadbandDegrees` applies directly.
         let toRight = angle > 0
         let interval = interval(forAbsBearing: absAngle)
 
