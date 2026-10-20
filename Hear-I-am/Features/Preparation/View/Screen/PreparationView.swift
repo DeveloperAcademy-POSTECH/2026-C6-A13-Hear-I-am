@@ -87,6 +87,10 @@ struct PreparationView: View {
                 Button("계속 스캔",role:.cancel) {}
                 Button("공간 확정") {model.confirmScan()}
             } message:{Text("공연장과 백스테이지가 충분히 포함됐는지 확인해주세요. 확정 후에는 스캔 단계로 돌아갈 수 없습니다.")}
+            .alert("이 위치를 경로점으로 추가할까요?",isPresented:$model.confirmingRouteHeight) {
+                Button("다시 선택",role:.cancel) {model.cancelRouteHeight()}
+                Button("이 위치로 추가") {model.confirmRouteHeight()}
+            } message:{Text(model.routeHeightMessage)}
             .alert("확인해주세요",isPresented:Binding(get:{model.errorMessage != nil},set:{if !$0 {model.errorMessage=nil}})) {Button("확인",role:.cancel) {model.errorMessage=nil}} message:{Text(model.errorMessage ?? "")}
             .confirmationDialog("준비를 종료할까요? 저장하지 않은 내용은 사라집니다.",isPresented:$model.confirmingExit,titleVisibility:.visible) {
                 Button("저장하지 않고 나가기",role:.destructive) {dismiss()}; Button("계속 준비",role:.cancel) {}

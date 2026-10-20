@@ -16,6 +16,7 @@ final class ARSceneRenderer {
         var corners: [Point3?]
         var area: StageArea?
         var routePoints: [FloorPoint]
+        var routeHeights: [Double]? = nil
         var obstacles: [StageObstacle]
         var pendingObject: [FloorPoint]
         /// Route clearance around blocking objects, filled in red in both preparation and guidance (#38).

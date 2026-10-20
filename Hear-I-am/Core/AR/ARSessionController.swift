@@ -117,7 +117,7 @@ final class ARSessionController: ObservableObject {
         renderer.draw(.init(
             style:purpose == .preparation ? .preparation(routeFinished:preparedDraft?.routeFinished == true)
                                           : .guidance(target:visibleGuidanceTarget,completed:guidanceCompleted),
-            checkpoint:checkpoint,corners:corners,area:area,routePoints:routePoints,obstacles:obstacles,pendingObject:pendingObject,
+            checkpoint:checkpoint,corners:corners,area:area,routePoints:routePoints,routeHeights:preparedDraft.flatMap { draft in draft.area.map { area in draft.route.map {$0.y-area.floorHeight} } } ?? manifest?.route?.pointHeights,obstacles:obstacles,pendingObject:pendingObject,
             clearance:settings.obstacleClearance,
             dangerZones:preparedDraft?.dangerZones ?? manifest?.route?.dangerZones ?? []))
     }
