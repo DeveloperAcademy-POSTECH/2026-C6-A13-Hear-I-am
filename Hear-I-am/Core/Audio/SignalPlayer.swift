@@ -60,7 +60,7 @@ import HearIAmCore
         guard prepare(sound.name), let buffer=buffer(sound) else { return false }
         let node: AVAudioPlayerNode
         switch sound {
-        case .direction,.directionSweep,.directionAligned,.directionBuzz,.directionBuzzAligned: node=directionNode
+        case .direction,.directionSweep,.directionAligned,.directionBuzz,.directionBuzzAligned,.countDirection,.countDirectionAligned: node=directionNode
         default: node=shotNode;shotVolume=volume(sound)
         }
         applyVolumes()
@@ -138,7 +138,7 @@ import HearIAmCore
         switch sound {
         case .warning: return SignalVolume.warning
         case .arrival: return SignalVolume.arrival
-        case .direction,.directionSweep,.directionAligned,.directionBuzz,.directionBuzzAligned: return SignalVolume.direction
+        case .direction,.directionSweep,.directionAligned,.directionBuzz,.directionBuzzAligned,.countDirection,.countDirectionAligned: return SignalVolume.direction
         case .buzz: return SignalVolume.buzz
         }
     }

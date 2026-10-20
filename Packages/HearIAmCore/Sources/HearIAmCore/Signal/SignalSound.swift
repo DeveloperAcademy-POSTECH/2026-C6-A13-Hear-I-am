@@ -14,6 +14,10 @@ public enum SignalSound: Equatable, Sendable {
     case directionBuzz(hertz: Int)
     /// One 60 Hz pulse group, then the alignment bell.
     case directionBuzzAligned
+    /// Test-only fixed-pitch group: left high, right low, 1–3 discrete beeps.
+    case countDirection(toRight: Bool, count: Int)
+    /// Cancellable alignment bell on the direction channel, followed by silence.
+    case countDirectionAligned
     /// Direction beep for a 45° landmark; see DirectionPattern.beep.
     case direction(signedDegrees: Int)
     /// A low tone pulsed about 12 times a second so it reads as a buzz rather than a note.
@@ -29,6 +33,8 @@ public enum SignalSound: Equatable, Sendable {
         case .directionAligned: return "direction_aligned"
         case .directionBuzz(let hertz): return "direction_buzz_\(hertz)hz_harmonic"
         case .directionBuzzAligned: return "direction_buzz_aligned_60hz_bell"
+        case .countDirection(let right, let count): return "count_direction_\(right ? "right" : "left")_\(count)"
+        case .countDirectionAligned: return "count_direction_aligned_bell"
         case .direction(let degrees): return "direction_"+DirectionPattern.name(signedDegrees:degrees)
         case .buzz(let hertz, let harmonic): return "buzz_\(Int(hertz))hz"+(harmonic ? "_harmonic" : "")
         }

@@ -39,6 +39,18 @@ public enum ToneRenderer {
             return harmonicBurst(Double(hertz))
         case .directionBuzzAligned:
             return harmonicBurst(60)+[Float](repeating:0,count:count(SteppedDirectionGate.alignmentGap))+render(.arrival)
+        case .countDirectionAligned:
+            return render(.arrival)
+        case .countDirection(let right, let count):
+            guard (1...3).contains(count) else { return [] }
+            let hertz=right ? CountedDirectionGate.rightHertz : CountedDirectionGate.leftHertz
+            let length=CountedDirectionGate.beepLength, gap=CountedDirectionGate.beepGap
+            let period=length+gap, total=Double(count)*length+Double(count-1)*gap
+            return normalized(samples(total) { t in
+                let within=t.truncatingRemainder(dividingBy:period)
+                guard within < length else { return 0 }
+                return sin(2 * .pi*hertz*t)*fade(within,length:length,edge:0.01)
+            })
         case .direction(let degrees):
             guard let beep=DirectionPattern.beep(signedDegrees:degrees) else { return [] }
             let length=DirectionPattern.beepLength, period=length+DirectionPattern.beepGap

@@ -2,11 +2,20 @@ import XCTest
 @testable import HearIAmCore
 
 final class SignalSoundTests: XCTestCase {
-    let all: [SignalSound]=WarningLevel.allCases.flatMap { level in WarningTone.allCases.map { .warning(level,tone:$0) } }+[.arrival,.directionAligned,.directionBuzzAligned]
-        + [DirectionSweep.Turn.left,.right].flatMap { side in [15.0,90,180].map { SignalSound.directionSweep(DirectionSweep(turn:side,errorDegrees:$0)) } }
-        + [40,60,80].flatMap { [SignalSound.buzz(hertz:$0,harmonic:false),.buzz(hertz:$0,harmonic:true)] }
-        + SteppedDirectionGate.pitches.map { SignalSound.directionBuzz(hertz:$0) }
-        + DirectionPattern.landmarks.map { SignalSound.direction(signedDegrees:$0) }
+    let all: [SignalSound] = {
+        var sounds: [SignalSound]=WarningLevel.allCases.flatMap { level in
+            WarningTone.allCases.map { .warning(level,tone:$0) }
+        }
+        sounds += [.arrival,.directionAligned,.directionBuzzAligned,.countDirectionAligned]
+        sounds += [true,false].flatMap { right in (1...3).map { SignalSound.countDirection(toRight:right,count:$0) } }
+        sounds += [DirectionSweep.Turn.left,.right].flatMap { side in
+            [15.0,90,180].map { SignalSound.directionSweep(DirectionSweep(turn:side,errorDegrees:$0)) }
+        }
+        sounds += [40.0,60,80].flatMap { [SignalSound.buzz(hertz:$0,harmonic:false),.buzz(hertz:$0,harmonic:true)] }
+        sounds += SteppedDirectionGate.pitches.map { SignalSound.directionBuzz(hertz:$0) }
+        sounds += DirectionPattern.landmarks.map { SignalSound.direction(signedDegrees:$0) }
+        return sounds
+    }()
 
     func rms(_ s: ArraySlice<Float>) -> Float { (s.map { $0*$0 }.reduce(0,+)/Float(max(1,s.count))).squareRoot() }
 
