@@ -18,8 +18,14 @@ extension ARSessionController {
         default: orientation = .right
         }
         let matrix=frame.camera.transform
+        let intrinsics=frame.camera.intrinsics, resolution=frame.camera.imageResolution
+        let turns: Int
+        switch orientation {case .right: turns=1;case .down: turns=2;case .left: turns=3;default: turns=0}
+        let projection=ScanPhotoProjection(focalX:Double(intrinsics[0][0])/resolution.width,
+            focalY:Double(intrinsics[1][1])/resolution.height,centerX:Double(intrinsics[2][0])/resolution.width,
+            centerY:Double(intrinsics[2][1])/resolution.height,clockwiseQuarterTurns:turns)
         let snapshot=PhotoFrame(pixels:frame.capturedImage,transform:(0..<4).flatMap {c in (0..<4).map {matrix[c][$0]}},
-                                timestamp:frame.timestamp,date:Date(),orientation:orientation,objectID:objectID,routeIndex:routeIndex)
+                                timestamp:frame.timestamp,date:Date(),orientation:orientation,objectID:objectID,routeIndex:routeIndex,projection:projection)
         photoCapturing=true; photoStatus="사진 저장 중…"
         let operation=token, request=UUID(), worker=photoCapture
         photoRequest=request
@@ -60,7 +66,7 @@ extension ARSessionController {
         let source=photoSources[index], p=source.photo
         let photo=ScanPhoto(id:p.id,capturedAt:p.capturedAt,frameTimestamp:p.frameTimestamp,cameraTransform:p.cameraTransform,
                             pixelWidth:p.pixelWidth,pixelHeight:p.pixelHeight,imageHash:p.imageHash,thumbnailHash:p.thumbnailHash,
-                            objectID:objectID,routePointIndex:routeIndex)
+                            objectID:objectID,routePointIndex:routeIndex,projection:p.projection)
         photoSources[index]=ScanPhotoSource(photo:photo,imageURL:source.imageURL,thumbnailURL:source.thumbnailURL)
     }
     func photosForSaving(route: StageRoute, map: ARWorldMap) -> [ScanPhotoSource] {
@@ -71,7 +77,7 @@ extension ARSessionController {
             let photo=ScanPhoto(id:p.id,capturedAt:p.capturedAt,frameTimestamp:p.frameTimestamp,cameraTransform:pose,
                                 pixelWidth:p.pixelWidth,pixelHeight:p.pixelHeight,imageHash:p.imageHash,thumbnailHash:p.thumbnailHash,
                                 objectID:p.objectID.flatMap {id in route.obstacles.contains {$0.id==id} ? id : nil},
-                                routePointIndex:p.routePointIndex.flatMap {route.points.indices.contains($0) ? $0 : nil})
+                                routePointIndex:p.routePointIndex.flatMap {route.points.indices.contains($0) ? $0 : nil},projection:p.projection)
             return ScanPhotoSource(photo:photo,imageURL:source.imageURL,thumbnailURL:source.thumbnailURL)
         }
     }

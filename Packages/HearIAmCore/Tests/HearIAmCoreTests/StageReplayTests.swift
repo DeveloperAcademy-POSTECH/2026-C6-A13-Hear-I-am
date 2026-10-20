@@ -121,3 +121,41 @@ final class StageReplayTests: XCTestCase {
         let list=try await store.list(); XCTAssertTrue(list.isEmpty)
     }
 }
+
+extension StageReplayTests {
+    func testPhotoProjectionRotatesIntrinsicsWithUprightImage() throws {
+        let expected=[(0.8,1.2,0.4,0.3),(1.2,0.8,0.7,0.4),(0.8,1.2,0.6,0.7),(1.2,0.8,0.3,0.6)]
+        for turns in 0...3 {
+            let p=ScanPhotoProjection(focalX:0.8,focalY:1.2,centerX:0.4,centerY:0.3,clockwiseQuarterTurns:turns)
+            try p.validate()
+            let a=p.upright,e=expected[turns]
+            XCTAssertEqual(a.fx,e.0,accuracy:1e-9);XCTAssertEqual(a.fy,e.1,accuracy:1e-9)
+            XCTAssertEqual(a.cx,e.2,accuracy:1e-9);XCTAssertEqual(a.cy,e.3,accuracy:1e-9)
+        }
+    }
+    func testCalibratedPhotoArchiveAndLegacyDecoding() async throws {
+        let root=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer {try? FileManager.default.removeItem(at:root)}
+        let original=try source(root),p=original.photo
+        let projection=ScanPhotoProjection(focalX:0.8,focalY:1.2,centerX:0.5,centerY:0.5,clockwiseQuarterTurns:1)
+        let photo=ScanPhoto(id:p.id,capturedAt:p.capturedAt,frameTimestamp:p.frameTimestamp,cameraTransform:p.cameraTransform,
+            pixelWidth:p.pixelWidth,pixelHeight:p.pixelHeight,imageHash:p.imageHash,thumbnailHash:p.thumbnailHash,projection:projection)
+        let store=ScanStore(root:root.appendingPathComponent("scans"))
+        let saved=try await save(store,photos:[ScanPhotoSource(photo:photo,imageURL:original.imageURL,thumbnailURL:original.thumbnailURL)])
+        let loaded=try await store.load(saved.id)
+        XCTAssertEqual(loaded.manifest.photos.first?.projection,projection)
+        var dictionary=try XCTUnwrap(JSONSerialization.jsonObject(with:JSONEncoder().encode(photo)) as? [String:Any])
+        dictionary.removeValue(forKey:"projection")
+        let legacy=try JSONDecoder().decode(ScanPhoto.self,from:JSONSerialization.data(withJSONObject:dictionary))
+        XCTAssertNil(legacy.projection);XCTAssertEqual(legacy.cameraTransform,p.cameraTransform)
+        XCTAssertNoThrow(try legacy.validate())
+    }
+    func testInvalidPhotoProjectionIsRejected() {
+        for p in [ScanPhotoProjection(focalX:0,focalY:1,centerX:0.5,centerY:0.5,clockwiseQuarterTurns:0),
+                  ScanPhotoProjection(focalX:1,focalY:.nan,centerX:0.5,centerY:0.5,clockwiseQuarterTurns:0),
+                  ScanPhotoProjection(focalX:1,focalY:1,centerX:1.1,centerY:0.5,clockwiseQuarterTurns:0),
+                  ScanPhotoProjection(focalX:1,focalY:1,centerX:0.5,centerY:0.5,clockwiseQuarterTurns:4)] {
+            XCTAssertThrowsError(try p.validate())
+        }
+    }
+}

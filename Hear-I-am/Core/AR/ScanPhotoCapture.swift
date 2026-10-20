@@ -12,6 +12,7 @@ struct PhotoFrame: @unchecked Sendable {
     let orientation: CGImagePropertyOrientation
     let objectID: UUID?
     let routeIndex: Int?
+    var projection: ScanPhotoProjection? = nil
 }
 
 actor ScanPhotoCapture {
@@ -42,7 +43,7 @@ actor ScanPhotoCapture {
         }
         let photo=ScanPhoto(capturedAt:frame.date,frameTimestamp:frame.timestamp,cameraTransform:frame.transform,
                             pixelWidth:w,pixelHeight:h,imageHash:ScanStore.hash(jpeg),thumbnailHash:ScanStore.hash(thumbnail),
-                            objectID:frame.objectID,routePointIndex:frame.routeIndex)
+                            objectID:frame.objectID,routePointIndex:frame.routeIndex,projection:frame.projection)
         try photo.validate()
         try FileManager.default.createDirectory(at:directory,withIntermediateDirectories:true)
         let full=directory.appendingPathComponent(photo.id.uuidString+".jpg")
