@@ -22,12 +22,14 @@ import HearIAmCore
     @Published var trial: DirectionTrial?
     @Published var results: [DirectionTrialResult]=[]
     @Published var manualBearing=90.0
-    @Published var stepHertz: Double?
+    @Published var pitchHertz: Double?
     @Published var pitchStatus="시작 전"
-    var stepGate=SteppedDirectionGate()
+    @Published var pitchVolume=0.12
+    @Published var pitchResolution=ContinuousDirectionGate.Resolution.smooth
+    let continuous=ContinuousTonePlayer()
+    var pitchGate=ContinuousDirectionGate()
     var pitchTimer: Timer?
     var lastPitchLog: Double?
-    var lastReferenceAt: Double?
     var pitchObservers: [NSObjectProtocol]=[]
     let signals=SignalPlayer()
     let haptics=DirectionHaptics()
@@ -40,6 +42,10 @@ import HearIAmCore
     var sweepGate=DirectionSweepGate()
 
     init() {
+        continuous.onUnavailable={ [weak self] text in
+            guard let self else { return }
+            self.finishTrial(found:false);self.pitchStatus=text;self.record("continuous_error",text)
+        }
         for name in [AVAudioSession.interruptionNotification,AVAudioSession.routeChangeNotification,
                      UIApplication.willResignActiveNotification] {
             pitchObservers.append(NotificationCenter.default.addObserver(forName:name,object:nil,queue:.main) { [weak self] note in
@@ -48,16 +54,16 @@ import HearIAmCore
                    AVAudioSession.RouteChangeReason(rawValue:raw) == .categoryChange { return }
                 let interrupted=note.name == AVAudioSession.interruptionNotification
                 Task { @MainActor in
-                    guard let self, self.trial?.mode.isStepped == true else { return }
+                    guard let self, self.trial?.mode.isContinuous == true else { return }
                     self.finishTrial(found:false)
                     if interrupted { HearAudioSession.interrupted() }
-                    self.pitchStatus="출력 변경 또는 중단";self.record("stepped_stopped",self.pitchStatus)
+                    self.pitchStatus="출력 변경 또는 중단";self.record("continuous_stopped",self.pitchStatus)
                 }
             })
         }
         signals.onError={ [weak self] text in
             guard let self else { return }
-            if self.trial?.mode.isStepped == true { self.finishTrial(found:false);self.pitchStatus=text }
+            if self.trial?.mode.isContinuous == true { self.finishTrial(found:false);self.pitchStatus=text }
             self.record("signal_error",text)
         }
         signals.onEvent={ [weak self] in self?.record($0,$1) }
@@ -65,8 +71,8 @@ import HearIAmCore
         voice.onSpeaking={ [weak self] value in
             guard let self else { return }
             self.speaking=value;self.signals.setSpeechActive(value)
-            if value, self.trial?.mode.isStepped == true {
-                self.signals.stopDirection();self.stepGate.suspend();self.lastReferenceAt=nil
+            if value, self.trial?.mode.isContinuous == true {
+                self.signals.stopDirection();self.continuous.setHertz(nil);self.pitchGate.suspend()
             }
         }
         voice.onError={ [weak self] in self?.record("speech_error",$0) }
@@ -86,7 +92,7 @@ import HearIAmCore
     }
     func disappear() {
         if trial != nil { finishTrial(found:false) }
-        setWarning(nil);signals.shutdown();haptics.shutdown();voice.deactivate()
+        continuous.stop();setWarning(nil);signals.shutdown();haptics.shutdown();voice.deactivate()
         body.stop();head.stop();probe.stop();probing=false
         record("tab_close","");log.close()
     }

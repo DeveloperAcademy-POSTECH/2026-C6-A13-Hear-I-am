@@ -126,17 +126,25 @@ struct SoundTestView: View {
                 Text("몸 \(Self.angle(model.bodyAngle)) · 고개 \(Self.angle(model.headAngle))").monospacedDigit()
                 if let trial=model.trial { Text("진행 중 · \(trial.mode.rawValue) · 목표 \(trial.target)°").bold() }
             }.font(.subheadline)
-            Text("시작할 때 방향이 목표예요. 오른쪽으로 돌아야 하면 40·50Hz, 정렬 기준은 60Hz, 왼쪽이면 70·80Hz예요. 높은 소리를 섞은 삐비빅을 짧게 반복하고, 정렬되면 60Hz와 띠링 후 조용해져요.")
+            Text("작은 한 음이 계속 이어져요. 왼쪽 보정은 80→60Hz, 오른쪽 보정은 40→60Hz로 목표에 가까워질수록 변해요. 정렬되면 띠링이 한 번 나고 작은 60Hz 소리는 유지돼요.")
                 .font(.subheadline)
-            SoundTestRow(label:"새 실험 · 10Hz 단계 삐비빅") {
-                ActionButton(title:"몸으로 찾기 · 단계음",enabled:model.trial == nil) { model.startTrial(.pitchBody) }
-                ActionButton(title:"고개로 찾기 · 단계음",enabled:model.trial == nil) { model.startTrial(.pitchHead) }
+            SoundTestRow(label:"새 실험 · 작은 지속음 40~80Hz") {
+                ActionButton(title:"몸으로 찾기 · 지속음",enabled:model.trial == nil) { model.startTrial(.pitchBody) }
+                ActionButton(title:"고개로 찾기 · 지속음",enabled:model.trial == nil) { model.startTrial(.pitchHead) }
                 ActionButton(title:"슬라이더로 듣기",primary:false,enabled:model.trial == nil) { model.startTrial(.pitchSlider) }
                 ActionButton(title:"기준음 60Hz",primary:false,enabled:model.trial == nil) { model.startTrial(.pitchReference) }
                 ActionButton(title:"그만",primary:false,enabled:model.trial != nil) { model.finishTrial(found:false) }
             }
-            Text("\(model.pitchStatus) · \(model.stepHertz.map { String(format: "%.1f Hz",$0) } ?? "무음")")
-                .font(.subheadline.monospacedDigit()).accessibilityLabel("단계음 상태, \(model.pitchStatus)")
+            Text("\(model.pitchStatus) · \(model.pitchHertz.map { String(format: "%.1f Hz",$0) } ?? "무음")")
+                .font(.subheadline.monospacedDigit()).accessibilityLabel("지속음 상태, \(model.pitchStatus)")
+            Picker("음높이 변화",selection:$model.pitchResolution) {
+                Text("부드럽게").tag(ContinuousDirectionGate.Resolution.smooth)
+                Text("10Hz 간격").tag(ContinuousDirectionGate.Resolution.tenHertz)
+            }.pickerStyle(.segmented)
+            VStack(alignment:.leading,spacing:6) {
+                Text("지속음 크기 \(Int((model.pitchVolume*100).rounded()))%")
+                Slider(value:$model.pitchVolume,in:0.02...0.3,step:0.01).accessibilityLabel("지속음 크기")
+            }.font(.caption)
             if model.trial?.mode == .pitchSlider {
                 VStack(alignment:.leading,spacing:8) {
                     Text("목표 상대각 \(Self.angle(model.manualBearing)) · 0°가 정렬")
@@ -151,9 +159,9 @@ struct SoundTestView: View {
                 }
             }
             SoundTestRow(label:"이전 방식 비교") {
-                ActionButton(title:"새 방향음 360°",enabled:model.trial == nil) { model.startTrial(.sweep) }
-                ActionButton(title:"몸으로 찾기",enabled:model.trial == nil) { model.startTrial(.body) }
-                ActionButton(title:"고개로 찾기",enabled:model.trial == nil) { model.startTrial(.head) }
+                ActionButton(title:"이전 휘익 360°",enabled:model.trial == nil) { model.startTrial(.sweep) }
+                ActionButton(title:"이전 몸 진동",enabled:model.trial == nil) { model.startTrial(.body) }
+                ActionButton(title:"이전 고개 부르르",enabled:model.trial == nil) { model.startTrial(.head) }
                 ActionButton(title:"그만",primary:false,enabled:model.trial != nil) { model.finishTrial(found:false) }
             }
             if !model.results.isEmpty {
