@@ -1,7 +1,7 @@
 import Foundation
 import HearIAmCore
 
-/// ④ Find a target direction by body (waist vibration every 45°) or by head (earbud buzz).
+/// ③ Find a target direction by the direction ticks of guidance or by head (earbud buzz).
 /// The trial ends after facing the target with the body for one second.
 extension SoundTestViewModel {
     static let targets=[90,-90,180,45,-45,135,-135]
@@ -14,7 +14,6 @@ extension SoundTestViewModel {
         guard let bodyStart=body.heading else { record("direction_error","몸 방향 값이 없어요. 폰을 허리에 세워 주세요.");return }
         if mode == .head && !headReceiving { record("direction_error","고개 값이 안 들어와요. 에어팟을 확인해 주세요.");return }
         let target=Self.targets.randomElement() ?? 90
-        detector.reset()
         directionTicks.deadbandDegrees=deadbandDegrees
         directionTicks.reset()
         trial=DirectionTrial(mode:mode,target:target,bodyStart:bodyStart,headStart:head.heading,
@@ -40,18 +39,15 @@ extension SoundTestViewModel {
         let tolerance: Double
         if current.mode == .tick {
             tolerance=deadbandDegrees
+            // As in guidance: one 「삐」 the moment the ticks stop on facing the target.
+            let wasTicking=directionTicks.activeSide != nil
             if let cue=directionTicks.update(time:now,bearing:-error) {
                 if let word=cue.spokenWord { speak(word) }
                 if cue.shouldTick, !speaking { signals.play(.directionTick(toRight:cue.toRight)) }
-            } else {
-                signals.stopDirection()
+            } else if wasTicking {
+                if directionTicks.isAligned { signals.play(.direction(signedDegrees:0)) } else { signals.stopDirection() }
             }
-        } else {
-            tolerance=Self.foundTolerance
-            if let landmark=detector.update(relativeDegrees:error), current.mode == .body || landmark == 0 {
-                haptics.play(signedDegrees:landmark)
-            }
-        }
+        } else { tolerance=Self.foundTolerance }
         if abs(error) <= tolerance { current.steadySince=current.steadySince ?? now } else { current.steadySince=nil }
         trial=current
         if let since=current.steadySince, now-since >= Self.steadySeconds { finishTrial(found:true) }

@@ -1,13 +1,13 @@
 import HearIAmCore
 
-/// 빠져나오기: instead of waiting for a button, say which way to step aside, point it with the
-/// waist vibration, and resume by itself after one safe second. After 10 s the warning softens
+/// 빠져나오기: instead of waiting for a button, say which way to step aside and resume by itself after
+/// one safe second. No direction tick or vibration meanwhile (10/20); the line says the way. After 10 s the warning softens
 /// and only the line repeats every 5 s.
 extension GuidanceViewModel {
     static let escapeReasons: [GuidePauseReason]=[.obstacleProximity,.offRoute,.outsideStage]
 
     func beginEscape(reason: GuidePauseReason, pose: (point: FloorPoint, heading: Double, time: Double), guide: RouteGuide) {
-        phase = .paused;landmarks.reset()
+        phase = .paused
         let bearing=escapeBearing(pose:pose,guide:guide)
         escape=EscapeState(reason:reason,startedAt:pose.time,lastSpoken:pose.time)
         message=SignalCopy.escape(bearing:bearing)
@@ -18,7 +18,6 @@ extension GuidanceViewModel {
     func tickEscape(pose: (point: FloorPoint, heading: Double, time: Double), guide: RouteGuide) {
         guard var state=escape else { return }
         let bearing=escapeBearing(pose:pose,guide:guide)
-        if let landmark=landmarks.update(relativeDegrees:-bearing) { haptics.playDirection(signedDegrees:landmark,signals:signals) }
         let warning=warnings.update(position:pose.point,headingDegrees:pose.heading,obstacles:guide.route.obstacles)
         if warning?.level != signals.warning { signals.setWarning(warning?.level);logSignal("signal_warning_reason",warning?.detail ?? "off") }
         if !state.quiet && pose.time-state.startedAt >= EscapeState.quietAfter {
@@ -48,7 +47,7 @@ extension GuidanceViewModel {
     private func endEscape(pose: (point: FloorPoint, heading: Double, time: Double)) {
         guard let state=escape, var guide, guide.resume(position:pose.point,trackingValid:true) else { return }
         self.guide=guide;escape=nil;phase = .guiding
-        signals.setWarningQuiet(false);landmarks.reset();directionTicks.reset();steps.reset();distances.reset()
+        signals.setWarningQuiet(false);directionTicks.reset();steps.reset();distances.reset()
         voice.play(["다시 안내합니다"])
         logSignal("escape_end",String(format:"reason=%@ seconds=%.1f quiet=%@","\(state.reason)",pose.time-state.startedAt,state.quiet ? "yes" : "no"))
     }

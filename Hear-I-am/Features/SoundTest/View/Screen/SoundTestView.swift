@@ -18,7 +18,6 @@ struct SoundTestView: View {
                             .onChange(of:forcesSpeaker) {_,value in model.record("audio_output",value ? "speaker" : "auto")}
                     }
                     SoundTestCard(section:.signals) { signals }
-                    SoundTestCard(section:.haptics) { haptics }
                     SoundTestCard(section:.buzz) { buzz }
                     SoundTestCard(section:.direction) { direction }
                 }.padding(.horizontal,20).padding(.vertical,16)
@@ -74,25 +73,6 @@ struct SoundTestView: View {
         }
     }
 
-    private var haptics: some View {
-        VStack(alignment:.leading,spacing:16) {
-            SoundTestRow(label:"방향 신호 (안내에서도 이대로 써요)") {
-                ForEach(DirectionSignalMode.allCases,id:\.self) { mode in
-                    ActionButton(title:Self.modeLabel(mode),primary:model.directionMode == mode) { model.setDirectionMode(mode) }
-                }
-            }
-            SoundTestRow(label:"45° 눈금 (0° = 목표 방향, 진동은 좌우 같음)") {
-                ForEach(DirectionPattern.landmarks,id:\.self) { degrees in
-                    ActionButton(title:Self.label(degrees),primary:false) { model.vibrate(degrees) }
-                }
-            }
-            SoundTestRow(label:"진동 중 위치 추적") {
-                ActionButton(title:model.probing ? "위치 추적 끄기" : "위치 추적 켜기",primary:model.probing) { model.toggleProbe() }
-            }
-            Text("추적: \(model.trackingText) · 1초 흔들림: \(model.jitterText)").font(.subheadline.monospacedDigit())
-        }
-    }
-
     private var buzz: some View {
         VStack(alignment:.leading,spacing:16) {
             ForEach([false,true],id:\.self) { harmonic in
@@ -119,7 +99,6 @@ struct SoundTestView: View {
             }.font(.subheadline)
             SoundTestRow(label:"시작") {
                 ActionButton(title:"톡톡톡으로 찾기",enabled:model.trial == nil) { model.startTrial(.tick) }
-                ActionButton(title:"몸으로 찾기",enabled:model.trial == nil) { model.startTrial(.body) }
                 ActionButton(title:"고개로 찾기",enabled:model.trial == nil) { model.startTrial(.head) }
                 ActionButton(title:"그만",primary:false,enabled:model.trial != nil) { model.finishTrial(found:false) }
             }
@@ -134,13 +113,6 @@ struct SoundTestView: View {
 
     static func label(_ degrees: Int) -> String {
         degrees == 0 ? "앞" : degrees == 180 ? "뒤" : (degrees < 0 ? "왼쪽 " : "오른쪽 ")+"\(abs(degrees))°"
-    }
-    static func modeLabel(_ mode: DirectionSignalMode) -> String {
-        switch mode {
-        case .haptic: return "진동만"
-        case .beep: return "비프만"
-        case .both: return "진동 + 비프"
-        }
     }
     static func toneLabel(_ tone: WarningTone) -> String {
         switch tone {
