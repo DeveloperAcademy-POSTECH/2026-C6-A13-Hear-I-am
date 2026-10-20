@@ -8,7 +8,7 @@ struct PlanEditorTools: View {
             Picker("도구",selection:$model.tool) {
                 Label("경로",systemImage:"point.topleft.down.to.point.bottomright.curvepath").tag(PlanEditorTool.points)
                 Label("장애물",systemImage:"triangle").tag(PlanEditorTool.obstacle)
-                Label("단상",systemImage:"square").tag(PlanEditorTool.platform)
+                Label("의자",systemImage:"square").tag(PlanEditorTool.platform)
             }.pickerStyle(.segmented).frame(maxWidth:320)
             if model.selected != nil {
                 Text("이동할 위치를 누르세요").font(.caption)

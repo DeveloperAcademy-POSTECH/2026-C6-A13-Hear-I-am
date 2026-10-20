@@ -67,7 +67,7 @@ public struct PreparationDraft: Sendable {
             return shape.contains(area.floor(point))
         }
         guard !covered.isEmpty else {
-            return "선택한 면은 바닥보다 약 \(Int((h*100).rounded()))cm 높지만 등록한 단상·계단 둘레 밖이에요. 기물 종류와 바닥 둘레를 확인해주세요."
+            return "선택한 면은 바닥보다 약 \(Int((h*100).rounded()))cm 높지만 등록한 의자·계단 둘레 밖이에요. 기물 종류와 바닥 둘레를 확인해주세요."
         }
         if ignoreEstimatedHeight { return nil }
         guard covered.contains(where: { object in
@@ -78,7 +78,7 @@ public struct PreparationDraft: Sendable {
             let estimates=covered.compactMap { object in
                 object.height.map { "\(object.name): 약 \(Int(($0*100).rounded()))cm" }
             }.joined(separator:" · ")
-            return "선택 높이: 약 \(Int((h*100).rounded()))cm\n자동 추정 높이: \(estimates)\n단상 ±15cm 또는 계단 최고 높이 +15cm 범위를 벗어났어요. 실제 윗면에 찍힌 위치가 맞는지 확인해주세요."
+            return "선택 높이: 약 \(Int((h*100).rounded()))cm\n자동 추정 높이: \(estimates)\n의자 ±15cm 또는 계단 최고 높이 +15cm 범위를 벗어났어요. 실제 윗면에 찍힌 위치가 맞는지 확인해주세요."
         }
         return nil
     }

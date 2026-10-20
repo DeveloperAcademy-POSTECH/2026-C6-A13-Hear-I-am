@@ -17,7 +17,7 @@ extension ObstacleKind {
     /// Name a new object starts with, and the kind label shown next to every object in the list.
     var defaultName: String {
         switch self {
-        case .platform: return "단상"
+        case .platform: return "의자"
         case .stairs: return "계단"
         case .box, .other: return "장애물"
         }
