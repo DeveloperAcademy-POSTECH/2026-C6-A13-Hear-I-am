@@ -1,5 +1,6 @@
 import Foundation
 
+// `platform` is the legacy persisted identifier for the chair option; keep it for saved-data compatibility.
 public enum ObstacleKind: String, Codable, CaseIterable, Sendable { case stairs, box, other, platform }
 public enum PassagePolicy: String, Codable, Sendable { case prohibited, passable }
 public struct StageObstacle: Codable, Equatable, Sendable, Identifiable {

@@ -80,7 +80,7 @@ final class PreparationViewModel: ObservableObject {
         if interrupted { return "추적 중단" }
         if let hit=aimHit { return hit.message }
         if step == .scan { return supportsMesh ? "민트색 그물 = 스캔한 표면" : nil }
-        return step == .route ? "바닥 또는 등록한 단상·계단 윗면을 선택하세요" : "십자선을 실제 바닥에 맞춰주세요"
+        return step == .route ? "바닥 또는 등록한 의자·계단 윗면을 선택하세요" : "십자선을 실제 바닥에 맞춰주세요"
     }
     /// Why the point under the crosshair cannot join the route, shown before it is placed (#38).
     var aimHit: ClearanceHit? {

@@ -46,7 +46,7 @@ struct PreparationGuideCard: View {
             if step == .objects {
                 if model.objectEditing {
                     TextField("기물 이름",text:$model.obstacleName).textFieldStyle(.roundedBorder).font(.caption)
-                    Picker("종류",selection:$model.obstacleKind) {Text("장애물").tag(ObstacleKind.other); Text("단상").tag(ObstacleKind.platform); Text("계단").tag(ObstacleKind.stairs)}.pickerStyle(.segmented)
+                    Picker("종류",selection:$model.obstacleKind) {Text("장애물").tag(ObstacleKind.other); Text("의자").tag(ObstacleKind.platform); Text("계단").tag(ObstacleKind.stairs)}.pickerStyle(.segmented)
                     if (model.obstacleKind == .platform || model.obstacleKind == .stairs), model.pendingObjectWorld.count >= 3 {
                         Text("변 번호는 둘레 점 순서입니다. 복수 선택 가능하며, 같은 변에 올라감·내려감을 모두 허용할 수 있어요. 미선택 측면은 통과 금지입니다. 둘레 점을 바꾸면 선택이 초기화됩니다.").font(.caption)
                         ForEach(0..<model.pendingObjectWorld.count,id:\.self) { i in
