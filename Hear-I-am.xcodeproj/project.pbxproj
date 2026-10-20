@@ -102,12 +102,14 @@
 		D3E7E069A3068E057B2B76D9 /* SoundTestView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B81D859DA967D4DFD75AC8C5 /* SoundTestView.swift */; };
 		D9D0A74C0159862B2C3D7C18 /* SavedStagePreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EF1BCF0313E05CBD607C81C /* SavedStagePreview.swift */; };
 		D9D135CFA21039B850FD3A4A /* GuidanceControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B72D4A049E0D30EC0FA2D95 /* GuidanceControls.swift */; };
+		DA44470139ED6DFC8ED2B9DD /* SavedPhotoImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = D121C370C0D650EE518AB7D8 /* SavedPhotoImage.swift */; };
 		DBDABB4ECD537F03952AC515 /* PlanEditorTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE3C9616808248A6D0664732 /* PlanEditorTools.swift */; };
 		DD459BE5806939F062E519A3 /* GuidanceViewModel+Finish.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA20BEEFF43A8B86171542D7 /* GuidanceViewModel+Finish.swift */; };
 		DF815991CA114C479D57BCD0 /* GuidanceRouteHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99F557F11BC7D746B83CD908 /* GuidanceRouteHeader.swift */; };
 		E0FEAB78354C36DBFF6CC002 /* BrandMark.swift in Sources */ = {isa = PBXBuildFile; fileRef = 854F7E3558CF686ECDA6A077 /* BrandMark.swift */; };
 		E5B4C504580D3346353F3ACE /* PlanEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1224A12D197323A7A538F47 /* PlanEditorView.swift */; };
 		E75CEB2508EF8CCE026387E5 /* MeshSnapshot+SceneKit.swift in Sources */ = {isa = PBXBuildFile; fileRef = F981725F347959DFE8E81B6F /* MeshSnapshot+SceneKit.swift */; };
+		E800DE00262C19BDBAB1EC6F /* ReplaySceneController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00306065193FCDAA6A9EF1BC /* ReplaySceneController.swift */; };
 		EA96213F022A773E02980E9A /* LibrarySelectionBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAFBB4E908F155285F847CAF /* LibrarySelectionBar.swift */; };
 		EC15B260BEE1F3DE8852DDF7 /* SoundTestViewModel+Direction.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1666B8E29B23655E0936DAE /* SoundTestViewModel+Direction.swift */; };
 		F1157E6BE660B4C25E0A67A1 /* HearIAmCore in Frameworks */ = {isa = PBXBuildFile; productRef = 99B8B4E45662D06022066947 /* HearIAmCore */; };
@@ -116,6 +118,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		00306065193FCDAA6A9EF1BC /* ReplaySceneController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReplaySceneController.swift; sourceTree = "<group>"; };
 		006AA0493BFEC5A4A79FB19D /* StageLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StageLibrary.swift; sourceTree = "<group>"; };
 		030CDDD2A61339C05266B734 /* GuidanceViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuidanceViewModel.swift; sourceTree = "<group>"; };
 		04808370633741391779B48B /* PreparationViewModel+Boundary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PreparationViewModel+Boundary.swift"; sourceTree = "<group>"; };
@@ -203,6 +206,7 @@
 		CC8A4BF4410000A803BAE8B2 /* HomeSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeSettingsView.swift; sourceTree = "<group>"; };
 		CE3C9616808248A6D0664732 /* PlanEditorTools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanEditorTools.swift; sourceTree = "<group>"; };
 		CEF3295A562F96FC1DE68889 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		D121C370C0D650EE518AB7D8 /* SavedPhotoImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedPhotoImage.swift; sourceTree = "<group>"; };
 		D1666B8E29B23655E0936DAE /* SoundTestViewModel+Direction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SoundTestViewModel+Direction.swift"; sourceTree = "<group>"; };
 		D932B16EBAC3D722ABFF9582 /* SavedStagePreviewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedStagePreviewModel.swift; sourceTree = "<group>"; };
 		DA20BEEFF43A8B86171542D7 /* GuidanceViewModel+Finish.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GuidanceViewModel+Finish.swift"; sourceTree = "<group>"; };
@@ -275,6 +279,7 @@
 			isa = PBXGroup;
 			children = (
 				6A386723CB3162352D0F1847 /* ReplayModelFactory.swift */,
+				00306065193FCDAA6A9EF1BC /* ReplaySceneController.swift */,
 				82E4D4763B0EC54A3B3CAD63 /* ReplaySurfaceFactory.swift */,
 			);
 			path = Model;
@@ -648,6 +653,7 @@
 			isa = PBXGroup;
 			children = (
 				8AE4B38D0E603747BD5F10EA /* SavedMeshView.swift */,
+				D121C370C0D650EE518AB7D8 /* SavedPhotoImage.swift */,
 			);
 			path = Parts;
 			sourceTree = "<group>";
@@ -956,8 +962,10 @@
 				D031F1555D980E7F740F3CA1 /* PreparationViewModel+Scan.swift in Sources */,
 				4D8CDD9238FE3E0573F34080 /* PreparationViewModel.swift in Sources */,
 				0AA1B769BB98876C0C594903 /* ReplayModelFactory.swift in Sources */,
+				E800DE00262C19BDBAB1EC6F /* ReplaySceneController.swift in Sources */,
 				42BEB49F3784E96653838089 /* ReplaySurfaceFactory.swift in Sources */,
 				3E8F05B4CB93029E6189D535 /* SavedMeshView.swift in Sources */,
+				DA44470139ED6DFC8ED2B9DD /* SavedPhotoImage.swift in Sources */,
 				D9D0A74C0159862B2C3D7C18 /* SavedStagePreview.swift in Sources */,
 				71561858F684178D7DBF87A7 /* SavedStagePreviewModel.swift in Sources */,
 				F476B18BC3F90D9743A82ADE /* ScanPhotoCapture.swift in Sources */,
