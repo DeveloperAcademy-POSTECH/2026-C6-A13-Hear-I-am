@@ -18,7 +18,7 @@ struct StageReplayPreviewHarness: View {
                 let args=ProcessInfo.processInfo.arguments
                 SavedStagePreview(record:record,store:store,camera:args.contains("--replay-top") ? .overhead : .overview,
                                   display:args.contains("--replay-clean") ? .clean : .scan,
-                                  selection:args.contains("--replay-object") ? .object(chairID) : args.contains("--replay-photo") ? record.photos.first.map {.photo($0.id)} : .point(0))
+                                  selection:args.contains("--replay-object") ? .object(chairID) : args.contains("--replay-photo") ? record.photos.first.map {.photo($0.id)} : .point(args.contains("--replay-middle") ? 1 : 0))
             } else if let error {Text(error)}
             else {ProgressView().task {await makeFixture()}}
         }.tint(.hearGreen)
@@ -95,7 +95,7 @@ struct StageReplayPreviewHarness: View {
                 }
                 try verifyCameraPresets(loaded,cleanSurfaces:model.cleanSurfaces)
                 try await verifyLegacyAndZeroHeights(loaded)
-                print("REPLAY_QA_OK: oak asset, clean surroundings, raw restoration, camera round trips, photo capture, saved route heights, orbit limits, camera reset")
+                print("REPLAY_QA_OK: oak asset, clean surroundings, raw restoration, camera round trips, photo capture, saved route heights, orbit limits, camera reset, clean markers and selection")
             }
         } catch {record=nil;self.error=error.localizedDescription;print("REPLAY_QA_FAILED: \(error.localizedDescription)")}
     }
@@ -127,6 +127,7 @@ struct StageReplayPreviewHarness: View {
             }
             try verifyCameraInteraction(scene,view:view,display:display,revision:&revision)
             try verifyRouteHeights(scene,view:view)
+            try verifyCleanMarkers(scene,display:display)
             let raw=display == .scan
             do {
                 // Both overviews must fit scanned walls/floor beyond the registered stage.
@@ -142,7 +143,9 @@ struct StageReplayPreviewHarness: View {
                     }
                 }
             }
-            guard scene.mesh.isHidden != raw,scene.objects.isHidden==raw,scene.surroundings.isHidden==raw,scene.scanAnnotations.isHidden==false,
+            guard scene.mesh.isHidden != raw,scene.objects.isHidden==raw,scene.surroundings.isHidden==raw,scene.scanAnnotations.isHidden != raw,
+                  scene.routeNodes.isHidden != raw,scene.cleanRouteNodes.isHidden==raw,
+                  scene.cleanAnnotations.isHidden==raw,scene.scanPerson.isHidden != raw,scene.cleanPerson.isHidden==raw,
                   view.backgroundColor==(raw ? UIColor(white:0.10,alpha:1) : ReplaySurfaceFactory.background) else {
                 throw LabError.invalid("스캔·정리 화면 전환 검증 실패")
             }
@@ -163,6 +166,60 @@ struct StageReplayPreviewHarness: View {
         guard floor.geometry?.sources(for:.texcoord).first?.vectorCount==4,
               abs(floor.boundingBox.max.y+0.002)<0.0001 else {
             throw LabError.invalid("원목 바닥 좌표·겹침 방지 검증 실패")
+        }
+    }
+    /// Both representations must select the same saved point without altering its height or the camera.
+    private func verifyCleanMarkers(_ scene: ReplaySceneController,display: ReplayDisplay) throws {
+        guard let route=scene.scan.manifest.route else {throw LabError.invalid("표식 검증용 경로 누락")}
+        let transform=scene.camera.simdTransform,revision=scene.revision
+        for index in route.points.indices {
+            let p=route.points[index],height=route.pointHeights?[index] ?? 0
+            guard let marker=scene.cleanMarkers[index],
+                  marker.name.flatMap({scene.names[$0]}) == .point(index),
+                  abs(marker.position.x-Float(p.x))<0.0001,abs(marker.position.z+Float(p.y))<0.0001,
+                  abs(marker.position.y-Float(height+0.015))<0.0001 else {
+                throw LabError.invalid("정리 표식 위치·높이·선택 연결 검증 실패")
+            }
+            scene.update(display:display,wireframe:false,showPhotos:false,selection:.point(index),cameraMode:.overview,revision:revision)
+            guard abs(scene.person.position.y-Float(height))<0.0001,
+                  scene.names["clean-person"] == .point(index),
+                  (0..<4).allSatisfy({simd_length(scene.camera.simdTransform[$0]-transform[$0])<0.0001}) else {
+                throw LabError.invalid("새 인물 선택·카메라 유지 검증 실패")
+            }
+        }
+        if display == .clean,let object=route.obstacles.first {
+            scene.update(display:display,wireframe:false,showPhotos:false,selection:.object(object.id),cameraMode:.overview,revision:revision)
+            guard scene.selectionOverlay.childNodes.count==object.vertices.count,scene.scanAnnotations.isHidden else {
+                throw LabError.invalid("선택 기물 범위·원본 주석 분리 검증 실패")
+            }
+        }
+        scene.update(display:display,wireframe:false,showPhotos:true,selection:.point(0),cameraMode:.overview,revision:revision)
+        // A saved height difference must survive the dashed line and arrow, not become a flat floor projection.
+        for index in 1..<route.points.count {
+            guard let segment=scene.cleanRouteNodes.childNode(withName:"clean-segment-\(index)",recursively:false),
+                  let arrow=scene.cleanRouteNodes.childNode(withName:"clean-chevron-\(index)",recursively:false) else {
+                throw LabError.invalid("정리 동선 누락")
+            }
+            let a=route.points[index-1],b=route.points[index],dy=(route.pointHeights?[index] ?? 0)-(route.pointHeights?[index-1] ?? 0)
+            let delta=SIMD3<Float>(Float(b.x-a.x),Float(dy),Float(-(b.y-a.y)))
+            if simd_length(delta)>0.65 {
+                let forward=simd_normalize(delta),up=simd_act(arrow.simdOrientation,SIMD3<Float>(0,1,0))
+                let expectedUp=simd_normalize(SIMD3<Float>(0,1,0)-forward*forward.y)
+                guard simd_length(simd_act(arrow.simdOrientation,SIMD3<Float>(0,0,1))-forward)<0.0001,
+                      simd_length(up-expectedUp)<0.0001 else {
+                    throw LabError.invalid("정리 화살표 경사 검증 실패")
+                }
+            }
+            if abs(dy)>0.1 {
+                guard segment.boundingBox.max.y-segment.boundingBox.min.y>Float(abs(dy)*0.5) else {
+                    throw LabError.invalid("점선 경사 높이 검증 실패")
+                }
+            }
+        }
+        // Degenerate and short segments must not divide by zero or grow backwards through discs.
+        guard ReplayModelFactory.dashedRoute(from:.init(0,0,0),to:.init(0,0,0)).childNodes.isEmpty,
+              ReplayModelFactory.dashedRoute(from:.init(0,0,0),to:.init(0.1,0,0)).childNodes.isEmpty else {
+            throw LabError.invalid("짧은 경로 표식 겹침 방지 검증 실패")
         }
     }
     /// Exercise SceneKit's real controls, including repeated drags beyond the limit and a translated/zoomed view.
