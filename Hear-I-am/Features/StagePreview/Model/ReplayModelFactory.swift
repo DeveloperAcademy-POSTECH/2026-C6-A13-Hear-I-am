@@ -72,13 +72,21 @@ enum ReplayModelFactory {
         return root
     }
     static func person() -> SCNNode {
-        let root=SCNNode(), h=1.55
-        root.addChildNode(part(SCNSphere(radius:0.105),SCNVector3(0,h-0.105,0),color:green))
-        root.addChildNode(part(SCNCapsule(capRadius:0.14,height:0.58),SCNVector3(0,1.07,0),color:green))
-        for x in [-0.08,0.08] {root.addChildNode(part(SCNCapsule(capRadius:0.055,height:0.78),SCNVector3(x,0.39,0),color:green))}
-        root.addChildNode(line(.init(0,0.04,0),.init(0,0.04,0.55),color:green,radius:0.025))
-        root.addChildNode(part(SCNCone(topRadius:0,bottomRadius:0.08,height:0.2),SCNVector3(0,0.04,0.55),color:green))
-        root.childNodes.last?.eulerAngles.x = .pi/2
+        let root=SCNNode()
+        let skin=UIColor(red:0.96,green:0.80,blue:0.66,alpha:1)
+        let cloth=UIColor.systemOrange, hair=UIColor(white:0.15,alpha:1)
+        for x in [-0.07,0.07] {
+            root.addChildNode(part(SCNCylinder(radius:0.055,height:0.78),.init(x,0.39,0),color:skin))
+        }
+        root.addChildNode(part(SCNCone(topRadius:0.13,bottomRadius:0.24,height:0.28),.init(0,0.72,0),color:cloth))
+        root.addChildNode(part(SCNCapsule(capRadius:0.13,height:0.48),.init(0,1.04,0),color:cloth))
+        for x in [-0.18,0.18] {
+            root.addChildNode(part(SCNCylinder(radius:0.04,height:0.56),.init(x,1.0,0),color:skin))
+        }
+        root.addChildNode(part(SCNCylinder(radius:0.045,height:0.06),.init(0,1.3,0),color:skin))
+        root.addChildNode(part(SCNSphere(radius:0.11),.init(0,1.44,0),color:skin))
+        root.addChildNode(part(SCNSphere(radius:0.115),.init(0,1.47,-0.025),color:hair))
+        root.addChildNode(part(SCNCapsule(capRadius:0.045,height:0.24),.init(0,1.3,-0.11),color:hair))
         return root
     }
     static func line(_ a: SCNVector3,_ b: SCNVector3,color: UIColor,radius: CGFloat=0.025) -> SCNNode {

@@ -6,7 +6,7 @@ final class SavedStagePreviewModel: ObservableObject {
     @Published var loaded: LoadedScan?
     @Published var error: String?
     @Published var wireframe=false
-    @Published var display: ReplayDisplay = .clean
+    @Published var display: ReplayDisplay = .scan
     @Published var cameraMode: ReplayCamera = .overview
     @Published var cameraRevision=0
     @Published var selection: ReplaySelection?
@@ -25,9 +25,8 @@ final class SavedStagePreviewModel: ObservableObject {
     func setCamera(_ mode: ReplayCamera) {cameraMode=mode;cameraRevision+=1}
     func select(_ value: ReplaySelection) {
         selection=value;photoCardCollapsed=false
-        if case .object=value {cameraMode = .close}
         if case .photo=value {showPhotoPins=true}
-        cameraRevision+=1
+        // Selecting a marker updates its details without moving the user's camera.
     }
     var selectedPhoto: ScanPhoto? {
         guard let photos=loaded?.manifest.photos else {return nil}
