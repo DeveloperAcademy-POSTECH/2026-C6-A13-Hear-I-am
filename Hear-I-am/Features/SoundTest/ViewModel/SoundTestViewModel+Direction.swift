@@ -42,7 +42,6 @@ extension SoundTestViewModel {
             // As in guidance: one 「삐」 the moment the ticks stop on facing the target.
             let wasTicking=directionTicks.activeSide != nil
             if let cue=directionTicks.update(time:now,bearing:-error) {
-                if let word=cue.spokenWord { speak(word) }
                 if cue.shouldTick, !speaking { signals.play(.directionTick(toRight:cue.toRight)) }
             } else if wasTicking {
                 if directionTicks.isAligned { signals.play(.direction(signedDegrees:0)) } else { signals.stopDirection() }
