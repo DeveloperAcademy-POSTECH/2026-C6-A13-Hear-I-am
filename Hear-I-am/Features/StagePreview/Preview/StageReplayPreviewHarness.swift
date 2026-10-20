@@ -55,13 +55,15 @@ struct StageReplayPreviewHarness: View {
             CVPixelBufferUnlockBaseAddress(buffer,[])
             let worker=ScanPhotoCapture()
             let pose: [Float]=[1,0,0,0,0,1,0,0,0,0,1,0,5,2,3,1]
-            let source=try await worker.capture(PhotoFrame(pixels:buffer,transform:pose,timestamp:1,date:Date(),orientation:.up,objectID:nil,routeIndex:0))
-            let rotated=try await worker.capture(PhotoFrame(pixels:buffer,transform:pose,timestamp:2,date:Date(),orientation:.right,objectID:nil,routeIndex:nil))
+            let source=try await worker.capture(PhotoFrame(pixels:buffer,transform:pose,timestamp:1,date:Date(),orientation:.up,objectID:nil,routeIndex:0,projection:.init(focalX:0.8,focalY:1.42,centerX:0.46,centerY:0.53,clockwiseQuarterTurns:0)))
+            let rotated=try await worker.capture(PhotoFrame(pixels:buffer,transform:pose,timestamp:2,date:Date(),orientation:.right,objectID:nil,routeIndex:nil,projection:.init(focalX:0.8,focalY:1.42,centerX:0.46,centerY:0.53,clockwiseQuarterTurns:1)))
             guard source.photo.pixelWidth==640,source.photo.pixelHeight==360,
                   rotated.photo.pixelWidth==360,rotated.photo.pixelHeight==640,
                   let thumb=UIImage(contentsOfFile:source.thumbnailURL.path),max(thumb.size.width,thumb.size.height)==320 else {
                 throw LabError.invalid("사진 회전·썸네일 검증 실패")
             }
+            try verifyPhotoProjection(source.photo)
+            try verifyPhotoProjection(rotated.photo)
             await worker.remove(rotated)
             record=try await store.save(id:UUID(),name:"다시보기 · 검증용 공간",frame:StageFrame(origin:area.world(.init(0,0)),front:area.world(.init(0,-1))),
                                        checkpoint:area.world(.init(5,2)),worldMap:Data([1]),
@@ -95,9 +97,71 @@ struct StageReplayPreviewHarness: View {
                 }
                 try verifyCameraPresets(loaded,cleanSurfaces:model.cleanSurfaces)
                 try await verifyLegacyAndZeroHeights(loaded)
-                print("REPLAY_QA_OK: oak asset, clean surroundings, raw restoration, camera round trips, photo capture, saved route heights, orbit limits, camera reset, clean markers and selection")
+                try verifyPhotoComparison(loaded,cleanSurfaces:model.cleanSurfaces)
+                print("REPLAY_QA_OK: oak asset, clean surroundings, raw restoration, camera round trips, photo capture, saved route heights, orbit limits, camera reset, clean markers, bundled models, calibrated photos, frustum and first-person comparison")
             }
         } catch {record=nil;self.error=error.localizedDescription;print("REPLAY_QA_FAILED: \(error.localizedDescription)")}
+    }
+    private func verifyPhotoProjection(_ photo: ScanPhoto) throws {
+        let pose=ReplayPhotoCamera(photo),p=photo.projection!.upright
+        let camera=SCNNode();camera.camera=SCNCamera();camera.simdTransform=pose.transform
+        camera.camera?.projectionTransform=SCNMatrix4(pose.projection)
+        let scene=SCNScene();scene.rootNode.addChildNode(camera)
+        let view=SCNView(frame:CGRect(x:0,y:0,width:CGFloat(photo.pixelWidth)/2,height:CGFloat(photo.pixelHeight)/2))
+        view.scene=scene;view.pointOfView=camera
+        let expected: [(Float,Float)]=[(0,0),(1,0),(1,1),(0,1)]
+        for (i,corner) in pose.corners(distance:2).enumerated() {
+            let projected=view.projectPoint(camera.convertPosition(corner,to:nil))
+            guard abs(projected.x/Float(view.bounds.width)-expected[i].0)<0.001,
+                  abs(projected.y/Float(view.bounds.height)-expected[i].1)<0.001 else {
+                throw LabError.invalid("사진 화각 모서리 재투영 검증 실패: \(i) \(projected)")
+            }
+        }
+        let center=view.projectPoint(camera.convertPosition(SCNVector3(0,0,-2),to:nil))
+        guard abs(center.x/Float(view.bounds.width)-Float(p.cx))<0.001,
+              abs(center.y/Float(view.bounds.height)-Float(p.cy))<0.001,
+              simd_length(SIMD3(camera.simdTransform.columns.3.x,camera.simdTransform.columns.3.y,camera.simdTransform.columns.3.z)-SIMD3(Float(photo.position.x),Float(photo.position.y),Float(photo.position.z)))<0.0001 else {
+            throw LabError.invalid("사진 광학 중심·위치 재투영 검증 실패")
+        }
+    }
+    private func verifyPhotoComparison(_ scan: LoadedScan,cleanSurfaces: [ReplaySurfaceMesh]) throws {
+        guard let photo=scan.manifest.photos.first else {throw LabError.invalid("사진 검증 자료 누락")}
+        let controller=ReplaySceneController(scan:scan,cleanSurfaces:cleanSurfaces)
+        let view=SCNView(frame:CGRect(x:0,y:0,width:360,height:202.5));view.scene=controller.scene;controller.view=view
+        controller.update(display:.clean,wireframe:false,showPhotos:true,selection:.photo(photo.id),cameraMode:.overview,revision:0)
+        guard controller.cleanPerson.childNode(withName:"ReplayPerson",recursively:true)?.geometry != nil,
+              controller.photos.childNodes.contains(where:{$0.childNode(withName:"projector-asset",recursively:true) != nil}),
+              controller.scene.rootNode.childNode(withName:"photo-direction",recursively:false)?.childNodes.count==9 else {
+            throw LabError.invalid("실제 인물·영사기·촬영 범위 표시 검증 실패")
+        }
+        let overview=controller.camera.simdTransform
+        for display in ReplayDisplay.allCases {
+            controller.update(display:display,wireframe:false,showPhotos:true,selection:.photo(photo.id),cameraMode:.overview,revision:1,photoViewpoint:photo)
+            let expected=ReplayPhotoCamera(photo).transform
+            guard (0..<4).allSatisfy({simd_length(controller.camera.simdTransform[$0]-expected[$0])<0.0001}),
+                  !view.allowsCameraControl,controller.photos.isHidden,controller.person.isHidden,
+                  controller.routeNodes.isHidden,controller.cleanRouteNodes.isHidden else {
+                throw LabError.invalid("촬영 시점의 원본·정리 화면 전환 검증 실패")
+            }
+            view.frame.size=CGSize(width:640,height:360);controller.reframe()
+            guard (0..<4).allSatisfy({simd_length(controller.camera.simdTransform[$0]-expected[$0])<0.0001}) else {
+                throw LabError.invalid("사진 시점 레이아웃 변경 검증 실패")
+            }
+        }
+        view.frame.size=CGSize(width:360,height:202.5)
+        controller.update(display:.clean,wireframe:false,showPhotos:false,selection:.point(0),cameraMode:.overview,revision:2)
+        guard view.allowsCameraControl,controller.photoViewpoint==nil,
+              (0..<4).allSatisfy({simd_length(controller.camera.simdTransform[$0]-overview[$0])<0.0001}) else {
+            throw LabError.invalid("사진 시점에서 전체 구도 복귀 검증 실패")
+        }
+        let parent=SavedStagePreviewModel(scan:scan,store:store,cleanSurfaces:cleanSurfaces,display:.clean)
+        parent.setCamera(.overhead)
+        let revision=parent.cameraRevision
+        let comparison=SavedStagePreviewModel(scan:scan,store:store,cleanSurfaces:cleanSurfaces,display:parent.display)
+        comparison.setCamera(.overview);comparison.display = .scan
+        guard parent.cameraMode == .overhead,parent.cameraRevision==revision,parent.display == .clean else {
+            throw LabError.invalid("비교 화면의 기본 카메라 상태 격리 검증 실패")
+        }
     }
     /// Real SceneKit regression: every preset round trip restores both orientation and position.
     private func verifyCameraPresets(_ scan: LoadedScan,cleanSurfaces: [ReplaySurfaceMesh]) throws {

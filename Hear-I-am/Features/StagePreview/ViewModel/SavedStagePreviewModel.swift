@@ -32,6 +32,10 @@ final class SavedStagePreviewModel: ObservableObject {
         }
         catch {self.error=error.localizedDescription}
     }
+    /// Comparison owns its camera/display state, so closing it never moves the main overview.
+    init(scan: LoadedScan, store: ScanStore, cleanSurfaces: [ReplaySurfaceMesh], display: ReplayDisplay) {
+        self.record=scan.manifest;self.store=store;self.loaded=scan;self.cleanSurfaces=cleanSurfaces;self.display=display
+    }
     func setCamera(_ mode: ReplayCamera) {cameraMode=mode;cameraRevision+=1}
     var photoPinsVisible: Bool {
         get {display == .clean ? showCleanPhotoPins : showPhotoPins}

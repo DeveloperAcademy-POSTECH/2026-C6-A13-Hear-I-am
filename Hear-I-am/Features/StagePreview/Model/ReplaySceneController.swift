@@ -26,6 +26,8 @@ final class ReplaySceneController: NSObject {
     var revision = -1
     var lastMode: ReplayCamera = .overview
     var lastDisplay: ReplayDisplay = .scan
+    private(set) var photoViewpoint: ScanPhoto?
+    let hazards=SCNNode()
     weak var view: SCNView?
     init(scan: LoadedScan, cleanSurfaces: [ReplaySurfaceMesh]) {
         self.scan=scan;self.cleanSurfaces=cleanSurfaces; super.init()
@@ -47,6 +49,7 @@ final class ReplaySceneController: NSObject {
         key.light?.shadowColor=UIColor(white:0,alpha:0.16)
         key.light?.shadowRadius=4;key.light?.shadowSampleCount=8
         scene.rootNode.addChildNode(key)
+        scene.rootNode.addChildNode(hazards)
         buildStage()
         buildPhotos()
         let p=scan.manifest.checkpoint
@@ -89,7 +92,7 @@ final class ReplaySceneController: NSObject {
             }
             selectable(outline,.object(object.id));scanAnnotations.addChildNode(outline)
         }
-        for zone in route.dangerZones {scene.rootNode.addChildNode(StageDangerZoneOverlay.node(zone,in:area))}
+        for zone in route.dangerZones {hazards.addChildNode(StageDangerZoneOverlay.node(zone,in:area))}
         for (index,p) in route.points.enumerated() {
             let height=routeHeight(index)
             let node=ReplayModelFactory.part(SCNSphere(radius:0.09),SCNVector3(p.x,height+0.08,-p.y),color:ReplayModelFactory.green)
@@ -147,11 +150,12 @@ final class ReplaySceneController: NSObject {
     }
     func buildPhotos() {
         for (index,photo) in scan.manifest.photos.enumerated() {
+            let node=ReplayModelFactory.projector()
+            node.simdTransform=ReplayPhotoCamera(photo).transform
+            selectable(node,.photo(photo.id));photos.addChildNode(node)
             let p=photo.position
-            let node=ReplayModelFactory.part(SCNSphere(radius:0.075),.init(p.x,p.y,p.z),color:.systemBlue)
-            selectable(node,.photo(photo.id)); photos.addChildNode(node)
-            let label=ReplayModelFactory.label("사진 \(index+1)",at:.init(p.x,p.y+0.12,p.z),color:.systemBlue)
-            selectable(label,.photo(photo.id)); photos.addChildNode(label)
+            let label=ReplayModelFactory.caption("사진 \(index+1)",at:.init(p.x,p.y+0.28,p.z))
+            selectable(label,.photo(photo.id));photos.addChildNode(label)
         }
     }
     func movePerson(to index: Int) {
@@ -168,7 +172,10 @@ final class ReplaySceneController: NSObject {
         let dz=index==route.points.count-1 ? -(p.y-previous.y) : -(next.y-p.y)
         if hypot(dx,dz)>0.001 {person.eulerAngles.y=Float(atan2(dx,dz))}
     }
-    func update(display: ReplayDisplay, wireframe: Bool, showPhotos: Bool, selection: ReplaySelection?, cameraMode: ReplayCamera, revision: Int) {
+    func update(display: ReplayDisplay, wireframe: Bool, showPhotos: Bool, selection: ReplaySelection?, cameraMode: ReplayCamera, revision: Int, photoViewpoint: ScanPhoto? = nil) {
+        let viewpointChanged=self.photoViewpoint?.id != photoViewpoint?.id
+        self.photoViewpoint=photoViewpoint
+        let firstPerson=photoViewpoint != nil
         let displayChanged=lastDisplay != display
         lastMode=cameraMode;lastDisplay=display
         let raw=display == .scan || scan.manifest.route == nil
@@ -193,7 +200,7 @@ final class ReplaySceneController: NSObject {
         key.light?.castsShadow = !raw
         view?.backgroundColor=raw ? UIColor(white:0.10,alpha:1) : ReplaySurfaceFactory.background
         routeNodes.enumerateChildNodes {node,_ in node.geometry?.firstMaterial?.diffuse.contents=UIColor.systemGreen}
-        photos.isHidden = !showPhotos
+        photos.isHidden = !showPhotos || firstPerson
         for node in mesh.childNodes {node.geometry?.firstMaterial?.fillMode=wireframe ? .lines : .fill}
         selectionOverlay.childNodes.forEach {$0.removeFromParentNode()}
         scene.rootNode.childNodes.filter {$0.name=="photo-direction"}.forEach {$0.removeFromParentNode()}
@@ -220,18 +227,43 @@ final class ReplaySceneController: NSObject {
                 }
             case .photo(let id):
                 if showPhotos, let photo=scan.manifest.photos.first(where:{$0.id==id}) {
-                    let p=photo.position, f=photo.forward
-                    let node=ReplayModelFactory.line(.init(p.x,p.y,p.z),.init(p.x+f.x,p.y+f.y,p.z+f.z),color:.systemBlue,radius:0.03)
-                    node.name="photo-direction"; scene.rootNode.addChildNode(node)
+                    let node=ReplayPhotoCamera(photo).frustum()
+                    node.name="photo-direction";node.isHidden=firstPerson
+                    scene.rootNode.addChildNode(node)
                 }
             }
         }
-        guard self.revision != revision || displayChanged else {return}
+        if firstPerson {
+            person.isHidden=true;scanAnnotations.isHidden=true;routeNodes.isHidden=true
+            cleanAnnotations.isHidden=true;cleanRouteNodes.isHidden=true;selectionOverlay.isHidden=true;hazards.isHidden=true
+        } else {
+            person.isHidden=scan.manifest.route?.points.isEmpty ?? true
+            selectionOverlay.isHidden=false;hazards.isHidden=false
+        }
+        guard self.revision != revision || displayChanged || viewpointChanged else {return}
         self.revision=revision
-        frame(cameraMode)
+        reframe()
+    }
+    func reframe() {
+        if let photo=photoViewpoint {framePhoto(photo)} else {frame(lastMode)}
+    }
+    private func framePhoto(_ photo: ScanPhoto) {
+        guard let view else {return}
+        view.defaultCameraController.stopInertia();view.allowsCameraControl=false
+        let pose=ReplayPhotoCamera(photo)
+        SCNTransaction.begin();SCNTransaction.disableActions=true
+        camera.camera=SCNCamera();camera.camera?.zNear=0.02;camera.camera?.zFar=2000
+        camera.camera?.projectionTransform=SCNMatrix4(pose.projection)
+        camera.simdTransform=pose.transform
+        view.pointOfView=camera
+        SCNTransaction.commit()
     }
     func frame(_ mode: ReplayCamera) {
         guard let view else {return}
+        // A fresh camera clears any off-centre projection used for a saved photo.
+        camera.camera=SCNCamera();camera.camera?.zNear=0.02;camera.camera?.zFar=2000
+        camera.camera?.fieldOfView=55;camera.camera?.projectionDirection = .vertical
+        view.allowsCameraControl=true
         var points=[SCNVector3]()
         if mode == .overview || scan.manifest.route == nil {
             // Both overviews include the surrounding scan, not only the registered stage.
@@ -312,7 +344,7 @@ final class ReplaySceneController: NSObject {
         view.pointOfView=camera
     }
     @objc func tapped(_ recognizer: UITapGestureRecognizer) {
-        guard let view else {return}
+        guard photoViewpoint == nil,let view else {return}
         for hit in view.hitTest(recognizer.location(in:view),options:[.ignoreHiddenNodes:true]) {
             var node: SCNNode?=hit.node
             while let current=node {
@@ -320,5 +352,61 @@ final class ReplaySceneController: NSObject {
                 node=current.parent
             }
         }
+    }
+}
+
+/// The projector, frustum and first-person view deliberately use one camera convention.
+struct ReplayPhotoCamera {
+    let photo: ScanPhoto
+    init(_ photo: ScanPhoto) {self.photo=photo}
+    var transform: simd_float4x4 {
+        let a=photo.cameraTransform
+        let sensor=simd_float4x4(columns:(SIMD4(a[0],a[1],a[2],a[3]),SIMD4(a[4],a[5],a[6],a[7]),
+            SIMD4(a[8],a[9],a[10],a[11]),SIMD4(a[12],a[13],a[14],a[15])))
+        let turns: Int
+        if let projection=photo.projection {turns=projection.clockwiseQuarterTurns}
+        else {
+            // Legacy saves lack display rotation. Choose the upright orientation within the JPEG aspect.
+            let candidates=photo.pixelHeight>photo.pixelWidth ? [1,3] : [0,2]
+            turns=candidates.max {l,r in
+                let lm=sensor*simd_float4x4(simd_quatf(angle:Float(l)*Float.pi/2,axis:SIMD3(0,0,1)))
+                let rm=sensor*simd_float4x4(simd_quatf(angle:Float(r)*Float.pi/2,axis:SIMD3(0,0,1)))
+                return lm.columns.1.y<rm.columns.1.y
+            } ?? 0
+        }
+        return sensor*simd_float4x4(simd_quatf(angle:Float(turns)*Float.pi/2,axis:SIMD3(0,0,1)))
+    }
+    var intrinsics: (fx: Double,fy: Double,cx: Double,cy: Double) {
+        if let calibrated=photo.projection {return calibrated.upright}
+        let fy=1/(2*tan(55*Double.pi/360)),aspect=Double(photo.pixelWidth)/Double(photo.pixelHeight)
+        return (fy/aspect,fy,0.5,0.5)
+    }
+    var projection: simd_float4x4 {
+        let p=intrinsics,n: Float=0.02,f: Float=2000
+        return simd_float4x4(columns:(SIMD4(Float(2*p.fx),0,0,0),SIMD4(0,Float(2*p.fy),0,0),
+            SIMD4(Float(1-2*p.cx),Float(2*p.cy-1),-(f+n)/(f-n),-1),SIMD4(0,0,-2*f*n/(f-n),0)))
+    }
+    func corners(distance: Double) -> [SCNVector3] {
+        let p=intrinsics
+        return [(0.0,0.0),(1.0,0.0),(1.0,1.0),(0.0,1.0)].map {x,y in
+            SCNVector3((x-p.cx)/p.fx*distance,(p.cy-y)/p.fy*distance,-distance)
+        }
+    }
+    @MainActor func frustum() -> SCNNode {
+        let root=SCNNode();root.simdTransform=transform
+        let corners=corners(distance:0.85),color=ReplayModelFactory.cobalt
+        for i in corners.indices {
+            for endpoints in [(SCNVector3Zero,corners[i]),(corners[i],corners[(i+1)%4])] {
+                let line=ReplayModelFactory.line(endpoints.0,endpoints.1,color:color.withAlphaComponent(0.8),radius:0.006)
+                line.geometry?.firstMaterial?.lightingModel = .constant
+                root.addChildNode(line)
+            }
+        }
+        let source=SCNGeometrySource(vertices:corners)
+        let geometry=SCNGeometry(sources:[source],elements:[SCNGeometryElement(indices:[Int32(0),1,2,0,2,3],primitiveType:.triangles)])
+        let material=ReplayModelFactory.material(color.withAlphaComponent(0.10))
+        material.isDoubleSided=true;material.writesToDepthBuffer=false;material.lightingModel = .constant
+        geometry.firstMaterial=material;root.addChildNode(SCNNode(geometry:geometry))
+        return root
     }
 }

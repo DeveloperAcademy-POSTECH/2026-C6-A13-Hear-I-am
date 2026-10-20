@@ -16,13 +16,14 @@ final class ReplaySCNView: SCNView {
 struct SavedMeshView: UIViewRepresentable {
     let scan: LoadedScan
     @ObservedObject var model: SavedStagePreviewModel
+    var photoViewpoint: ScanPhoto? = nil
     func makeCoordinator() -> ReplaySceneController { ReplaySceneController(scan:scan,cleanSurfaces:model.cleanSurfaces) }
     func makeUIView(context: Context) -> SCNView {
         let view=ReplaySCNView()
         let controller=context.coordinator
         view.onLayout={ [weak controller] in
             guard let controller else {return}
-            controller.frame(controller.lastMode)
+            controller.reframe()
         }
         controller.view=view; view.scene=controller.scene; view.pointOfView=controller.camera
         view.backgroundColor=UIColor(white:0.96,alpha:1)
@@ -35,6 +36,6 @@ struct SavedMeshView: UIViewRepresentable {
     func updateUIView(_ view: SCNView, context: Context) {
         context.coordinator.onSelect={model.select($0)}
         context.coordinator.update(display:model.display,wireframe:model.wireframe,showPhotos:model.photoPinsVisible,
-                                   selection:model.selection,cameraMode:model.cameraMode,revision:model.cameraRevision)
+                                   selection:model.selection,cameraMode:model.cameraMode,revision:model.cameraRevision,photoViewpoint:photoViewpoint)
     }
 }

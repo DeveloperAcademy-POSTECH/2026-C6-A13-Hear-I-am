@@ -7,6 +7,7 @@ struct SavedStagePreview: View {
         let model=SavedStagePreviewModel(record:record,store:store)
         model.cameraMode=camera;model.display=display;model.selection=selection
         model.photoCardCollapsed=display == .clean
+        if case .photo=selection {model.photoPinsVisible=true;model.photoCardCollapsed=false}
         _model=StateObject(wrappedValue:model)
     }
     var body: some View {
@@ -24,7 +25,7 @@ struct SavedStagePreview: View {
                                 VStack(alignment:.leading,spacing:4) {
                                     HStack {
                                         Button {model.photoExpanded=true} label:{
-                                            Label("스캔 당시 사진",systemImage:"arrow.up.left.and.arrow.down.right").font(.caption.bold())
+                                            Label("사진 시점 보기",systemImage:"viewfinder").font(.caption.bold())
                                         }.buttonStyle(.plain)
                                         Button {model.photoCardCollapsed.toggle()} label:{
                                             Image(systemName:model.photoCardCollapsed ? "chevron.up" : "chevron.down").font(.caption)
@@ -69,20 +70,6 @@ struct SavedStagePreview: View {
                             if !route.obstacles.isEmpty {
                                 ScrollView(.horizontal) {HStack {ForEach(route.obstacles) {o in selectionButton(o.name,.object(o.id))}}}
                             }
-                            VStack(alignment:.leading,spacing:8) {
-                                Text(model.selectionTitle).font(.headline)
-                                if let object=model.selectedObject {
-                                    let p=ObjectPlacement(object)
-                                    Text("표시: \(object.kind == .platform ? "의자 영역" : object.kind == .stairs ? "계단 영역" : p.appearance.model.title)")
-                                    Text(p.measuredHeight ? String(format:"측정 높이 %.2f m",p.height) : "높이 미측정 · 표시용 기본 높이")
-                                    if object.kind == .stairs {Text("계단의 단 수는 표시하지 않아요. 올라감·내려감 변 설정은 유지돼요.")}
-                                }
-                                Text(model.display == .scan
-                                     ? "스캔한 표면과 등록한 기물 영역이에요. 인물은 선택 지점의 위치와 방향을 보여줘요."
-                                     : "갈색 원목과 웜그레이로 정돈한 공간이에요. 재질은 보기용이며 실제 촬영 색상과 다를 수 있어요.")
-                                    .font(.caption).foregroundStyle(.secondary)
-                            }.padding(14).frame(maxWidth:.infinity,alignment:.leading)
-                                .background(Color(.systemGray6),in:RoundedRectangle(cornerRadius:16))
                             if !route.dangerZones.isEmpty {Text(StageDangerZone.summary(route.dangerZones)).font(.caption).foregroundStyle(.orange)}
                         } else {
                             Text("이 저장 공간에는 동선이 없어 스캔 표면을 표시해요.").font(.caption)
@@ -92,12 +79,12 @@ struct SavedStagePreview: View {
                             ScrollView(.horizontal) {
                                 LazyHStack {
                                     ForEach(scan.manifest.photos) {photo in
-                                        Button {model.select(.photo(photo.id))} label:{
+                                        Button {model.select(.photo(photo.id));model.photoExpanded=true} label:{
                                             SavedPhotoImage(store:model.store,scanID:scan.manifest.id,photo:photo)
                                                 .frame(width:110,height:76).background(Color(.systemGray6))
                                                 .clipShape(RoundedRectangle(cornerRadius:10))
                                                 .overlay(RoundedRectangle(cornerRadius:10).stroke(model.selectedPhoto?.id==photo.id ? Color.hearGreen : .clear,lineWidth:3))
-                                        }.buttonStyle(.plain).accessibilityLabel("사진 \(scan.manifest.photos.firstIndex(of:photo).map {$0+1} ?? 1) 선택")
+                                        }.buttonStyle(.plain).accessibilityLabel("사진 \(scan.manifest.photos.firstIndex(of:photo).map {$0+1} ?? 1) 촬영 시점 보기")
                                     }
                                 }.padding(3)
                             }
@@ -114,20 +101,24 @@ struct SavedStagePreview: View {
                 }.padding(16)
             }
         }.navigationTitle(model.record.name).navigationBarTitleDisplayMode(.inline)
-            .task {await model.load()}
+            .task {
+                await model.load()
+                #if DEBUG
+                if ProcessInfo.processInfo.arguments.contains("--replay-comparison"),let photo=model.loaded?.manifest.photos.first {
+                    model.select(.photo(photo.id));model.photoExpanded=true
+                }
+                #endif
+            }
             .onChange(of:model.display) { _,display in
                 if display == .clean {model.photoCardCollapsed=true}
             }
             .sheet(isPresented:$model.photoExpanded) {
-                NavigationStack {
-                    if let photo=model.selectedPhoto {
-                        SavedPhotoImage(store:model.store,scanID:model.record.id,photo:photo,thumbnail:false)
-                            .padding().navigationTitle("스캔 당시 사진").navigationBarTitleDisplayMode(.inline)
-                            .toolbar {ToolbarItem(placement:.confirmationAction) {Button("닫기") {model.photoExpanded=false}}}
-                    }
+                if let scan=model.loaded,let photo=model.selectedPhoto {
+                    SavedPhotoViewpoint(scan:scan,photo:photo,store:model.store,cleanSurfaces:model.cleanSurfaces,display:model.display)
                 }
             }
     }
+
     private func selectionButton(_ text: String,_ value: ReplaySelection) -> some View {
         Button {model.select(value)} label:{
             Text(text).font(.subheadline).padding(.horizontal,14).padding(.vertical,10)
