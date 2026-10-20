@@ -2,7 +2,8 @@ import HearIAmCore
 
 /// 안내 중 · 일시정지: signals along the saved route.
 /// Direction is the earbud tick of #44: silent while facing the next target within ±n°, 「왼쪽」 or 「오른쪽」
-/// once when turned away, then ticks that quicken toward it. Speech otherwise only for steps 1 m ahead and
+/// once when turned away, then ticks that quicken toward it, and one 「삐」 when they stop because the body
+/// faces it. Speech otherwise only for steps 1 m ahead and
 /// the remaining distance at a few marks (#46). The earbud also gives the obstacle warning and the arrival ding.
 extension GuidanceViewModel {
     /// About as long as the ding rings; the distance call-out waits this long after an arrival.
@@ -59,15 +60,21 @@ extension GuidanceViewModel {
         let quiet=quietUntil.map { pose.time < $0 } ?? false
         if !quiet { quietUntil=nil }
         // Direction (#44): silent within ±n° of the target; outside it 「왼쪽」 or 「오른쪽」 once, then ticks
-        // that quicken as the body turns toward it.
+        // that quicken as the body turns toward it. The moment the ticks stop because the body faces the
+        // target, one 「삐」 (the front beep of #33) says so (decided 10/20).
+        let wasTicking=directionTicks.activeSide != nil
         if let cue=directionTicks.update(time:pose.time,bearing:bearing) {
             if let word=cue.spokenWord {
                 voice.direction(word)
                 logSignal("signal_direction_word",String(format:"%@ bearing %+.0f°",word,bearing))
             }
             if cue.shouldTick { signals.play(.directionTick(toRight:cue.toRight)) }
-        } else {
-            signals.stopDirection()
+        } else if wasTicking {
+            if directionTicks.isAligned {
+                // Replaces any tick still sounding on the direction node.
+                signals.play(.direction(signedDegrees:0))
+                logSignal("signal_aligned",String(format:"bearing %+.0f°",bearing))
+            } else { signals.stopDirection() }
         }
         let warning=warnings.update(position:pose.point,headingDegrees:pose.heading,obstacles:guide.route.obstacles)
         if warning?.level != signals.warning {

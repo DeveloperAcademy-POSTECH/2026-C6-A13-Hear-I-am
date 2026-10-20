@@ -148,6 +148,21 @@ final class SignalRuleTests: XCTestCase {
         XCTAssertNil(gate.update(time:0.2,bearing:.nan))
     }
 
+    /// 10/20: after facing the target, ticking restarts only 3° past the deadband, so sway at ±12° stays quiet.
+    func testDirectionTicksRestartOnlyPastTheReleaseMargin() throws {
+        var gate=DirectionTickGate(deadbandDegrees:12)
+        _=try XCTUnwrap(gate.update(time:0,bearing:40))
+        XCTAssertNil(gate.update(time:0.1,bearing:10))
+        XCTAssertTrue(gate.isAligned)
+        XCTAssertNil(gate.update(time:0.2,bearing:14.9))
+        XCTAssertNil(gate.update(time:0.3,bearing:-15))
+        let again=try XCTUnwrap(gate.update(time:0.4,bearing:15.1))
+        XCTAssertEqual(again.spokenWord,"오른쪽");XCTAssertFalse(gate.isAligned)
+        // A new target starts from the deadband alone.
+        gate.reset()
+        XCTAssertNotNil(gate.update(time:0.5,bearing:13))
+    }
+
     // MARK: step
     func testStepUpOnceWithinOneMetreAndStepDownWhenLeaving() throws {
         let platform=try square(5,0,size:2,kind:.platform,name:"단상")
