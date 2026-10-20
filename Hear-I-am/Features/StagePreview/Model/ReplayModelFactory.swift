@@ -5,8 +5,9 @@ import HearIAmCore
 /// All replaceable visuals use metres, floor origin and +Z as the facing direction.
 /// Replace this factory with asset loading later; placement/selection nodes stay unchanged.
 enum ReplayModelFactory {
-    static let green=UIColor(red:0.08,green:0.39,blue:0.29,alpha:1)
-    static let gray=UIColor(white:0.55,alpha:1)
+    static let green=UIColor(red:0.06,green:0.52,blue:0.32,alpha:1)
+    static let gray=UIColor(red:0.831,green:0.812,blue:0.780,alpha:1) // #D4CFC7
+    static let metal=UIColor(red:0.259,green:0.271,blue:0.251,alpha:1)
     static func material(_ color: UIColor) -> SCNMaterial {
         let m=SCNMaterial(); m.diffuse.contents=color; m.roughness.contents=0.85
         m.lightingModel = .physicallyBased
@@ -31,7 +32,7 @@ enum ReplayModelFactory {
             }
             path.close()
             let shape=SCNShape(path:path,extrusionDepth:h)
-            let node=part(shape,SCNVector3Zero,color:object.kind == .stairs ? .systemGray3 : .systemGray4)
+            let node=part(shape,SCNVector3Zero,color:gray)
             // SCNShape extrudes equally on both sides; lift its centre onto the floor.
             node.position.y=Float(h/2)
             node.eulerAngles.x = -.pi/2; root.addChildNode(node)
@@ -44,16 +45,16 @@ enum ReplayModelFactory {
                 visual.addChildNode(box(w,h*0.08,d,0,h*0.48,0))
                 visual.addChildNode(box(w,h*0.45,d*0.08,0,h*0.77,-d*0.45))
                 for x in [-w*0.4,w*0.4] {for z in [-d*0.4,d*0.4] {
-                    visual.addChildNode(box(w*0.08,h*0.46,d*0.08,x,h*0.23,z))
+                    visual.addChildNode(box(w*0.08,h*0.46,d*0.08,x,h*0.23,z,color:metal))
                 }}
             case .table:
                 visual.addChildNode(box(w,h*0.08,d,0,h*0.96,0))
                 for x in [-w*0.4,w*0.4] {for z in [-d*0.4,d*0.4] {
-                    visual.addChildNode(box(w*0.07,h*0.92,d*0.07,x,h*0.46,z))
+                    visual.addChildNode(box(w*0.07,h*0.92,d*0.07,x,h*0.46,z,color:metal))
                 }}
             case .musicStand, .microphone:
-                visual.addChildNode(box(w,h*0.025,d,0,h*0.0125,0))
-                visual.addChildNode(part(SCNCylinder(radius:min(w,d)*0.045,height:h*0.8),SCNVector3(0,h*0.4,0)))
+                visual.addChildNode(box(w,h*0.025,d,0,h*0.0125,0,color:metal))
+                visual.addChildNode(part(SCNCylinder(radius:min(w,d)*0.045,height:h*0.8),SCNVector3(0,h*0.4,0),color:metal))
                 if placement.appearance.model == .musicStand {
                     visual.addChildNode(box(w,h*0.28,d*0.12,0,h*0.86,0))
                 } else {
@@ -61,7 +62,7 @@ enum ReplayModelFactory {
                 }
             case .speaker:
                 visual.addChildNode(box(w,h,d,0,h/2,0))
-                visual.addChildNode(box(w*0.82,h*0.82,d*0.02,0,h/2,d*0.51,color:.darkGray))
+                visual.addChildNode(box(w*0.82,h*0.82,d*0.02,0,h/2,d*0.51,color:metal))
             case .monitor:
                 let node=box(w,h*0.7,d*0.8,0,h*0.5,0)
                 node.eulerAngles.x = -.pi/8; visual.addChildNode(node)

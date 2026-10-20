@@ -16,7 +16,7 @@ final class ReplaySCNView: SCNView {
 struct SavedMeshView: UIViewRepresentable {
     let scan: LoadedScan
     @ObservedObject var model: SavedStagePreviewModel
-    func makeCoordinator() -> ReplaySceneController { ReplaySceneController(scan:scan) }
+    func makeCoordinator() -> ReplaySceneController { ReplaySceneController(scan:scan,cleanSurfaces:model.cleanSurfaces) }
     func makeUIView(context: Context) -> SCNView {
         let view=ReplaySCNView()
         let controller=context.coordinator

@@ -36,6 +36,7 @@
 		3C78D4DE73CA2E1CA3C75EBD /* HearRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DE973F4CB37BC17C43B684D /* HearRootView.swift */; };
 		3E8F05B4CB93029E6189D535 /* SavedMeshView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8AE4B38D0E603747BD5F10EA /* SavedMeshView.swift */; };
 		422D1B4FD7D59FCFBC55C91C /* GuidanceRecordsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B362518768849AEF2F09E2AB /* GuidanceRecordsView.swift */; };
+		42BEB49F3784E96653838089 /* ReplaySurfaceFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82E4D4763B0EC54A3B3CAD63 /* ReplaySurfaceFactory.swift */; };
 		4451219074A9A9D113B917C9 /* ARSceneRenderer+Annotations.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A58401EF94927E4742BAE1 /* ARSceneRenderer+Annotations.swift */; };
 		469E892127068FC08950C026 /* PlanLibraryViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E98A678EB5F1C7FF30AC8C49 /* PlanLibraryViewModel.swift */; };
 		4B287BC4BC9B2E40D114302B /* PreparationViewModel+Boundary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04808370633741391779B48B /* PreparationViewModel+Boundary.swift */; };
@@ -178,6 +179,7 @@
 		7CCEAAA341C35912CFF2B73B /* SoundTestViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoundTestViewModel.swift; sourceTree = "<group>"; };
 		7F6B1C19B0D60E8E8EB44AA5 /* SignalPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignalPlayer.swift; sourceTree = "<group>"; };
 		8142CDE35A01BAD95188EAE6 /* HomeActionCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeActionCard.swift; sourceTree = "<group>"; };
+		82E4D4763B0EC54A3B3CAD63 /* ReplaySurfaceFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReplaySurfaceFactory.swift; sourceTree = "<group>"; };
 		84454DF442867536AF635936 /* ARSessionController+Lifecycle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ARSessionController+Lifecycle.swift"; sourceTree = "<group>"; };
 		84FD5AFC85C7DB8F30B0D596 /* GuidanceViewModel+Interruption.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GuidanceViewModel+Interruption.swift"; sourceTree = "<group>"; };
 		854F7E3558CF686ECDA6A077 /* BrandMark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrandMark.swift; sourceTree = "<group>"; };
@@ -280,6 +282,7 @@
 			children = (
 				6A386723CB3162352D0F1847 /* ReplayModelFactory.swift */,
 				00306065193FCDAA6A9EF1BC /* ReplaySceneController.swift */,
+				82E4D4763B0EC54A3B3CAD63 /* ReplaySurfaceFactory.swift */,
 			);
 			path = Model;
 			sourceTree = "<group>";
@@ -971,6 +974,7 @@
 				4D8CDD9238FE3E0573F34080 /* PreparationViewModel.swift in Sources */,
 				0AA1B769BB98876C0C594903 /* ReplayModelFactory.swift in Sources */,
 				E800DE00262C19BDBAB1EC6F /* ReplaySceneController.swift in Sources */,
+				42BEB49F3784E96653838089 /* ReplaySurfaceFactory.swift in Sources */,
 				3E8F05B4CB93029E6189D535 /* SavedMeshView.swift in Sources */,
 				DA44470139ED6DFC8ED2B9DD /* SavedPhotoImage.swift in Sources */,
 				D9D0A74C0159862B2C3D7C18 /* SavedStagePreview.swift in Sources */,

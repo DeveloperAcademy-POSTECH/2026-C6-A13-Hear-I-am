@@ -17,6 +17,7 @@ struct StageReplayPreviewHarness: View {
             if let record {
                 let args=ProcessInfo.processInfo.arguments
                 SavedStagePreview(record:record,store:store,camera:args.contains("--replay-top") ? .overhead : .overview,
+                                  display:args.contains("--replay-clean") ? .clean : .scan,
                                   selection:args.contains("--replay-object") ? .object(chairID) : args.contains("--replay-photo") ? record.photos.first.map {.photo($0.id)} : .point(0))
             } else if let error {Text(error)}
             else {ProgressView().task {await makeFixture()}}
@@ -66,7 +67,11 @@ struct StageReplayPreviewHarness: View {
                                        checkpoint:area.world(.init(5,2)),worldMap:Data([1]),
                                        meshes:[MeshSnapshot(id:UUID(),transform:[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1],vertices:[.init(-1,0.5,5),.init(10,0.5,5),.init(10,0.5,-3),.init(-1,0.5,-3),
                                                  .init(-1,3.5,-3),.init(10,3.5,-3),.init(-1,3.5,5)],
-                                       indices:[0,1,2,0,2,3,3,2,5,3,5,4,0,3,4,0,4,6])],
+                                       indices:[0,1,2,0,2,3,3,2,5,3,5,4,0,3,4,0,4,6]),
+                                               boxMesh(center:.init(4.5,0.75,-2.3),size:.init(6,0.5,0.9)),
+                                               boxMesh(center:.init(4.5,1.25,-2.65),size:.init(6,0.6,0.2)),
+                                               boxMesh(center:.init(-0.35,0.75,0),size:.init(0.9,0.5,5)),
+                                               boxMesh(center:.init(-0.7,1.25,0),size:.init(0.2,0.6,5))],
                                        device:"Simulator fixture",appVersion:"QA",route:route,
                                        photos:[source])
             withExtendedLifetime(worker) {}
@@ -88,13 +93,13 @@ struct StageReplayPreviewHarness: View {
                 guard ReplayCamera.allCases.count==2,model.display == .scan,let loaded=model.loaded else {
                     throw LabError.invalid("기본 보기·카메라 옵션 검증 실패")
                 }
-                try verifyCameraPresets(loaded)
+                try verifyCameraPresets(loaded,cleanSurfaces:model.cleanSurfaces)
             }
         } catch {record=nil;self.error=error.localizedDescription}
     }
     /// Real SceneKit regression: every preset round trip restores both orientation and position.
-    private func verifyCameraPresets(_ scan: LoadedScan) throws {
-        let scene=ReplaySceneController(scan:scan)
+    private func verifyCameraPresets(_ scan: LoadedScan,cleanSurfaces: [ReplaySurfaceMesh]) throws {
+        let scene=ReplaySceneController(scan:scan,cleanSurfaces:cleanSurfaces)
         let view=SCNView(frame:CGRect(x:0,y:0,width:390,height:420))
         view.scene=scene.scene;scene.view=view
         view.allowsCameraControl=true
@@ -119,8 +124,8 @@ struct StageReplayPreviewHarness: View {
                 }
             }
             let raw=display == .scan
-            if raw {
-                // The raw overview must fit scanned walls/floor beyond the registered stage.
+            do {
+                // Both overviews must fit scanned walls/floor beyond the registered stage.
                 for mesh in scan.meshes {
                     for p in mesh.vertices {
                         let point=SCNVector3(p.x,p.y,p.z)
@@ -128,17 +133,41 @@ struct StageReplayPreviewHarness: View {
                         guard projected.x>=0,projected.x<=Float(view.bounds.width),
                               projected.y>=0,projected.y<=Float(view.bounds.height),
                               projected.z>=0,projected.z<=1 else {
-                            throw LabError.invalid("무대 밖 스캔 영역 카메라 맞춤 검증 실패")
+                            throw LabError.invalid("무대 밖 스캔 영역 카메라 맞춤 검증 실패: \(display)")
                         }
                     }
                 }
             }
-            guard scene.mesh.isHidden != raw,scene.objects.isHidden==raw,scene.scanAnnotations.isHidden != raw,
-                  view.backgroundColor==UIColor(white:raw ? 0.10 : 0.96,alpha:1) else {
+            guard scene.mesh.isHidden != raw,scene.objects.isHidden==raw,scene.surroundings.isHidden==raw,scene.scanAnnotations.isHidden==false,
+                  view.backgroundColor==(raw ? UIColor(white:0.10,alpha:1) : ReplaySurfaceFactory.background) else {
                 throw LabError.invalid("스캔·정리 화면 전환 검증 실패")
             }
         }
+        // Returning to raw must preserve both original vertex data and original gray material.
+        scene.update(display:.scan,wireframe:true,showPhotos:false,selection:nil,cameraMode:.overview,revision:revision)
+        guard scene.mesh.childNodes.allSatisfy({$0.geometry?.firstMaterial?.diffuse.contents as? UIColor == UIColor(white:0.72,alpha:1)}),
+              scene.mesh.childNodes.allSatisfy({$0.geometry?.firstMaterial?.fillMode == .lines}),
+              scene.surroundings.isHidden,scene.floor.isHidden,scene.objects.isHidden,
+              scene.key.light?.castsShadow==false,
+              scene.surroundings.childNodes.contains(where:{$0.name=="clean-oak-floor"}),
+              scene.surroundings.childNodes.contains(where:{$0.name=="clean-scan-surroundings"}),
+              UIImage(named:"ReplayOakFloor") != nil,
+              ReplaySurfaceFactory.wood.diffuse.contents is UIImage else {
+            throw LabError.invalid("원목 재질·주변 공간·원본 스캔 복원 검증 실패")
+        }
+        let floor=ReplaySurfaceFactory.stageFloor(scan.manifest.route!.area)
+        guard floor.geometry?.sources(for:.texcoord).first?.vectorCount==4,
+              abs(floor.boundingBox.max.y+0.002)<0.0001 else {
+            throw LabError.invalid("원목 바닥 좌표·겹침 방지 검증 실패")
+        }
+        print("REPLAY_QA_OK: oak asset, clean surroundings, raw restoration, camera round trips, photo capture")
     }
-
+    private func boxMesh(center: Point3,size: Point3) -> MeshSnapshot {
+        let x=center.x,y=center.y,z=center.z,w=size.x/2,h=size.y/2,d=size.z/2
+        return MeshSnapshot(id:UUID(),transform:[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1],
+                            vertices:[.init(x-w,y-h,z-d),.init(x+w,y-h,z-d),.init(x+w,y+h,z-d),.init(x-w,y+h,z-d),
+                                      .init(x-w,y-h,z+d),.init(x+w,y-h,z+d),.init(x+w,y+h,z+d),.init(x-w,y+h,z+d)],
+                            indices:[0,2,1,0,3,2,4,5,6,4,6,7,0,4,7,0,7,3,1,2,6,1,6,5,3,7,6,3,6,2,0,1,5,0,5,4])
+    }
 }
 #endif

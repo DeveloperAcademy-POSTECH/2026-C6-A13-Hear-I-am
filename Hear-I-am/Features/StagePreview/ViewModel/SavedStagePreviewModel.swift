@@ -4,6 +4,7 @@ import HearIAmCore
 @MainActor
 final class SavedStagePreviewModel: ObservableObject {
     @Published var loaded: LoadedScan?
+    private(set) var cleanSurfaces: [ReplaySurfaceMesh]=[]
     @Published var error: String?
     @Published var wireframe=false
     @Published var display: ReplayDisplay = .scan
@@ -19,7 +20,15 @@ final class SavedStagePreviewModel: ObservableObject {
     func load() async {
         guard loaded==nil else {return}
         error=nil
-        do {loaded=try await store.load(record.id);cameraRevision+=1}
+        do {
+            let scan=try await store.load(record.id)
+            // Transform/classify potentially large meshes away from the UI thread, once per load.
+            cleanSurfaces=await Task.detached(priority:.userInitiated) {
+                guard let route=scan.manifest.route else {return [ReplaySurfaceMesh]()}
+                return scan.meshes.map {ReplaySurfaceMesh(mesh:$0,route:route)}
+            }.value
+            loaded=scan;cameraRevision+=1
+        }
         catch {self.error=error.localizedDescription}
     }
     func setCamera(_ mode: ReplayCamera) {cameraMode=mode;cameraRevision+=1}

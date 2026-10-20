@@ -12,6 +12,10 @@ final class ReplaySceneController: NSObject {
     let camera=SCNNode()
     let mesh=SCNNode(), stage=SCNNode(), floor=SCNNode(), objects=SCNNode(), photos=SCNNode()
     let person=ReplayModelFactory.person()
+    let surroundings=SCNNode(), key=SCNNode(), ambient=SCNNode()
+    private let cleanSurfaces: [ReplaySurfaceMesh]
+    private var builtCleanSurfaces=false
+    private var scanBounds=(min:SCNVector3Zero,max:SCNVector3Zero)
     let selectionOverlay=SCNNode(), scanAnnotations=SCNNode(), routeNodes=SCNNode()
     let scan: LoadedScan
     var onSelect: ((ReplaySelection) -> Void)?
@@ -21,8 +25,8 @@ final class ReplaySceneController: NSObject {
     var lastMode: ReplayCamera = .overview
     var lastDisplay: ReplayDisplay = .scan
     weak var view: SCNView?
-    init(scan: LoadedScan) {
-        self.scan=scan; super.init()
+    init(scan: LoadedScan, cleanSurfaces: [ReplaySurfaceMesh]) {
+        self.scan=scan;self.cleanSurfaces=cleanSurfaces; super.init()
         scene.rootNode.addChildNode(mesh); scene.rootNode.addChildNode(stage)
         scene.rootNode.addChildNode(photos); scene.rootNode.addChildNode(camera)
         for part in scan.meshes {
@@ -30,12 +34,16 @@ final class ReplaySceneController: NSObject {
             node.geometry?.firstMaterial?.diffuse.contents=UIColor(white:0.72,alpha:1)
             mesh.addChildNode(node)
         }
+        // SceneKit reports zero bounds for a hidden node. Cache before switching modes.
+        scanBounds=mesh.boundingBox
         camera.camera=SCNCamera(); camera.camera?.zNear=0.02; camera.camera?.zFar=2000
         camera.camera?.fieldOfView=55;camera.camera?.projectionDirection = .vertical
-        let ambient=SCNNode(); ambient.light=SCNLight(); ambient.light?.type = .ambient
+        ambient.light=SCNLight(); ambient.light?.type = .ambient
         ambient.light?.intensity=650; scene.rootNode.addChildNode(ambient)
-        let key=SCNNode(); key.light=SCNLight(); key.light?.type = .directional
+        key.light=SCNLight(); key.light?.type = .directional
         key.light?.intensity=900; key.eulerAngles=SCNVector3(-0.8,-0.6,0)
+        key.light?.shadowColor=UIColor(white:0,alpha:0.16)
+        key.light?.shadowRadius=4;key.light?.shadowSampleCount=8
         scene.rootNode.addChildNode(key)
         buildStage()
         buildPhotos()
@@ -56,11 +64,12 @@ final class ReplaySceneController: NSObject {
         stage.position=SCNVector3(area.frontLeft.x,area.floorHeight,area.frontLeft.z)
         stage.eulerAngles.y=Float(atan2(-area.right.y,area.right.x))
         stage.addChildNode(floor); stage.addChildNode(objects); stage.addChildNode(routeNodes)
+        stage.addChildNode(surroundings)
         for i in area.corners.indices {
             let a=area.corners[i], b=area.corners[(i+1)%area.corners.count]
             scanAnnotations.addChildNode(ReplayModelFactory.line(.init(a.x,a.y+0.04,a.z),.init(b.x,b.y+0.04,b.z),color:.systemCyan))
         }
-        floor.addChildNode(ReplayModelFactory.box(area.width,0.035,area.depth,area.width/2,-0.035,-area.depth/2,color:UIColor(white:0.91,alpha:1)))
+        floor.addChildNode(ReplaySurfaceFactory.stageFloor(area))
         for object in route.obstacles {
             let node=ReplayModelFactory.object(object); objects.addChildNode(node); selectable(node,.object(object.id))
             let outline=SCNNode()
@@ -118,11 +127,21 @@ final class ReplaySceneController: NSObject {
         let displayChanged=lastDisplay != display
         lastMode=cameraMode;lastDisplay=display
         let raw=display == .scan || scan.manifest.route == nil
+        if !raw && !builtCleanSurfaces {
+            for part in cleanSurfaces {
+                for node in ReplaySurfaceFactory.nodes(part) {surroundings.addChildNode(node)}
+            }
+            builtCleanSurfaces=true
+        }
         mesh.isHidden = !raw
+        surroundings.isHidden=raw
         floor.isHidden=raw
         objects.isHidden=raw
-        scanAnnotations.isHidden = !raw
-        view?.backgroundColor=UIColor(white:raw ? 0.10 : 0.96,alpha:1)
+        scanAnnotations.isHidden=false
+        ambient.light?.intensity=raw ? 650 : 800
+        key.light?.intensity=raw ? 900 : 650
+        key.light?.castsShadow = !raw
+        view?.backgroundColor=raw ? UIColor(white:0.10,alpha:1) : ReplaySurfaceFactory.background
         routeNodes.enumerateChildNodes {node,_ in
             node.geometry?.firstMaterial?.diffuse.contents=raw ? UIColor.systemGreen : ReplayModelFactory.green
         }
@@ -155,16 +174,17 @@ final class ReplaySceneController: NSObject {
     func frame(_ mode: ReplayCamera) {
         guard let view else {return}
         var points=[SCNVector3]()
-        if lastDisplay == .scan && mode == .overview || scan.manifest.route == nil {
-            // The raw overview includes the surrounding scan, not only the registered stage.
-            let bounds=mesh.boundingBox
+        if mode == .overview || scan.manifest.route == nil {
+            // Both overviews include the surrounding scan, not only the registered stage.
+            let bounds=scanBounds
             for x in [bounds.min.x,bounds.max.x] {
                 for y in [bounds.min.y,bounds.max.y] {
                     for z in [bounds.min.z,bounds.max.z] {points.append(.init(x,y,z))}
                 }
             }
-        } else if let route=scan.manifest.route {
-            points=route.area.corners.map {.init($0.x,$0.y,$0.z)}+route.points.map {world($0)}
+        }
+        if let route=scan.manifest.route {
+            points += route.area.corners.map {.init($0.x,$0.y,$0.z)}+route.points.map {world($0)}
             for object in route.obstacles {
                 points += object.vertices.map {world($0,height:ObjectPlacement(object).height)}
             }
