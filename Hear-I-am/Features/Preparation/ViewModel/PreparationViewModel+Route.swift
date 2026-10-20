@@ -12,6 +12,10 @@ extension PreparationViewModel {
     }
     func undoRoutePoint() {
         guard !busy else {return}
+        let removed=draft.route.count-1
+        for source in session.photoSources where source.photo.routePointIndex==removed {
+            session.linkPhoto(source.photo.id,objectID:source.photo.objectID,routeIndex:nil)
+        }
         draft.removeLastRoutePoint(); synchronize()
     }
 }

@@ -47,6 +47,14 @@ struct PreparationGuideCard: View {
                 if model.objectEditing {
                     TextField("기물 이름",text:$model.obstacleName).textFieldStyle(.roundedBorder).font(.caption)
                     Picker("종류",selection:$model.obstacleKind) {Text("장애물").tag(ObstacleKind.other); Text("단상").tag(ObstacleKind.platform); Text("계단").tag(ObstacleKind.stairs)}.pickerStyle(.segmented)
+                    if model.obstacleKind != .platform && model.obstacleKind != .stairs {
+                        Picker("다시보기 모형",selection:$model.objectModel) {
+                            ForEach(ObjectAppearance.Model.allCases,id:\.self) {Text($0.title).tag($0)}
+                        }.font(.caption)
+                        Picker("정면 방향",selection:$model.objectHeading) {
+                            Text("관객 쪽").tag(0.0);Text("오른쪽").tag(90.0);Text("뒤쪽").tag(180.0);Text("왼쪽").tag(270.0)
+                        }.font(.caption)
+                    }
                     if let note=model.objectHeightNote {Text(note).font(.caption).foregroundStyle(.secondary)}
                 } else {
                     ScrollView {VStack(spacing:4) {ForEach(draft.objects) {o in
