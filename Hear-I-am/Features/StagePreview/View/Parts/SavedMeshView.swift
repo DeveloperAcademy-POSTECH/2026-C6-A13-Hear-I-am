@@ -33,15 +33,20 @@ struct SavedMeshView: UIViewRepresentable {
             n.geometry?.firstMaterial?.diffuse.contents=color; scene.rootNode.addChildNode(n)
         }
         if let route=scan.manifest.route {
+            func routeWorld(_ index: Int) -> Point3 {
+                var point=route.area.world(route.points[index])
+                if let heights=route.pointHeights, heights.indices.contains(index) { point.y += heights[index] }
+                return point
+            }
             for zone in route.dangerZones { scene.rootNode.addChildNode(StageDangerZoneOverlay.node(zone,in:route.area)) }
             for i in 0..<4 {line(route.area.corners[i],route.area.corners[(i+1)%4],.systemCyan)}
             for i in route.points.indices {
-                let p=route.area.world(route.points[i]); marker(p,.systemGreen)
-                if i>0 {line(route.area.world(route.points[i-1]),p,.systemGreen)}
+                let p=routeWorld(i); marker(p,.systemGreen)
+                if i>0 {line(routeWorld(i-1),p,.systemGreen)}
             }
             for o in route.obstacles {for i in o.vertices.indices {line(route.area.world(o.vertices[i]),route.area.world(o.vertices[(i+1)%o.vertices.count]),.systemRed)}}
-            if let start=route.points.first {
-                scene.rootNode.addChildNode(PerformerFigure.node(at:route.area.world(start),facing:route.points.dropFirst().first.map(route.area.world)))
+            if !route.points.isEmpty {
+                scene.rootNode.addChildNode(PerformerFigure.node(at:routeWorld(0),facing:route.points.count > 1 ? routeWorld(1) : nil))
             }
         }
         marker(scan.manifest.checkpoint,.systemYellow)
