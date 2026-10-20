@@ -8,7 +8,7 @@ import HearIAmCore
 /// Phase-specific actions live in the GuidanceViewModel+<Phase> files.
 @MainActor final class GuidanceViewModel: ObservableObject {
     @Published var phase: GuidancePhase = .selection {
-        didSet { run?.setRunning(phase == .guiding,uptime:ProcessInfo.processInfo.systemUptime) }
+        didSet { run?.setRunning(phase == .guiding,uptime:ProcessInfo.processInfo.systemUptime);captureReplay(force:true) }
     }
     @Published var selected: ScanManifest?
     @Published var instructionDone=false
@@ -123,7 +123,9 @@ import HearIAmCore
     }
 
     private func tick() {
-        guard active, !showExit else { return }
+        guard active else { return }
+        captureReplay()
+        guard !showExit else { return }
         if phase == .restoring { tickRestoring();return }
         if phase == .checkpoint { tickCheckpoint();return }
         if [.wear,.countdown,.departure,.starting,.guiding,.paused].contains(phase), !tracking.ready {
