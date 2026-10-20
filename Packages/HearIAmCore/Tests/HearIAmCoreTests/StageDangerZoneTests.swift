@@ -54,7 +54,7 @@ final class StageDangerZoneTests: XCTestCase {
         var draft=PreparationDraft()
         draft.corners=PerformancePlan.area.corners.map { Optional($0) }
         draft.dangerZones=[.init(edge:.left,distance:.oneMetre),.init(edge:.right,distance:.halfMetre)]
-        try draft.addRoutePoint(.init(-1,0,-2));try draft.addRoutePoint(.init(0.1,0,-2))
+        try draft.addRoutePoint(.init(-1,0,-2));try draft.addRoutePoint(.init(2,0,-2))
         try draft.addRoutePoint(.init(13,0,-2),asDestination:true)
         let route=try draft.stageRoute()
         XCTAssertEqual(route.dangerZones,draft.dangerZones)
@@ -80,24 +80,24 @@ final class StageDangerZoneTests: XCTestCase {
             }
         }
     }
-    func testWarningsDoNotBlockStartInteriorOrDestinationAndUpdateAfterEdits() throws {
+    /// Since 10/19 a new point keeps 0.15 m from a danger zone, start and destination included; until then
+    /// zones only warned. Points already in a zone (an applied plan, a zone added later) are still labelled.
+    func testNewPointsKeepClearOfZonesAndOldPointsAreStillLabelled() throws {
         var draft=PreparationDraft()
         draft.corners=PerformancePlan.area.corners.map { Optional($0) }
         draft.dangerZones=[.init(edge:.front,distance:.halfMetre),.init(edge:.left,distance:.oneMetre)]
-        try draft.addRoutePoint(.init(0.25,0,-0.25))
-        XCTAssertEqual(draft.dangerZoneRoutePointLabels,["시작점"])
-        try draft.addRoutePoint(.init(2,0,-0.5))
-        try draft.addRoutePoint(.init(3,0,-0.25),asDestination:true)
-        XCTAssertEqual(draft.dangerZoneRoutePointLabels,["시작점","P1","종료점"])
-        XCTAssertTrue(draft.routeErrors.isEmpty)
-        XCTAssertEqual(try draft.stageRoute().points.count,3)
-        draft.removeLastRoutePoint()
-        XCTAssertEqual(draft.dangerZoneRoutePointLabels,["시작점","P1"])
-        try draft.addRoutePoint(.init(13,0,-0.25),asDestination:true)
-        XCTAssertEqual(draft.dangerZoneRoutePointLabels,["시작점","P1"])
-        draft.dangerZones=[]
+        XCTAssertThrowsError(try draft.addRoutePoint(.init(3,0,-0.25)))
+        XCTAssertEqual(draft.edgeIssue(adding:.init(3,0,-0.6)),"위험 구역(앞 (객석 쪽))에서 15cm 이상 떨어진 곳을 찍어주세요")
+        try draft.addRoutePoint(.init(3,0,-0.7))
+        XCTAssertNotNil(draft.edgeIssue(adding:.init(1.1,0,-2)))
+        try draft.addRoutePoint(.init(2,0,-2))
+        XCTAssertThrowsError(try draft.addRoutePoint(.init(4,0,-0.3),asDestination:true))
+        try draft.addRoutePoint(.init(4,0,0.5),asDestination:true)
         XCTAssertTrue(draft.dangerZoneRoutePointLabels.isEmpty)
-        draft.dangerZones=[.init(edge:.back,distance:.oneMetre)]
+        XCTAssertTrue(draft.routeErrors.isEmpty)
+        draft.dangerZones=[.init(edge:.front,distance:.oneMetre)]
+        XCTAssertEqual(draft.dangerZoneRoutePointLabels,["시작점"])
+        draft.dangerZones=[]
         XCTAssertTrue(draft.dangerZoneRoutePointLabels.isEmpty)
     }
     func testArchiveLoadAndRenamePreservePerEdgeSettings() async throws {

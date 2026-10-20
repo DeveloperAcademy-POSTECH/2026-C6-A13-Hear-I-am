@@ -3,19 +3,33 @@ import HearIAmCore
 
 /// 안내 완료: the final announcement, then saving one completion record.
 extension GuidanceViewModel {
+    static let dingBeforeSpeech=0.7
     func playCompletion() {
         guard phase != .finishing || !speaking else { return }
+        let arriving=phase == .guiding
         if let guide { run?.arrive(guide:guide,at:Date(),uptime:ProcessInfo.processInfo.systemUptime) }
         // The completion record is saved separately; without this line the trial log never said the run finished (10/17).
         tracking.event("guidance_completed",detail:"points=\(guide?.route.points.count ?? 0)")
-        invalidateTasks();phase = .finishing;cue=nil;message="종료 안내를 읽고 있어요."
+        invalidateTasks()
+        // The last point dings like every other one (10/19); replaying the closing line does not.
+        if arriving, let guide {
+            signals.play(.arrival);logSignal("signal_arrival","\(GuidanceCopy.target(guide.targetIndex,last:guide.route.points.count-1)) final")
+        }
+        phase = .finishing;cue=nil;message="종료 안내를 읽고 있어요."
         // Guidance stops now; the validation camera stays live until the user finishes.
         audioIssue=nil
         let operation=generation
-        voice.play([GuidanceCopy.completed],final:true) { [weak self] finished in
-            guard let self, finished, self.generation == operation, self.active else { return }
-            self.phase = .completed;self.instructionDone=true;self.message="출발부터 마지막 지점까지 안내를 완료했어요."
+        let speak={ [weak self] in
+            guard let self, self.generation == operation, self.active else { return }
+            self.voice.play([GuidanceCopy.completed],final:true) { [weak self] finished in
+                guard let self, finished, self.generation == operation, self.active else { return }
+                self.phase = .completed;self.instructionDone=true;self.message="출발부터 마지막 지점까지 안내를 완료했어요."
+            }
         }
+        // Let the ding ring out before the closing line covers it.
+        if arriving {
+            Task { @MainActor in try? await Task.sleep(nanoseconds:UInt64(Self.dingBeforeSpeech*1e9));speak() }
+        } else { speak() }
     }
     func completedRecord() throws -> GuidanceRecord {
         guard phase == .completed, guide?.state == .completed, let run else {
@@ -43,6 +57,6 @@ extension GuidanceViewModel {
     func finish() {
         active=false;invalidateTasks();timer?.invalidate();timer=nil
         observations.forEach {NotificationCenter.default.removeObserver($0)};observations=[]
-        tracking.endSession();signals.shutdown();haptics.shutdown();voice.deactivate()
+        tracking.endSession();signals.shutdown();voice.deactivate()
     }
 }

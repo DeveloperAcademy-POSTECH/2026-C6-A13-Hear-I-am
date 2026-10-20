@@ -1,7 +1,7 @@
 import Foundation
 import HearIAmCore
 
-/// ④ Find a target direction by body (waist vibration every 45°) or by head (earbud buzz).
+/// ③ Find a target direction by the direction ticks of guidance or by head (earbud buzz).
 /// The trial ends after facing the target with the body for one second.
 extension SoundTestViewModel {
     static let targets=[90,-90,180,45,-45,135,-135]
@@ -14,11 +14,12 @@ extension SoundTestViewModel {
         guard let bodyStart=body.heading else { record("direction_error","몸 방향 값이 없어요. 폰을 허리에 세워 주세요.");return }
         if mode == .head && !headReceiving { record("direction_error","고개 값이 안 들어와요. 에어팟을 확인해 주세요.");return }
         let target=Self.targets.randomElement() ?? 90
-        detector.reset()
+        directionTicks.deadbandDegrees=deadbandDegrees
+        directionTicks.reset()
         trial=DirectionTrial(mode:mode,target:target,bodyStart:bodyStart,headStart:head.heading,
                              startedAt:ProcessInfo.processInfo.systemUptime)
-        record("direction_start","mode=\(mode.rawValue) target=\(target)")
-        speak("방향을 찾아 주세요")
+        record("direction_start","mode=\(mode.rawValue) target=\(target) deadband=\(Int(deadbandDegrees))")
+        if mode != .tick { speak("방향을 찾아 주세요") }
     }
     func finishTrial(found: Bool) {
         guard let current=trial else { return }
@@ -26,6 +27,7 @@ extension SoundTestViewModel {
         let result=DirectionTrialResult(mode:current.mode,target:current.target,found:found,seconds:now-current.startedAt,
             bodyError:bodyError(current),headError:headError(current),headFoundSeconds:current.headFoundAt.map { $0-current.startedAt })
         trial=nil;results.insert(result,at:0)
+        signals.stopDirection()
         record("direction_result",result.summary)
         if found { signals.play(.arrival) }
     }
@@ -33,11 +35,19 @@ extension SoundTestViewModel {
     func bodySample(_ heading: Double?) {
         bodyAngle=heading.flatMap { h in trial.map { HeadingMath.wrapDegrees(h-$0.bodyStart) } }
         guard var current=trial, let error=bodyError(current) else { return }
-        if let landmark=detector.update(relativeDegrees:error), current.mode == .body || landmark == 0 {
-            haptics.play(signedDegrees:landmark)
-        }
         let now=ProcessInfo.processInfo.systemUptime
-        if abs(error) <= Self.foundTolerance { current.steadySince=current.steadySince ?? now } else { current.steadySince=nil }
+        let tolerance: Double
+        if current.mode == .tick {
+            tolerance=deadbandDegrees
+            // As in guidance: one 「삐」 the moment the ticks stop on facing the target.
+            let wasTicking=directionTicks.activeSide != nil
+            if let cue=directionTicks.update(time:now,bearing:-error) {
+                if cue.shouldTick, !speaking { signals.play(.directionTick(toRight:cue.toRight)) }
+            } else if wasTicking {
+                if directionTicks.isAligned { signals.play(.direction(signedDegrees:0)) } else { signals.stopDirection() }
+            }
+        } else { tolerance=Self.foundTolerance }
+        if abs(error) <= tolerance { current.steadySince=current.steadySince ?? now } else { current.steadySince=nil }
         trial=current
         if let since=current.steadySince, now-since >= Self.steadySeconds { finishTrial(found:true) }
     }
