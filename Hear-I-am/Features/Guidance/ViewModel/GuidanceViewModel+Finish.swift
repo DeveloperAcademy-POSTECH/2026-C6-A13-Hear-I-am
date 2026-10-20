@@ -4,17 +4,25 @@ import HearIAmCore
 /// 안내 완료: the final announcement, then saving one completion record.
 extension GuidanceViewModel {
     func playCompletion() {
-        guard phase != .finishing || !speaking else { return }
+        guard active, phase != .finishing || (!speaking && completionTask == nil) else { return }
         if let guide { run?.arrive(guide:guide,at:Date(),uptime:ProcessInfo.processInfo.systemUptime) }
         // The completion record is saved separately; without this line the trial log never said the run finished (10/17).
         tracking.event("guidance_completed",detail:"points=\(guide?.route.points.count ?? 0)")
-        invalidateTasks();phase = .finishing;cue=nil;message="종료 안내를 읽고 있어요."
+        invalidateTasks();phase = .finishing;cue=nil;message="마지막 지점에 도착했어요."
         // Guidance stops now; the validation camera stays live until the user finishes.
         audioIssue=nil
         let operation=generation
-        voice.play([GuidanceCopy.completed],final:true) { [weak self] finished in
-            guard let self, finished, self.generation == operation, self.active else { return }
-            self.phase = .completed;self.instructionDone=true;self.message="출발부터 마지막 지점까지 안내를 완료했어요."
+        guard signals.play(.arrival) else { return }
+        completionTask=Task { @MainActor [weak self] in
+            do { try await Task.sleep(for:.seconds(ToneRenderer.arrivalSpeechDelay)) }
+            catch { return }
+            guard let self, self.generation == operation, self.active,
+                  self.phase == .finishing, self.audioIssue == nil else { return }
+            self.completionTask=nil;self.message="종료 안내를 읽고 있어요."
+            self.voice.play([GuidanceCopy.completed],final:true) { [weak self] finished in
+                guard let self, finished, self.generation == operation, self.active else { return }
+                self.phase = .completed;self.instructionDone=true;self.message="출발부터 마지막 지점까지 안내를 완료했어요."
+            }
         }
     }
     func completedRecord() throws -> GuidanceRecord {

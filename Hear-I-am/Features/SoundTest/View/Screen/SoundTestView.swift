@@ -60,7 +60,10 @@ struct SoundTestView: View {
                     }
                 }
             }
-            SoundTestRow(label:"도착") { ActionButton(title:"띵",primary:false) { model.playArrival() } }
+            SoundTestRow(label:"정렬 · 도착 비교") {
+                ActionButton(title:"정렬 띠링",primary:false,enabled:model.trial == nil) { model.signals.play(.countDirectionAligned) }
+                ActionButton(title:"도착 또로롱",primary:false,enabled:model.trial == nil) { model.playArrival() }
+            }
             SoundTestRow(label:"기존 방향 비프 비교 (현재 안내에는 미사용)") {
                 ForEach(DirectionPattern.landmarks,id:\.self) { degrees in
                     ActionButton(title:Self.label(degrees),primary:false) { model.beep(degrees) }

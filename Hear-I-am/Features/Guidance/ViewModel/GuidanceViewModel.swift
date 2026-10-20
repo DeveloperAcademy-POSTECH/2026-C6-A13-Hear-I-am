@@ -47,6 +47,7 @@ import HearIAmCore
     var lastPoseTime: Double?
     var timer: Timer?
     var countdownTask: Task<Void,Never>?
+    var completionTask: Task<Void,Never>?
     var generation=UUID()
     var active=true
     var started=false
@@ -83,12 +84,12 @@ import HearIAmCore
         timer=Timer.scheduledTimer(withTimeInterval:0.1,repeats:true) { [weak self] _ in Task { @MainActor in self?.tick() } }
     }
     deinit {
-        timer?.invalidate();countdownTask?.cancel()
+        timer?.invalidate();countdownTask?.cancel();completionTask?.cancel()
         observations.forEach {NotificationCenter.default.removeObserver($0)}
     }
 
     private func handleAudioIssue(_ text: String) {
-        audioIssue=text;instructionDone=false
+        audioIssue=text;instructionDone=false;completionTask?.cancel();completionTask=nil
         cancelRouteSpeech();routeNarration.suspendMotion();narrationReadyAt=nil
         directionBeep.reset();signals.stop();escape=nil
         if phase == .guiding || phase == .starting || phase == .paused {
@@ -124,7 +125,7 @@ import HearIAmCore
     /// Cancels pending speech callbacks and the countdown; late callbacks see a new generation.
     func invalidateTasks() {
         routeSpeech=nil;routeNarration.suspendMotion();narrationReadyAt=nil
-        generation=UUID();countdownTask?.cancel();countdownTask=nil;voice.stop();instructionDone=false;arrivedName=nil;arrivalShownAt=nil
+        generation=UUID();countdownTask?.cancel();countdownTask=nil;completionTask?.cancel();completionTask=nil;voice.stop();instructionDone=false;arrivedName=nil;arrivalShownAt=nil
         escape=nil;warningHoldUntil=nil;directionBeep.reset();signals.stop();signals.setWarningQuiet(false)
     }
     /// A pose no older than 0.5 s from a verified session, or nil.

@@ -65,14 +65,17 @@ extension GuidanceViewModel {
             }
         }
         guard phase == .guiding, audioIssue == nil else { return }
+        // Let the arrival melody finish before any next-target platform speech or direction cue.
+        if arrivalShownAt.map({pose.time-$0 < Self.arrivalDirectionPause}) == true {
+            cancelRouteSpeech();suspendDirection();return
+        }
         if let step=steps.update(position:pose.point,target:target,obstacles:guide.route.obstacles) {
             cancelRouteSpeech()
             voice.play([step.guidanceLine]);tracking.event("signal_step",detail:step.detail+" line="+step.guidanceLine)
         }
         guard phase == .guiding, audioIssue == nil else { return }
         // Within arrival radius, the target bearing is unstable and arrival dwell owns the feedback.
-        if distance <= guide.settings.arrivalRadius ||
-            arrivalShownAt.map({pose.time-$0 < Self.arrivalDirectionPause}) == true {
+        if distance <= guide.settings.arrivalRadius {
             cancelRouteSpeech();suspendDirection();return
         }
         // Corrective direction/warnings interrupt optional speech immediately. A passed landmark

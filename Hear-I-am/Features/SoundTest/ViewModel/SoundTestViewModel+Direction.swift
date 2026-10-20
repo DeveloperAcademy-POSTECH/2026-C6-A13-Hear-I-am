@@ -54,7 +54,7 @@ extension SoundTestViewModel {
         pitchHertz=nil;pitchStatus="종료";voice.stop()
         results.insert(result,at:0);sweepGate.reset();signals.stopDirection()
         record("direction_result",result.summary)
-        if found { signals.play(.arrival) }
+        if found { signals.play(.countDirectionAligned) }
     }
 
     func bodySample(_ heading: Double?) {
@@ -130,7 +130,7 @@ extension SoundTestViewModel {
         continuous.setHertz(update.hertz,volume:pitchVolume);pitchHertz=update.hertz
         pitchStatus=pitchGate.isAligned ? "정렬 · 60Hz 유지" : abs(bearing) <= ContinuousDirectionGate.enterDegrees ? "정렬 확인 중" : bearing < 0 ? "왼쪽으로 맞추기" : "오른쪽으로 맞추기"
         if update.aligned {
-            signals.play(.arrival);record("continuous_aligned",String(format:"mode=%@ bearing=%+.1f",trial.mode.rawValue,bearing))
+            signals.play(.countDirectionAligned);record("continuous_aligned",String(format:"mode=%@ bearing=%+.1f",trial.mode.rawValue,bearing))
         }
         if lastPitchLog.map({now-$0 >= 0.25}) ?? true {
             lastPitchLog=now
