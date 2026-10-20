@@ -173,3 +173,44 @@ import HearIAmCore
         onEvent?(name,detail)
     }
 }
+
+/// Test-only single render stream. Updating the angle never schedules another sound clip.
+@MainActor final class ContinuousTonePlayer {
+    var onUnavailable: ((String)->Void)?
+    private let engine=AVAudioEngine()
+    private let state=ContinuousToneRenderState()
+    init() {
+        let state=self.state
+        let format=AVAudioFormat(standardFormatWithSampleRate:ToneRenderer.sampleRate,channels:1)!
+        let source=AVAudioSourceNode(format:format) { _,_,frames,buffers in
+            state.render(frames:Int(frames),buffers:buffers);return noErr
+        }
+        engine.attach(source);engine.connect(source,to:engine.mainMixerNode,format:format)
+    }
+    @discardableResult func start() -> Bool {
+        do {
+            try HearAudioSession.activate()
+            guard AVAudioSession.sharedInstance().outputVolume > 0 else { onUnavailable?("휴대폰 음량을 확인해주세요.");return false }
+            setHertz(nil)
+            if !engine.isRunning { try engine.start() }
+            return true
+        } catch { stop();onUnavailable?("지속음을 시작할 수 없어요: "+error.localizedDescription);return false }
+    }
+    func setHertz(_ hertz: Double?, volume: Double=0.12) {
+        state.command.withLock { $0=ContinuousToneCommand(hertz:hertz,volume:volume,updatedAt:ProcessInfo.processInfo.systemUptime) }
+    }
+    func stop() { setHertz(nil);engine.stop() }
+}
+
+private final class ContinuousToneRenderState: @unchecked Sendable {
+    let command=OSAllocatedUnfairLock(initialState:ContinuousToneCommand(hertz:nil,updatedAt:0))
+    private var latest=ContinuousToneCommand(hertz:nil,updatedAt:0)
+    private var oscillator=ContinuousHarmonicOscillator()
+    func render(frames: Int, buffers: UnsafeMutablePointer<AudioBufferList>) {
+        if let next=command.withLockIfAvailable({$0}) { latest=next }
+        guard let data=buffers.pointee.mBuffers.mData else { return }
+        oscillator.render(into:UnsafeMutableBufferPointer(start:data.assumingMemoryBound(to:Float.self),count:frames),
+                          targetHertz:latest.activeHertz(at:ProcessInfo.processInfo.systemUptime),
+                          volume:latest.volume,sampleRate:ToneRenderer.sampleRate)
+    }
+}
