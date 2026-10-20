@@ -3,8 +3,8 @@ import UIKit
 import HearIAmCore
 
 enum ReplaySelection: Hashable { case point(Int), object(UUID), photo(UUID) }
-enum ReplayCamera: String, CaseIterable { case overview="전체", overhead="동선 위에서", close="구간 가까이" }
-enum ReplayDisplay: String, CaseIterable { case clean="정리해서 보기", scan="스캔 보기" }
+enum ReplayCamera: String, CaseIterable { case overview="전체", overhead="동선 위에서" }
+enum ReplayDisplay: String, CaseIterable { case scan="스캔 보기", clean="정리해서 보기" }
 
 @MainActor
 final class ReplaySceneController: NSObject {
@@ -12,21 +12,24 @@ final class ReplaySceneController: NSObject {
     let camera=SCNNode()
     let mesh=SCNNode(), stage=SCNNode(), floor=SCNNode(), objects=SCNNode(), photos=SCNNode()
     let person=ReplayModelFactory.person()
-    let selectionOverlay=SCNNode()
+    let selectionOverlay=SCNNode(), scanAnnotations=SCNNode(), routeNodes=SCNNode()
     let scan: LoadedScan
     var onSelect: ((ReplaySelection) -> Void)?
-    var targets: [ReplaySelection:SCNVector3]=[:]
     var names: [String:ReplaySelection]=[:]
     var pointLabels: [Int:SCNNode]=[:]
     var revision = -1
     var lastMode: ReplayCamera = .overview
-    var lastSelection: ReplaySelection?
+    var lastDisplay: ReplayDisplay = .scan
     weak var view: SCNView?
     init(scan: LoadedScan) {
         self.scan=scan; super.init()
         scene.rootNode.addChildNode(mesh); scene.rootNode.addChildNode(stage)
         scene.rootNode.addChildNode(photos); scene.rootNode.addChildNode(camera)
-        for part in scan.meshes {mesh.addChildNode(part.node(saved:true,solid:true))}
+        for part in scan.meshes {
+            let node=part.node(saved:true,solid:true)
+            node.geometry?.firstMaterial?.diffuse.contents=UIColor(white:0.72,alpha:1)
+            mesh.addChildNode(node)
+        }
         camera.camera=SCNCamera(); camera.camera?.zNear=0.02; camera.camera?.zFar=2000
         camera.camera?.fieldOfView=55;camera.camera?.projectionDirection = .vertical
         let ambient=SCNNode(); ambient.light=SCNLight(); ambient.light?.type = .ambient
@@ -36,6 +39,9 @@ final class ReplaySceneController: NSObject {
         scene.rootNode.addChildNode(key)
         buildStage()
         buildPhotos()
+        let p=scan.manifest.checkpoint
+        scanAnnotations.addChildNode(ReplayModelFactory.part(SCNSphere(radius:0.07),.init(p.x,p.y+0.06,p.z),color:.systemYellow))
+        scene.rootNode.addChildNode(scanAnnotations)
     }
     func world(_ p: FloorPoint, height: Double=0) -> SCNVector3 {
         guard let area=scan.manifest.route?.area else {return .init(p.x,height,-p.y)}
@@ -49,31 +55,38 @@ final class ReplaySceneController: NSObject {
         let area=route.area
         stage.position=SCNVector3(area.frontLeft.x,area.floorHeight,area.frontLeft.z)
         stage.eulerAngles.y=Float(atan2(-area.right.y,area.right.x))
-        stage.addChildNode(floor); stage.addChildNode(objects)
+        stage.addChildNode(floor); stage.addChildNode(objects); stage.addChildNode(routeNodes)
+        for i in area.corners.indices {
+            let a=area.corners[i], b=area.corners[(i+1)%area.corners.count]
+            scanAnnotations.addChildNode(ReplayModelFactory.line(.init(a.x,a.y+0.04,a.z),.init(b.x,b.y+0.04,b.z),color:.systemCyan))
+        }
         floor.addChildNode(ReplayModelFactory.box(area.width,0.035,area.depth,area.width/2,-0.035,-area.depth/2,color:UIColor(white:0.91,alpha:1)))
         for object in route.obstacles {
             let node=ReplayModelFactory.object(object); objects.addChildNode(node); selectable(node,.object(object.id))
-            let p=ObjectPlacement(object)
-            targets[.object(object.id)]=world(p.center,height:p.height/2)
+            let outline=SCNNode()
+            for i in object.vertices.indices {
+                let a=area.world(object.vertices[i]), b=area.world(object.vertices[(i+1)%object.vertices.count])
+                outline.addChildNode(ReplayModelFactory.line(.init(a.x,a.y+0.04,a.z),.init(b.x,b.y+0.04,b.z),color:.systemRed))
+            }
+            selectable(outline,.object(object.id));scanAnnotations.addChildNode(outline)
         }
         for zone in route.dangerZones {scene.rootNode.addChildNode(StageDangerZoneOverlay.node(zone,in:area))}
         for (index,p) in route.points.enumerated() {
             let node=ReplayModelFactory.part(SCNSphere(radius:0.09),SCNVector3(p.x,0.08,-p.y),color:ReplayModelFactory.green)
-            selectable(node,.point(index)); stage.addChildNode(node)
+            selectable(node,.point(index)); routeNodes.addChildNode(node)
             let label=ReplayModelFactory.label("\(index+1)",at:.init(p.x,0.24,-p.y))
             pointLabels[index]=label
-            selectable(label,.point(index)); stage.addChildNode(label)
-            targets[.point(index)]=world(p)
+            selectable(label,.point(index)); routeNodes.addChildNode(label)
             if index>0 {
                 let a=route.points[index-1], b=p
                 let line=ReplayModelFactory.line(.init(a.x,0.06,-a.y),.init(b.x,0.06,-b.y),color:ReplayModelFactory.green)
                 line.geometry?.firstMaterial?.readsFromDepthBuffer=false; line.renderingOrder=5
-                stage.addChildNode(line)
+                routeNodes.addChildNode(line)
                 let arrow=ReplayModelFactory.part(SCNCone(topRadius:0,bottomRadius:0.09,height:0.22),.init((a.x+b.x)/2,0.065,-(a.y+b.y)/2),color:ReplayModelFactory.green)
                 let direction=SIMD3<Float>(Float(b.x-a.x),0,Float(-(b.y-a.y)))
                 if simd_length(direction)>0.001 {arrow.simdOrientation=simd_quatf(from:SIMD3<Float>(0,1,0),to:simd_normalize(direction))}
                 arrow.geometry?.firstMaterial?.readsFromDepthBuffer=false; arrow.renderingOrder=6
-                stage.addChildNode(arrow)
+                routeNodes.addChildNode(arrow)
             }
         }
         stage.addChildNode(person); movePerson(to:0)
@@ -86,7 +99,6 @@ final class ReplaySceneController: NSObject {
             selectable(node,.photo(photo.id)); photos.addChildNode(node)
             let label=ReplayModelFactory.label("사진 \(index+1)",at:.init(p.x,p.y+0.12,p.z),color:.systemBlue)
             selectable(label,.photo(photo.id)); photos.addChildNode(label)
-            targets[.photo(photo.id)]=node.position
         }
     }
     func movePerson(to index: Int) {
@@ -103,10 +115,17 @@ final class ReplaySceneController: NSObject {
         if hypot(dx,dz)>0.001 {person.eulerAngles.y=Float(atan2(dx,dz))}
     }
     func update(display: ReplayDisplay, wireframe: Bool, showPhotos: Bool, selection: ReplaySelection?, cameraMode: ReplayCamera, revision: Int) {
-        lastMode=cameraMode;lastSelection=selection
-        mesh.isHidden=display == .clean && scan.manifest.route != nil
-        floor.isHidden=display == .scan
-        objects.opacity=display == .scan ? 0.35 : 1
+        let displayChanged=lastDisplay != display
+        lastMode=cameraMode;lastDisplay=display
+        let raw=display == .scan || scan.manifest.route == nil
+        mesh.isHidden = !raw
+        floor.isHidden=raw
+        objects.isHidden=raw
+        scanAnnotations.isHidden = !raw
+        view?.backgroundColor=UIColor(white:raw ? 0.10 : 0.96,alpha:1)
+        routeNodes.enumerateChildNodes {node,_ in
+            node.geometry?.firstMaterial?.diffuse.contents=raw ? UIColor.systemGreen : ReplayModelFactory.green
+        }
         photos.isHidden = !showPhotos
         for node in mesh.childNodes {node.geometry?.firstMaterial?.fillMode=wireframe ? .lines : .fill}
         selectionOverlay.childNodes.forEach {$0.removeFromParentNode()}
@@ -129,42 +148,39 @@ final class ReplaySceneController: NSObject {
                 }
             }
         }
-        guard self.revision != revision else {return}
+        guard self.revision != revision || displayChanged else {return}
         self.revision=revision
-        frame(cameraMode,selection:selection)
+        frame(cameraMode)
     }
-    func frame(_ mode: ReplayCamera, selection: ReplaySelection?) {
+    func frame(_ mode: ReplayCamera) {
         guard let view else {return}
         var points=[SCNVector3]()
-        if let route=scan.manifest.route {
+        if lastDisplay == .scan && mode == .overview || scan.manifest.route == nil {
+            // The raw overview includes the surrounding scan, not only the registered stage.
+            let bounds=mesh.boundingBox
+            for x in [bounds.min.x,bounds.max.x] {
+                for y in [bounds.min.y,bounds.max.y] {
+                    for z in [bounds.min.z,bounds.max.z] {points.append(.init(x,y,z))}
+                }
+            }
+        } else if let route=scan.manifest.route {
             points=route.area.corners.map {.init($0.x,$0.y,$0.z)}+route.points.map {world($0)}
             for object in route.obstacles {
-                points.append(world(ObjectPlacement(object).center,height:ObjectPlacement(object).height))
-            }
-        } else {
-            // Mesh bounds are in world because each mesh node retains its saved transform.
-            let b=mesh.boundingBox; points=[b.min,b.max]
-        }
-        if mode == .close, let selection {
-            switch selection {
-            case .point(let i):
-                if let route=scan.manifest.route, route.points.indices.contains(i) {
-                    points=[world(route.points[i])]
-                    if route.points.indices.contains(i+1) {points.append(world(route.points[i+1]))}
-                }
-            case .object(let id):
-                if let object=scan.manifest.route?.obstacles.first(where:{$0.id==id}) {
-                    points=object.vertices.map {world($0)}+object.vertices.map {world($0,height:ObjectPlacement(object).height)}
-                }
-            case .photo:
-                if let p=targets[selection] {points=[p]}
+                points += object.vertices.map {world($0,height:ObjectPlacement(object).height)}
             }
         }
         guard !points.isEmpty else {return}
         let lo=SIMD3<Float>(points.map(\.x).min()!,points.map(\.y).min()!,points.map(\.z).min()!)
         let hi=SIMD3<Float>(points.map(\.x).max()!,points.map(\.y).max()!,points.map(\.z).max()!)
-        let center=(lo+hi)/2, radius=max(simd_length(hi-lo)/2, mode == .close ? 0.8 : 1.5)
+        let center=(lo+hi)/2, radius=max(simd_length(hi-lo)/2,1.5)
         let aspect=Float(max(view.bounds.width,1)/max(view.bounds.height,1))
+        // Presets must not inherit the roll/up vector from an earlier preset or manual orbit.
+        let controls=view.defaultCameraController
+        controls.stopInertia()
+        SCNTransaction.begin()
+        SCNTransaction.disableActions=true
+        defer {SCNTransaction.commit()}
+        camera.simdTransform=matrix_identity_float4x4
         camera.camera?.usesOrthographicProjection=mode == .overhead
         let area=scan.manifest.route?.area
         let right=SIMD3<Float>(Float(area?.right.x ?? 1),0,Float(area?.right.y ?? 0))
@@ -186,7 +202,7 @@ final class ReplaySceneController: NSObject {
             let cameraUp=simd_normalize(simd_cross(axis,cameraRight))
             let tangent=tan(Float(55 * Double.pi/360))
             var distance: Float=2
-            let padding: Float=mode == .close ? 0.6 : 0.15
+            let padding: Float=0.15
             for x in [lo.x-padding,hi.x+padding] {
                 for y in [lo.y, max(hi.y,Float(scan.manifest.route?.area.floorHeight ?? Double(hi.y))+1.8)] {
                     for z in [lo.z-padding,hi.z+padding] {
@@ -197,11 +213,12 @@ final class ReplaySceneController: NSObject {
                 }
             }
             camera.simdPosition=center+axis*(distance*1.08)
-            camera.look(at:SCNVector3(center))
+            camera.look(at:SCNVector3(center),up:SCNVector3(0,1,0),localFront:SCNVector3(0,0,-1))
         }
+        controls.worldUp=SCNVector3(0,1,0)
+        controls.target=SCNVector3(center)
+        controls.pointOfView=camera
         view.pointOfView=camera
-        view.defaultCameraController.target=SCNVector3(center)
-        view.defaultCameraController.stopInertia()
     }
     @objc func tapped(_ recognizer: UITapGestureRecognizer) {
         guard let view else {return}

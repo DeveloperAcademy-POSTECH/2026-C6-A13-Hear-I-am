@@ -22,7 +22,7 @@ struct SavedMeshView: UIViewRepresentable {
         let controller=context.coordinator
         view.onLayout={ [weak controller] in
             guard let controller else {return}
-            controller.frame(controller.lastMode,selection:controller.lastSelection)
+            controller.frame(controller.lastMode)
         }
         controller.view=view; view.scene=controller.scene; view.pointOfView=controller.camera
         view.backgroundColor=UIColor(white:0.96,alpha:1)

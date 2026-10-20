@@ -68,7 +68,9 @@ struct SavedStagePreview: View {
                                     Text(p.measuredHeight ? String(format:"측정 높이 %.2f m",p.height) : "높이 미측정 · 표시용 기본 높이")
                                     if object.kind == .stairs {Text("계단의 단 수와 진입 방향은 이 모형에 포함되지 않아요.")}
                                 }
-                                Text("기본 도형으로 표시한 모형이에요. 인물은 선택 지점의 위치와 방향을 보여줘요.")
+                                Text(model.display == .scan
+                                     ? "스캔한 표면과 등록한 기물 영역이에요. 인물은 선택 지점의 위치와 방향을 보여줘요."
+                                     : "기본 도형으로 표시한 모형이에요. 인물은 선택 지점의 위치와 방향을 보여줘요.")
                                     .font(.caption).foregroundStyle(.secondary)
                             }.padding(14).frame(maxWidth:.infinity,alignment:.leading)
                                 .background(Color(.systemGray6),in:RoundedRectangle(cornerRadius:16))
