@@ -13,6 +13,7 @@
 		034D1FF4B9613DD7D2B6C526 /* View+LibrarySelection.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF75FE4E62D7F51E265F184F /* View+LibrarySelection.swift */; };
 		07F77D6F0426A64A978D42AB /* PreparationMiniMap.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78FF7D9B0DF5D1D7F5A352F9 /* PreparationMiniMap.swift */; };
 		0A49810546EFB2AC5001FA64 /* ARSessionController+Save.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE6C07DA79C5E457DFAF3E0F /* ARSessionController+Save.swift */; };
+		0AA1B769BB98876C0C594903 /* ReplayModelFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A386723CB3162352D0F1847 /* ReplayModelFactory.swift */; };
 		0B8A55CF6F9E6740D05D7A6D /* PreparationPhotoControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1D64685A21E46743E1FB4CA /* PreparationPhotoControls.swift */; };
 		0EECAEEC7D6DFE00C0245C1B /* PreparationControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F6BE97480FA1127BFA3448F /* PreparationControls.swift */; };
 		134691BE7EF8878F2A51A5FB /* PlanEditorTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69DD8BC79FE9BD967BC2BA9D /* PlanEditorTool.swift */; };
@@ -35,6 +36,7 @@
 		3C78D4DE73CA2E1CA3C75EBD /* HearRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DE973F4CB37BC17C43B684D /* HearRootView.swift */; };
 		3E8F05B4CB93029E6189D535 /* SavedMeshView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8AE4B38D0E603747BD5F10EA /* SavedMeshView.swift */; };
 		422D1B4FD7D59FCFBC55C91C /* GuidanceRecordsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B362518768849AEF2F09E2AB /* GuidanceRecordsView.swift */; };
+		42BEB49F3784E96653838089 /* ReplaySurfaceFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82E4D4763B0EC54A3B3CAD63 /* ReplaySurfaceFactory.swift */; };
 		4451219074A9A9D113B917C9 /* ARSceneRenderer+Annotations.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A58401EF94927E4742BAE1 /* ARSceneRenderer+Annotations.swift */; };
 		469E892127068FC08950C026 /* PlanLibraryViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E98A678EB5F1C7FF30AC8C49 /* PlanLibraryViewModel.swift */; };
 		4B287BC4BC9B2E40D114302B /* PreparationViewModel+Boundary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04808370633741391779B48B /* PreparationViewModel+Boundary.swift */; };
@@ -157,6 +159,7 @@
 		632BF65D7EB8F33AECF401A4 /* PreparationGuideCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreparationGuideCard.swift; sourceTree = "<group>"; };
 		69D315A1537CE1F82F929225 /* PreparationStepBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreparationStepBar.swift; sourceTree = "<group>"; };
 		69DD8BC79FE9BD967BC2BA9D /* PlanEditorTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanEditorTool.swift; sourceTree = "<group>"; };
+		6A386723CB3162352D0F1847 /* ReplayModelFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReplayModelFactory.swift; sourceTree = "<group>"; };
 		6A97BF320100E0C9765E0560 /* PreparationPhotosSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreparationPhotosSheet.swift; sourceTree = "<group>"; };
 		6B81DBF94254939A59C1FA7C /* GuidanceViewModel+Restore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GuidanceViewModel+Restore.swift"; sourceTree = "<group>"; };
 		6FE7D72F999868C1D579BAA8 /* PreparationViewModel+Checkpoint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PreparationViewModel+Checkpoint.swift"; sourceTree = "<group>"; };
@@ -172,6 +175,7 @@
 		7CCEAAA341C35912CFF2B73B /* SoundTestViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoundTestViewModel.swift; sourceTree = "<group>"; };
 		7F6B1C19B0D60E8E8EB44AA5 /* SignalPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignalPlayer.swift; sourceTree = "<group>"; };
 		8142CDE35A01BAD95188EAE6 /* HomeActionCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeActionCard.swift; sourceTree = "<group>"; };
+		82E4D4763B0EC54A3B3CAD63 /* ReplaySurfaceFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReplaySurfaceFactory.swift; sourceTree = "<group>"; };
 		84454DF442867536AF635936 /* ARSessionController+Lifecycle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ARSessionController+Lifecycle.swift"; sourceTree = "<group>"; };
 		84FD5AFC85C7DB8F30B0D596 /* GuidanceViewModel+Interruption.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GuidanceViewModel+Interruption.swift"; sourceTree = "<group>"; };
 		854F7E3558CF686ECDA6A077 /* BrandMark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrandMark.swift; sourceTree = "<group>"; };
@@ -265,6 +269,15 @@
 				5D05FD1427F1D8C0A3545E6F /* StageRow.swift */,
 			);
 			path = Parts;
+			sourceTree = "<group>";
+		};
+		194066279F14D4869BB3E6E3 /* Model */ = {
+			isa = PBXGroup;
+			children = (
+				6A386723CB3162352D0F1847 /* ReplayModelFactory.swift */,
+				82E4D4763B0EC54A3B3CAD63 /* ReplaySurfaceFactory.swift */,
+			);
+			path = Model;
 			sourceTree = "<group>";
 		};
 		1A3D12B2E5F1111D1B3AFBF1 /* Packages */ = {
@@ -672,6 +685,7 @@
 		CD7F24D5B9C54756988252F5 /* StagePreview */ = {
 			isa = PBXGroup;
 			children = (
+				194066279F14D4869BB3E6E3 /* Model */,
 				FCF9C2F08769EB47E799CCF4 /* View */,
 				04619D5A5CA15CC1836CE8D6 /* ViewModel */,
 			);
@@ -941,6 +955,8 @@
 				6FAC80BD5564AAF95A626D3E /* PreparationViewModel+Route.swift in Sources */,
 				D031F1555D980E7F740F3CA1 /* PreparationViewModel+Scan.swift in Sources */,
 				4D8CDD9238FE3E0573F34080 /* PreparationViewModel.swift in Sources */,
+				0AA1B769BB98876C0C594903 /* ReplayModelFactory.swift in Sources */,
+				42BEB49F3784E96653838089 /* ReplaySurfaceFactory.swift in Sources */,
 				3E8F05B4CB93029E6189D535 /* SavedMeshView.swift in Sources */,
 				D9D0A74C0159862B2C3D7C18 /* SavedStagePreview.swift in Sources */,
 				71561858F684178D7DBF87A7 /* SavedStagePreviewModel.swift in Sources */,
