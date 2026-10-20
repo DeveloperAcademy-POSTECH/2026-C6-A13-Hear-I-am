@@ -10,11 +10,13 @@ public struct StageObstacle: Codable, Equatable, Sendable, Identifiable {
     public var vertices: [FloorPoint]
     /// Top above the stage floor in metres, measured from the scan mesh; nil for older saves or when not measured.
     public var height: Double?
-    public init(id: UUID = UUID(), name: String, kind: ObstacleKind, passage: PassagePolicy = .prohibited, vertices: [FloorPoint], height: Double? = nil) throws {
-        self.id=id; self.name=name; self.kind=kind; self.passage=passage; self.vertices=vertices; self.height=height
+    public var appearance: ObjectAppearance?
+    public init(id: UUID = UUID(), name: String, kind: ObstacleKind, passage: PassagePolicy = .prohibited, vertices: [FloorPoint], height: Double? = nil, appearance: ObjectAppearance? = nil) throws {
+        self.id=id; self.name=name; self.kind=kind; self.passage=passage; self.vertices=vertices; self.height=height; self.appearance=appearance
         try validate()
     }
     public func validate() throws {
+        try appearance?.validate()
         guard !name.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty,
               (3...8).contains(vertices.count), vertices.allSatisfy(\.valid),
               abs(Self.area(vertices)) >= 0.0005 else { throw LabError.invalid("장애물 영역에 유효한 꼭짓점 3~8개가 필요합니다.") }
