@@ -79,6 +79,7 @@ final class PreparationViewModel: ObservableObject {
     var showsCrosshairHint: String? {
         if interrupted { return "추적 중단" }
         if let hit=aimHit { return hit.message }
+        if let issue=aimEdgeIssue { return issue }
         if step == .scan { return supportsMesh ? "민트색 그물 = 스캔한 표면" : nil }
         return step == .route ? "바닥 또는 등록한 의자·계단 윗면을 선택하세요" : "십자선을 실제 바닥에 맞춰주세요"
     }
@@ -87,6 +88,12 @@ final class PreparationViewModel: ObservableObject {
         guard step == .route, !draft.routeFinished, let aim=session.aimPoint else { return nil }
         return draft.clearanceHit(adding:aim)
     }
+    /// The point under the crosshair is too close to the stage edge or a danger zone (10/19).
+    var aimEdgeIssue: String? {
+        guard step == .route, !draft.routeFinished, let aim=session.aimPoint else { return nil }
+        return draft.edgeIssue(adding:aim)
+    }
+    var aimBlocked: Bool { aimHit != nil || aimEdgeIssue != nil }
 
     // Lifecycle
     func appear() {

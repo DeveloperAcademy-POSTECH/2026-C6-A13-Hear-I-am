@@ -126,6 +126,24 @@ final class PlatformEdgesTests: XCTestCase {
             shape.vertices.reverse()
         }
     }
+    func testHeightConfirmationCannotBypassStageMarginOrDangerZone() throws {
+        var draft=PreparationDraft()
+        draft.corners=[Point3(6,0,0),Point3(0,0,0),Point3(0,0,6),Point3(6,0,6)].map(Optional.some)
+        let area=try XCTUnwrap(draft.area)
+        draft.objects=[WorldObstacle(name:"의자",kind:.platform,
+            vertices:[FloorPoint(0,2),.init(2,2),.init(2,4),.init(0,4)].map(area.world),height:0.3)]
+        try draft.addRoutePoint(area.world(.init(3,3)))
+        var point=area.world(.init(0.1,3)); point.y=0.6
+        XCTAssertNotNil(draft.edgeIssue(adding:point))
+        XCTAssertThrowsError(try draft.addRoutePoint(point,confirmHeightMismatch:true))
+        XCTAssertEqual(draft.route.count,1)
+        point=area.world(.init(0.6,3)); point.y=0.6
+        XCTAssertNil(draft.edgeIssue(adding:point))
+        draft.dangerZones=[StageDangerZone(edge:.left,distance:.halfMetre)]
+        XCTAssertNotNil(draft.edgeIssue(adding:point))
+        XCTAssertThrowsError(try draft.addRoutePoint(point,confirmHeightMismatch:true))
+        XCTAssertEqual(draft.route.count,1)
+    }
     func testObservedSurfaceMustMatchMeasuredHeight() throws {
         var draft=PreparationDraft()
         draft.corners=[Point3(6,0,0),Point3(0,0,0),Point3(0,0,6),Point3(6,0,6)].map(Optional.some)

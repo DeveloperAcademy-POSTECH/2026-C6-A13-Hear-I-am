@@ -44,6 +44,13 @@ public struct StageDangerZone: Codable, Equatable, Sendable, Identifiable {
         return point.x >= polygon[0].x && point.x <= polygon[2].x &&
                point.y >= polygon[0].y && point.y <= polygon[2].y
     }
+    /// Floor distance from `point` to the strip; 0 inside it or on its border.
+    public func distance(to point: FloorPoint, width: Double, depth: Double) -> Double {
+        let polygon=vertices(width:width,depth:depth)
+        guard point.valid, polygon.count == 4 else { return .infinity }
+        let dx=max(polygon[0].x-point.x,0,point.x-polygon[2].x), dy=max(polygon[0].y-point.y,0,point.y-polygon[2].y)
+        return (dx*dx+dy*dy).squareRoot()
+    }
     public static func summary(_ zones: [Self]) -> String {
         let entries=Edge.allCases.compactMap { edge in
             zones.first(where: { $0.edge == edge }).map { "\(edge.label) \($0.distance.label)" }
