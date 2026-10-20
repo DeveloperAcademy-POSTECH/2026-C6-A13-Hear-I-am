@@ -12,6 +12,7 @@ final class SavedStagePreviewModel: ObservableObject {
     @Published var cameraRevision=0
     @Published var selection: ReplaySelection?
     @Published var showPhotoPins=true
+    @Published var showCleanPhotoPins=false
     @Published var photoExpanded=false
     @Published var photoCardCollapsed=false
     let record: ScanManifest
@@ -32,9 +33,13 @@ final class SavedStagePreviewModel: ObservableObject {
         catch {self.error=error.localizedDescription}
     }
     func setCamera(_ mode: ReplayCamera) {cameraMode=mode;cameraRevision+=1}
+    var photoPinsVisible: Bool {
+        get {display == .clean ? showCleanPhotoPins : showPhotoPins}
+        set {if display == .clean {showCleanPhotoPins=newValue} else {showPhotoPins=newValue}}
+    }
     func select(_ value: ReplaySelection) {
-        selection=value;photoCardCollapsed=false
-        if case .photo=value {showPhotoPins=true}
+        selection=value;photoCardCollapsed=display == .clean
+        if case .photo=value {photoPinsVisible=true;photoCardCollapsed=false}
         // Selecting a marker updates its details without moving the user's camera.
     }
     var selectedPhoto: ScanPhoto? {

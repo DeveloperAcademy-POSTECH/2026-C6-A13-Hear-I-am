@@ -11,12 +11,14 @@ final class ReplaySceneController: NSObject {
     let scene=SCNScene()
     let camera=SCNNode()
     let mesh=SCNNode(), stage=SCNNode(), floor=SCNNode(), objects=SCNNode(), photos=SCNNode()
-    let person=ReplayModelFactory.person()
+    let person=SCNNode(), scanPerson=ReplayModelFactory.person(), cleanPerson=ReplayModelFactory.cleanPerson()
     let surroundings=SCNNode(), key=SCNNode(), ambient=SCNNode()
     private let cleanSurfaces: [ReplaySurfaceMesh]
     private var builtCleanSurfaces=false
     private var scanBounds=(min:SCNVector3Zero,max:SCNVector3Zero)
     let selectionOverlay=SCNNode(), scanAnnotations=SCNNode(), routeNodes=SCNNode()
+    let cleanRouteNodes=SCNNode(), cleanAnnotations=SCNNode()
+    var cleanMarkers: [Int:SCNNode]=[:]
     let scan: LoadedScan
     var onSelect: ((ReplaySelection) -> Void)?
     var names: [String:ReplaySelection]=[:]
@@ -70,6 +72,9 @@ final class ReplaySceneController: NSObject {
         stage.eulerAngles.y=Float(atan2(-area.right.y,area.right.x))
         stage.addChildNode(floor); stage.addChildNode(objects); stage.addChildNode(routeNodes)
         stage.addChildNode(surroundings)
+        stage.addChildNode(cleanRouteNodes);stage.addChildNode(cleanAnnotations)
+        cleanAnnotations.addChildNode(ReplayModelFactory.stageBoundary(area))
+        cleanAnnotations.addChildNode(ReplayModelFactory.caption("무대 범위",at:.init(area.width-0.35,0.18,-0.18)))
         for i in area.corners.indices {
             let a=area.corners[i], b=area.corners[(i+1)%area.corners.count]
             scanAnnotations.addChildNode(ReplayModelFactory.line(.init(a.x,a.y+0.04,a.z),.init(b.x,b.y+0.04,b.z),color:.systemCyan))
@@ -104,8 +109,41 @@ final class ReplaySceneController: NSObject {
                 routeNodes.addChildNode(arrow)
             }
         }
+        buildCleanRoute(route)
+        person.addChildNode(scanPerson);person.addChildNode(cleanPerson)
+        cleanPerson.name="clean-person"
         stage.addChildNode(person); movePerson(to:0)
         stage.addChildNode(selectionOverlay)
+    }
+    private func buildCleanRoute(_ route: StageRoute) {
+        for (index,p) in route.points.enumerated() {
+            let height=routeHeight(index)
+            let marker: SCNNode
+            if index==0 {
+                let next=route.points.count>1 ? route.points[1] : p
+                marker=ReplayModelFactory.startMarker(heading:Float(atan2(next.x-p.x,-(next.y-p.y))))
+            } else if index==route.points.count-1 {
+                marker=ReplayModelFactory.arrivalMarker()
+            } else {marker=ReplayModelFactory.waypoint(index+1)}
+            marker.position=SCNVector3(p.x,height+0.015,-p.y)
+            selectable(marker,.point(index));cleanMarkers[index]=marker;cleanRouteNodes.addChildNode(marker)
+            if index==0 || index==route.points.count-1 {
+                let label=ReplayModelFactory.caption(index==0 ? "출발" : "도착",at:.init(p.x,height+0.20,-p.y+0.40))
+                selectable(label,.point(index));cleanRouteNodes.addChildNode(label)
+            }
+            if index>0 {
+                let previous=route.points[index-1]
+                let a=SCNVector3(previous.x,routeHeight(index-1)+0.035,-previous.y)
+                let b=SCNVector3(p.x,height+0.035,-p.y)
+                let segment=ReplayModelFactory.dashedRoute(from:a,to:b)
+                // As in raw replay, saved routes remain readable across raised surfaces.
+                ReplayModelFactory.routeOverlay(segment,order:5)
+                segment.name="clean-segment-\(index)";cleanRouteNodes.addChildNode(segment)
+                let arrow=ReplayModelFactory.routeChevron(from:a,to:b)
+                ReplayModelFactory.routeOverlay(arrow,order:6)
+                arrow.name="clean-chevron-\(index)";cleanRouteNodes.addChildNode(arrow)
+            }
+        }
     }
     func buildPhotos() {
         for (index,photo) in scan.manifest.photos.enumerated() {
@@ -122,6 +160,7 @@ final class ReplaySceneController: NSObject {
         let p=route.points[index]
         let height=routeHeight(index)
         person.position=SCNVector3(p.x,height,-p.y)
+        names["clean-person"] = .point(index)
         for (i,label) in pointLabels {label.position.y=Float(i==index ? height+1.8 : routeHeight(i)+0.24)}
         let next=route.points.indices.contains(index+1) ? route.points[index+1] : p
         let previous=index>0 ? route.points[index-1] : p
@@ -143,26 +182,40 @@ final class ReplaySceneController: NSObject {
         surroundings.isHidden=raw
         floor.isHidden=raw
         objects.isHidden=raw
-        scanAnnotations.isHidden=false
+        scanAnnotations.isHidden = !raw
+        routeNodes.isHidden = !raw
+        cleanAnnotations.isHidden=raw
+        cleanRouteNodes.isHidden=raw
+        scanPerson.isHidden = !raw
+        cleanPerson.isHidden=raw
         ambient.light?.intensity=raw ? 650 : 800
         key.light?.intensity=raw ? 900 : 650
         key.light?.castsShadow = !raw
         view?.backgroundColor=raw ? UIColor(white:0.10,alpha:1) : ReplaySurfaceFactory.background
-        routeNodes.enumerateChildNodes {node,_ in
-            node.geometry?.firstMaterial?.diffuse.contents=raw ? UIColor.systemGreen : ReplayModelFactory.green
-        }
+        routeNodes.enumerateChildNodes {node,_ in node.geometry?.firstMaterial?.diffuse.contents=UIColor.systemGreen}
         photos.isHidden = !showPhotos
         for node in mesh.childNodes {node.geometry?.firstMaterial?.fillMode=wireframe ? .lines : .fill}
         selectionOverlay.childNodes.forEach {$0.removeFromParentNode()}
         scene.rootNode.childNodes.filter {$0.name=="photo-direction"}.forEach {$0.removeFromParentNode()}
         if let selection {
             switch selection {
-            case .point(let i): movePerson(to:i)
+            case .point(let i):
+                movePerson(to:i)
+                if !raw,let route=scan.manifest.route,route.points.indices.contains(i) {
+                    let p=route.points[i]
+                    let ring=ReplayModelFactory.part(SCNTorus(ringRadius:0.29,pipeRadius:0.012),
+                        .init(p.x,routeHeight(i)+0.027,-p.y),color:ReplayModelFactory.cobalt)
+                    selectionOverlay.addChildNode(ring)
+                }
             case .object(let id):
                 if let object=scan.manifest.route?.obstacles.first(where:{$0.id==id}) {
                     for i in object.vertices.indices {
                         let a=object.vertices[i],b=object.vertices[(i+1)%object.vertices.count]
-                        selectionOverlay.addChildNode(ReplayModelFactory.line(.init(a.x,0.04,-a.y),.init(b.x,0.04,-b.y),color:.systemOrange,radius:0.04))
+                        if raw {
+                            selectionOverlay.addChildNode(ReplayModelFactory.line(.init(a.x,0.04,-a.y),.init(b.x,0.04,-b.y),color:.systemOrange,radius:0.04))
+                        } else {
+                            selectionOverlay.addChildNode(ReplayModelFactory.dashedRoute(from:.init(a.x,0.035,-a.y),to:.init(b.x,0.035,-b.y),footprint:true))
+                        }
                     }
                 }
             case .photo(let id):

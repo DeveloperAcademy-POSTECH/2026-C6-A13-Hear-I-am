@@ -34,7 +34,7 @@ struct SavedMeshView: UIViewRepresentable {
     }
     func updateUIView(_ view: SCNView, context: Context) {
         context.coordinator.onSelect={model.select($0)}
-        context.coordinator.update(display:model.display,wireframe:model.wireframe,showPhotos:model.showPhotoPins,
+        context.coordinator.update(display:model.display,wireframe:model.wireframe,showPhotos:model.photoPinsVisible,
                                    selection:model.selection,cameraMode:model.cameraMode,revision:model.cameraRevision)
     }
 }

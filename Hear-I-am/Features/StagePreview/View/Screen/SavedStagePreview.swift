@@ -6,6 +6,7 @@ struct SavedStagePreview: View {
     init(record: ScanManifest, store: ScanStore, camera: ReplayCamera = .overview, display: ReplayDisplay = .scan, selection: ReplaySelection? = nil) {
         let model=SavedStagePreviewModel(record:record,store:store)
         model.cameraMode=camera;model.display=display;model.selection=selection
+        model.photoCardCollapsed=display == .clean
         _model=StateObject(wrappedValue:model)
     }
     var body: some View {
@@ -87,7 +88,7 @@ struct SavedStagePreview: View {
                             Text("이 저장 공간에는 동선이 없어 스캔 표면을 표시해요.").font(.caption)
                         }
                         if !scan.manifest.photos.isEmpty {
-                            Toggle("사진 촬영 위치 표시",isOn:$model.showPhotoPins)
+                            Toggle("사진 촬영 위치 표시",isOn:Binding(get:{model.photoPinsVisible},set:{model.photoPinsVisible=$0}))
                             ScrollView(.horizontal) {
                                 LazyHStack {
                                     ForEach(scan.manifest.photos) {photo in
@@ -114,6 +115,9 @@ struct SavedStagePreview: View {
             }
         }.navigationTitle(model.record.name).navigationBarTitleDisplayMode(.inline)
             .task {await model.load()}
+            .onChange(of:model.display) { _,display in
+                if display == .clean {model.photoCardCollapsed=true}
+            }
             .sheet(isPresented:$model.photoExpanded) {
                 NavigationStack {
                     if let photo=model.selectedPhoto {
