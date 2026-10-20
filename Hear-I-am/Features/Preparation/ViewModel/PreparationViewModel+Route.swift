@@ -5,6 +5,12 @@ extension PreparationViewModel {
         guard canPlacePoint, !confirmingRouteHeight, let area=draft.area else {return}
         do {
             let point=try session.centerFloorPoint()
+            if let hit=draft.clearanceHit(adding:point) {
+                session.event("route_point_blocked",detail:"\(hit.name) overlap=\(String(format:"%.2f",hit.overlap)) inside=\(hit.pointInside)")
+            }
+            if let issue=draft.edgeIssue(adding:point,asDestination:destination) {
+                session.event("route_point_blocked",detail:issue)
+            }
             // Preflight every structural and path constraint before offering a height override.
             var candidate=draft
             try candidate.addRoutePoint(point,asDestination:destination,confirmHeightMismatch:true)

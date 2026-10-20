@@ -8,6 +8,8 @@ public enum SignalSound: Equatable, Sendable {
     case arrival
     /// Direction beep for a 45° landmark; see DirectionPattern.beep.
     case direction(signedDegrees: Int)
+    /// A short woodblock/marimba-like click ("톡") for continuous angle-proportional direction feedback (#44).
+    case directionTick(toRight: Bool)
     /// A low tone pulsed about 12 times a second so it reads as a buzz rather than a note.
     /// `harmonic` mixes in a quieter copy two octaves up for earbuds that cannot reproduce the low end.
     case buzz(hertz: Double, harmonic: Bool)
@@ -18,6 +20,7 @@ public enum SignalSound: Equatable, Sendable {
         case .warning(let level, let tone): return "warning_\(level.name)_\(tone.rawValue)"
         case .arrival: return "arrival"
         case .direction(let degrees): return "direction_"+DirectionPattern.name(signedDegrees:degrees)
+        case .directionTick(let toRight): return "direction_tick_"+(toRight ? "right" : "left")
         case .buzz(let hertz, let harmonic): return "buzz_\(Int(hertz))hz"+(harmonic ? "_harmonic" : "")
         }
     }
