@@ -119,7 +119,9 @@ extension ReplayModelFactory {
     static let ink=UIColor(red:0.25,green:0.24,blue:0.22,alpha:1)
     static let cobalt=UIColor(red:0.24,green:0.36,blue:0.78,alpha:1)
     static let coral=UIColor(red:0.82,green:0.40,blue:0.29,alpha:1)
-    static let taupe=UIColor(red:0.65,green:0.59,blue:0.50,alpha:1)
+    static let waypointGreen=UIColor(red:0.12,green:0.45,blue:0.33,alpha:1)
+    static let routeInk=UIColor(white:0.12,alpha:1)
+    static let boundaryBronze=UIColor(red:0.78,green:0.58,blue:0.25,alpha:1)
 
     /// A replaceable, static 1.7 m figure, feet at Y=0 and face towards +Z.
     static func cleanPerson() -> SCNNode {
@@ -184,7 +186,7 @@ extension ReplayModelFactory {
                 let down=SIMD3<Float>(0,0.008,0)
                 root.addChildNode(ribbon(p-down,q-down,width:0.075,height:0.006,color:ink))
             }
-            root.addChildNode(ribbon(p,q,width:footprint ? 0.025 : 0.055,height:0.012,color:footprint ? taupe : ivory))
+            root.addChildNode(ribbon(p,q,width:footprint ? 0.035 : 0.055,height:0.012,color:footprint ? boundaryBronze : routeInk))
         }
         return root.flattenedClone()
     }
@@ -205,7 +207,7 @@ extension ReplayModelFactory {
     static func routeChevron(from a: SCNVector3,to b: SCNVector3) -> SCNNode {
         let root=SCNNode(),delta=SIMD3<Float>(b)-SIMD3<Float>(a)
         guard simd_length(delta)>0.65 else {return root}
-        let glyph=stroke([.init(x:-0.09,y:0.07),.init(x:0,y:-0.07),.init(x:0.09,y:0.07)],width:0.045,color:ivory)
+        let glyph=stroke([.init(x:-0.09,y:0.07),.init(x:0,y:-0.07),.init(x:0.09,y:0.07)],width:0.045,color:routeInk)
         glyph.eulerAngles.x = -.pi/2
         root.addChildNode(glyph)
         root.simdPosition=(SIMD3<Float>(a)+SIMD3<Float>(b))/2+SIMD3(0,0.014,0)
@@ -242,10 +244,10 @@ extension ReplayModelFactory {
         return root
     }
     static func waypoint(_ number: Int) -> SCNNode {
-        let root=SCNNode();root.addChildNode(disc(radius:0.17,height:0.035,color:ivory))
+        let root=SCNNode();root.addChildNode(disc(radius:0.17,height:0.035,color:waypointGreen))
         let geometry=SCNText(string:String(number),extrusionDepth:0.001)
         geometry.font=UIFont.systemFont(ofSize:12,weight:.bold);geometry.flatness=0.3
-        let text=part(geometry,.init(0,0.04,0),color:ink),bounds=geometry.boundingBox
+        let text=part(geometry,.init(0,0.04,0),color:ivory),bounds=geometry.boundingBox
         text.pivot=SCNMatrix4MakeTranslation((bounds.min.x+bounds.max.x)/2,(bounds.min.y+bounds.max.y)/2,0)
         text.scale=SCNVector3(0.018,0.018,0.018);text.eulerAngles.x = -.pi/2
         root.addChildNode(text)
@@ -277,13 +279,13 @@ extension ReplayModelFactory {
                                      .init(Float(area.width),0.018,-Float(area.depth)),.init(0,0.018,-Float(area.depth))]
         for i in corners.indices {
             let a=corners[i],b=corners[(i+1)%4]
-            root.addChildNode(ribbon(a-SIMD3(0,0.008,0),b-SIMD3(0,0.008,0),width:0.035,height:0.006,color:ink))
-            root.addChildNode(ribbon(a,b,width:0.022,height:0.009,color:ivory))
+            root.addChildNode(ribbon(a-SIMD3(0,0.008,0),b-SIMD3(0,0.008,0),width:0.05,height:0.006,color:ink))
+            root.addChildNode(ribbon(a,b,width:0.032,height:0.009,color:boundaryBronze))
             for neighbor in [corners[(i+3)%4],b] {
                 let delta=neighbor-a,length=simd_length(delta)
                 guard length>0.001 else {continue}
                 let end=a+delta/length*min(0.23,length/3)
-                root.addChildNode(ribbon(a+SIMD3(0,0.005,0),end+SIMD3(0,0.005,0),width:0.07,height:0.018,color:ivory))
+                root.addChildNode(ribbon(a+SIMD3(0,0.005,0),end+SIMD3(0,0.005,0),width:0.08,height:0.018,color:boundaryBronze))
             }
         }
         return root.flattenedClone()
