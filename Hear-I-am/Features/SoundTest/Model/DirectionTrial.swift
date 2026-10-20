@@ -5,6 +5,9 @@ struct DirectionTrial {
     enum Mode: String {
         case body="몸", head="고개", sweep="새 방향음 360°"
         case pitchBody="지속음 · 몸", pitchHead="지속음 · 고개", pitchSlider="지속음 · 슬라이더", pitchReference="기준음 60Hz"
+        case countBody="3·2·1 비프 · 몸", countHead="3·2·1 비프 · 고개", countSlider="3·2·1 비프 · 슬라이더"
+        var isCounted: Bool { [.countBody,.countHead,.countSlider].contains(self) }
+        var isTimed: Bool { isContinuous || isCounted }
         var isContinuous: Bool { [.pitchBody,.pitchHead,.pitchSlider,.pitchReference].contains(self) }
     }
     let mode: Mode
@@ -29,7 +32,7 @@ struct DirectionTrialResult: Identifiable {
     let headFoundSeconds: Double?
 
     var summary: String {
-        var parts=["\(mode.rawValue) · 목표 \(target)°",found ? String(format:"%.1f초",seconds) : (mode == .sweep || mode.isContinuous ? "종료 " : "중단 ")+String(format:"%.1f초",seconds)]
+        var parts=["\(mode.rawValue) · 목표 \(target)°",found ? String(format:"%.1f초",seconds) : (mode == .sweep || mode.isTimed ? "종료 " : "중단 ")+String(format:"%.1f초",seconds)]
         if let bodyError { parts.append(String(format:"몸 %+.0f°",bodyError)) }
         if let headError { parts.append(String(format:"고개 %+.0f°",headError)) }
         if let headFoundSeconds { parts.append(String(format:"고개로 찾음 %.1f초",headFoundSeconds)) }

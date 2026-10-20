@@ -28,6 +28,8 @@ import HearIAmCore
     @Published var pitchResolution=ContinuousDirectionGate.Resolution.smooth
     let continuous=ContinuousTonePlayer()
     var pitchGate=ContinuousDirectionGate()
+    var countGate=CountedDirectionGate()
+    @Published var countStatus="시작 전"
     var pitchTimer: Timer?
     var lastPitchLog: Double?
     var pitchObservers: [NSObjectProtocol]=[]
@@ -54,16 +56,17 @@ import HearIAmCore
                    AVAudioSession.RouteChangeReason(rawValue:raw) == .categoryChange { return }
                 let interrupted=note.name == AVAudioSession.interruptionNotification
                 Task { @MainActor in
-                    guard let self, self.trial?.mode.isContinuous == true else { return }
+                    guard let self, self.trial?.mode.isTimed == true else { return }
                     self.finishTrial(found:false)
                     if interrupted { HearAudioSession.interrupted() }
-                    self.pitchStatus="출력 변경 또는 중단";self.record("continuous_stopped",self.pitchStatus)
+                    self.pitchStatus="출력 변경 또는 중단";self.countStatus=self.pitchStatus
+                    self.record("direction_trial_stopped",self.pitchStatus)
                 }
             })
         }
         signals.onError={ [weak self] text in
             guard let self else { return }
-            if self.trial?.mode.isContinuous == true { self.finishTrial(found:false);self.pitchStatus=text }
+            if self.trial?.mode.isTimed == true { self.finishTrial(found:false);self.pitchStatus=text;self.countStatus=text }
             self.record("signal_error",text)
         }
         signals.onEvent={ [weak self] in self?.record($0,$1) }
@@ -71,8 +74,8 @@ import HearIAmCore
         voice.onSpeaking={ [weak self] value in
             guard let self else { return }
             self.speaking=value;self.signals.setSpeechActive(value)
-            if value, self.trial?.mode.isContinuous == true {
-                self.signals.stopDirection();self.continuous.setHertz(nil);self.pitchGate.suspend()
+            if value, self.trial?.mode.isTimed == true {
+                self.signals.stopDirection();self.continuous.setHertz(nil);self.pitchGate.suspend();self.countGate.suspend()
             }
         }
         voice.onError={ [weak self] in self?.record("speech_error",$0) }
@@ -102,7 +105,10 @@ import HearIAmCore
     }
 
     // ① signals
-    func setWarning(_ level: WarningLevel?) { warning=level;signals.setWarning(level) }
+    func setWarning(_ level: WarningLevel?) {
+        if level != nil, trial?.mode.isCounted == true { signals.stopDirection();countGate.suspend() }
+        warning=level;signals.setWarning(level)
+    }
     func setWarningTone(_ tone: WarningTone) { warningTone=tone;signals.setWarningTone(tone) }
     func playArrival() { signals.play(.arrival) }
     func previewSweep(_ degrees: Int) {

@@ -126,6 +126,16 @@ struct SoundTestView: View {
                 Text("몸 \(Self.angle(model.bodyAngle)) · 고개 \(Self.angle(model.headAngle))").monospacedDigit()
                 if let trial=model.trial { Text("진행 중 · \(trial.mode.rawValue) · 목표 \(trial.target)°").bold() }
             }.font(.subheadline)
+            Text("3·2·1 비프는 왼쪽으로 돌아야 할 때 높은 음, 오른쪽은 낮은 음이에요. 90° 초과는 3번, 30~90°는 2번, 그보다 가까우면 1번. ±10° 안에서 잠시 유지하면 띠링 후 조용해져요.")
+                .font(.subheadline)
+            SoundTestRow(label:"비교 실험 · 3·2·1 비프") {
+                ActionButton(title:"몸으로 찾기 · 3·2·1",enabled:model.trial == nil) { model.startTrial(.countBody) }
+                ActionButton(title:"고개로 찾기 · 3·2·1",enabled:model.trial == nil) { model.startTrial(.countHead) }
+                ActionButton(title:"비프 슬라이더",primary:false,enabled:model.trial == nil) { model.startTrial(.countSlider) }
+                ActionButton(title:"그만",primary:false,enabled:model.trial != nil) { model.finishTrial(found:false) }
+            }
+            Text(model.countStatus).font(.subheadline).accessibilityLabel("3·2·1 비프 상태, \(model.countStatus)")
+            Divider()
             Text("작은 한 음이 계속 이어져요. 왼쪽 보정은 80→60Hz, 오른쪽 보정은 40→60Hz로 목표에 가까워질수록 변해요. 정렬되면 띠링이 한 번 나고 작은 60Hz 소리는 유지돼요.")
                 .font(.subheadline)
             SoundTestRow(label:"새 실험 · 작은 지속음 40~80Hz") {
@@ -145,7 +155,7 @@ struct SoundTestView: View {
                 Text("지속음 크기 \(Int((model.pitchVolume*100).rounded()))%")
                 Slider(value:$model.pitchVolume,in:0.02...0.3,step:0.01).accessibilityLabel("지속음 크기")
             }.font(.caption)
-            if model.trial?.mode == .pitchSlider {
+            if model.trial?.mode == .pitchSlider || model.trial?.mode == .countSlider {
                 VStack(alignment:.leading,spacing:8) {
                     Text("목표 상대각 \(Self.angle(model.manualBearing)) · 0°가 정렬")
                     Slider(value:$model.manualBearing,in:-180...180,step:1)
