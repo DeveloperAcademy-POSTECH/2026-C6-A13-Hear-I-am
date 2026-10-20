@@ -204,4 +204,57 @@ final class SignalRuleTests: XCTestCase {
         var plain=StepGate()
         XCTAssertNil(plain.update(position:.init(4.5,1),target:.init(6,1),obstacles:[try square(5,0,size:2)]))
     }
+    /// Field test 10/19 (scan 80DA77CD): 「내려갑니다」 on arriving on the platform, then overshooting past
+    /// its corner clipped it by 0.06 m and added 「올라갔다 내려갑니다」 in the same second.
+    func testOvershootPastAPlatformCornerAfterStepDownIsQuiet() throws {
+        let platform=try StageObstacle(name:"단상",kind:.platform,passage:.passable,
+            vertices:[.init(1.5319868935240273,1.236119042969031),.init(1.2262760832529627,1.1928760903779199),
+                      .init(1.2267799840371716,1.500336987005577),.init(1.4978151934113444,1.5283740496398153)])
+        let target=FloorPoint(1.3451606103406586,0.508620136078461)
+        var gate=StepGate(), cues: [StepCue]=[]
+        for p in [FloorPoint(1.484,1.349),.init(1.512,1.354),.init(1.541,1.36),.init(1.571,1.364),.init(1.63,1.377),.init(1.72,1.405),.init(1.81,1.41)] {
+            if let cue=gate.update(position:p,target:target,obstacles:[platform]) { cues.append(cue) }
+        }
+        XCTAssertEqual(cues.map(\.kind),[.down],cues.map(\.detail).joined(separator:" | "))
+    }
+    func testWayClippingACornerByLessThanTenCentimetresIsNotAStep() throws {
+        let platform=try square(5,0,size:2,kind:.platform,name:"단상")
+        var gate=StepGate()
+        // Through the corner (5,0) region: in at (5,0.05), out at (5.05,0), about 0.07 m on the platform.
+        XCTAssertNil(gate.update(position:.init(4.5,0.55),target:.init(5.6,-0.55),obstacles:[platform]))
+    }
+    /// 10/19: past ±135° the escape line said 「오른쪽」 while the vibration said 「뒤」.
+    func testEscapeLineFollowsTheVibrationBehind() {
+        XCTAssertEqual(SignalCopy.escape(bearing:40),"멈추세요. 오른쪽으로 비켜서세요")
+        XCTAssertEqual(SignalCopy.escape(bearing:-135),"멈추세요. 왼쪽으로 비켜서세요")
+        XCTAssertEqual(SignalCopy.escape(bearing:136),"멈추세요. 뒤로 도세요")
+        XCTAssertEqual(SignalCopy.escape(bearing:-170),"멈추세요. 뒤로 도세요")
+    }
+    // MARK: distance
+    func testDistanceMarksEveryMetreThenHalfAndOncePerLeg() {
+        var gate=DistanceGate()
+        let target=FloorPoint(0,0)
+        XCTAssertNil(gate.update(position:.init(0,3.05),target:target))
+        var said: [Double]=[]
+        for y in stride(from:3.0,through:0.3,by:-0.05) {
+            if let mark=gate.update(position:.init(0,y),target:target) { said.append(mark) }
+        }
+        XCTAssertEqual(said,[2,1,0.5])
+        // Swaying back across 0.5 m does not say it again.
+        XCTAssertNil(gate.update(position:.init(0,0.6),target:target))
+        XCTAssertNil(gate.update(position:.init(0,0.45),target:target))
+        XCTAssertEqual(said.map(SignalCopy.distance),["2미터","1미터","50센티"])
+    }
+    func testDistanceStartsBelowTheStartAndRestartsForANewTarget() {
+        var gate=DistanceGate()
+        // Starting 1.05 m away: 1 m is too close to the start to be news.
+        XCTAssertNil(gate.update(position:.init(0,1.05),target:.init(0,0)))
+        XCTAssertNil(gate.update(position:.init(0,0.95),target:.init(0,0)))
+        // A jump past several marks says only the nearest.
+        XCTAssertEqual(gate.update(position:.init(0,0.4),target:.init(0,0)),0.5)
+        XCTAssertNil(gate.update(position:.init(0,0.4),target:.init(0,2.5)))
+        XCTAssertEqual(gate.update(position:.init(0,1.55),target:.init(0,2.5)),1)
+        gate.reset()
+        XCTAssertNil(gate.update(position:.init(0,1.55),target:.init(0,2.5)))
+    }
 }

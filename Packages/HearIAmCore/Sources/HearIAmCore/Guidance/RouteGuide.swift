@@ -17,7 +17,10 @@ public struct RouteGuide: Sendable {
     public let settings: GuideSettings
     /// Opt in for the portrait guidance flow. The legacy experiment keeps its original rules.
     public let usesRouteCorridor: Bool
-    public static let corridorRadius = 0.60
+    /// How far from the active segment counts as off the route. It was 0.6 m until 10/19; in two runs
+    /// that day all five off-route stops came from overshooting a point and stopped 0.60–0.87 m from the
+    /// line. Stepping off the stage and coming near an object still stop at once.
+    public static let corridorRadius = 1.0
     private var arrivedSince: Double?
     private var lastTime: Double?
     private var lastSpeech: Double = -.infinity

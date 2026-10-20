@@ -1,12 +1,12 @@
 import HearIAmCore
 
-/// 안내 중 · 일시정지: signals along the saved route, decided 10/17 (comparison option ②).
-/// Direction is the waist vibration (next target = 0°, every 45°), with the earbud direction beep at
-/// the same moment unless the sound test tab chose only one of them (#33). Speech only when needed:
-/// corrections past 45° for 1 s, steps 1 m ahead. The earbud gives the obstacle warning and the arrival ding.
-/// Walking on track is silent.
+/// 안내 중 · 일시정지: signals along the saved route.
+/// Direction is the earbud tick of #44: silent while facing the next target within ±n°, 「왼쪽」 or 「오른쪽」
+/// once when turned away, then ticks that quicken toward it. Speech otherwise only for steps 1 m ahead and
+/// the remaining distance at a few marks (#46). The earbud also gives the obstacle warning and the arrival ding.
 extension GuidanceViewModel {
-    static let arrivalShownSeconds=2.0, arrivalWarningPause=1.5
+    /// About as long as the ding rings; the distance call-out waits this long after an arrival.
+    static let arrivalShownSeconds=2.0, arrivalQuietSeconds=0.7
 
     var canResume: Bool {
         guard let pose=freshPose(), let guide else { return false }
@@ -21,7 +21,7 @@ extension GuidanceViewModel {
     /// Clears every signal rule; called when guidance starts or resumes.
     func resetSignals() {
         directionTicks.deadbandDegrees=SignalPlayer.directionDeadbandDegrees
-        directionTicks.reset();landmarks.reset();warnings.reset();corrections.reset();steps.reset();arrivalShownAt=nil;warningHoldUntil=nil
+        directionTicks.reset();landmarks.reset();warnings.reset();steps.reset();distances.reset();arrivalShownAt=nil;quietUntil=nil
         signals.setWarning(nil);signals.stopDirection()
     }
     func tickGuiding(pose: (point: FloorPoint, heading: Double, time: Double), guide current: RouteGuide) {
@@ -42,40 +42,49 @@ extension GuidanceViewModel {
     }
 
     /// Ding once; the new target becomes 0° so the direction tick gate immediately guides toward the next spot.
+    /// The obstacle warning keeps playing: it used to stop for 1.5 s so the ding was not masked, but a
+    /// masked ding is better than a missing warning (10/19). Only the distance call-out waits for the ding.
     private func arrived(_ previous: Int, guide: RouteGuide, time: Double) {
         let name=GuidanceCopy.target(previous,last:guide.route.points.count-1)
         arrivedName=name;arrivalShownAt=time
-        directionTicks.reset();landmarks.reset();corrections.reset()
+        directionTicks.reset();landmarks.reset();quietUntil=time+Self.arrivalQuietSeconds
         signals.stopDirection()
-        signals.setWarning(nil);warningHoldUntil=time+Self.arrivalWarningPause
         signals.play(.arrival)
-        tracking.event("signal_arrival",detail:"\(name) next=\(guide.targetIndex)")
+        logSignal("signal_arrival","\(name) next=\(guide.targetIndex)")
     }
     private func signal(pose: (point: FloorPoint, heading: Double, time: Double), guide: RouteGuide) {
         guard guide.route.points.indices.contains(guide.targetIndex) else { return }
         let target=guide.route.points[guide.targetIndex]
         let bearing=StageHeading.bearing(from:pose.point,to:target,headingDegrees:pose.heading)
-        if let hold=warningHoldUntil, pose.time < hold {} else {
-            warningHoldUntil=nil
-            let warning=warnings.update(position:pose.point,headingDegrees:pose.heading,obstacles:guide.route.obstacles)
-            if warning?.level != signals.warning {
-                signals.setWarning(warning?.level)
-                tracking.event("signal_warning_reason",detail:warning?.detail ?? "off")
-            }
-        }
-        if let step=steps.update(position:pose.point,target:target,obstacles:guide.route.obstacles) {
-            voice.play([step.line]);tracking.event("signal_step",detail:step.detail)
-        }
+        let quiet=quietUntil.map { pose.time < $0 } ?? false
+        if !quiet { quietUntil=nil }
+        // Direction (#44): silent within ±n° of the target; outside it 「왼쪽」 or 「오른쪽」 once, then ticks
+        // that quicken as the body turns toward it.
         if let cue=directionTicks.update(time:pose.time,bearing:bearing) {
             if let word=cue.spokenWord {
                 voice.direction(word)
-                tracking.event("signal_direction_word",detail:String(format:"%@ bearing %+.0f°",word,bearing))
+                logSignal("signal_direction_word",String(format:"%@ bearing %+.0f°",word,bearing))
             }
-            if cue.shouldTick {
-                signals.play(.directionTick(toRight:cue.toRight))
-            }
+            if cue.shouldTick { signals.play(.directionTick(toRight:cue.toRight)) }
         } else {
             signals.stopDirection()
+        }
+        let warning=warnings.update(position:pose.point,headingDegrees:pose.heading,obstacles:guide.route.obstacles)
+        if warning?.level != signals.warning {
+            signals.setWarning(warning?.level)
+            logSignal("signal_warning_reason",warning?.detail ?? "off")
+        }
+        // Every tick, so a mark passed while something else speaks is dropped rather than said late.
+        let mark=distances.update(position:pose.point,target:target)
+        if let step=steps.update(position:pose.point,target:target,obstacles:guide.route.obstacles) {
+            voice.play([step.line]);logSignal("signal_step",step.detail)
+            if let mark { logSignal("signal_distance_skipped","\(SignalCopy.distance(mark)) reason=step") }
+        } else if let mark {
+            // Safety signals first: no distance over an obstacle warning, another line or the ding.
+            let line=SignalCopy.distance(mark)
+            if quiet || signals.warning != nil || speaking {
+                logSignal("signal_distance_skipped","\(line) reason=\(quiet ? "arrival" : speaking ? "speaking" : "warning")")
+            } else { voice.direction(line);logSignal("signal_distance",line) }
         }
     }
     private func paused(guide: RouteGuide) {
