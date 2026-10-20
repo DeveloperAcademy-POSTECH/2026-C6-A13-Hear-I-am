@@ -41,8 +41,10 @@ extension GuidanceViewModel {
             let toward=Self.closest(on:points[i-1],points[i],to:pose.point)
             if pose.point.distance(to:toward) > 0.1 { return StageHeading.bearing(from:pose.point,to:toward,headingDegrees:pose.heading) }
         }
-        guard let obstacle=guide.route.obstacles.filter(\.blocksPath).min(by: { $0.distance(to:pose.point) < $1.distance(to:pose.point) }) else { return 0 }
-        return HeadingMath.wrapDegrees(StageHeading.bearing(from:pose.point,to:obstacle.closestPoint(to:pose.point),headingDegrees:pose.heading)+180)
+        guard let blocked=guide.route.obstacles.compactMap({$0.blockingPoint(from:pose.point)}).min(by: {
+            pose.point.distance(to:$0) < pose.point.distance(to:$1)
+        }) else { return 0 }
+        return HeadingMath.wrapDegrees(StageHeading.bearing(from:pose.point,to:blocked,headingDegrees:pose.heading)+180)
     }
     private func endEscape(pose: (point: FloorPoint, heading: Double, time: Double)) {
         guard let state=escape, var guide, guide.resume(position:pose.point,trackingValid:true) else { return }

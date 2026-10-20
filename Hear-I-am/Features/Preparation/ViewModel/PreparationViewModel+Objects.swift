@@ -9,8 +9,10 @@ extension PreparationViewModel {
         objectEditing=true
         guard !busy else {return}
         editingObjectID=id
+        entryEdges=[]; exitEdges=[]
         if let object=draft.objects.first(where:{$0.id==id}) {
             obstacleName=object.name; obstacleKind=object.kind; pendingObjectWorld=object.vertices
+            entryEdges=Set(object.entryEdges ?? Array(object.vertices.indices)); exitEdges=Set(object.exitEdges ?? Array(object.vertices.indices))
         } else {obstacleName="장애물"; obstacleKind = .other; pendingObjectWorld=[]}
         // An existing object keeps the kind it was registered with; a new one takes the suggestion.
         kindChosen=id != nil; objectHeight=nil
@@ -22,7 +24,7 @@ extension PreparationViewModel {
         do {
             let p=try session.centerFloorPoint()
             guard pendingObjectWorld.count<8, abs(p.y-area.floorHeight)<=0.10, area.contains(area.floor(p)) else {throw LabError.invalid("무대 안 바닥에서 기물의 둘레를 3~8점으로 지정해주세요.")}
-            pendingObjectWorld.append(p); measureObject(); synchronize()
+            pendingObjectWorld.append(p); entryEdges=[]; exitEdges=[]; measureObject(); synchronize()
         } catch {session.errorMessage=error.localizedDescription}
     }
     /// One line under the kind picker telling what the height suggests; nil before 3 points.
@@ -47,12 +49,12 @@ extension PreparationViewModel {
     }
     func undoObjectVertex() {
         guard !busy, !pendingObjectWorld.isEmpty else {return}
-        pendingObjectWorld.removeLast(); measureObject(); synchronize()
+        pendingObjectWorld.removeLast(); entryEdges=[]; exitEdges=[]; measureObject(); synchronize()
     }
     func commitObject() {
         guard !busy, let area=draft.area else {return}
         do {
-            let item=WorldObstacle(id:editingObjectID ?? UUID(),name:obstacleName.trimmingCharacters(in:.whitespacesAndNewlines),kind:obstacleKind,vertices:pendingObjectWorld,height:objectHeight?.height)
+            let item=WorldObstacle(id:editingObjectID ?? UUID(),name:obstacleName.trimmingCharacters(in:.whitespacesAndNewlines),kind:obstacleKind,vertices:pendingObjectWorld,height:objectHeight?.height ?? draft.objects.first(where:{$0.id==editingObjectID})?.height, entryEdges:entryEdges.sorted(), exitEdges:exitEdges.sorted())
             let projected=try item.projected(in:area)
             guard projected.vertices.allSatisfy({area.contains($0)}) else {throw LabError.invalid("기물을 무대 안에 지정해주세요.")}
             if let i=draft.objects.firstIndex(where:{$0.id==item.id}) {draft.objects[i]=item} else {draft.objects.append(item)}

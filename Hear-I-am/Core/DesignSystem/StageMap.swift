@@ -59,6 +59,17 @@ struct StageMap: View {
                     let selected=object.id == selectedObject
                     context.fill(polygon, with:.color(selected ? .orange.opacity(0.3) : (object.isStep ? .blue.opacity(0.2) : .gray.opacity(0.3))))
                     context.stroke(polygon, with:.color(selected ? .orange : (object.isStep ? .blue : .hearInk)), lineWidth:2)
+                    if object.isStep {
+                        for i in object.vertices.indices {
+                            var edge=Path(); edge.move(to:project(object.vertices[i])); edge.addLine(to:project(object.vertices[(i+1)%object.vertices.count]))
+                            let entry=object.permitsEntry(i), exit=object.permitsExit(i)
+                            let color: Color=entry && exit ? .green : (entry ? .blue : (exit ? .orange : .red))
+                            if !entry && !exit, let clearance {
+                                context.stroke(edge,with:.color(.red.opacity(0.25)),style:StrokeStyle(lineWidth:2*clearance*scale,lineCap:.round))
+                            }
+                            context.stroke(edge,with:.color(color),lineWidth:3)
+                        }
+                    }
                 }
                 for i in points.indices {
                     let p=project(points[i])

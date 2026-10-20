@@ -46,7 +46,7 @@ public struct PerformancePlan: Codable, Equatable, Identifiable, Sendable {
             ? [FloorPoint(p.x-0.6,p.y-0.5),FloorPoint(p.x+0.6,p.y-0.5),FloorPoint(p.x+0.6,p.y+0.5),FloorPoint(p.x-0.6,p.y+0.5)]
             : [FloorPoint(p.x,p.y+0.6),FloorPoint(p.x-0.6,p.y-0.5),FloorPoint(p.x+0.6,p.y-0.5)]
         guard vertices.allSatisfy({Self.area.contains($0)}) else { throw LabError.invalid("기물이 무대 안에 들어오도록 배치해주세요.") }
-        objects.append(try StageObstacle(name: platform ? "단상" : "장애물", kind: platform ? .platform : .other,
+        objects.append(try StageObstacle(name: platform ? "의자" : "장애물", kind: platform ? .platform : .other,
                                          passage: platform ? .passable : .prohibited, vertices: vertices))
     }
     public mutating func moveObject(_ id: UUID, to p: FloorPoint) throws {

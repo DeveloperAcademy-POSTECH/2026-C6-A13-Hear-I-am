@@ -6,13 +6,14 @@ public struct StageRoute: Codable, Equatable, Sendable {
     /// p0 followed by p1...p5, all in stage floor metres.
     public var points: [FloorPoint]
     public var obstacles: [StageObstacle]
+    public var pointHeights: [Double]?
     public var dangerZones: [StageDangerZone]
-    public init(area: StageArea, points: [FloorPoint], obstacles: [StageObstacle], allowsOutsideEndpoints: Bool = false, dangerZones: [StageDangerZone] = []) throws {
+    public init(area: StageArea, points: [FloorPoint], obstacles: [StageObstacle], allowsOutsideEndpoints: Bool = false, dangerZones: [StageDangerZone] = [], pointHeights: [Double]? = nil) throws {
         version=allowsOutsideEndpoints ? 2 : 1; self.area=area; self.points=points; self.obstacles=obstacles
-        self.dangerZones=dangerZones
+        self.dangerZones=dangerZones; self.pointHeights=pointHeights
         try validate()
     }
-    enum CodingKeys: String, CodingKey { case version, area, points, obstacles, dangerZones }
+    enum CodingKeys: String, CodingKey { case version, area, points, obstacles, dangerZones, pointHeights }
     public init(from decoder: Decoder) throws {
         let c=try decoder.container(keyedBy:CodingKeys.self)
         version=try c.decode(Int.self,forKey:.version)
@@ -20,10 +21,16 @@ public struct StageRoute: Codable, Equatable, Sendable {
         points=try c.decode([FloorPoint].self,forKey:.points)
         obstacles=try c.decode([StageObstacle].self,forKey:.obstacles)
         dangerZones=try c.decodeIfPresent([StageDangerZone].self,forKey:.dangerZones) ?? []
+        pointHeights=try c.decodeIfPresent([Double].self,forKey:.pointHeights)
         try validate()
     }
     public func validate() throws {
         try area.validate()
+        if let pointHeights {
+            guard pointHeights.count == points.count, pointHeights.allSatisfy({$0.isFinite}) else {
+                throw LabError.invalid("경로 지점의 높이 정보가 올바르지 않습니다.")
+            }
+        }
         guard Set(dangerZones.map(\.edge)).count == dangerZones.count else {
             throw LabError.invalid("같은 무대 변에 위험 구역을 중복 설정할 수 없습니다.")
         }
@@ -41,8 +48,8 @@ public struct StageRoute: Codable, Equatable, Sendable {
             for i in 0..<(points.count-1) {
                 let a=points[i], b=points[i+1]
                 if a.distance(to:b) < 0.05 { result.append("p\(i)→p\(i+1) 선분이 너무 짧습니다") }
-                for o in obstacles where o.blocksPath && o.overlaps(a,b,clearance:obstacleClearance) {
-                    result.append("p\(i)→p\(i+1)이 \(o.name) 여유 영역과 겹칩니다")
+                for o in obstacles where o.blocksTravel(from:a,to:b,clearance:obstacleClearance) {
+                    result.append("p\(i)→p\(i+1)이 \(o.name) 통과 금지 측면 또는 여유 영역과 겹칩니다")
                 }
             }
         }

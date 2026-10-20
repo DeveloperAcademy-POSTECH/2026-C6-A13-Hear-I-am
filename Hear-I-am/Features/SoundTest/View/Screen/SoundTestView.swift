@@ -56,7 +56,7 @@ struct SoundTestView: View {
                     ActionButton(title:line,primary:false) { model.speak(line) }
                 }
             }
-            SoundTestRow(label:"단상 · 계단 음성") {
+            SoundTestRow(label:"의자 · 계단 음성") {
                 ForEach([SignalCopy.stepUp(stairs:false),SignalCopy.stepUp(stairs:true),SignalCopy.stepDown],id:\.self) { line in
                     ActionButton(title:line,primary:false) { model.speak(line) }
                 }

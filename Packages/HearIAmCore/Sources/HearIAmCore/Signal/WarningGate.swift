@@ -17,8 +17,9 @@ public struct WarningGate: Sendable {
     /// nil when no obstacle is within range or the sample is invalid.
     @discardableResult public mutating func update(position: FloorPoint, headingDegrees: Double, obstacles: [StageObstacle]) -> ObstacleWarning? {
         guard position.valid, headingDegrees.isFinite else { current=nil;return nil }
-        let candidates=obstacles.filter { !$0.isStep }.map { o -> (StageObstacle,Double,Double) in
-            (o,o.distance(to:position),StageHeading.bearing(from:position,to:o.closestPoint(to:position),headingDegrees:headingDegrees))
+        let candidates=obstacles.compactMap { o -> (StageObstacle,Double,Double)? in
+            guard let point=o.blockingPoint(from:position) else { return nil }
+            return (o,position.distance(to:point),StageHeading.bearing(from:position,to:point,headingDegrees:headingDegrees))
         }.filter { o,distance,bearing in
             let view=o.id == current?.obstacleID ? Self.keptFieldOfView : Self.fieldOfView
             return distance <= WarningLevel.closeDistance || abs(bearing) <= view
