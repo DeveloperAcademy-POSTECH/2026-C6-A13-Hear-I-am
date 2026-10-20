@@ -27,7 +27,7 @@ struct PreparationGuide {
             description="출발·도착은 같은 높이의 무대 밖도 가능해요. 내부 지점은 무대 안 바닥 또는 등록한 단상·계단 윗면에 지정하세요. 승하강은 허용한 변으로만 가능해요. 빨간 영역은 장애물에서 \(Int((draft.effectiveObstacleClearance*100).rounded()))cm 여유라 지나갈 수 없어요. \(draft.route.count)/6점"
         case .checkpoint:
             title=draft.checkpoint == nil ? "확인점 한 개를 지정해주세요" : "확인점을 지정했어요"
-            description="무대 중앙 또는 특징적인 바닥 지점을 선택하세요. 모서리에서 0.5m 이상 떨어져야 해요."
+            description="특징적인 바닥이나 고정된 기물이 바닥과 만나는 경계를 선택하세요. 둘레 오차는 안쪽 5cm까지 허용해요. 무대 모서리에서 0.5m 이상 떨어져야 해요."
         }
     }
 }

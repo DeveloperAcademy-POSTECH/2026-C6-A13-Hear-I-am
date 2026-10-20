@@ -64,6 +64,68 @@ final class PlatformEdgesTests: XCTestCase {
         // Endpoints are inside separate arms, but the path crosses two closed inner sides.
         XCTAssertTrue(o.blocksTravel(from:.init(1.5,4),to:.init(4.5,4),clearance:0))
     }
+    func testConfirmedHeightCanBeSavedButDoesNotBypassGeometry() throws {
+        var draft=PreparationDraft()
+        draft.corners=[Point3(6,0,0),Point3(0,0,0),Point3(0,0,6),Point3(6,0,6)].map(Optional.some)
+        let area=try XCTUnwrap(draft.area)
+        let shape=try object()
+        draft.objects=[WorldObstacle(name:"단상",kind:.platform,vertices:shape.vertices.map(area.world),height:0.3,entryEdges:[3],exitEdges:[1])]
+        try draft.addRoutePoint(area.world(.init(1,3)))
+        var top=area.world(.init(3,3)); top.y=0.6
+        XCTAssertThrowsError(try draft.addRoutePoint(top))
+        XCTAssertEqual(draft.route.count,1)
+        try draft.addRoutePoint(top,confirmHeightMismatch:true)
+        try draft.addRoutePoint(area.world(.init(5,3)),asDestination:true)
+        let saved=try draft.stageRoute()
+        XCTAssertTrue(draft.routeErrors.isEmpty)
+        let decoded=try JSONDecoder().decode(StageRoute.self,from:JSONEncoder().encode(saved))
+        XCTAssertEqual(decoded.pointHeights,[0,0.6,0])
+        draft.removeLastRoutePoint(); draft.removeLastRoutePoint()
+        XCTAssertThrowsError(try draft.addRoutePoint(top))
+        var outside=area.world(.init(1,1)); outside.y=0.6
+        XCTAssertThrowsError(try draft.addRoutePoint(outside,confirmHeightMismatch:true))
+        var invalid=top; invalid.y=3
+        XCTAssertThrowsError(try draft.addRoutePoint(invalid,confirmHeightMismatch:true))
+        draft.objects[0].entryEdges=[]
+        XCTAssertThrowsError(try draft.addRoutePoint(top,confirmHeightMismatch:true))
+    }
+    func testCheckpointAllowsBoundaryBandButNotObjectInterior() throws {
+        var draft=PreparationDraft()
+        draft.corners=[Point3(6,0,0),Point3(0,0,0),Point3(0,0,6),Point3(6,0,6)].map(Optional.some)
+        let area=try XCTUnwrap(draft.area), shape=try object()
+        for kind in [ObstacleKind.other,.box,.platform,.stairs] {
+            draft.objects=[WorldObstacle(name:"기물",kind:kind,vertices:shape.vertices.map(area.world),height:0.5)]
+            for point in [FloorPoint(1.9,3),.init(2,3),.init(2.049,3),.init(2.05,3),.init(2,2)] {
+                draft.checkpoint=area.world(point)
+                XCTAssertTrue(draft.checkpointErrors.isEmpty,"\(kind): \(point)")
+            }
+            for point in [FloorPoint(2.051,3),.init(3,3)] {
+                draft.checkpoint=area.world(point)
+                XCTAssertFalse(draft.checkpointErrors.isEmpty)
+            }
+            var top=area.world(.init(2,3)); top.y=0.5
+            draft.checkpoint=top
+            XCTAssertFalse(draft.checkpointErrors.isEmpty)
+        }
+        // A point near one outline may still be deep inside another object.
+        draft.objects.append(WorldObstacle(name:"겹친 기물",kind:.other,
+            vertices:[FloorPoint(1,1),.init(5,1),.init(5,5),.init(1,5)].map(area.world)))
+        draft.checkpoint=area.world(.init(2,3))
+        XCTAssertFalse(draft.checkpointErrors.isEmpty)
+        draft.objects=[]
+        draft.checkpoint=area.corners[0]
+        XCTAssertFalse(draft.checkpointErrors.isEmpty)
+    }
+    func testBoundaryDistanceForConcaveAndReversedOutline() throws {
+        var shape=try StageObstacle(name:"오목",kind:.other,
+            vertices:[.init(1,1),.init(5,1),.init(5,5),.init(4,5),.init(4,2),.init(2,2),.init(2,5),.init(1,5)])
+        for _ in 0..<2 {
+            XCTAssertTrue(shape.contains(.init(1.96,3)))
+            XCTAssertEqual(shape.boundaryDistance(to:.init(1.96,3)),0.04,accuracy:1e-9)
+            XCTAssertEqual(shape.boundaryDistance(to:.init(1.5,3)),0.5,accuracy:1e-9)
+            shape.vertices.reverse()
+        }
+    }
     func testObservedSurfaceMustMatchMeasuredHeight() throws {
         var draft=PreparationDraft()
         draft.corners=[Point3(6,0,0),Point3(0,0,0),Point3(0,0,6),Point3(6,0,6)].map(Optional.some)

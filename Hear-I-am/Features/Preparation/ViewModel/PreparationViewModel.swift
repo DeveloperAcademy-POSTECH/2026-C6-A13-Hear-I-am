@@ -40,6 +40,9 @@ final class PreparationViewModel: ObservableObject {
     @Published var intro: Int? = 0
     @Published var selectedCorner: Int?
     @Published var objectEditing=false
+    @Published var confirmingRouteHeight=false
+    var pendingRouteHeight: (point: Point3, destination: Bool, draft: PreparationDraft, token: UUID)?
+    var routeHeightMessage=""
     @Published var review=false
     @Published var editingDangerZones=false
     @Published var guideCollapsed=false
@@ -92,7 +95,7 @@ final class PreparationViewModel: ObservableObject {
     }
     func disappear() { session.endSession() }
     func scenePhaseChanged(_ phase: ScenePhase) {
-        if phase == .background {session.setActive(false)} else if phase == .active {session.setActive(true)}
+        if phase == .background { confirmingRouteHeight=false; pendingRouteHeight=nil;session.setActive(false)} else if phase == .active {session.setActive(true)}
     }
     func resumeTracking() { session.resumePreparation() }
     /// Leaving with no scanned surface needs no confirmation.
@@ -132,6 +135,7 @@ final class PreparationViewModel: ObservableObject {
     func changeStep(_ value: PreparationStep) {
         guard value > .scan, value <= highest, !busy else {return}
         let changed=step != value
+        confirmingRouteHeight=false; pendingRouteHeight=nil
         step=value; review=false; selectedCorner=nil; guideCollapsed=false
         if !seen.contains(value) {seen.insert(value); intro=0} else {intro=nil}
         // Objects are outlined on top of the scanned surface (10/18), so the mesh stays on through that step.
