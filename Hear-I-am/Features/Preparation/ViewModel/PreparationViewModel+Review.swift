@@ -4,7 +4,7 @@ import HearIAmCore
 /// 검토·저장. Saving needs a stable world map; failures keep every input for another try.
 extension PreparationViewModel {
     var nameTooLong: Bool { scanName.count>80 }
-    var canSave: Bool { session.canSave && !scanName.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty && !nameTooLong }
+    var canSave: Bool { session.canSave && !session.photoCapturing && !scanName.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty && !nameTooLong }
     var isSaving: Bool { busy && review }
     func save() { session.save(name:scanName) }
 }

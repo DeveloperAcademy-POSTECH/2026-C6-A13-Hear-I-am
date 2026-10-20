@@ -55,6 +55,13 @@ final class ARSessionController: ObservableObject {
     private var watchdog: Timer?
     private let cameraQueue=DispatchQueue(label:"HearIAm.AR",qos:.userInitiated)
 
+    @Published var photoSources: [ScanPhotoSource] = []
+    @Published var photoCapturing=false
+    @Published var photoStatus=""
+    var photoCapture=ScanPhotoCapture()
+    var photoRequest=UUID()
+    var photoAnchors: [UUID:ARAnchor] = [:]
+
     // Saving
     var saveAttempt=UUID()
     var archiveWriteInProgress=false
@@ -139,6 +146,7 @@ final class ARSessionController: ObservableObject {
         stopLog()
         session?.delegate=nil; session?.pause()
         token=UUID(); gate=TrackingGate(); latest=nil
+        clearPhotos()
         if purpose == .preparation { preparedDraft=PreparationDraft(); savedID=nil; onReset?() }
         position=nil; heading=nil; guidancePoseTime=nil; ready=false; canVerify=false; canSave=false
         meshes=[:]; renderer.clearMeshes()

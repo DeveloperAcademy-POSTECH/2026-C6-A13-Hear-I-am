@@ -29,6 +29,9 @@ final class PreparationViewModel: ObservableObject {
     /// Once the operator picks a kind, the height no longer changes it.
     var kindChosen=false
     var applyingSuggestion=false
+    @Published var objectModel: ObjectAppearance.Model = .generic
+    @Published var objectHeading=0.0
+    @Published var showingPhotos=false
     @Published var scanName="무대 스캔"
     @Published var selectedPlan: PerformancePlan?
     @Published var choosingPlan=false
@@ -64,9 +67,9 @@ final class PreparationViewModel: ObservableObject {
     // Session state the screen reads
     var supported: Bool { session.supported }
     var supportsMesh: Bool { session.supportsMesh }
-    var busy: Bool { session.busy }
+    var busy: Bool { session.busy || session.photoCapturing }
     var interrupted: Bool { session.preparationInterrupted }
-    var canPlacePoint: Bool { session.canPlacePoint }
+    var canPlacePoint: Bool { session.canPlacePoint && !session.photoCapturing }
     var meshCount: Int { session.meshCount }
     var mapping: String { session.mapping }
     var savedID: UUID? { session.savedID }
@@ -106,7 +109,7 @@ final class PreparationViewModel: ObservableObject {
     }
     func resumeTracking() { session.resumePreparation() }
     /// Leaving with no scanned surface needs no confirmation.
-    var exitNeedsConfirmation: Bool { session.meshCount != 0 || draft.corners.contains(where:{$0 != nil}) }
+    var exitNeedsConfirmation: Bool { !session.photoSources.isEmpty || session.photoCapturing || session.meshCount != 0 || draft.corners.contains(where:{$0 != nil}) }
 
     // Steps
     func isComplete(_ s: PreparationStep) -> Bool {
@@ -130,6 +133,9 @@ final class PreparationViewModel: ObservableObject {
         do {
             var next=draft
             try next.applyPlan(plan)
+            for source in session.photoSources {
+                session.linkPhoto(source.photo.id,objectID:nil,routeIndex:nil)
+            }
             draft=next; selectedPlan=plan; choosingPlan=false
             if scanName == "무대 스캔" || scanName.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty { scanName=plan.name }
             synchronize()
