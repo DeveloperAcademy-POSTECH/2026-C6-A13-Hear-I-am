@@ -3,7 +3,7 @@ import UIKit
 import HearIAmCore
 
 /// All replaceable visuals use metres, floor origin and +Z as the facing direction.
-/// Replace this factory with asset loading later; placement/selection nodes stay unchanged.
+/// Bundled artist assets and procedural markers share the same placement/selection nodes.
 enum ReplayModelFactory {
     static let green=UIColor(red:0.06,green:0.52,blue:0.32,alpha:1)
     static let gray=UIColor(red:0.831,green:0.812,blue:0.780,alpha:1) // #D4CFC7
@@ -125,6 +125,10 @@ extension ReplayModelFactory {
 
     /// A replaceable, static 1.7 m figure, feet at Y=0 and face towards +Z.
     static func cleanPerson() -> SCNNode {
+        if let model=asset("ReplayPerson") {return model}
+        return fallbackPerson()
+    }
+    private static func fallbackPerson() -> SCNNode {
         let root=SCNNode()
         let skin=UIColor(red:0.80,green:0.65,blue:0.52,alpha:1)
         let trousers=UIColor(red:0.35,green:0.43,blue:0.49,alpha:1)
@@ -186,7 +190,7 @@ extension ReplayModelFactory {
                 let down=SIMD3<Float>(0,0.008,0)
                 root.addChildNode(ribbon(p-down,q-down,width:0.075,height:0.006,color:ink))
             }
-            root.addChildNode(ribbon(p,q,width:footprint ? 0.035 : 0.055,height:0.012,color:footprint ? boundaryBronze : routeInk))
+            root.addChildNode(ribbon(p,q,width:footprint ? 0.035 : 0.055,height:0.012,color:footprint ? boundaryBronze : ivory))
         }
         return root.flattenedClone()
     }
@@ -207,9 +211,11 @@ extension ReplayModelFactory {
     static func routeChevron(from a: SCNVector3,to b: SCNVector3) -> SCNNode {
         let root=SCNNode(),delta=SIMD3<Float>(b)-SIMD3<Float>(a)
         guard simd_length(delta)>0.65 else {return root}
-        let glyph=stroke([.init(x:-0.09,y:0.07),.init(x:0,y:-0.07),.init(x:0.09,y:0.07)],width:0.045,color:routeInk)
+        let glyph=stroke([.init(x:-0.09,y:0.07),.init(x:0,y:-0.07),.init(x:0.09,y:0.07)],width:0.045,color:ivory)
         glyph.eulerAngles.x = -.pi/2
-        root.addChildNode(glyph)
+        let shadow=stroke([.init(x:-0.09,y:0.07),.init(x:0,y:-0.07),.init(x:0.09,y:0.07)],width:0.065,color:routeInk)
+        shadow.eulerAngles.x = -.pi/2;shadow.position.y = -0.008
+        root.addChildNode(shadow);root.addChildNode(glyph)
         root.simdPosition=(SIMD3<Float>(a)+SIMD3<Float>(b))/2+SIMD3(0,0.014,0)
         root.simdOrientation=routeOrientation(delta)
         return root
@@ -302,6 +308,45 @@ extension ReplayModelFactory {
         glyph.pivot=SCNMatrix4MakeTranslation((bounds.min.x+bounds.max.x)/2,(bounds.min.y+bounds.max.y)/2,0)
         glyph.scale=SCNVector3(scale,scale,scale);glyph.geometry?.firstMaterial?.lightingModel = .constant
         root.addChildNode(plate);root.addChildNode(glyph)
+        return root
+    }
+}
+
+// The converted geometry is cached; instances share immutable geometry and textures.
+extension ReplayModelFactory {
+    private static let personAsset=loadAsset("ReplayPerson")
+    private static let projectorAsset=loadAsset("ReplayProjector")
+    private static func asset(_ name: String) -> SCNNode? {
+        (name == "ReplayPerson" ? personAsset : projectorAsset)?.clone()
+    }
+    private static func loadAsset(_ name: String) -> SCNNode? {
+        guard let url=Bundle.main.url(forResource:name,withExtension:"scn",subdirectory:"ReplayModels.scnassets"),
+              let scene=try? SCNScene(url:url,options:[.checkConsistency:true]),
+              let textureURL=Bundle.main.url(forResource:name,withExtension:"jpg",subdirectory:"ReplayModels.scnassets"),
+              let texture=UIImage(contentsOfFile:textureURL.path) else {return nil}
+        scene.rootNode.enumerateChildNodes {node,_ in
+            for material in node.geometry?.materials ?? [] {
+                material.diffuse.contents=texture;material.isDoubleSided=true
+                material.roughness.contents=0.85;material.metalness.contents=0
+                material.lightingModel = .physicallyBased
+            }
+        }
+        return scene.rootNode
+    }
+    /// Local origin is the lens centre, looking down -Z, matching an AR/SceneKit camera.
+    static func projector() -> SCNNode {
+        let root=SCNNode()
+        if let model=asset("ReplayProjector") {
+            model.name="projector-asset"
+            // The supplied projector lens faces +X. Rotate to -Z and put the lens at the origin.
+            model.eulerAngles.y = .pi/2
+            model.position=SCNVector3(0,-0.0926,0.1932)
+            root.addChildNode(model)
+        } else {
+            root.addChildNode(box(0.18,0.16,0.23,0,0,0.15,color:routeInk))
+            let lens=part(SCNCylinder(radius:0.065,height:0.10),.init(0,0,0.03),color:routeInk)
+            lens.eulerAngles.x = .pi/2;root.addChildNode(lens)
+        }
         return root
     }
 }
