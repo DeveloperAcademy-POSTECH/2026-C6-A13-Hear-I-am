@@ -14,12 +14,14 @@ public struct StageObstacle: Codable, Equatable, Sendable, Identifiable {
     /// nil preserves unrestricted access in older saves; an empty list closes every edge.
     public var entryEdges: [Int]?
     public var exitEdges: [Int]?
-    public init(id: UUID = UUID(), name: String, kind: ObstacleKind, passage: PassagePolicy = .prohibited, vertices: [FloorPoint], height: Double? = nil, entryEdges: [Int]? = nil, exitEdges: [Int]? = nil) throws {
+    public var appearance: ObjectAppearance?
+    public init(id: UUID = UUID(), name: String, kind: ObstacleKind, passage: PassagePolicy = .prohibited, vertices: [FloorPoint], height: Double? = nil, entryEdges: [Int]? = nil, exitEdges: [Int]? = nil, appearance: ObjectAppearance? = nil) throws {
         self.id=id; self.name=name; self.kind=kind; self.passage=passage; self.vertices=vertices; self.height=height
-        self.entryEdges=entryEdges; self.exitEdges=exitEdges
+        self.entryEdges=entryEdges; self.exitEdges=exitEdges; self.appearance=appearance
         try validate()
     }
     public func validate() throws {
+        try appearance?.validate()
         for edges in [entryEdges,exitEdges].compactMap({$0}) {
             guard Set(edges).count == edges.count, edges.allSatisfy({vertices.indices.contains($0)}) else {
                 throw LabError.invalid("승하강 변 번호가 올바르지 않습니다.")
