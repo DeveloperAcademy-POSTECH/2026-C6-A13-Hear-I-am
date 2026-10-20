@@ -1,18 +1,18 @@
 import HearIAmCore
 
-/// Recovery uses the route-return/obstacle-away bearing with the same pitch-glide vocabulary.
-/// The double beep confirms heading only; automatic route re-entry still needs one safe second.
+/// Recovery uses the route-return/obstacle-away bearing with the same counted-beep vocabulary.
+/// The alignment bell confirms heading only; automatic route re-entry still needs one safe second.
 extension GuidanceViewModel {
     static let escapeReasons: [GuidePauseReason]=[.obstacleProximity,.offRoute,.outsideStage]
 
     func beginEscape(reason: GuidePauseReason, pose: (point: FloorPoint, heading: Double, time: Double), guide: RouteGuide) {
         cancelRouteSpeech();routeNarration.suspendMotion();narrationReadyAt=nil
-        directionSweep.reset();signals.stopDirection()
+        directionBeep.reset();signals.stopDirection()
         phase = .paused
         escape=EscapeState(reason:reason,startedAt:pose.time,lastSpoken:pose.time)
         message=recoveryInstruction(reason,bearing:guide.recoveryBearing(position:pose.point,headingDegrees:pose.heading))
         voice.play([message])
-        tracking.event("escape_start",detail:"reason=\(reason) direction=pitch_sweep")
+        tracking.event("escape_start",detail:"reason=\(reason) direction=counted_beeps")
     }
     func tickEscape(pose: (point: FloorPoint, heading: Double, time: Double), guide: RouteGuide) {
         guard var state=escape else { return }
@@ -44,13 +44,13 @@ extension GuidanceViewModel {
             let turn=abs(bearing) > 135 ? "뒤로 돌아주세요." : bearing > 10 ? "오른쪽으로 돌아주세요." : bearing < -10 ? "왼쪽으로 돌아주세요." : "몸 방향을 유지해주세요."
             return "멈추세요. 등록한 기물과 가까워졌어요. \(turn) 경고가 끝나면 방향음으로 안내합니다."
         }
-        return "멈추세요. 동선에서 벗어났어요. 방향음으로 복귀할 방향을 찾으세요. 삐빅은 방향이 맞았다는 뜻입니다."
+        return "멈추세요. 동선에서 벗어났어요. 방향음으로 복귀할 방향을 찾으세요. 띠링은 몸의 방향이 맞았다는 뜻입니다."
     }
     private func endEscape(pose: (point: FloorPoint, heading: Double, time: Double)) {
         guard let state=escape, var guide, guide.resume(position:pose.point,trackingValid:true) else { return }
         self.guide=guide;escape=nil;phase = .guiding
         routeNarration.suspendMotion();narrationReadyAt=nil
-        signals.setWarningQuiet(false);directionSweep.reset();signals.stopDirection();steps.reset()
+        signals.setWarningQuiet(false);directionBeep.reset();signals.stopDirection();steps.reset()
         voice.play(["다시 안내합니다"])
         tracking.event("escape_end",detail:String(format:"reason=%@ seconds=%.1f quiet=%@","\(state.reason)",pose.time-state.startedAt,state.quiet ? "yes" : "no"))
     }

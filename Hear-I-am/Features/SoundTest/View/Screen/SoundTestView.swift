@@ -30,13 +30,13 @@ struct SoundTestView: View {
 
     private var signals: some View {
         VStack(alignment:.leading,spacing:16) {
-            Text("현재 안내: 상승음은 왼쪽, 하강음은 오른쪽. 삐빅은 방향 정렬, 띵은 지점 도착이에요.")
+            Text("현재 안내: 높은 비프는 왼쪽, 낮은 비프는 오른쪽. 맞출수록 3·2·1번, 정렬되면 띠링 후 조용해져요.")
                 .font(.subheadline)
-            SoundTestRow(label:"새 방향음 · 큰 회전 / 작은 회전") {
+            SoundTestRow(label:"이전 상승·하강음 비교 · 큰 회전 / 작은 회전") {
                 ForEach([-135,-25,25,135],id:\.self) { degrees in
                     ActionButton(title:Self.label(degrees),primary:false,enabled:model.trial == nil) { model.previewSweep(degrees) }
                 }
-                ActionButton(title:"정렬 삐빅",primary:false,enabled:model.trial == nil) { model.previewAlignment() }
+                ActionButton(title:"이전 정렬 삐빅",primary:false,enabled:model.trial == nil) { model.previewAlignment() }
             }
             SoundTestRow(label:"남은 거리 · 좌우 기물 미리듣기") {
                 ForEach([1.5,3.2,0.7],id:\.self) { meters in

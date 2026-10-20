@@ -21,7 +21,7 @@ extension GuidanceViewModel {
         invalidateTasks()
         phase = .starting
         let instructions=started ? ["안내를 다시 시작합니다."] : ["안내를 시작합니다.",
-            "소리가 높아지면 왼쪽으로, 낮아지면 오른쪽으로 몸을 돌려주세요. 방향이 맞으면 삐빅 소리가 납니다. 지점 도착은 띵 소리로 알려드립니다. 방향을 맞춘 뒤 남은 거리를 미터 단위로 읽고, 옆을 지나는 기물의 이름을 알려드립니다."]
+            "높은 비프가 나면 왼쪽으로, 낮은 비프가 나면 오른쪽으로 몸을 돌려주세요. 방향에 가까워질수록 세 번, 두 번, 한 번 울립니다. 방향이 맞으면 띠링 후 조용해집니다. 지점에 도착했을 때도 띵 소리가 납니다. 방향을 맞춘 뒤 남은 거리를 미터 단위로 읽고, 옆을 지나는 기물의 이름을 알려드립니다."]
         read(instructions+["\(targetName)으로 이동합니다."]) { [weak self] in
             guard let self, self.phase == .starting, var guide=self.guide else { return }
             guard let pose=self.freshPose() else { self.interrupt("현재 위치를 확인할 수 없어요. 확인점을 다시 확인해주세요.");return }

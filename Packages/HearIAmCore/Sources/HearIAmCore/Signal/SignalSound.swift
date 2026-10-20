@@ -14,7 +14,7 @@ public enum SignalSound: Equatable, Sendable {
     case directionBuzz(hertz: Int)
     /// One 60 Hz pulse group, then the alignment bell.
     case directionBuzzAligned
-    /// Test-only fixed-pitch group: left high, right low, 1–3 discrete beeps.
+    /// Fixed-pitch group: left high, right low, 1–3 discrete beeps.
     case countDirection(toRight: Bool, count: Int)
     /// Cancellable alignment bell on the direction channel, followed by silence.
     case countDirectionAligned

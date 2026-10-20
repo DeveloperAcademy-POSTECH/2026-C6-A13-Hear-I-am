@@ -26,12 +26,12 @@ import HearIAmCore
     @Published var saveError: String?
     let tracking=ARSessionController(purpose:.guidance)
     let voice=GuidanceSpeech()
-    /// Mono pitch glides for body direction; warnings and arrival retain their own sounds.
+    /// Mono counted beeps for body direction; warnings and arrival retain their own sounds.
     let signals=SignalPlayer()
-    var directionSweep=DirectionSweepGate()
+    var directionBeep=CountedDirectionGate()
     var routeNarration=RouteNarrationGate()
     var routeSpeech: (id: UUID, cue: RouteNarrationCue)?
-    /// Leave room for the complete alignment double beep before starting speech.
+    /// Leave room for the complete alignment bell before starting speech.
     var narrationReadyAt: Double?
     var warnings=WarningGate()
     var steps=StepGate()
@@ -90,7 +90,7 @@ import HearIAmCore
     private func handleAudioIssue(_ text: String) {
         audioIssue=text;instructionDone=false
         cancelRouteSpeech();routeNarration.suspendMotion();narrationReadyAt=nil
-        directionSweep.reset();signals.stop();escape=nil
+        directionBeep.reset();signals.stop();escape=nil
         if phase == .guiding || phase == .starting || phase == .paused {
             guide?.pause();phase = started ? .paused : .departure
             message="소리 출력을 확인한 후 다시 시작해주세요."
@@ -125,7 +125,7 @@ import HearIAmCore
     func invalidateTasks() {
         routeSpeech=nil;routeNarration.suspendMotion();narrationReadyAt=nil
         generation=UUID();countdownTask?.cancel();countdownTask=nil;voice.stop();instructionDone=false;arrivedName=nil;arrivalShownAt=nil
-        escape=nil;warningHoldUntil=nil;directionSweep.reset();signals.stop();signals.setWarningQuiet(false)
+        escape=nil;warningHoldUntil=nil;directionBeep.reset();signals.stop();signals.setWarningQuiet(false)
     }
     /// A pose no older than 0.5 s from a verified session, or nil.
     func freshPose() -> (point: FloorPoint, heading: Double, time: Double)? {

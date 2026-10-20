@@ -73,6 +73,28 @@ final class CountedDirectionTests: XCTestCase {
             XCTAssertNil(gate.update(time:0.4,bearing:0).sound)
         }
     }
+    func testDistanceSpeechWaitsForWholeBellAndDoesNotRestartDirectionBeep() {
+        let duration=Double(ToneRenderer.render(.countDirectionAligned).count)/ToneRenderer.sampleRate
+        XCTAssertGreaterThan(CountedDirectionGate.narrationDelay,duration)
+        var direction=CountedDirectionGate(), narration=RouteNarrationGate()
+        _=direction.update(time:0,bearing:5)
+        XCTAssertEqual(direction.update(time:0.36,bearing:5).sound,.countDirectionAligned)
+        let readyAt=0.36+CountedDirectionGate.narrationDelay
+        narration.observe(targetIndex:1,time:0.36,position:.init(0,0),heading:0,obstacles:[])
+        for i in 4...10 {
+            let time=Double(i)/10
+            XCTAssertNil(direction.update(time:time,bearing:5).sound)
+            XCTAssertNil(narration.candidate(time:time,meters:3.2,eligible:time >= readyAt,
+                                             position:.init(0,0),heading:0,obstacles:[]))
+        }
+        let distance=narration.candidate(time:1.1,meters:3.2,eligible:direction.isAligned && 1.1 >= readyAt,
+                                         position:.init(0,0),heading:0,obstacles:[])
+        XCTAssertEqual(distance?.line,"삼점이")
+        direction.suspend() // Actual guidance suspends direction sounds while speech plays.
+        XCTAssertNil(direction.update(time:2,bearing:5).sound)
+        XCTAssertTrue(direction.isAligned)
+        XCTAssertEqual(direction.update(time:2.1,bearing:-20).sound,.countDirection(toRight:false,count:1))
+    }
     func testRenderedGroupsHaveExactCountPitchAndSilence() {
         for right in [true,false] {
             for count in 1...3 {

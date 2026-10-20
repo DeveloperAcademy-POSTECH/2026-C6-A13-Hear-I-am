@@ -1,9 +1,11 @@
 import Foundation
 
-/// Test-only mono beeps: pitch gives the turn side, count gives angular error.
+/// Mono beeps shared by guidance and comparison trials: pitch gives the turn side, count gives angular error.
 /// A group finishes before its count can change. No missed groups are queued.
 public struct CountedDirectionGate: Sendable {
     public static let leftHertz=1200.0, rightHertz=600.0
+    /// Alignment bell plus a short gap before optional distance/landmark speech.
+    public static let alignmentLength=0.6, narrationDelay=0.65
     public static let interval=1.2, beepLength=0.12, beepGap=0.12
     public static let enterDegrees=10.0, exitDegrees=16.0, steadySeconds=0.35
     public static let maximumSampleGap=0.5, rearMargin=8.0

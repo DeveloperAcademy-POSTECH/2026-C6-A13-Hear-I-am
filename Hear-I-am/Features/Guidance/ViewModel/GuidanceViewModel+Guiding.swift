@@ -1,7 +1,7 @@
 import Foundation
 import HearIAmCore
 
-/// #48: body-relative rising (left) / falling (right) mono glides and a latched double beep.
+/// #48: body-relative high (left) / low (right) 3–2–1 beeps, then a bell and silence.
 /// Speech, obstacle warnings and the arrival ding take priority over direction sounds.
 extension GuidanceViewModel {
     static let arrivalShownSeconds=2.0, arrivalWarningPause=1.5, arrivalDirectionPause=0.7
@@ -19,7 +19,7 @@ extension GuidanceViewModel {
     /// Clears every signal rule; called when guidance starts or resumes.
     func resetSignals() {
         cancelRouteSpeech();routeNarration.suspendMotion();narrationReadyAt=nil
-        directionSweep.reset();warnings.reset();steps.reset();arrivalShownAt=nil;warningHoldUntil=nil
+        directionBeep.reset();warnings.reset();steps.reset();arrivalShownAt=nil;warningHoldUntil=nil
         signals.stop()
     }
     func tickGuiding(pose: (point: FloorPoint, heading: Double, time: Double), guide current: RouteGuide) {
@@ -44,7 +44,7 @@ extension GuidanceViewModel {
         cancelRouteSpeech();narrationReadyAt=nil
         let name=GuidanceCopy.target(previous,last:guide.route.points.count-1)
         arrivedName=name;arrivalShownAt=time
-        directionSweep.reset();signals.stopDirection()
+        directionBeep.reset();signals.stopDirection()
         signals.setWarning(nil);warningHoldUntil=time+Self.arrivalWarningPause
         signals.play(.arrival)
         tracking.event("signal_arrival",detail:"\(name) next=\(guide.targetIndex)")
@@ -78,7 +78,7 @@ extension GuidanceViewModel {
         // Corrective direction/warnings interrupt optional speech immediately. A passed landmark
         // must not finish describing a side that is no longer true.
         if let active=routeSpeech {
-            var obsolete=abs(bearing) >= DirectionSweepGate.exitDegrees || signals.warning != nil
+            var obsolete=abs(bearing) >= CountedDirectionGate.exitDegrees || signals.warning != nil
             if case .landmarks(let items)=active.cue {
                 obsolete = obsolete || !SideLandmarkGate.stillBeside(items,position:pose.point,heading:pose.heading,obstacles:guide.route.obstacles)
             }
@@ -86,7 +86,7 @@ extension GuidanceViewModel {
         }
         updateDirection(bearing:bearing,time:pose.time,context:"route target=\(guide.targetIndex)")
         let eligible=phase == .guiding && audioIssue == nil && !speaking && signals.warning == nil &&
-            directionSweep.isAligned && abs(bearing) < DirectionSweepGate.exitDegrees &&
+            directionBeep.isAligned && abs(bearing) < CountedDirectionGate.exitDegrees &&
             narrationReadyAt.map({pose.time >= $0}) == true
         if let cue=routeNarration.candidate(time:pose.time,meters:distance,eligible:eligible,
                                             position:pose.point,heading:pose.heading,obstacles:guide.route.obstacles) {
@@ -94,18 +94,18 @@ extension GuidanceViewModel {
         }
     }
     func suspendDirection() {
-        directionSweep.suspend();signals.stopDirection()
+        directionBeep.suspend();signals.stopDirection()
     }
     /// Shared by normal travel and recovery; the caller supplies the appropriate destination.
     func updateDirection(bearing: Double, time: Double, context: String) {
         guard !speaking, audioIssue == nil, signals.warning == nil else { suspendDirection();return }
-        let update=directionSweep.update(time:time,bearing:bearing)
+        let update=directionBeep.update(time:time,bearing:bearing)
         if update.stopPrevious { signals.stopDirection() }
         if let sound=update.sound {
             if signals.play(sound) {
-                if sound == .directionAligned { narrationReadyAt=time+0.35 }
-                tracking.event("signal_sweep_reason",detail:String(format:"%@ bearing=%+.1f %@",context,bearing,sound.name))
-            } else { directionSweep.reset() }
+                if sound == .countDirectionAligned { narrationReadyAt=time+CountedDirectionGate.narrationDelay }
+                tracking.event("signal_count_direction_reason",detail:String(format:"%@ bearing=%+.1f %@",context,bearing,sound.name))
+            } else { directionBeep.reset() }
         }
     }
     func cancelRouteSpeech() {
@@ -126,7 +126,7 @@ extension GuidanceViewModel {
     }
     private func paused(guide: RouteGuide) {
         cancelRouteSpeech();routeNarration.suspendMotion();narrationReadyAt=nil
-        directionSweep.reset();signals.stop()
+        directionBeep.reset();signals.stop()
         phase = .paused
         switch guide.pauseReason {
         case .obstacleProximity: message="등록한 기물과 가까워졌어요. 현재 위치와 동선을 확인해주세요."
