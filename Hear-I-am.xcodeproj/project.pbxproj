@@ -103,6 +103,7 @@
 		D9D0A74C0159862B2C3D7C18 /* SavedStagePreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EF1BCF0313E05CBD607C81C /* SavedStagePreview.swift */; };
 		D9D135CFA21039B850FD3A4A /* GuidanceControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B72D4A049E0D30EC0FA2D95 /* GuidanceControls.swift */; };
 		DA44470139ED6DFC8ED2B9DD /* SavedPhotoImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = D121C370C0D650EE518AB7D8 /* SavedPhotoImage.swift */; };
+		DBA264DBF315C88577D5BDD7 /* StageReplayPreviewHarness.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5B54F3E59AD1BBF23A8CD42 /* StageReplayPreviewHarness.swift */; };
 		DBDABB4ECD537F03952AC515 /* PlanEditorTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE3C9616808248A6D0664732 /* PlanEditorTools.swift */; };
 		DD459BE5806939F062E519A3 /* GuidanceViewModel+Finish.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA20BEEFF43A8B86171542D7 /* GuidanceViewModel+Finish.swift */; };
 		DF815991CA114C479D57BCD0 /* GuidanceRouteHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99F557F11BC7D746B83CD908 /* GuidanceRouteHeader.swift */; };
@@ -191,6 +192,7 @@
 		9CA33158518034C9C9B52FAE /* HearAudioSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HearAudioSession.swift; sourceTree = "<group>"; };
 		9D125F891BBE2F012455B982 /* TrackingProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackingProbe.swift; sourceTree = "<group>"; };
 		A01D241B9116A6B417F28C02 /* HearAppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HearAppDelegate.swift; sourceTree = "<group>"; };
+		A5B54F3E59AD1BBF23A8CD42 /* StageReplayPreviewHarness.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StageReplayPreviewHarness.swift; sourceTree = "<group>"; };
 		A67574E0CF3F8D37E56F8088 /* ActionButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionButton.swift; sourceTree = "<group>"; };
 		A6E2835565ECB9A2EF455409 /* SessionBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionBridge.swift; sourceTree = "<group>"; };
 		B1D64685A21E46743E1FB4CA /* PreparationPhotoControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreparationPhotoControls.swift; sourceTree = "<group>"; };
@@ -649,6 +651,14 @@
 			path = Screen;
 			sourceTree = "<group>";
 		};
+		ACE4B13F65B8BBA1144B5BFD /* Preview */ = {
+			isa = PBXGroup;
+			children = (
+				A5B54F3E59AD1BBF23A8CD42 /* StageReplayPreviewHarness.swift */,
+			);
+			path = Preview;
+			sourceTree = "<group>";
+		};
 		B2C4E7E0790B5166E6D86C44 /* Parts */ = {
 			isa = PBXGroup;
 			children = (
@@ -692,6 +702,7 @@
 			isa = PBXGroup;
 			children = (
 				194066279F14D4869BB3E6E3 /* Model */,
+				ACE4B13F65B8BBA1144B5BFD /* Preview */,
 				FCF9C2F08769EB47E799CCF4 /* View */,
 				04619D5A5CA15CC1836CE8D6 /* ViewModel */,
 			);
@@ -981,6 +992,7 @@
 				026DC55939F4D0F2D7C900AD /* StageDangerZoneOverlay.swift in Sources */,
 				CBEE9F01464EC8020B4ED083 /* StageLibrary.swift in Sources */,
 				7E1C4372DA56BCA7AE9AC943 /* StageMap.swift in Sources */,
+				DBA264DBF315C88577D5BDD7 /* StageReplayPreviewHarness.swift in Sources */,
 				A5F02179B6F3D832E825E501 /* StageRow.swift in Sources */,
 				6C931CF06A765EF879E8006C /* TrackingProbe.swift in Sources */,
 				1C0430C646CAFA2DA5795633 /* TrialLogger.swift in Sources */,
