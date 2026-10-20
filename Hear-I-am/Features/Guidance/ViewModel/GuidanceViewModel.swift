@@ -26,10 +26,8 @@ import HearIAmCore
     @Published var saveError: String?
     let tracking=ARSessionController(purpose:.guidance)
     let voice=GuidanceSpeech()
-    /// Earbud tones (warning, arrival) and waist vibration for direction, decided 10/17.
+    /// Earbud tones: warning, arrival ding, direction ticks. No vibration since 10/20 (team decision).
     let signals=SignalPlayer()
-    let haptics=DirectionHaptics()
-    var landmarks=LandmarkDetector()
     var directionTicks=DirectionTickGate(deadbandDegrees:SignalPlayer.directionDeadbandDegrees)
     var warnings=WarningGate()
     var steps=StepGate()
@@ -73,7 +71,6 @@ import HearIAmCore
         trackingSubscription=tracking.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }
         voice.onSpeaking={ [weak self] in self?.speaking=$0;self?.signals.setSpeechActive($0) }
         signals.onEvent={ [weak self] in self?.logSignal($0,$1) }
-        haptics.onEvent={ [weak self] in self?.logSignal($0,$1) }
         voice.onText={ [weak self] in self?.spokenText=$0;self?.logSignal("voice",$0) }
         voice.onError={ [weak self] text in
             guard let self else { return }
@@ -116,7 +113,7 @@ import HearIAmCore
     /// Cancels pending speech callbacks and the countdown; late callbacks see a new generation.
     func invalidateTasks() {
         generation=UUID();countdownTask?.cancel();countdownTask=nil;voice.stop();instructionDone=false;arrivedName=nil;arrivalShownAt=nil
-        escape=nil;quietUntil=nil;signals.setWarning(nil);signals.setWarningQuiet(false);haptics.stop()
+        escape=nil;quietUntil=nil;signals.setWarning(nil);signals.setWarningQuiet(false)
     }
     /// A pose no older than 0.5 s from a verified session, or nil.
     func freshPose() -> (point: FloorPoint, heading: Double, time: Double)? {

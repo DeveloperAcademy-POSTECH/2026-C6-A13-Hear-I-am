@@ -3,8 +3,8 @@ import HearIAmCore
 /// 안내 중 · 일시정지: signals along the saved route.
 /// Direction is the earbud tick of #44: silent while facing the next target within ±n°, 「왼쪽」 or 「오른쪽」
 /// once when turned away, then ticks that quicken toward it, and one 「삐」 when they stop because the body
-/// faces it. Speech otherwise only for steps 1 m ahead and
-/// the remaining distance at a few marks (#46). The earbud also gives the obstacle warning and the arrival ding.
+/// faces it. Speech otherwise only for steps 1 m ahead and the remaining distance at a few marks (#46).
+/// The earbud also gives the obstacle warning and the arrival ding. No vibration (10/20).
 extension GuidanceViewModel {
     /// About as long as the ding rings; the distance call-out waits this long after an arrival.
     static let arrivalShownSeconds=2.0, arrivalQuietSeconds=0.7
@@ -22,7 +22,7 @@ extension GuidanceViewModel {
     /// Clears every signal rule; called when guidance starts or resumes.
     func resetSignals() {
         directionTicks.deadbandDegrees=SignalPlayer.directionDeadbandDegrees
-        directionTicks.reset();landmarks.reset();warnings.reset();steps.reset();distances.reset();arrivalShownAt=nil;quietUntil=nil
+        directionTicks.reset();warnings.reset();steps.reset();distances.reset();arrivalShownAt=nil;quietUntil=nil
         signals.setWarning(nil);signals.stopDirection()
     }
     func tickGuiding(pose: (point: FloorPoint, heading: Double, time: Double), guide current: RouteGuide) {
@@ -48,7 +48,7 @@ extension GuidanceViewModel {
     private func arrived(_ previous: Int, guide: RouteGuide, time: Double) {
         let name=GuidanceCopy.target(previous,last:guide.route.points.count-1)
         arrivedName=name;arrivalShownAt=time
-        directionTicks.reset();landmarks.reset();quietUntil=time+Self.arrivalQuietSeconds
+        directionTicks.reset();quietUntil=time+Self.arrivalQuietSeconds
         signals.stopDirection()
         signals.play(.arrival)
         logSignal("signal_arrival","\(name) next=\(guide.targetIndex)")
