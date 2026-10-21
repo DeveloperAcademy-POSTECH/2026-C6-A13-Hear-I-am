@@ -3,6 +3,9 @@ import UIKit
 import HearIAmCore
 
 extension ARSceneRenderer {
+    private static let annotationFontSize: CGFloat = 12
+    private static let annotationScale = SCNVector3(0.004,0.004,0.004)
+
     func draw(_ content: Annotations) {
         clearAnnotations()
         let preparing: Bool, routeFinished: Bool, target: Int?, completed: Bool
@@ -13,8 +16,8 @@ extension ARSceneRenderer {
         if let p=content.checkpoint {
             let node=SCNNode(geometry:SCNSphere(radius:0.04)); node.geometry?.firstMaterial?.diffuse.contents=UIColor.systemYellow
             node.position=SCNVector3(Float(p.x),Float(p.y)+0.04,Float(p.z)); referenceLayer.addChildNode(node)
-            let text=SCNText(string:"확인점",extrusionDepth:0); text.font = .boldSystemFont(ofSize:10)
-            let n=SCNNode(geometry:text); n.scale=SCNVector3(0.015,0.015,0.015)
+            let text=SCNText(string:"확인점",extrusionDepth:0); text.font = .boldSystemFont(ofSize:Self.annotationFontSize)
+            let n=SCNNode(geometry:text); n.scale=Self.annotationScale
             n.position=SCNVector3(Float(p.x),Float(p.y)+0.12,Float(p.z)); n.constraints=[SCNBillboardConstraint()]
             referenceLayer.addChildNode(n)
         }
@@ -120,11 +123,10 @@ extension ARSceneRenderer {
         pin.position.y=0.15
         group.addChildNode(pin)
         let text=SCNText(string:label,extrusionDepth:0)
-        text.font = .boldSystemFont(ofSize:12)
+        text.font = .boldSystemFont(ofSize:Self.annotationFontSize)
         text.firstMaterial?.diffuse.contents=UIColor.white
         let tag=SCNNode(geometry:text)
-//        tag.scale=SCNVector3(0.018,0.018,0.018)
-        tag.scale=SCNVector3(0.004,0.004,0.004)
+        tag.scale=Self.annotationScale
         tag.position=SCNVector3(0,0.24,0)
         tag.constraints=[SCNBillboardConstraint()]
         group.addChildNode(tag)
@@ -147,9 +149,9 @@ extension ARSceneRenderer {
         let n=SCNNode(geometry:SCNSphere(radius:0.05)); n.geometry?.firstMaterial?.diffuse.contents=color
         n.position=SCNVector3(Float(p.x),Float(p.y)+0.05,Float(p.z))
         referenceLayer.addChildNode(n)
-        let text=SCNText(string:label,extrusionDepth:0); text.font = .boldSystemFont(ofSize:10)
+        let text=SCNText(string:label,extrusionDepth:0); text.font = .boldSystemFont(ofSize:Self.annotationFontSize)
         text.firstMaterial?.diffuse.contents=color; text.firstMaterial?.lightingModel = .constant
-        let t=SCNNode(geometry:text); t.scale=SCNVector3(0.015,0.015,0.015)
+        let t=SCNNode(geometry:text); t.scale=Self.annotationScale
         t.position=SCNVector3(Float(p.x),Float(p.y)+0.14,Float(p.z)); t.constraints=[SCNBillboardConstraint()]
         referenceLayer.addChildNode(t)
     }

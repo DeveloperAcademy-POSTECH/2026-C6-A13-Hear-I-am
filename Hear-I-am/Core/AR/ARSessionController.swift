@@ -22,6 +22,7 @@ final class ARSessionController: ObservableObject {
     @Published var ready=false
     @Published var canVerify=false
     @Published var canSave=false
+    @Published var saveRecoveryPending=false
     @Published var busy=false
     @Published var savedID: UUID?
     @Published var preparationInterrupted=false
@@ -137,6 +138,7 @@ final class ARSessionController: ObservableObject {
     }
     func reset() {
         stopLog()
+        saveRecoveryPending=false
         session?.delegate=nil; session?.pause()
         token=UUID(); gate=TrackingGate(); latest=nil
         if purpose == .preparation { preparedDraft=PreparationDraft(); savedID=nil; onReset?() }

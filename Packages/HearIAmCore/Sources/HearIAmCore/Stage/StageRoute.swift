@@ -1,9 +1,11 @@
 import Foundation
 
 public struct StageRoute: Codable, Equatable, Sendable {
+    /// Start plus up to 20 subsequent points, including the destination.
+    public static let maxPointCount = 21
     public let version: Int
     public var area: StageArea
-    /// p0 followed by p1...p5, all in stage floor metres.
+    /// p0 followed by up to p20, all in stage floor metres.
     public var points: [FloorPoint]
     public var obstacles: [StageObstacle]
     public var pointHeights: [Double]?
@@ -34,7 +36,7 @@ public struct StageRoute: Codable, Equatable, Sendable {
         guard Set(dangerZones.map(\.edge)).count == dangerZones.count else {
             throw LabError.invalid("같은 무대 변에 위험 구역을 중복 설정할 수 없습니다.")
         }
-        guard [1,2].contains(version), ((version == 2 ? 3 : 2)...6).contains(points.count), points.allSatisfy(\.valid),
+        guard [1,2].contains(version), ((version == 2 ? 3 : 2)...Self.maxPointCount).contains(points.count), points.allSatisfy(\.valid),
               Set(obstacles.map(\.id)).count == obstacles.count else { throw LabError.invalid("경로 버전, 순서 또는 점 개수가 유효하지 않습니다.") }
         for o in obstacles { try o.validate(); guard o.vertices.allSatisfy({area.contains($0)}) else { throw LabError.invalid("장애물이 무대 밖에 있습니다.") } }
     }

@@ -69,7 +69,7 @@ final class StageRouteTests: XCTestCase {
         XCTAssertEqual(clear.points.count,3)
         let nearEdge=try StageRoute(area:a,points:[FloorPoint(0.2,1),FloorPoint(1,1)],obstacles:[])
         XCTAssertFalse(nearEdge.conflicts(boundaryMargin:0.3,obstacleClearance:0.35).isEmpty)
-        XCTAssertThrowsError(try StageRoute(area:a,points:Array(repeating:FloorPoint(1,1),count:7),obstacles:[]))
+        XCTAssertThrowsError(try StageRoute(area:a,points:Array(repeating:FloorPoint(1,1),count:StageRoute.maxPointCount+1),obstacles:[]))
     }
     func testSelfIntersectingObstacleRejected() {
         XCTAssertThrowsError(try StageObstacle(name:"X",kind:.other,vertices:[FloorPoint(1,1),FloorPoint(3,3),FloorPoint(1,3),FloorPoint(3,1)]))
