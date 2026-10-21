@@ -4,6 +4,8 @@ import HearIAmCore
 /// Portrait guidance. One AR view stays attached for the whole flow.
 struct GuidanceView: View {
     @ObservedObject var library: StageLibrary
+    var initialStage: ScanManifest? = nil
+    @State private var initialSelectionApplied=false
     @StateObject private var model=GuidanceViewModel()
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
@@ -39,7 +41,11 @@ struct GuidanceView: View {
         }
         .interactiveDismissDisabled()
         .onAppear {ScreenOrientation.set(.portrait)}
-        .task {await library.refresh();model.selectionDescription(empty:library.records.isEmpty)}
+        .task {
+            await library.refresh()
+            if !initialSelectionApplied, let initialStage {initialSelectionApplied=true;model.select(initialStage)}
+            else {model.selectionDescription(empty:library.records.isEmpty)}
+        }
         .onDisappear {model.finish();ScreenOrientation.set(.portrait)}
         .onChange(of:scenePhase) { _, value in
             // Camera permission sheets may make the scene inactive during restoration.

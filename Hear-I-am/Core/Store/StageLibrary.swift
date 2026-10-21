@@ -10,6 +10,11 @@ import HearIAmCore
     @Published private(set) var pins = LibraryPins()
     @Published private(set) var loading = false
     @Published var error: String?
+    @Published var venues: [SpaceVenue] = []
+    @Published var baseScans: [ScanManifest] = []
+    @Published var spacePreferences = SpaceLibraryPreferences()
+    var spacePreferencesReadable = true
+    let spacePreferencesURL: URL
     let scans: ScanStore
     let planStore: PerformancePlanStore
     let guidanceRecordsStore: GuidanceRecordStore
@@ -21,6 +26,8 @@ import HearIAmCore
         planStore=PerformancePlanStore(root:docs.appendingPathComponent("PerformancePlans",isDirectory:true))
         guidanceRecordsStore=GuidanceRecordStore(root:docs.appendingPathComponent("GuidanceRecords",isDirectory:true))
         pinURL=docs.appendingPathComponent("stage-pins.json")
+        spacePreferencesURL=docs.appendingPathComponent("space-library.json")
+        loadSpaces()
         if FileManager.default.fileExists(atPath:pinURL.path) {
             do {pins=try JSONDecoder().decode(LibraryPins.self,from:Data(contentsOf:pinURL))}
             catch {self.error="고정한 무대 정보를 읽지 못했습니다: \(error.localizedDescription)"}
@@ -28,7 +35,7 @@ import HearIAmCore
     }
     func refresh() async {
         loading=true; defer {loading=false}
-        do {records=try await scans.list()} catch {self.error="무대 목록: \(error.localizedDescription)"}
+        do {let all=try await scans.list(); records=all.filter {$0.space?.purpose != .base}; baseScans=all.filter {$0.space?.purpose == .base}} catch {self.error="무대 목록: \(error.localizedDescription)"}
         do {plans=try await planStore.list()} catch {self.error="공연 사전 저장: \(error.localizedDescription)"}
     }
     func refreshGuidanceRecords() async {

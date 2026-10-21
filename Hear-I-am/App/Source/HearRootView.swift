@@ -6,6 +6,7 @@ struct HearRootView: View {
     var body: some View {
         TabView {
             HomeView(library:library).tabItem {Label("홈",systemImage:"house.fill")}
+            SpacesView(library:library).tabItem {Label("공간",systemImage:"cube")}
             PlanLibraryView(library:library).tabItem {Label("공연 사전 저장",systemImage:"map")}
             GuidanceRecordsView(library:library)
                 .tabItem {Label("기록",systemImage:"clock")}
