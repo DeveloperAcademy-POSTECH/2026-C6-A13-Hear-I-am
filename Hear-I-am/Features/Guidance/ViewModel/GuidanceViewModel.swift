@@ -31,6 +31,8 @@ import HearIAmCore
     var directionTicks=DirectionTickGate(deadbandDegrees:SignalPlayer.directionDeadbandDegrees)
     /// Set on leaving the start and on reaching a point: the next direction cue speaks the side of the new target once.
     var announceNextSide=false
+    /// Ticks wait while a side word is spoken: speech starts a little late, so a tick would come first (10/21).
+    var ticksWaitForWord=false
     var warnings=WarningGate()
     var steps=StepGate()
     var distances=DistanceGate()
