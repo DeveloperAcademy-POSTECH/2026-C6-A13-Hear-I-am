@@ -5,11 +5,11 @@ import Foundation
 public enum ToneRenderer {
     public static let sampleRate=44_100.0
     public static let peak: Float=0.9
-    /// D6. It was E6 (1318.5 Hz) until 10/18, almost the right direction beep (1320 Hz), then G6 (1568 Hz)
-    /// with overtones at 2× and 3×, which hurt the ears (10/21). Since 10/19 it rings for 1 s instead of
-    /// 0.6 s so it carries more energy at the same peak: the performer walked past points without noticing it.
-    /// Now one weaker overtone and a 10 ms attack instead of 3 ms, so the onset does not sting.
-    static let arrivalHertz=1174.66, arrivalLength=1.0, arrivalDecay=4.0, arrivalAttack=0.01
+    /// G4 with its octave, like a small singing bowl. It was E6 (1318.5 Hz) until 10/18, then G6 (1568 Hz)
+    /// with overtones at 2× and 3×, then D6 (1174.66 Hz), both still tiring to hear (10/21). It rings for
+    /// 1.2 s (0.6 s until 10/19, when the performer walked past points without noticing it) and swells in
+    /// over 15 ms, so nothing stings.
+    static let arrivalHertz=392.0, arrivalLength=1.2, arrivalDecay=3.0, arrivalAttack=0.015
     /// F5 then C6, a rising fifth, at least 10% from every tick, warning and the arrival pitch (they can
     /// sound together). It replaces the front beep, so it need not stay apart from the direction beeps.
     public static let alignedHertz=[698.46,1046.5]
@@ -24,7 +24,7 @@ public enum ToneRenderer {
             return pulse+[Float](repeating:0,count:max(0,count(level.period)-pulse.count))
         case .arrival:
             return normalized(samples(arrivalLength) { t in
-                let tone=sin(2 * .pi*arrivalHertz*t)+0.25*sin(2 * .pi*arrivalHertz*2*t)
+                let tone=sin(2 * .pi*arrivalHertz*t)+0.45*sin(2 * .pi*arrivalHertz*2*t)
                 return tone*exp(-t*arrivalDecay)*fade(t,length:arrivalLength,edge:arrivalAttack)
             })
         case .aligned:
