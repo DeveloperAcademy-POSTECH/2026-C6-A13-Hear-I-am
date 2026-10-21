@@ -23,7 +23,7 @@ extension GuidanceViewModel {
     /// Clears every signal rule; called when guidance starts or resumes.
     func resetSignals() {
         directionTicks.deadbandDegrees=SignalPlayer.directionDeadbandDegrees
-        directionTicks.reset();warnings.reset();steps.reset();distances.reset();arrivalShownAt=nil;quietUntil=nil;announceNextSide=false;ticksWaitForWord=false
+        directionTicks.reset();warnings.reset();steps.reset();distances.reset();arrivalShownAt=nil;quietUntil=nil;announceNextSide=false;pendingTurnSide=false;ticksWaitForWord=false
         signals.setWarning(nil);signals.stopDirection()
     }
     func tickGuiding(pose: (point: FloorPoint, heading: Double, time: Double), guide current: RouteGuide) {
@@ -50,7 +50,7 @@ extension GuidanceViewModel {
     private func arrived(_ previous: Int, guide: RouteGuide, time: Double) {
         let name=GuidanceCopy.target(previous,last:guide.route.points.count-1)
         arrivedName=name;arrivalShownAt=time
-        directionTicks.reset();quietUntil=time+Self.arrivalQuietSeconds;announceNextSide=true
+        directionTicks.reset();quietUntil=time+Self.arrivalQuietSeconds;announceNextSide=true;pendingTurnSide=false
         signals.stopDirection()
         signals.play(.arrival)
         logSignal("signal_arrival","\(name) next=\(guide.targetIndex)")
@@ -71,17 +71,27 @@ extension GuidanceViewModel {
         if announceNextSide, !quiet {
             if let cue, !speaking {
                 announceNextSide=false
-                ticksWaitForWord=voice.direction(cue.word,volume:SignalVolume.nextSide)
-                logSignal("signal_direction_word",String(format:"%@ bearing %+.0f° target=%d",cue.word,bearing,guide.targetIndex))
+                sayDirection(cue.word,volume:SignalVolume.nextSide,bearing:bearing,guide:guide)
             } else if cue == nil { announceNextSide=false }
-        } else if !announceNextSide, let cue, let word=cue.spokenWord {
+        } else if !announceNextSide, let cue, cue.spokenWord != nil || pendingTurnSide {
             // Turned away from the target, or over to its other side. Not while the next side waits to be said.
-            ticksWaitForWord=voice.direction(word)
-            logSignal("signal_direction_word",String(format:"%@ bearing %+.0f° target=%d",word,bearing,guide.targetIndex))
+            // A line still being spoken used to drop the word, and it comes only once (#57: lost twice after
+            // 「1미터」·「50센티」). A distance or an earlier side is cut for it; an instruction or a step is not,
+            // so the word waits for it and then names the side the target is on by then.
+            if speaking, !voice.speakingDirection {
+                if !pendingTurnSide { logSignal("signal_direction_word_deferred",String(format:"%@ bearing %+.0f° reason=speaking",cue.word,bearing)) }
+                pendingTurnSide=true
+            } else {
+                pendingTurnSide=false
+                if speaking { logSignal("signal_voice_cut","\(spokenText) for=\(cue.word)") }
+                sayDirection(cue.word,volume:SignalVolume.speech,bearing:bearing,guide:guide,interrupting:true)
+            }
         }
+        // Facing the target before the word could be said: nothing to say.
+        if cue == nil { pendingTurnSide=false }
         if let cue {
             // The word comes first: no tick until the side waiting to be said, or being said, is done.
-            if cue.shouldTick, !announceNextSide, !ticksWaitForWord { signals.play(.directionTick(toRight:cue.toRight)) }
+            if cue.shouldTick, !announceNextSide, !pendingTurnSide, !ticksWaitForWord { signals.play(.directionTick(toRight:cue.toRight)) }
         } else if wasTicking {
             if directionTicks.isAligned {
                 // Replaces any tick still sounding on the direction node.
@@ -106,6 +116,12 @@ extension GuidanceViewModel {
                 logSignal("signal_distance_skipped","\(line) reason=\(quiet ? "arrival" : speaking ? "speaking" : "warning")")
             } else { voice.direction(line);logSignal("signal_distance",line) }
         }
+    }
+    /// Speaks a side and holds the ticks until it is done; logs whether it was actually said.
+    private func sayDirection(_ word: String, volume: Float, bearing: Double, guide: RouteGuide, interrupting: Bool = false) {
+        ticksWaitForWord=voice.direction(word,volume:volume,interrupting:interrupting)
+        let detail=String(format:"%@ bearing %+.0f° target=%d",word,bearing,guide.targetIndex)
+        if ticksWaitForWord { logSignal("signal_direction_word",detail) } else { logSignal("signal_direction_word_skipped",detail) }
     }
     private func paused(guide: RouteGuide) {
         phase = .paused
