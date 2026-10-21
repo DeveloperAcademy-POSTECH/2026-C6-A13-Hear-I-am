@@ -45,6 +45,7 @@ struct SoundTestView: View {
             SoundTestRow(label:"방향 유도음 (톡톡톡 · 왼쪽 낮게 / 오른쪽 높게)") {
                 ActionButton(title:"왼쪽 톡",primary:false) { model.tick(toRight:false) }
                 ActionButton(title:"오른쪽 톡",primary:false) { model.tick(toRight:true) }
+                ActionButton(title:"방향 맞음",primary:false) { model.playAligned() }
             }
             SoundTestRow(label:"방향 비프 (왼쪽 낮게 · 오른쪽 높게 · 앞뒤 중간)") {
                 ForEach(DirectionPattern.landmarks,id:\.self) { degrees in

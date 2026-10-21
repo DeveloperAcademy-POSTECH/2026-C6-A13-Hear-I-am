@@ -53,6 +53,7 @@ import HearIAmCore
     func playArrival() { signals.play(.arrival) }
     func beep(_ degrees: Int) { signals.play(.direction(signedDegrees:degrees)) }
     func tick(toRight: Bool) { signals.play(.directionTick(toRight:toRight)) }
+    func playAligned() { signals.play(.aligned) }
     func setDeadband(_ degrees: Double) {
         deadbandDegrees=degrees
         SignalPlayer.directionDeadbandDegrees=degrees

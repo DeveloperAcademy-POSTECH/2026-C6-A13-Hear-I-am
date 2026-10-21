@@ -70,7 +70,7 @@ import HearIAmCore
         guard prepare(sound.name), let buffer=buffer(sound) else { return }
         let node: AVAudioPlayerNode
         switch sound {
-        case .direction, .directionTick: node=directionNode
+        case .direction, .directionTick, .aligned: node=directionNode
         default:
             node=shotNode;shotVolume=volume(sound)
             if case .arrival=sound { shotIsArrival=true } else { shotIsArrival=false }
@@ -147,7 +147,7 @@ import HearIAmCore
         switch sound {
         case .warning: return SignalVolume.warning
         case .arrival: return SignalVolume.arrival
-        case .direction, .directionTick: return SignalVolume.direction
+        case .direction, .directionTick, .aligned: return SignalVolume.direction
         case .buzz: return SignalVolume.buzz
         }
     }
