@@ -16,8 +16,8 @@ public struct PerformancePlan: Codable, Equatable, Identifiable, Sendable {
         try! StageArea(corners: [Point3(0,0,0), Point3(12,0,0), Point3(12,0,-8), Point3(0,0,-8)])
     }
     public mutating func append(_ point: FloorPoint) throws {
-        guard !finished, points.count < 6, point.valid, (-3...15).contains(point.x), (-1...9).contains(point.y) else {
-            throw LabError.invalid("경로를 편집하려면 최신 점을 삭제해주세요. 최대 6점까지 가능합니다.")
+        guard !finished, points.count < StageRoute.maxPointCount, point.valid, (-3...15).contains(point.x), (-1...9).contains(point.y) else {
+            throw LabError.invalid("경로를 편집하려면 최신 점을 삭제해주세요. 시작점 제외 최대 20점(도착점 포함)까지 가능합니다.")
         }
         if points.count == 1, !Self.area.contains(point, margin: 0.01) {
             throw LabError.invalid("첫 내부 지점 P1은 무대 안에 지정해주세요.")

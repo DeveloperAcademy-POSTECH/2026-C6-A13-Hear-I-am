@@ -43,17 +43,17 @@ final class PreparationTests: XCTestCase {
         d.objects = [WorldObstacle(name: "단상", kind: .platform, vertices: [Point3(1,0,-1),Point3(2,0,-1),Point3(2,0,-3),Point3(1,0,-3)])]
         XCTAssertTrue(d.routeErrors.isEmpty)
     }
-    func testSixPointLimitUndoAndWrongFloor() throws {
+    func testTwentyPointsAfterStartLimitUndoAndWrongFloor() throws {
         var d = draft()
         try d.addRoutePoint(Point3(-1,0,-2))
         XCTAssertThrowsError(try d.addRoutePoint(Point3(2,1,-2)))
-        for x in 2...5 { try d.addRoutePoint(Point3(Double(x),0,-2)) }
+        for i in 0..<19 { try d.addRoutePoint(Point3(2+Double(i)*0.3,0,-2)) }
         XCTAssertThrowsError(try d.addRoutePoint(Point3(6,0,-2)))
         try d.addRoutePoint(Point3(13,0,-2), asDestination: true)
         XCTAssertThrowsError(try d.addRoutePoint(Point3(14,0,-2), asDestination: true))
         d.removeLastRoutePoint()
         XCTAssertFalse(d.routeFinished)
-        XCTAssertEqual(d.route.count, 5)
+        XCTAssertEqual(d.route.count, 20)
         try d.addRoutePoint(Point3(14,0,-2), asDestination: true)
     }
     func testPlannerFinishAndPersistence() async throws {

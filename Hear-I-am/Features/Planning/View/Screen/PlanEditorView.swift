@@ -20,7 +20,7 @@ struct PlanEditorView: View {
                 .accessibilityLabel("공연 동선 편집 도면. 선택한 도구로 화면을 눌러 위치를 지정하세요.")
             PlanEditorTools(model:model)
             HStack {
-                Text(plan.finished ? "출발 → 내부 \(plan.points.count-2)개 → 도착 · 기물은 모두 통과 금지" : "\(plan.points.count)/6점 · 최소 3점부터 완료 · 마지막 점이 도착점이 됩니다").font(.caption)
+                Text(plan.finished ? "출발 → 내부 \(plan.points.count-2)개 → 도착 · 기물은 모두 통과 금지" : "\(plan.points.count)/\(StageRoute.maxPointCount)점(시작점 포함) · 최소 3점부터 완료 · 마지막 점이 도착점이 됩니다").font(.caption)
                 Spacer()
                 if plan.finished, !model.valid {Text(model.validationMessage ?? "").font(.caption).foregroundStyle(.red)}
             }.foregroundStyle(.secondary)

@@ -77,6 +77,7 @@ final class PreparationViewModel: ObservableObject {
         PreparationGuide(step:step,draft:draft,nextCorner:nextCorner,objectEditing:objectEditing,pendingVertexCount:pendingObjectWorld.count)
     }
     var showsCrosshairHint: String? {
+        if session.saveRecoveryPending, let message=saveRecoveryMessage { return message }
         if interrupted { return "추적 중단" }
         if let hit=aimHit { return hit.message }
         if let issue=aimEdgeIssue { return issue }

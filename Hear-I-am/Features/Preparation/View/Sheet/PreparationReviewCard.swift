@@ -16,14 +16,14 @@ struct PreparationReviewCard: View {
                     if model.nameTooLong {Text("무대 이름은 80자 이내로 입력해주세요.").font(.caption).foregroundStyle(.red)}
                     Text("경로 \(draft.route.count)점 · 기물 \(draft.objects.count)개 · 확인점 1개").font(.subheadline)
                     Text(StageDangerZone.summary(draft.dangerZones)).font(.caption).foregroundStyle(.orange)
-                    if draft.errors.isEmpty {Text("저장 준비가 끝났어요. 공간 지도가 안정되면 저장할 수 있습니다.").font(.caption).foregroundStyle(.secondary)}
+                    if draft.errors.isEmpty {Text(model.saveRecoveryMessage ?? "저장 준비가 끝났어요.").font(.caption).foregroundStyle(.secondary)}
                     else {ScrollView {Text(Array(Set(draft.errors)).sorted().joined(separator:"\n")).font(.caption).foregroundStyle(.red)}.frame(maxHeight:70)}
                     HStack {
-                        ActionButton(title:"돌아가기",primary:false,enabled:!model.busy) {model.review=false}
-                        ActionButton(title:"저장하기",enabled:model.canSave) {model.save()}
+                        ActionButton(title:model.saveRecoveryMessage != nil && !model.session.canSave ? "주변 비추기" : "돌아가기",primary:false,enabled:!model.busy) {model.review=false}
+                        ActionButton(title:model.session.saveRecoveryPending ? "다시 저장하기" : "저장하기",enabled:model.canSave) {model.save()}
                     }
                 }.frame(maxWidth:350)
-            }.padding(24).frame(maxWidth:720,maxHeight:260).background(.regularMaterial,in:RoundedRectangle(cornerRadius:24)).padding(16)
+            }.padding(24).frame(maxWidth:720,maxHeight:320).background(.regularMaterial,in:RoundedRectangle(cornerRadius:24)).padding(16)
         }
     }
 }
