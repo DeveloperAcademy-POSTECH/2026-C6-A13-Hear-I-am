@@ -10,7 +10,7 @@ extension ARSessionController {
         event("save_recovery",detail:detail)
     }
     func save(name rawName: String) {
-        guard canSave, !busy, let session, let stage, let checkpoint, let area else { return }
+        guard canSave, !busy, !photoCapturing, let session, let stage, let checkpoint, let area else { return }
         let route: StageRoute
         do { route = try preparedDraft?.stageRoute() ?? StageRoute(area:area,points:routePoints,obstacles:obstacles) }
         catch { errorMessage=error.localizedDescription; return }
@@ -38,15 +38,24 @@ extension ARSessionController {
                 guard [".origin",".front",".check"].allSatisfy({suffix in map.anchors.contains {$0.name==self.referencePrefix+suffix}}) else {
                     self.awaitSaveRecovery("reference anchors missing"); return
                 }
+                guard self.photoSources.allSatisfy({source in
+                    guard let anchor=self.photoAnchors[source.photo.id] else {return false}
+                    return map.anchors.contains {$0.identifier==anchor.identifier}
+                }) else {
+                    self.awaitSaveRecovery("photo anchors missing");return
+                }
                 self.session?.pause(); self.gate.invalidate(); self.ready=false
                 self.position=nil; self.heading=nil
                 do {
                     let data=try NSKeyedArchiver.archivedData(withRootObject:map,requiringSecureCoding:true)
                     self.archiveWriteInProgress=true
+                    let photoOwner=self.photoCapture
+                    let photos=self.photosForSaving(route:route,map:map)
                     let result=try await self.store.save(id:id,name:name,frame:stage,checkpoint:checkpoint,
                         worldMap:data,meshes:parts,device:UIDevice.current.model+" / "+UIDevice.current.systemVersion,
                         appVersion:Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown",
-                        route:route,settings:self.settings)
+                        route:route,settings:self.settings,photos:photos)
+                    withExtendedLifetime(photoOwner) {}
                     guard self.token==operation else { return }
                     self.saveRecoveryPending=false
                     self.mode = .saved; self.savedID=result.id; self.manifest=result; self.status="저장 완료 · 앱 재실행 후 저장 공간을 불러와 C를 검증하세요"

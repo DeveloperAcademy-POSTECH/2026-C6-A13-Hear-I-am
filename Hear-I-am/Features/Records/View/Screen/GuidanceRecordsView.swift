@@ -22,11 +22,14 @@ struct GuidanceRecordsView: View {
                                 HStack(alignment:.top) {
                                     VStack(alignment:.leading,spacing:7) {
                                         Text(record.stageName).font(.headline)
-                                        Text(record.completedAt,format:.dateTime.locale(Locale(identifier:"ko_KR")).year().month().day().hour().minute())
+                                        Text(record.completedAt.formatted(.dateTime.locale(Locale(identifier:"ko_KR")).year().month().day().hour().minute()))
                                             .font(.caption).foregroundStyle(.secondary)
                                     }
                                     Spacer()
-                                    Image(systemName:"checkmark.circle.fill").foregroundStyle(Color.hearGreen)
+                                    VStack(alignment:.trailing,spacing:8) {
+                                        Image(systemName:"checkmark.circle.fill").foregroundStyle(Color.hearGreen)
+                                        if record.replay != nil {Label("이동 재생",systemImage:"play.circle").font(.caption).foregroundStyle(Color.hearGreen)}
+                                    }
                                 }
                                 HStack {
                                     Label(record.activeDurationText,systemImage:"timer")
