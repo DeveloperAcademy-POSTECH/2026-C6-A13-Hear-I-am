@@ -23,9 +23,11 @@ import HearIAmCore
         speak(line)
         return true
     }
-    func direction(_ text: String, volume: Float = SignalVolume.speech) {
-        guard !isSpeaking, prepareAudio(), let line=queue.offerDirection(text) else { return }
+    /// False when the line was dropped because something else is speaking.
+    @discardableResult func direction(_ text: String, volume: Float = SignalVolume.speech) -> Bool {
+        guard !isSpeaking, prepareAudio(), let line=queue.offerDirection(text) else { return false }
         speak(line,volume:volume)
+        return true
     }
     func stop() {
         let callback=completion;completion=nil
