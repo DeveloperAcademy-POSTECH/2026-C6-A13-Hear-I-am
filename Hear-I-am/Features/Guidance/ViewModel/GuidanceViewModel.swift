@@ -29,6 +29,8 @@ import HearIAmCore
     /// Earbud tones: warning, arrival ding, direction ticks. No vibration since 10/20 (team decision).
     let signals=SignalPlayer()
     var directionTicks=DirectionTickGate(deadbandDegrees:SignalPlayer.directionDeadbandDegrees)
+    /// Set on leaving the start and on reaching a point: the next direction cue speaks the side of the new target once.
+    var announceNextSide=false
     var warnings=WarningGate()
     var steps=StepGate()
     var distances=DistanceGate()
