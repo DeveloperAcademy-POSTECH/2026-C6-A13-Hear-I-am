@@ -29,6 +29,7 @@ struct PreparationView: View {
                             .frame(width:min(260,geometry.size.width*0.35)).background(.regularMaterial,in:RoundedRectangle(cornerRadius:20))
                     }
                     Spacer(minLength:8)
+                    HStack {PreparationPhotoControls(model:model);Spacer()}
                     if model.step == .route, !model.draft.dangerZoneRoutePointLabels.isEmpty {
                         Label("주의: \(model.draft.dangerZoneRoutePointLabels.joined(separator:" · ")) 위험 구역 포함",systemImage:"exclamationmark.triangle.fill")
                             .font(.caption).foregroundStyle(.orange)
@@ -78,6 +79,7 @@ struct PreparationView: View {
             }.ignoresSafeArea(.container,edges:[.horizontal,.bottom])
         }
         }.background(.white).preferredColorScheme(.light)
+            .sheet(isPresented:$model.showingPhotos) {PreparationPhotosSheet(model:model)}
             .sheet(isPresented:$model.editingDangerZones) { PreparationDangerZoneSheet(model:model) }
             .onAppear {ScreenOrientation.set(.landscape); model.appear()}
             .onDisappear {model.disappear(); ScreenOrientation.set(.portrait)}

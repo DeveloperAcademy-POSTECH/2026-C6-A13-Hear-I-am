@@ -70,6 +70,7 @@ extension ARSessionController {
     func interrupt(_ message: String, token incoming: UUID) {
         guard incoming==token else { return }
         if purpose == .preparation, mode == .scanning, message != "측정 종료" {
+            cancelPhotoCapture()
             session?.pause(); preparationInterrupted=true; canSave=false
             if !archiveWriteInProgress {saveAttempt=UUID(); busy=false}
             latest=nil; status="추적이 중단됐습니다. 같은 공간에서 추적을 다시 시작해주세요."
@@ -84,6 +85,7 @@ extension ARSessionController {
         active=value
         if purpose == .preparation {
             if !value {
+                cancelPhotoCapture()
                 session?.pause(); latest=nil; canSave=false; preparationInterrupted=true
                 if !archiveWriteInProgress {saveAttempt=UUID(); busy=false}
             }
@@ -91,7 +93,7 @@ extension ARSessionController {
         }
         if !value { interrupt("앱 비활성화 · 저장 공간을 다시 불러오거나 새 스캔을 시작하세요",token:token) }
     }
-    func endSession() { interrupt("측정 종료",token:token) }
+    func endSession() { interrupt("측정 종료",token:token); clearPhotos() }
 
     func permission() async -> Bool {
         switch AVCaptureDevice.authorizationStatus(for:.video) {
