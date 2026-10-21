@@ -108,7 +108,7 @@
         "photos": [
           {
             "url": "https://lh3.googleusercontent.com/EhW-p3qAOgd1dzMnab9FjEFnije-pDQg632U-oKax1_zXWFYYbsfSp774NomeJB0sZe7W3EORKsKyjUchV8OUN8koJDsApmOf5CtSOvwxQQYpi16zekU-g=w800",
-            "caption": "소극장 산울림 공식 소개 사진",
+            "caption": "소극장 산울림 외관 · 공식 소개 사진",
             "credit": "한국소극장협회",
             "source": "https://www.smalltheater.or.kr/forum/view/1294896"
           }
@@ -135,7 +135,7 @@
         "photos": [
           {
             "url": "https://lh3.googleusercontent.com/T0ioGJL8m6KU8cR1hdqJrgQsYrA_20lM5_OtwmA5uhvFYt9eYS-jMJCgdQJz_53zvxV1UYoM72L2AOS71QK0UkqYYz96_MCIuJYDfs8KuPC3JfGESOTQTA=w800",
-            "caption": "아트스페이스 흥학관 공식 소개 사진",
+            "caption": "아트스페이스 흥학관 외관 · 공식 소개 사진",
             "credit": "한국소극장협회",
             "source": "https://www.smalltheater.or.kr/forum/view/1442419"
           }
@@ -162,7 +162,7 @@
         "photos": [
           {
             "url": "https://lh3.googleusercontent.com/lA0MY4Sw9c11ZjEAA5t3xR7CwzezT4kfrcVG8VPMkjjZhbJsSlgZEddPzi69hEb6evyHX3v89d1xfBYc-ksHlEu0Ag4c3Il43lmyI9AzCWqVYJZEg_lmgw=w800",
-            "caption": "까망극장 공식 소개 사진",
+            "caption": "까망극장 외관 · 공식 소개 사진",
             "credit": "한국소극장협회",
             "source": "https://www.smalltheater.or.kr/회원소극장-안내"
           }
@@ -189,7 +189,7 @@
         "photos": [
           {
             "url": "https://www.posco.co.kr/docs/kor7/jsp/resources/images/common/img_pohang4.jpg",
-            "caption": "효자아트홀 공식 소개 사진",
+            "caption": "효자아트홀 외관 · 공식 소개 사진",
             "credit": "POSCO",
             "source": "https://www.posco.co.kr/homepage/docs/kor7/jsp/common/posco/s91a1000013c.jsp"
           }
@@ -220,7 +220,8 @@
             "source": "https://ssartpia.kr/contents/07_agency/page.html?mid=318321331"
           }
         ],
-        "seats": 1159
+        "seats": 1159,
+        "seatsNote": "최대"
       }
     ],
     "source": "https://ssartpia.kr/contents/07_agency/page.html?mid=318321331",

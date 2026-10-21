@@ -39,6 +39,6 @@ struct SpacePreparationRequest: Identifiable {
 
 extension VenueRoom {
     var subtitle: String {
-        [floor,area.map {String(format:"%.2f㎡",$0)},seats.map {"\($0)석"}].compactMap {$0}.joined(separator:" · ")
+        [floor,area.map {String(format:"%.2f㎡",$0)},seats.map {(seatsNote.map {$0+" "} ?? "")+"\($0)석"}].compactMap {$0}.joined(separator:" · ")
     }
 }

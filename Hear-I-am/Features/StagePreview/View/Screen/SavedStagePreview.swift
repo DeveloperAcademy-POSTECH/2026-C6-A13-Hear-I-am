@@ -15,9 +15,11 @@ struct SavedStagePreview: View {
             ScrollView {
                 VStack(alignment:.leading,spacing:14) {
                     if let scan=model.loaded {
+                        if scan.manifest.route != nil {
                         Picker("공간 표시",selection:$model.display) {
                             ForEach(ReplayDisplay.allCases,id:\.self) {Text($0.rawValue).tag($0)}
                         }.pickerStyle(.segmented)
+                        }
                         ZStack(alignment:.bottomTrailing) {
                             SavedMeshView(scan:scan,model:model)
                                 .accessibilityLabel("저장된 무대 3D 공간. 아래 목록에서도 지점과 기물을 선택할 수 있어요.")
@@ -51,7 +53,7 @@ struct SavedStagePreview: View {
                         HStack {
                             ForEach(ReplayCamera.allCases,id:\.self) { mode in
                                 Button {model.setCamera(mode)} label:{
-                                    Text(mode.rawValue).font(.subheadline.weight(.semibold)).frame(maxWidth:.infinity).padding(.vertical,10)
+                                    Text(scan.manifest.route == nil && mode == .overhead ? "위에서" : mode.rawValue).font(.subheadline.weight(.semibold)).frame(maxWidth:.infinity).padding(.vertical,10)
                                         .background(model.cameraMode==mode ? Color.hearGreen : Color(.systemGray6),in:Capsule())
                                         .foregroundStyle(model.cameraMode==mode ? Color.white : Color.primary)
                                 }.buttonStyle(.plain).accessibilityAddTraits(model.cameraMode==mode ? .isSelected : [])
@@ -72,7 +74,7 @@ struct SavedStagePreview: View {
                             }
                             if !route.dangerZones.isEmpty {Text(StageDangerZone.summary(route.dangerZones)).font(.caption).foregroundStyle(.orange)}
                         } else {
-                            Text("이 저장 공간에는 동선이 없어 스캔 표면을 표시해요.").font(.caption)
+                            Text(scan.manifest.space?.purpose == .base ? "공연 동선이 없는 기본 공간입니다. 새 공연을 준비할 때 범위와 동선을 지정해주세요." : "이 저장 공간에는 동선이 없어 스캔 표면을 표시해요.").font(.caption)
                         }
                         if !scan.manifest.photos.isEmpty {
                             Toggle("사진 촬영 위치 표시",isOn:Binding(get:{model.photoPinsVisible},set:{model.photoPinsVisible=$0}))

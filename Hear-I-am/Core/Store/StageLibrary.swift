@@ -20,13 +20,15 @@ import HearIAmCore
     let guidanceRecordsStore: GuidanceRecordStore
     private let pinURL: URL
     var groups: (pinned: [ScanManifest], recent: [ScanManifest]) { pins.groups(records) }
-    init() {
-        let docs=FileManager.default.urls(for:.documentDirectory,in:.userDomainMask)[0]
+    init(root: URL? = nil) {
+        let docs=root ?? FileManager.default.urls(for:.documentDirectory,in:.userDomainMask)[0]
         scans=ScanStore(root:docs.appendingPathComponent("Scans",isDirectory:true))
         planStore=PerformancePlanStore(root:docs.appendingPathComponent("PerformancePlans",isDirectory:true))
         guidanceRecordsStore=GuidanceRecordStore(root:docs.appendingPathComponent("GuidanceRecords",isDirectory:true))
         pinURL=docs.appendingPathComponent("stage-pins.json")
         spacePreferencesURL=docs.appendingPathComponent("space-library.json")
+        do {try FileManager.default.createDirectory(at:docs,withIntermediateDirectories:true)}
+        catch {self.error=error.localizedDescription}
         loadSpaces()
         if FileManager.default.fileExists(atPath:pinURL.path) {
             do {pins=try JSONDecoder().decode(LibraryPins.self,from:Data(contentsOf:pinURL))}

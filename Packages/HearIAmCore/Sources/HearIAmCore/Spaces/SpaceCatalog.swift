@@ -30,11 +30,12 @@ public struct VenueRoom: Codable, Hashable, Identifiable, Sendable {
     public let floor: String?
     public let area: Double?
     public let seats: Int?
+    public let seatsNote: String?
     public let photos: [SpacePhoto]
     public let source: URL
     public var scale: SeatScale? { kind == .theater ? SeatScale.classify(seats) : nil }
-    public init(id: String, name: String, kind: SpaceKind, floor: String? = nil, area: Double? = nil, seats: Int? = nil, photos: [SpacePhoto], source: URL) {
-        self.id=id;self.name=name;self.kind=kind;self.floor=floor;self.area=area;self.seats=seats;self.photos=photos;self.source=source
+    public init(id: String, name: String, kind: SpaceKind, floor: String? = nil, area: Double? = nil, seats: Int? = nil, seatsNote: String? = nil, photos: [SpacePhoto], source: URL) {
+        self.id=id;self.name=name;self.kind=kind;self.floor=floor;self.area=area;self.seats=seats;self.seatsNote=seatsNote;self.photos=photos;self.source=source
     }
 }
 public struct SpaceVenue: Codable, Hashable, Identifiable, Sendable {

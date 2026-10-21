@@ -21,7 +21,7 @@ struct RoomDetailView: View {
         ScrollView {
             VStack(alignment:.leading,spacing:20) {
                 Text(venue.name).font(.subheadline).foregroundStyle(.secondary)
-                SpacePhotoGallery(photos:room.photos)
+                SpacePhotoGallery(photos:room.photos,height:150)
                 HStack {Text(room.subtitle).font(.headline);Spacer();Text(room.kind.label).font(.caption).foregroundStyle(.secondary)}
                 baseSection
                 HStack {
@@ -54,9 +54,14 @@ struct RoomDetailView: View {
             }.padding(20)
         }.navigationTitle(room.name).navigationBarTitleDisplayMode(.inline)
             .safeAreaInset(edge:.bottom) {
-                ActionButton(title:"＋ 이 공간으로 새 공연 준비") {
+                Button {
                     if library.bases(in:room.id).isEmpty {prepare(base:nil)} else {choosingPreparation=true}
-                }.padding(.horizontal,20).padding(.vertical,10).background(.regularMaterial)
+                } label: {
+                    Label("이 공간으로 새 공연 준비",systemImage:"plus")
+                        .font(.system(size:15,weight:.semibold)).frame(maxWidth:.infinity,minHeight:48)
+                        .foregroundStyle(.white).background(Color.hearInk,in:RoundedRectangle(cornerRadius:13))
+                }.buttonStyle(.plain).padding(.horizontal,20).padding(.vertical,10)
+                    .frame(maxWidth:.infinity).background(.regularMaterial)
             }
             .task {await library.refreshGuidanceRecords()}
             .confirmationDialog("새 공연을 어떻게 준비할까요?",isPresented:$choosingPreparation,titleVisibility:.visible) {
@@ -81,13 +86,15 @@ struct RoomDetailView: View {
         if let base=library.bases(in:room.id).first {
             VStack(alignment:.leading,spacing:12) {
                 NavigationLink {SavedStagePreview(record:base,store:library.scans)} label:{HStack {Label("기본 공간 3D로 보기",systemImage:"cube");Spacer();Image(systemName:"chevron.right")}.frame(minHeight:44)}
-                Text("이 기기에 저장된 기본 공간 · \(base.date.formatted(date:.abbreviated,time:.omitted))").font(.caption).foregroundStyle(Color.hearGreen)
-                if let note=base.space?.checkpointNote {Text("확인점 · \(note)").font(.caption).foregroundStyle(.secondary)}
+                Text("이 기기에 저장된 기본 공간 · \(base.date.formatted(.dateTime.locale(Locale(identifier:"ko_KR")).year().month().day()))").font(.caption).foregroundStyle(Color.hearGreen)
+                if let note=base.space?.checkpointNote {
+                    DisclosureGroup("위치 맞추기 기준") {Text(note).font(.caption).foregroundStyle(.secondary).frame(maxWidth:.infinity,alignment:.leading)}.font(.caption)
+                }
                 if library.bases(in:room.id).count>1 {
                     DisclosureGroup("이전 기본 공간 버전") {
                         ForEach(library.bases(in:room.id).dropFirst(),id:\.id) {older in
                             HStack {
-                                NavigationLink(older.date.formatted(date:.abbreviated,time:.shortened)) {SavedStagePreview(record:older,store:library.scans)}
+                                NavigationLink(older.date.formatted(.dateTime.locale(Locale(identifier:"ko_KR")).month().day().hour().minute())) {SavedStagePreview(record:older,store:library.scans)}
                                 Spacer();Button("사용") {prepare(base:older)}.frame(minHeight:44)
                             }.font(.caption)
                         }

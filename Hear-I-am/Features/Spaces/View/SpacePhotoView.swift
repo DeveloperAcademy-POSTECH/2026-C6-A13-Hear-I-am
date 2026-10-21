@@ -70,15 +70,17 @@ struct SpacePhotoView: View {
 
 struct SpacePhotoGallery: View {
     let photos: [SpacePhoto]
+    var height: CGFloat=190
     @State private var page=0
     var body: some View {
         VStack(alignment:.leading,spacing:8) {
             if photos.count>1 {
                 TabView(selection:$page) {
-                    ForEach(Array(photos.enumerated()),id:\.element.id) {index,photo in SpacePhotoView(photo:photo,height:210).tag(index)}
-                }.frame(height:210).tabViewStyle(.page).clipShape(RoundedRectangle(cornerRadius:18))
-            } else {SpacePhotoView(photo:photos.first,height:210).clipShape(RoundedRectangle(cornerRadius:18))}
+                    ForEach(Array(photos.enumerated()),id:\.element.id) {index,photo in SpacePhotoView(photo:photo,height:height).tag(index)}
+                }.frame(height:height).tabViewStyle(.page).clipShape(RoundedRectangle(cornerRadius:18))
+            } else {SpacePhotoView(photo:photos.first,height:height).clipShape(RoundedRectangle(cornerRadius:18))}
             if let photo=photos.indices.contains(page) ? photos[page] : photos.first {
+                if photo.caption.contains("외관") {Text(photo.caption).font(.caption).foregroundStyle(.secondary)}
                 Link("사진 출처 · \(photo.credit) ↗",destination:photo.source).font(.caption).foregroundStyle(.secondary)
             }
         }
