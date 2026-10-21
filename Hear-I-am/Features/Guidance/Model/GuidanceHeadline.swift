@@ -19,7 +19,6 @@ struct GuidanceHeadline {
         }
         switch phase {
         case .wear: title="휴대폰을 허리 앞에\n세로로 고정해주세요"
-        case .countdown: title="천천히 착용해주세요"
         case .departure: title=departureReady ? "\(hasStarted ? "재개" : "출발") 준비가\n완료됐어요" : "\(hasStarted ? "저장한 동선 위에서" : "지정한 출발점에서")\n준비해주세요"
         case .starting: title="안내를 시작할게요"
         case .guiding: title=arrivedName.map {"\($0)에 도착했어요"} ?? cue?.direction ?? "\(targetName)으로 이동해요"
@@ -32,7 +31,6 @@ struct GuidanceHeadline {
         }
         switch phase {
         case .wear: detail="후면 카메라는 몸 바깥쪽으로, 렌즈가 가려지지 않게 해주세요."
-        case .countdown: detail="착용 시간이 끝나면 위치와 방향을 확인해요."
         case .departure: detail=departureReady ? "하단 버튼을 누르면 \(targetName)으로 안내해요." : departureStatus
         case .starting: detail="시작 음성이 끝나면 허리 진동으로 방향을 알려드려요."
         case .guiding: detail=cue.map {arrivedName != nil ? "다음 지점 · \($0.direction) " + String(format:"%.1f m",$0.distance) : String(format:"%.1f m",$0.distance)} ?? "위치 확인 중"
