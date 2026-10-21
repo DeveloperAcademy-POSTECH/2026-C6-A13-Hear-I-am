@@ -12,7 +12,7 @@ public actor ScanStore {
     public init(root: URL) { self.root=root }
     public static func hash(_ data: Data) -> String { SHA256.hash(data: data).map { String(format:"%02x",$0) }.joined() }
     public func save(id: UUID, name: String, frame: StageFrame, checkpoint: Point3,
-                     worldMap: Data, meshes: [MeshSnapshot], device: String, appVersion: String, route: StageRoute? = nil, settings: GuideSettings = GuideSettings()) throws -> ScanManifest {
+                     worldMap: Data, meshes: [MeshSnapshot], device: String, appVersion: String, route: StageRoute? = nil, settings: GuideSettings = GuideSettings(), photos: [ScanPhotoSource] = []) throws -> ScanManifest {
         guard !worldMap.isEmpty, !meshes.isEmpty, Set(meshes.map(\.id)).count == meshes.count else {
             throw LabError.invalid("공간 지도 또는 메시가 없습니다.")
         }
@@ -21,7 +21,7 @@ public actor ScanStore {
         let meshData=try encoder.encode(meshes)
         let manifest=ScanManifest(id:id, name:name, frame:frame, checkpoint:checkpoint,
             worldMapHash:Self.hash(worldMap), meshHash:Self.hash(meshData), meshCount:meshes.count,
-            vertexCount:meshes.reduce(0){$0+$1.vertices.count}, device:device, appVersion:appVersion, route:route, settings:settings)
+            vertexCount:meshes.reduce(0){$0+$1.vertices.count}, device:device, appVersion:appVersion, route:route, settings:settings, photos:photos.map(\.photo))
         try manifest.validate()
         let fm=FileManager.default
         try fm.createDirectory(at:root, withIntermediateDirectories:true)
@@ -32,10 +32,40 @@ public actor ScanStore {
         do {
             try worldMap.write(to:temp.appendingPathComponent("worldmap.bin"),options:.atomic)
             try meshData.write(to:temp.appendingPathComponent("mesh.json"),options:.atomic)
+            if !photos.isEmpty {
+                let photoDir=temp.appendingPathComponent("photos",isDirectory:true)
+                try fm.createDirectory(at:photoDir,withIntermediateDirectories:true)
+                for source in photos {
+                    let image=try Self.checkedPhotoData(source.imageURL,hash:source.photo.imageHash,limit:ScanPhoto.maximumImageBytes)
+                    let thumb=try Self.checkedPhotoData(source.thumbnailURL,hash:source.photo.thumbnailHash,limit:ScanPhoto.maximumThumbnailBytes)
+                    try image.write(to:photoDir.appendingPathComponent(source.photo.id.uuidString+".jpg"),options:.atomic)
+                    try thumb.write(to:photoDir.appendingPathComponent(source.photo.id.uuidString+"-thumb.jpg"),options:.atomic)
+                }
+            }
             try encoder.encode(manifest).write(to:temp.appendingPathComponent("manifest.json"),options:.atomic)
             try fm.moveItem(at:temp,to:dest)
             return manifest
         } catch { try? fm.removeItem(at:temp); throw error }
+    }
+    /// Photos load independently: a missing/corrupt image must not hide the saved 3D scan.
+    public func photoData(scanID: UUID, photoID: UUID, thumbnail: Bool) throws -> Data {
+        let dir=root.appendingPathComponent(scanID.uuidString,isDirectory:true)
+        let manifest=try JSONDecoder().decode(ScanManifest.self,from:Data(contentsOf:dir.appendingPathComponent("manifest.json")))
+        guard manifest.id==scanID, let photo=manifest.photos.first(where:{$0.id==photoID}) else {
+            throw LabError.invalid("사진을 찾을 수 없습니다.")
+        }
+        try photo.validate()
+        let url=dir.appendingPathComponent("photos").appendingPathComponent(photoID.uuidString+(thumbnail ? "-thumb.jpg" : ".jpg"))
+        return try Self.checkedPhotoData(url,hash:thumbnail ? photo.thumbnailHash : photo.imageHash,
+                                        limit:thumbnail ? ScanPhoto.maximumThumbnailBytes : ScanPhoto.maximumImageBytes)
+    }
+    private static func checkedPhotoData(_ url: URL, hash: String, limit: Int) throws -> Data {
+        let values=try url.resourceValues(forKeys:[.fileSizeKey,.isRegularFileKey,.isSymbolicLinkKey])
+        guard values.isRegularFile==true, values.isSymbolicLink != true,
+              let size=values.fileSize, size>0, size<=limit else { throw LabError.invalid("사진 파일 크기가 올바르지 않습니다.") }
+        let data=try Data(contentsOf:url)
+        guard data.count<=limit, Self.hash(data)==hash else { throw LabError.invalid("사진 파일이 변경되었거나 손상되었습니다.") }
+        return data
     }
     public func list() throws -> [ScanManifest] {
         let fm=FileManager.default
