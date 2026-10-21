@@ -6,6 +6,8 @@ struct PreparationGuide {
     let title: String
     let description: String
 
+    init(title: String, description: String) {self.title=title;self.description=description}
+
     init(step: PreparationStep, draft: PreparationDraft, nextCorner: Int?, objectEditing: Bool, pendingVertexCount: Int) {
         let names=PreparationStep.cornerNames
         switch step {

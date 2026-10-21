@@ -9,6 +9,15 @@ import HearIAmCore
 final class PreparationViewModel: ObservableObject {
     let session=ARSessionController(purpose:.preparation)
 
+    let spaceRequest: SpacePreparationRequest?
+    @Published var awaitingBase=false
+    @Published var checkpointNote=""
+    var appeared=false
+    var isBaseRegistration: Bool {spaceRequest?.context.purpose == .base}
+    var usesBase: Bool {spaceRequest?.base != nil}
+    var preparationErrors: [String] {isBaseRegistration ? draft.boundaryErrors + draft.checkpointErrors : draft.errors}
+    var steps: [PreparationStep] {isBaseRegistration ? [.scan,.boundary,.checkpoint] : PreparationStep.allCases}
+
     // Input
     @Published var draft=PreparationDraft()
     @Published var scanConfirmed=false
@@ -36,6 +45,7 @@ final class PreparationViewModel: ObservableObject {
     @Published var selectedPlan: PerformancePlan?
     @Published var choosingPlan=false
     var editingObjectID: UUID?
+    var pendingObjectID=UUID()
 
     // Screen state
     @Published var step: PreparationStep = .scan
@@ -54,7 +64,12 @@ final class PreparationViewModel: ObservableObject {
     private var seen: Set<PreparationStep> = [.scan]
     private var sessionChanges: AnyCancellable?
 
-    init(initialPlan: PerformancePlan? = nil) {
+    init(initialPlan: PerformancePlan? = nil, spaceRequest: SpacePreparationRequest? = nil) {
+        self.spaceRequest=spaceRequest
+        self.awaitingBase=spaceRequest?.base != nil
+        session.spaceContext=spaceRequest?.context
+        if let spaceRequest {scanName=spaceRequest.title}
+        if awaitingBase {intro=nil}
         self.selectedPlan=initialPlan
         if let initialPlan { self.scanName=initialPlan.name }
         sessionChanges=session.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }
@@ -65,7 +80,7 @@ final class PreparationViewModel: ObservableObject {
     }
 
     // Session state the screen reads
-    var supported: Bool { session.supported }
+    var supported: Bool {session.supported && (!(isBaseRegistration || usesBase) || session.supportsMesh)}
     var supportsMesh: Bool { session.supportsMesh }
     var busy: Bool { session.busy || session.photoCapturing }
     var interrupted: Bool { session.preparationInterrupted }
@@ -77,7 +92,15 @@ final class PreparationViewModel: ObservableObject {
     var errorMessage: String? { get {session.errorMessage} set {session.errorMessage=newValue} }
 
     var guide: PreparationGuide {
-        PreparationGuide(step:step,draft:draft,nextCorner:nextCorner,objectEditing:objectEditing,pendingVertexCount:pendingObjectWorld.count)
+        if isBaseRegistration {
+            switch step {
+            case .scan: return PreparationGuide(title:"기본 공간을 스캔하세요",description:"이동할 소품을 치우고 고정된 벽과 바닥을 충분히 담아주세요. 공연별 범위와 기물은 나중에 추가합니다.")
+            case .boundary: return PreparationGuide(title:"방의 기준 범위를 지정하세요",description:"재사용할 바닥의 네 모서리를 지정해주세요. 공연마다 이 범위 안에 새 무대를 잡을 수 있습니다.")
+            case .checkpoint: return PreparationGuide(title:"다시 찾을 확인점을 지정하세요",description:"이동하지 않는 바닥 표식을 지정해주세요. 저장할 때 위치 설명도 남깁니다.")
+            default: break
+            }
+        }
+        return PreparationGuide(step:step,draft:draft,nextCorner:nextCorner,objectEditing:objectEditing,pendingVertexCount:pendingObjectWorld.count)
     }
     var showsCrosshairHint: String? {
         if session.saveRecoveryPending, let message=saveRecoveryMessage { return message }
@@ -101,16 +124,31 @@ final class PreparationViewModel: ObservableObject {
 
     // Lifecycle
     func appear() {
+        guard !appeared else {return};appeared=true
         session.showMesh=true
-        if session.supported {session.newScan()}
+        if supported {
+            if let base=spaceRequest?.base {session.restore(base)} else {session.newScan()}
+        }
     }
     func disappear() { session.endSession() }
     func scenePhaseChanged(_ phase: ScenePhase) {
         if phase == .background { confirmingRouteHeight=false; pendingRouteHeight=nil;session.setActive(false)} else if phase == .active {session.setActive(true)}
     }
-    func resumeTracking() { session.resumePreparation() }
+    func resumeTracking() {
+        if awaitingBase, let base=spaceRequest?.base {session.preparationInterrupted=false;session.restore(base)}
+        else {session.resumePreparation()}
+    }
+    func verifyBaseAndContinue() {
+        session.verifyCheckpoint()
+        guard session.ready else {return}
+        do {
+            try session.beginBasePerformance()
+            draft=PreparationDraft();scanConfirmed=true;highest = .boundary;awaitingBase=false
+            synchronize();changeStep(.boundary)
+        } catch {session.errorMessage=error.localizedDescription}
+    }
     /// Leaving with no scanned surface needs no confirmation.
-    var exitNeedsConfirmation: Bool { !session.photoSources.isEmpty || session.photoCapturing || session.meshCount != 0 || draft.corners.contains(where:{$0 != nil}) }
+    var exitNeedsConfirmation: Bool { !awaitingBase && (!session.photoSources.isEmpty || session.photoCapturing || session.meshCount != 0 || draft.corners.contains(where:{$0 != nil})) }
 
     // Steps
     func isComplete(_ s: PreparationStep) -> Bool {
@@ -122,8 +160,9 @@ final class PreparationViewModel: ObservableObject {
         case .checkpoint: return draft.checkpoint != nil && draft.checkpointErrors.isEmpty
         }
     }
-    func canSelect(_ s: PreparationStep) -> Bool { !(busy || s == .scan || s > highest || objectEditing) }
+    func canSelect(_ s: PreparationStep) -> Bool { !(busy || awaitingBase || s == .scan || s > highest || objectEditing) && steps.contains(s) }
     func advance() {
+        if isBaseRegistration && step == .boundary {highest = .checkpoint;changeStep(.checkpoint);return}
         if step == .boundary, let selectedPlan {
             applyPlan(selectedPlan)
             return
@@ -137,6 +176,7 @@ final class PreparationViewModel: ObservableObject {
             for source in session.photoSources {
                 session.linkPhoto(source.photo.id,objectID:nil,routeIndex:nil)
             }
+            for id in Array(session.scopedLayers.keys) {session.removeObjectLayer(id)}
             draft=next; selectedPlan=plan; choosingPlan=false
             if scanName == "무대 스캔" || scanName.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty { scanName=plan.name }
             synchronize()
@@ -164,7 +204,15 @@ final class PreparationViewModel: ObservableObject {
     func synchronize() { session.applyPreparation(draft,pendingObject:pendingObjectWorld) }
     func place(_ update: (inout PreparationDraft, Point3) throws -> Void) {
         guard canPlacePoint else {return}
-        do {var next=draft; try update(&next,session.centerFloorPoint()); draft=next; synchronize()}
+        do {
+            var next=draft;try update(&next,session.centerFloorPoint())
+            if let roomArea=spaceRequest?.context.roomArea, let area=next.area {
+                guard area.corners.allSatisfy({roomArea.contains(roomArea.floor($0)) && abs($0.y-roomArea.floorHeight)<=0.10}) else {
+                    throw LabError.invalid("이번 공연의 범위는 기본 공간 안 같은 바닥에 지정해주세요.")
+                }
+            }
+            draft=next;synchronize()
+        }
         catch {session.errorMessage=error.localizedDescription}
     }
 }

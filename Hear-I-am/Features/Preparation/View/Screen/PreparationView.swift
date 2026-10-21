@@ -7,9 +7,9 @@ struct PreparationView: View {
     @StateObject private var model: PreparationViewModel
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
-    init(library: StageLibrary, initialPlan: PerformancePlan? = nil) {
+    init(library: StageLibrary, initialPlan: PerformancePlan? = nil, spaceRequest: SpacePreparationRequest? = nil) {
         self.library=library
-        _model=StateObject(wrappedValue:PreparationViewModel(initialPlan:initialPlan))
+        _model=StateObject(wrappedValue:PreparationViewModel(initialPlan:initialPlan,spaceRequest:spaceRequest))
     }
     var body: some View {
         GeometryReader { safe in
@@ -19,13 +19,13 @@ struct PreparationView: View {
             ZStack {
                 CameraView(model:model.session).frame(maxWidth:.infinity,maxHeight:.infinity)
                 if !model.supported {Color(.systemGray6)}
-                if model.supported {
+                if model.supported && !model.awaitingBase {
                 Image(systemName:"plus").font(.system(size:30,weight:.light)).foregroundStyle(!model.aimBlocked ? .white : .red).shadow(color:.black,radius:2).accessibilityHidden(true)
                 VStack {
                     HStack(alignment:.top) {
                         if model.step != .scan {PreparationMiniMap(model:model).frame(width:180,height:125).padding(10).background(.regularMaterial,in:RoundedRectangle(cornerRadius:18))}
                         Spacer(minLength:70)
-                        PreparationGuideCard(model:model,maxHeight:max(76,geometry.size.height-152))
+                        PreparationGuideCard(model:model,maxHeight:max(76,geometry.size.height-152)).disabled(model.busy)
                             .frame(width:min(260,geometry.size.width*0.35)).background(.regularMaterial,in:RoundedRectangle(cornerRadius:20))
                     }
                     Spacer(minLength:8)
@@ -44,16 +44,20 @@ struct PreparationView: View {
                                 .font(.caption).foregroundStyle(!model.aimBlocked ? .primary : Color.red).padding(8).background(.regularMaterial,in:Capsule())
                         }
                         Spacer()
-                        PreparationControls(model:model,hasPlans:!library.plans.isEmpty)
+                        PreparationControls(model:model,hasPlans:!library.plans.isEmpty).disabled(model.busy)
                     }
                 }.padding(.leading,safe.safeAreaInsets.leading+14)
                     .padding(.trailing,safe.safeAreaInsets.trailing+14)
                     .padding(.bottom,safe.safeAreaInsets.bottom+14)
                     .padding(.top,14)
                 }
-                if let intro=model.intro, model.supported {
+                if model.awaitingBase && model.supported {
+                    Image(systemName:"plus").font(.system(size:30,weight:.light)).foregroundStyle(.white).shadow(color:.black,radius:2).accessibilityHidden(true)
+                    BaseSpaceRestoreCard(model:model).frame(maxWidth:.infinity,maxHeight:.infinity,alignment:.trailing).padding(.trailing,safe.safeAreaInsets.trailing+16)
+                }
+                if let intro=model.intro, model.supported, !model.awaitingBase {
                     Color.black.opacity(0.30)
-                    PreparationIntro(step:model.step.rawValue,page:intro) {model.nextIntroPage()}.padding(16)
+                    PreparationIntro(step:model.step.rawValue,page:intro,baseRegistration:model.isBaseRegistration) {model.nextIntroPage()}.padding(16)
                 }
                 if !model.supported {
                     ContentUnavailableView("LiDAR 지원 iPhone이 필요해요",systemImage:"camera",description:Text("무대 준비는 실제 카메라와 LiDAR로 공간을 저장합니다. 시뮬레이터에서는 스캔할 수 없어요."))

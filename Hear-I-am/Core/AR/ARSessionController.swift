@@ -66,6 +66,19 @@ final class ARSessionController: ObservableObject {
     // Saving
     var saveAttempt=UUID()
     var archiveWriteInProgress=false
+    var spaceContext: ScanSpaceContext?
+    var baseCheckpointNote=""
+    var isBaseRegistration: Bool {spaceContext?.purpose == .base}
+    var baseGeometry: [MeshSnapshot]?
+    var scopedLayers: [UUID:ScopedObjectLayer] = [:]
+    var activeObjectRegion: ObjectScanRegion?
+    var objectScanChunks: [UUID:MeshSnapshot] = [:]
+    var objectScanGeneration=UUID()
+    var pendingObjectMeshes: [UUID:MeshSnapshot] = [:]
+    var pendingObjectRemovals: Set<UUID> = []
+    var objectScanTask: Task<Void,Never>?
+    @Published var objectScanActive=false
+    @Published var objectScanTriangles=0
     var manifest: ScanManifest?
     var meshes: [UUID:MeshSnapshot]=[:]
 
@@ -89,7 +102,7 @@ final class ARSessionController: ObservableObject {
 
     var now: Double { ProcessInfo.processInfo.systemUptime }
     var referencePrefix: String { "PoC4.reference."+scanID.uuidString }
-    var canConfirmScan: Bool { mode == .scanning && !busy && (!supportsMesh || !meshes.isEmpty) && latest?.mapped == true && latest?.normal == true && now-(latest?.time ?? 0) < 0.5 }
+    var canConfirmScan: Bool { (!isBaseRegistration || supportsMesh) && mode == .scanning && !busy && (!supportsMesh || !meshes.isEmpty) && latest?.mapped == true && latest?.normal == true && now-(latest?.time ?? 0) < 0.5 }
     var canPlacePoint: Bool { mode == .scanning && !busy && !preparationInterrupted && latest?.normal == true && now-(latest?.time ?? 0) < 0.5 }
 
     init(purpose: Purpose) {
@@ -151,6 +164,7 @@ final class ARSessionController: ObservableObject {
         clearPhotos()
         if purpose == .preparation { preparedDraft=PreparationDraft(); savedID=nil; onReset?() }
         position=nil; heading=nil; guidancePoseTime=nil; ready=false; canVerify=false; canSave=false
+        baseGeometry=nil;scopedLayers=[:];cancelObjectScan()
         meshes=[:]; renderer.clearMeshes()
         renderer.clearAnnotations()
         cornerAnchors.removeAll()

@@ -16,14 +16,15 @@ struct PreparationControls: View {
             }
             if let next=model.nextCorner {ActionButton(title:"모서리 지정",enabled:model.canPlacePoint) {model.captureCorner(next)}}
             if draft.area != nil {
-                ActionButton(title:"위험 구역",primary:false,enabled:!model.busy) {model.editingDangerZones=true}
-                if let plan=model.selectedPlan {
-                    ActionButton(title:"‘\(plan.name)’ 동선 적용") {model.applyPlan(plan)}
-                } else {
-                    if hasPlans {
-                        ActionButton(title:"사전 저장 동선 불러오기",primary:false) {model.choosingPlan=true}
+                if model.isBaseRegistration {ActionButton(title:"공간 범위 확정") {model.advance()}}
+                else {
+                    ActionButton(title:"위험 구역",primary:false,enabled:!model.busy) {model.editingDangerZones=true}
+                    if let plan=model.selectedPlan {
+                        ActionButton(title:"‘\(plan.name)’ 동선 적용") {model.applyPlan(plan)}
+                    } else {
+                        if hasPlans {ActionButton(title:"사전 저장 동선 불러오기",primary:false) {model.choosingPlan=true}}
+                        ActionButton(title:"직접 입력") {model.advance()}
                     }
-                    ActionButton(title:"직접 입력") {model.advance()}
                 }
             }
         case .objects:
@@ -31,7 +32,8 @@ struct PreparationControls: View {
                 Button("취소") {model.cancelObject()}.padding(8).background(.regularMaterial,in:Capsule())
                 ActionButton(title:"마지막 점 삭제",primary:false,enabled:!model.pendingObjectWorld.isEmpty) {model.undoObjectVertex()}
                 ActionButton(title:"둘레 점 추가",enabled:model.canPlacePoint && model.pendingObjectWorld.count<8) {model.addObjectVertex()}
-                ActionButton(title:"기물 등록",enabled:model.pendingObjectWorld.count>=3) {model.commitObject()}
+                if model.usesBase {ActionButton(title:model.session.objectScanActive ? "추가 스캔 다시 시작" : "둘레 안 추가 스캔",primary:false,enabled:model.pendingObjectWorld.count>=3 && !model.busy) {model.startAdditionalScan()}}
+                ActionButton(title:"기물 등록",enabled:model.pendingObjectWorld.count>=3 && !model.busy) {model.commitObject()}
             } else {
                 ActionButton(title:"기물 추가",primary:false,enabled:draft.area != nil) {model.beginObject()}
                 ActionButton(title:draft.objects.isEmpty ? "건너뛰기" : "다음 단계",enabled:draft.objectErrors.isEmpty) {model.advance()}

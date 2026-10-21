@@ -5,8 +5,8 @@ struct PreparationStepBar: View {
     let exit: () -> Void
     var body: some View {
         HStack(spacing:12) {
-            Text("무대 준비").font(.headline)
-            ForEach(PreparationStep.allCases,id:\.self) {s in
+            Text(model.isBaseRegistration ? "기본 공간 등록" : "무대 준비").font(.headline)
+            ForEach(model.steps,id:\.self) {s in
                 if s != .scan {Rectangle().fill(.gray.opacity(0.25)).frame(maxWidth:20).frame(height:1)}
                 Button {model.changeStep(s)} label:{
                     HStack(spacing:5) {

@@ -36,6 +36,13 @@ extension ARSessionController {
                 guard let map=try NSKeyedUnarchiver.unarchivedObject(ofClass:ARWorldMap.self,from:loaded.worldMap) else {
                     throw LabError.invalid("공간 지도를 해제할 수 없습니다.")
                 }
+                if let context=spaceContext, let expected=context.baseScanID {
+                    guard loaded.manifest.id==expected, loaded.manifest.meshHash==context.baseMeshHash,
+                          loaded.manifest.space?.purpose == .base, loaded.manifest.space?.roomID==context.roomID,
+                          loaded.manifest.space?.venueID==context.venueID else {throw LabError.invalid("기본 공간 버전이 일치하지 않습니다.")}
+                    // Saved mesh is rendered separately. Do not feed old reconstructed objects back into the new scan.
+                    map.anchors.removeAll {$0 is ARMeshAnchor}
+                }
                 let prefix=loaded.manifest.anchorName
                 guard [".origin",".front",".check"].allSatisfy({suffix in map.anchors.contains {$0.name==prefix+suffix}}) else {
                     throw LabError.invalid("공간 지도에 기준 앵커가 없습니다.")
@@ -48,6 +55,7 @@ extension ARSessionController {
                     area=route.area; corners=route.area.corners.map { Optional($0) }
                     routePoints=route.points; obstacles=route.obstacles; settings=loaded.manifest.settings
                 }
+                if loaded.manifest.space?.purpose == .base, let roomArea=loaded.manifest.space?.roomArea {area=roomArea;corners=roomArea.corners.map {Optional($0)}}
                 mode = .restoring
                 for part in loaded.meshes { meshes[part.id]=part }
                 updateCounts(); redrawReferences(); renderer.rebuildMeshes(meshes.values,saved:true)
@@ -70,7 +78,7 @@ extension ARSessionController {
     func interrupt(_ message: String, token incoming: UUID) {
         guard incoming==token else { return }
         if purpose == .preparation, mode == .scanning, message != "측정 종료" {
-            cancelPhotoCapture()
+            cancelPhotoCapture();cancelObjectScan()
             session?.pause(); preparationInterrupted=true; canSave=false
             if !archiveWriteInProgress {saveAttempt=UUID(); busy=false}
             latest=nil; status="추적이 중단됐습니다. 같은 공간에서 추적을 다시 시작해주세요."
@@ -85,7 +93,7 @@ extension ARSessionController {
         active=value
         if purpose == .preparation {
             if !value {
-                cancelPhotoCapture()
+                cancelPhotoCapture();cancelObjectScan()
                 session?.pause(); latest=nil; canSave=false; preparationInterrupted=true
                 if !archiveWriteInProgress {saveAttempt=UUID(); busy=false}
             }

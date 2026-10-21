@@ -69,15 +69,15 @@ extension ARSessionController {
                             objectID:objectID,routePointIndex:routeIndex,projection:p.projection)
         photoSources[index]=ScanPhotoSource(photo:photo,imageURL:source.imageURL,thumbnailURL:source.thumbnailURL)
     }
-    func photosForSaving(route: StageRoute, map: ARWorldMap) -> [ScanPhotoSource] {
+    func photosForSaving(route: StageRoute?, map: ARWorldMap) -> [ScanPhotoSource] {
         photoSources.map {source in
             let p=source.photo
             let transform=photoAnchors[p.id].flatMap {saved in map.anchors.first {$0.identifier==saved.identifier}?.transform}
             let pose=transform.map {t in (0..<4).flatMap {c in (0..<4).map {t[c][$0]}}} ?? p.cameraTransform
             let photo=ScanPhoto(id:p.id,capturedAt:p.capturedAt,frameTimestamp:p.frameTimestamp,cameraTransform:pose,
                                 pixelWidth:p.pixelWidth,pixelHeight:p.pixelHeight,imageHash:p.imageHash,thumbnailHash:p.thumbnailHash,
-                                objectID:p.objectID.flatMap {id in route.obstacles.contains {$0.id==id} ? id : nil},
-                                routePointIndex:p.routePointIndex.flatMap {route.points.indices.contains($0) ? $0 : nil},projection:p.projection)
+                                objectID:p.objectID.flatMap {id in route?.obstacles.contains {$0.id==id} == true ? id : nil},
+                                routePointIndex:p.routePointIndex.flatMap {route?.points.indices.contains($0) == true ? $0 : nil},projection:p.projection)
             return ScanPhotoSource(photo:photo,imageURL:source.imageURL,thumbnailURL:source.thumbnailURL)
         }
     }

@@ -45,6 +45,25 @@ final class SpaceStorageTests: XCTestCase {
         do {_=try await save(store:store,route:route(),context:.init(venueID:"v",roomID:"r",purpose:.base,roomArea:PerformancePlan.area,checkpointNote:"C"));XCTFail()} catch {}
         let all=try await store.list();XCTAssertTrue(all.isEmpty)
     }
+    func testBaseDerivedPerformanceRejectsDifferentFloorOrOutsideRoom() throws {
+        let room=PerformancePlan.area
+        let outside=try StageArea(corners:room.corners.map {Point3($0.x+20,$0.y,$0.z)})
+        let route=try StageRoute(area:outside,points:[.init(1,2),.init(3,2),.init(5,2)],obstacles:[])
+        let context=ScanSpaceContext(venueID:"v",roomID:"r",baseScanID:UUID(),baseMeshHash:String(repeating:"a",count:64),roomArea:room)
+        XCTAssertThrowsError(try context.validate(scanID:UUID(),route:route))
+        let raised=try StageArea(corners:room.corners.map {Point3($0.x,$0.y+1,$0.z)})
+        XCTAssertThrowsError(try context.validate(scanID:UUID(),route:StageRoute(area:raised,points:[.init(1,2),.init(3,2),.init(5,2)],obstacles:[])))
+    }
+    func testMissingAdditionMeshIsRejectedBeforePublishing() async throws {
+        let root=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer {try? FileManager.default.removeItem(at:root)}
+        let store=ScanStore(root:root)
+        let object=try StageObstacle(name:"소품",kind:.other,vertices:[.init(8,4),.init(9,4),.init(9,5),.init(8,5)])
+        let route=try StageRoute(area:PerformancePlan.area,points:[.init(1,2),.init(3,2),.init(5,2)],obstacles:[object])
+        let context=ScanSpaceContext(venueID:"v",roomID:"r",baseScanID:UUID(),baseMeshHash:String(repeating:"a",count:64),roomArea:PerformancePlan.area,additions:[.init(objectID:object.id,meshIDs:[UUID()])])
+        do {_=try await save(store:store,route:route,context:context);XCTFail("Missing layer must not publish")} catch {}
+        let all=try await store.list();XCTAssertTrue(all.isEmpty)
+    }
     private func route() throws -> StageRoute {
         try StageRoute(area:PerformancePlan.area,points:[.init(1,2),.init(3,2),.init(5,2)],obstacles:[])
     }

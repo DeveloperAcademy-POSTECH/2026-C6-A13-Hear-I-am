@@ -28,11 +28,18 @@ public struct ScanSpaceContext: Codable, Equatable, Sendable {
         try roomArea?.validate()
         if purpose == .base {
             guard route == nil, roomArea != nil, baseScanID == nil, additions.isEmpty,
-                  let note=checkpointNote, !note.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty else {
+                  let note=checkpointNote, note.count<=160, !note.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty else {
                 throw LabError.invalid("기본 공간의 범위와 확인점 설명을 확인해주세요.")
             }
         } else {
             guard route != nil else { throw LabError.invalid("공연 동선이 없습니다.") }
+        }
+        if baseScanID != nil {
+            guard let roomArea, let area=route?.area,
+                  area.corners.allSatisfy({ point in
+                      let p=roomArea.floor(point)
+                      return p.x>=(-0.02) && p.y>=(-0.02) && p.x<=roomArea.width+0.02 && p.y<=roomArea.depth+0.02 && abs(point.y-roomArea.floorHeight)<=0.10
+                  }) else {throw LabError.invalid("공연 범위가 기본 공간 안 같은 바닥에 있어야 합니다.")}
         }
         guard Set(additions.map(\.objectID)).count == additions.count,
               Set(additions.flatMap(\.meshIDs)).count == additions.flatMap(\.meshIDs).count else {

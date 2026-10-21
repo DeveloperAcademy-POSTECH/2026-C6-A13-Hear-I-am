@@ -45,6 +45,9 @@ struct PreparationGuideCard: View {
             }
             if step == .objects {
                 if model.objectEditing {
+                    if model.usesBase {
+                        Text(model.session.objectScanActive ? (model.session.objectScanTriangles>0 ? "표면이 수집됐어요. 앞·옆·뒤를 더 비춘 후 기물을 등록해주세요." : "기물의 앞·옆·뒤를 천천히 비춰주세요.") : "바닥 둘레를 지정하고 ‘둘레 안 추가 스캔’을 누르세요. 바닥은 기본 공간을 유지합니다.").font(.caption).foregroundStyle(Color.hearGreen)
+                    }
                     TextField("기물 이름",text:$model.obstacleName).textFieldStyle(.roundedBorder).font(.caption)
                     Picker("종류",selection:$model.obstacleKind) {Text("장애물").tag(ObstacleKind.other); Text("의자").tag(ObstacleKind.platform); Text("계단").tag(ObstacleKind.stairs)}.pickerStyle(.segmented)
                     if (model.obstacleKind == .platform || model.obstacleKind == .stairs), model.pendingObjectWorld.count >= 3 {

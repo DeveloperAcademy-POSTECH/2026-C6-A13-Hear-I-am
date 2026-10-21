@@ -13,7 +13,7 @@ extension ARSessionController {
         if sample.time-lastUI >= 0.05 {
             lastUI=sample.time; tracking=sample.tracking; mapping=sample.mapping
             ready=gate.isReady(now:now); canVerify=gate.canVerify(now:now)
-            canSave=mode == .scanning && !busy && sample.normal && sample.mapped &&
+            canSave=mode == .scanning && (!isBaseRegistration || supportsMesh) && !busy && sample.normal && sample.mapped &&
                 referenceAnchorsPresent(sample) && (!supportsMesh || !meshes.isEmpty) && stage != nil && routeIsValid
             if let stage, ready {
                 position=stagePosition(sample.world)
@@ -35,6 +35,7 @@ extension ARSessionController {
     }
     func receiveMeshes(_ parts: [MeshSnapshot], removed: [UUID], token incoming: UUID) {
         guard incoming==token, mode == .scanning, active, !busy else { return }
+        if baseGeometry != nil {receiveObjectMeshes(parts,removed:removed);return}
         for id in removed { meshes[id]=nil }
         for part in parts { meshes[part.id]=part }
         renderer.updateMeshes(parts,removed:removed)
@@ -42,7 +43,10 @@ extension ARSessionController {
         if vertexCount>800_000 { interrupt("메시가 너무 큽니다. 더 작은 영역으로 새 스캔을 시작하세요.",token:token) }
     }
     func updateCounts() { meshCount=meshes.count; vertexCount=meshes.values.reduce(0){$0+$1.vertices.count} }
-    var routeIsValid: Bool { preparedDraft?.errors.isEmpty ?? false }
+    var routeIsValid: Bool {
+        guard let draft=preparedDraft else {return false}
+        return isBaseRegistration ? draft.area != nil && draft.boundaryErrors.isEmpty && draft.checkpointErrors.isEmpty : draft.errors.isEmpty
+    }
     func stagePosition(_ world: Point3) -> Point3? {
         if let area {
             let floor=area.floor(world)

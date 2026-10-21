@@ -11,8 +11,8 @@ extension ARSessionController {
     }
     func save(name rawName: String) {
         guard canSave, !busy, !photoCapturing, let session, let stage, let checkpoint, let area else { return }
-        let route: StageRoute
-        do { route = try preparedDraft?.stageRoute() ?? StageRoute(area:area,points:routePoints,obstacles:obstacles) }
+        let route: StageRoute?
+        do { route = isBaseRegistration ? nil : try preparedDraft?.stageRoute() ?? StageRoute(area:area,points:routePoints,obstacles:obstacles) }
         catch { errorMessage=error.localizedDescription; return }
         busy=true; canSave=false; errorMessage=nil
         let operation=token
@@ -47,6 +47,7 @@ extension ARSessionController {
                 self.session?.pause(); self.gate.invalidate(); self.ready=false
                 self.position=nil; self.heading=nil
                 do {
+                    if self.spaceContext != nil {map.anchors.removeAll {$0 is ARMeshAnchor}}
                     let data=try NSKeyedArchiver.archivedData(withRootObject:map,requiringSecureCoding:true)
                     self.archiveWriteInProgress=true
                     let photoOwner=self.photoCapture
@@ -54,7 +55,7 @@ extension ARSessionController {
                     let result=try await self.store.save(id:id,name:name,frame:stage,checkpoint:checkpoint,
                         worldMap:data,meshes:parts,device:UIDevice.current.model+" / "+UIDevice.current.systemVersion,
                         appVersion:Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown",
-                        route:route,settings:self.settings,photos:photos)
+                        route:route,settings:self.settings,photos:photos,space:self.spaceContextForSaving(area:area))
                     withExtendedLifetime(photoOwner) {}
                     guard self.token==operation else { return }
                     self.saveRecoveryPending=false

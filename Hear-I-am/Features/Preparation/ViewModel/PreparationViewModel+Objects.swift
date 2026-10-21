@@ -9,7 +9,8 @@ extension PreparationViewModel {
         guard !session.photoCapturing else {return}
         objectEditing=true
         guard !busy else {return}
-        editingObjectID=id
+        editingObjectID=id;pendingObjectID=id ?? UUID()
+        session.cancelObjectScan()
         entryEdges=[]; exitEdges=[]
         if let object=draft.objects.first(where:{$0.id==id}) {
             obstacleName=object.name; obstacleKind=object.kind; pendingObjectWorld=object.vertices
@@ -55,6 +56,7 @@ extension PreparationViewModel {
     }
     func commitObject() {
         guard !busy, let area=draft.area else {return}
+        if usesBase {commitBaseObject(in:area);return}
         do {
             let item=WorldObstacle(id:editingObjectID ?? UUID(),name:obstacleName.trimmingCharacters(in:.whitespacesAndNewlines),kind:obstacleKind,vertices:pendingObjectWorld,height:objectHeight?.height ?? draft.objects.first(where:{$0.id==editingObjectID})?.height, entryEdges:entryEdges.sorted(), exitEdges:exitEdges.sorted(), appearance:.init(model:objectModel,headingDegrees:objectHeading))
             let projected=try item.projected(in:area)
@@ -66,6 +68,7 @@ extension PreparationViewModel {
     }
     /// Ends editing. When editing an existing object, its registered version is kept.
     func cancelObject() {
+        session.cancelObjectScan()
         pendingObjectWorld=[]; editingObjectID=nil; objectHeight=nil; synchronize()
         objectEditing=false
     }
@@ -74,6 +77,7 @@ extension PreparationViewModel {
         for source in session.photoSources where source.photo.objectID==id {
             session.linkPhoto(source.photo.id,objectID:nil,routeIndex:source.photo.routePointIndex)
         }
+        session.removeObjectLayer(id)
         draft.objects.removeAll {$0.id==id}; synchronize()
     }
 }

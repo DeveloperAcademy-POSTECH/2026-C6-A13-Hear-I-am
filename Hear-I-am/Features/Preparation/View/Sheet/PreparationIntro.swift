@@ -4,6 +4,7 @@ import HearIAmCore
 struct PreparationIntro: View {
     let step: Int
     let page: Int
+    var baseRegistration=false
     let next: () -> Void
     private let example=[FloorPoint(-2,2),FloorPoint(2,2),FloorPoint(5,6),FloorPoint(8,2),FloorPoint(10,6),FloorPoint(14,2)]
     var body: some View {
@@ -28,6 +29,7 @@ struct PreparationIntro: View {
         }.padding(26).background(.white,in:RoundedRectangle(cornerRadius:24)).frame(maxWidth:720)
     }
     private var title:String {
+        if baseRegistration {return step == 0 ? "비어 있는 기본 공간을 스캔해주세요" : step == 1 ? "재사용할 공간의 범위를 정해주세요" : "기본 공간의 확인점을 남겨주세요"}
         switch step {
         case 0:return "공연장 전체를 스캔해주세요"
         case 1:return page == 0 ? "공연할 영역을 정해주세요" : "네 모서리를 차례로 찍어요"
@@ -37,6 +39,7 @@ struct PreparationIntro: View {
         }
     }
     private var detail:String {
+        if baseRegistration {return step == 0 ? "공연마다 달라지는 소품을 치우고 고정된 벽과 바닥을 담아주세요. 공연 동선은 저장하지 않아요." : step == 1 ? "앞 오른쪽 → 앞 왼쪽 → 뒤 왼쪽 → 뒤 오른쪽 순서로 바닥의 직사각형 기준 범위를 찍어주세요. 공연 준비 시 이 안에서 무대 범위를 새로 지정합니다." : "다시 찾을 수 있는 고정된 바닥 표식을 찍어주세요. 모서리에서 0.5m 이상 떨어진 곳을 선택하고, 저장 화면에 위치 설명을 남겨주세요."}
         switch step {
         case 0:return "휴대폰을 양손으로 잡고 공연장과 백스테이지까지 충분히 담아주세요. 공간 확정 후에는 이 단계로 돌아올 수 없어요."
         case 1:return page == 0 ? "실제로 공연할 부분을 직사각형으로 지정해주세요. 입장·퇴장 공간은 무대 밖에 있어도 괜찮아요." : "객석 기준 앞 오른쪽 → 앞 왼쪽 → 뒤 왼쪽 → 뒤 오른쪽 순서입니다. 네 점은 자동으로 연결돼요."

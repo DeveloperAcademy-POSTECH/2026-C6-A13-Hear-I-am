@@ -51,7 +51,9 @@ public struct ScanManifest: Codable, Sendable {
         try space?.validate(scanID:id,route:route)
         if let baseArea=space?.roomArea, space?.purpose == .base {
             guard frame.origin.distance(to:baseArea.world(FloorPoint(0,0))) < 0.02,
-                  frame.front.distance(to:baseArea.world(FloorPoint(0,-1))) < 0.02 else {
+                  frame.front.distance(to:baseArea.world(FloorPoint(0,-1))) < 0.02,
+                  baseArea.contains(baseArea.floor(checkpoint)), abs(checkpoint.y-baseArea.floorHeight)<=0.10,
+                  baseArea.corners.allSatisfy({checkpoint.distance(to:$0)>=0.5}) else {
                 throw LabError.invalid("기본 공간의 좌표 기준이 일치하지 않습니다.")
             }
         }
