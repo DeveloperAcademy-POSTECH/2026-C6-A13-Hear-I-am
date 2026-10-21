@@ -6,6 +6,7 @@ import HearIAmCore
 /// the operator confirms by registering it (asked 10/17).
 extension PreparationViewModel {
     func beginObject(_ id: UUID? = nil) {
+        guard !session.photoCapturing else {return}
         objectEditing=true
         guard !busy else {return}
         editingObjectID=id
@@ -13,7 +14,8 @@ extension PreparationViewModel {
         if let object=draft.objects.first(where:{$0.id==id}) {
             obstacleName=object.name; obstacleKind=object.kind; pendingObjectWorld=object.vertices
             entryEdges=Set(object.entryEdges ?? Array(object.vertices.indices)); exitEdges=Set(object.exitEdges ?? Array(object.vertices.indices))
-        } else {obstacleName="장애물"; obstacleKind = .other; pendingObjectWorld=[]}
+            objectModel=object.appearance?.model ?? .generic; objectHeading=object.appearance?.headingDegrees ?? 0
+        } else {obstacleName="장애물"; obstacleKind = .other; pendingObjectWorld=[];objectModel = .generic;objectHeading=0}
         // An existing object keeps the kind it was registered with; a new one takes the suggestion.
         kindChosen=id != nil; objectHeight=nil
         measureObject()
@@ -54,7 +56,7 @@ extension PreparationViewModel {
     func commitObject() {
         guard !busy, let area=draft.area else {return}
         do {
-            let item=WorldObstacle(id:editingObjectID ?? UUID(),name:obstacleName.trimmingCharacters(in:.whitespacesAndNewlines),kind:obstacleKind,vertices:pendingObjectWorld,height:objectHeight?.height ?? draft.objects.first(where:{$0.id==editingObjectID})?.height, entryEdges:entryEdges.sorted(), exitEdges:exitEdges.sorted())
+            let item=WorldObstacle(id:editingObjectID ?? UUID(),name:obstacleName.trimmingCharacters(in:.whitespacesAndNewlines),kind:obstacleKind,vertices:pendingObjectWorld,height:objectHeight?.height ?? draft.objects.first(where:{$0.id==editingObjectID})?.height, entryEdges:entryEdges.sorted(), exitEdges:exitEdges.sorted(), appearance:.init(model:objectModel,headingDegrees:objectHeading))
             let projected=try item.projected(in:area)
             guard projected.vertices.allSatisfy({area.contains($0)}) else {throw LabError.invalid("기물을 무대 안에 지정해주세요.")}
             if let i=draft.objects.firstIndex(where:{$0.id==item.id}) {draft.objects[i]=item} else {draft.objects.append(item)}
@@ -69,6 +71,9 @@ extension PreparationViewModel {
     }
     func deleteObject(_ id: UUID) {
         guard !busy else {return}
+        for source in session.photoSources where source.photo.objectID==id {
+            session.linkPhoto(source.photo.id,objectID:nil,routeIndex:source.photo.routePointIndex)
+        }
         draft.objects.removeAll {$0.id==id}; synchronize()
     }
 }

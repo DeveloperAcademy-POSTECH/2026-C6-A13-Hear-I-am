@@ -14,7 +14,7 @@ struct PreparationReviewCard: View {
                     Text("무대 정보를 확인해주세요").font(.title3.bold())
                     TextField("무대 이름",text:$model.scanName).textFieldStyle(.roundedBorder)
                     if model.nameTooLong {Text("무대 이름은 80자 이내로 입력해주세요.").font(.caption).foregroundStyle(.red)}
-                    Text("경로 \(draft.route.count)점 · 기물 \(draft.objects.count)개 · 확인점 1개").font(.subheadline)
+                    Text("경로 \(draft.route.count)점 · 기물 \(draft.objects.count)개 · 사진 \(model.session.photoSources.count)장 · 확인점 1개").font(.subheadline)
                     Text(StageDangerZone.summary(draft.dangerZones)).font(.caption).foregroundStyle(.orange)
                     if draft.errors.isEmpty {Text(model.saveRecoveryMessage ?? "저장 준비가 끝났어요.").font(.caption).foregroundStyle(.secondary)}
                     else {ScrollView {Text(Array(Set(draft.errors)).sorted().joined(separator:"\n")).font(.caption).foregroundStyle(.red)}.frame(maxHeight:70)}
