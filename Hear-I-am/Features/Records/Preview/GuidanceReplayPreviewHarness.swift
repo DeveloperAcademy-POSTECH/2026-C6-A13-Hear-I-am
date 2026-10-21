@@ -23,7 +23,7 @@ struct GuidanceReplayPreviewHarness: View {
                 record=GuidanceRecord(version:1,id:fixture.id,stageID:fixture.stageID,stageName:fixture.stageName,route:fixture.route,
                     startedAt:fixture.startedAt,completedAt:fixture.completedAt,finishedAt:fixture.finishedAt,activeSeconds:fixture.activeSeconds)
             } else {record=fixture}
-            print("GUIDANCE_REPLAY_QA_OK: clock, rate, scrubbing, end, gaps, saved height, heading, camera reset, bundled figure, legacy compatibility")
+            print("GUIDANCE_REPLAY_QA_OK: clock, rate, scrubbing, end, gaps, saved height, heading, camera reset, bundled skinned figure, relaxed gait, root-motion removal, stopped pose, deterministic seeking, legacy compatibility")
         } catch {self.error=error.localizedDescription;print("GUIDANCE_REPLAY_QA_FAILED: \(error)")}
     }
     private func makeRecord() throws -> GuidanceRecord {
@@ -72,8 +72,37 @@ struct GuidanceReplayPreviewHarness: View {
         let pose=replay.pose(at:13)!,p=pose.position!
         try check(abs(controller.person.position.x-Float(p.x))<0.001 && abs(controller.person.position.z+Float(p.y))<0.001,"Recorded coordinates")
         try check(abs(controller.person.eulerAngles.y-Float(-pose.heading! * .pi/180))<0.001,"Body heading")
-        let vertexCount=controller.person.childNodes.reduce(0) {$0+($1.geometry?.sources(for:.vertex).first?.vectorCount ?? 0)}
+        var vertexCount=0
+        controller.person.enumerateChildNodes {n,_ in vertexCount += n.geometry?.sources(for:.vertex).first?.vectorCount ?? 0}
         try check(vertexCount>1000,"Bundled figure missing")
+        try check(controller.walkingFigure.isRigged,"Skinned walking model missing")
+        var boneCount=0
+        controller.person.enumerateChildNodes {n,_ in boneCount=max(boneCount,n.skinner?.bones.count ?? 0)}
+        try check(boneCount==65,"Preserved skeleton")
+        let hips=controller.person.childNode(withName:"mixamorig:Hips",recursively:true)!
+        let leg=controller.person.childNode(withName:"mixamorig:LeftUpLeg",recursively:true)!
+        let arm=controller.person.childNode(withName:"mixamorig:LeftArm",recursively:true)!
+        controller.show(time:12)
+        let legA=leg.simdOrientation,armA=arm.simdOrientation,rootA=hips.simdPosition
+        var legSimilarity: Float=1,armSimilarity: Float=1
+        for i in 1...15 {
+            controller.show(time:12+Double(i)*0.1)
+            legSimilarity=min(legSimilarity,abs(simd_dot(legA.vector,leg.simdOrientation.vector)))
+            armSimilarity=min(armSimilarity,abs(simd_dot(armA.vector,arm.simdOrientation.vector)))
+        }
+        try check(legSimilarity<0.99999,"Walking legs must change across a full short-stride cycle")
+        try check(armSimilarity<0.99999,"Relaxed arms must still move")
+        try check(abs(hips.simdPosition.x-rootA.x)<0.0001 && abs(hips.simdPosition.z-rootA.z)<0.0001,"Clip root motion drift")
+        controller.show(time:12)
+        try check(abs(simd_dot(legA.vector,leg.simdOrientation.vector))>0.99999,"Seek must restore exact gait pose")
+        controller.show(time:8.6)
+        let restLeg=leg.simdOrientation,restArm=arm.simdOrientation
+        controller.show(time:9.2)
+        try check(abs(simd_dot(restLeg.vector,leg.simdOrientation.vector))>0.99999 && abs(simd_dot(restArm.vector,arm.simdOrientation.vector))>0.99999,"Recorded stop rests the limbs")
+        let paused=leg.simdOrientation
+        controller.show(time:9.2)
+        try check(abs(simd_dot(paused.vector,leg.simdOrientation.vector))>0.99999,"Paused pose must not drift")
+        controller.show(time:13)
         controller.update(time:19,mode:.overview,revision:0)
         try check(controller.person.isHidden,"Tracking gap must hide figure")
         let during=controller.camera.simdTransform

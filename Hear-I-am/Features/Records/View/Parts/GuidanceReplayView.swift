@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 import HearIAmCore
 
 struct GuidanceReplayView: View {
@@ -61,7 +62,7 @@ struct GuidanceReplayView: View {
             if player.replay.truncated {
                 Text("기록 용량에 도달해 뒷부분의 위치가 저장되지 않았어요.").font(.caption).foregroundStyle(.orange)
             }
-            Text("저장된 무대와 경로를 기준으로 재구성한 공간이에요. 인물은 기록된 위치와 몸 방향을 보여줘요. 높이는 저장된 경로를 기준으로 표시하며, 발걸음과 시선은 기록하지 않아요.")
+            Text("저장된 무대와 경로를 기준으로 재구성한 공간이에요. 인물은 기록된 위치와 몸 방향을 보여줘요. 걷기는 이동 속도에 맞춘 표현이며 실제 발걸음·시선 기록은 아니에요. 높이는 저장된 경로를 기준으로 표시해요.")
                 .font(.caption).foregroundStyle(.secondary)
         }
         .onReceive(timer) {_ in player.advance()}

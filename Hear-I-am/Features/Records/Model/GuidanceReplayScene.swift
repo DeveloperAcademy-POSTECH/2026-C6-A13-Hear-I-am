@@ -4,7 +4,10 @@ import HearIAmCore
 
 /// Rebuild the saved plan in stage coordinates; later stage edits or deletion cannot alter a record.
 @MainActor final class GuidanceReplayScene {
-    let scene=SCNScene(),camera=SCNNode(),person=ReplayModelFactory.cleanPerson()
+    let scene=SCNScene(),camera=SCNNode()
+    let walkingFigure=ReplayWalkingFigure()
+    var person: SCNNode {walkingFigure.node}
+    private let walkingTimeline: GuidanceWalkTimeline?
     let record: GuidanceRecord
     weak var view: SCNView?
     private var played=SCNNode(),playedElement: SCNGeometryElement?
@@ -14,6 +17,7 @@ import HearIAmCore
     private var bounds=(SIMD3<Float>.zero,SIMD3<Float>.zero)
     init(record: GuidanceRecord) {
         self.record=record
+        walkingTimeline=record.replay.map {GuidanceWalkTimeline(replay:$0)}
         scene.background.contents=ReplaySurfaceFactory.background
         scene.rootNode.addChildNode(camera)
         let ambient=SCNNode();ambient.light=SCNLight();ambient.light?.type = .ambient;ambient.light?.intensity=650
@@ -99,6 +103,7 @@ import HearIAmCore
         SCNTransaction.begin();SCNTransaction.disableActions=true
         defer {SCNTransaction.commit()}
         if let pose=record.replay?.pose(at:time),let p=pose.position {
+            if let gait=walkingTimeline?.pose(at:time) {walkingFigure.show(distance:gait.gaitDistance,blend:gait.blend,strideScale:gait.strideScale)}
             person.isHidden=false;person.position=SCNVector3(p.x,height(p,target:pose.targetIndex),-p.y)
             person.eulerAngles.y=Float(-(pose.heading ?? 0) * .pi/180)
         } else {person.isHidden=true}

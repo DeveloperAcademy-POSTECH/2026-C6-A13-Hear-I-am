@@ -52,6 +52,7 @@
 		60F735E417BC500B61ABA00B /* DirectionHaptics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C9D9C4A569E37093119B17B /* DirectionHaptics.swift */; };
 		6406742C6C16120357D535F8 /* GuidanceReplayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02878A9F0DD239D933A449C0 /* GuidanceReplayView.swift */; };
 		675DFBBF004AF79494A918D1 /* LibrarySelectionState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 754DA2DEA96D2C68486BF8AB /* LibrarySelectionState.swift */; };
+		69EB6E4372E9954BCB3B3F85 /* ReplayWalkingFigure.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB2926413BACDECFF0D18EBE /* ReplayWalkingFigure.swift */; };
 		6A78B3A967DCEBA02C670868 /* GuidanceViewModel+Escape.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60A41F6BB4695818DC5DFBDC /* GuidanceViewModel+Escape.swift */; };
 		6C931CF06A765EF879E8006C /* TrackingProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D125F891BBE2F012455B982 /* TrackingProbe.swift */; };
 		6D3F26F42C09E75387311322 /* HearAudioSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CA33158518034C9C9B52FAE /* HearAudioSession.swift */; };
@@ -216,6 +217,7 @@
 		C34640BEB642B9BB9BB35D85 /* CameraView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraView.swift; sourceTree = "<group>"; };
 		C4F59C55D393611B5DE1F59A /* GuidanceViewModel+Guiding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GuidanceViewModel+Guiding.swift"; sourceTree = "<group>"; };
 		C7E3CD6F4860EEF9E52CEA90 /* TrialLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrialLogger.swift; sourceTree = "<group>"; };
+		CB2926413BACDECFF0D18EBE /* ReplayWalkingFigure.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReplayWalkingFigure.swift; sourceTree = "<group>"; };
 		CC8A4BF4410000A803BAE8B2 /* HomeSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeSettingsView.swift; sourceTree = "<group>"; };
 		CE3C9616808248A6D0664732 /* PlanEditorTools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanEditorTools.swift; sourceTree = "<group>"; };
 		CEF3295A562F96FC1DE68889 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -813,6 +815,7 @@
 			children = (
 				F0766B87963863DBCEA4079F /* GuidanceRecord+Display.swift */,
 				71170957693AA75D4A7C1A7B /* GuidanceReplayScene.swift */,
+				CB2926413BACDECFF0D18EBE /* ReplayWalkingFigure.swift */,
 			);
 			path = Model;
 			sourceTree = "<group>";
@@ -1015,6 +1018,7 @@
 				0AA1B769BB98876C0C594903 /* ReplayModelFactory.swift in Sources */,
 				E800DE00262C19BDBAB1EC6F /* ReplaySceneController.swift in Sources */,
 				42BEB49F3784E96653838089 /* ReplaySurfaceFactory.swift in Sources */,
+				69EB6E4372E9954BCB3B3F85 /* ReplayWalkingFigure.swift in Sources */,
 				3E8F05B4CB93029E6189D535 /* SavedMeshView.swift in Sources */,
 				DA44470139ED6DFC8ED2B9DD /* SavedPhotoImage.swift in Sources */,
 				D9D0A74C0159862B2C3D7C18 /* SavedStagePreview.swift in Sources */,
