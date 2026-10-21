@@ -17,7 +17,7 @@ struct GuidanceControls: View {
                     Text(model.spokenText).font(.caption).lineLimit(3)
                 }.frame(maxWidth:.infinity,alignment:.leading)
             }
-            if model.phase != .starting && model.phase != .countdown && !(model.phase == .finishing && model.speaking) {
+            if model.phase != .starting && !(model.phase == .finishing && model.speaking) {
                 Button {model.replay()} label: {
                     Label(model.phase == .finishing ? "종료 안내 다시 듣기" : "설명 다시 듣기",systemImage:"speaker.wave.2")
                         .font(.subheadline.weight(.medium)).frame(minHeight:44).padding(.horizontal,12)
@@ -35,8 +35,7 @@ struct GuidanceControls: View {
             else {GuidanceButton(title:"이 무대 사용하기",enabled:model.selected != nil && model.canAdvanceInstruction) {model.restore()}}
         case .restoring: GuidanceButton(title:"공간 확인 중…",enabled:false) {}
         case .checkpoint: GuidanceButton(title:"확인점 확인하기",enabled:model.canVerify) {model.verifyCheckpoint()}
-        case .wear: GuidanceButton(title:"착용 준비 시작",enabled:model.canAdvanceInstruction) {model.beginWear()}
-        case .countdown: GuidanceButton(title:"착용 시간 다시 시작",secondary:true) {model.beginWear()}
+        case .wear: GuidanceButton(title:"착용 완료",enabled:model.canAdvanceInstruction && model.tracking.ready) {model.finishWear()}
         case .departure: GuidanceButton(title:model.hasStarted ? "안내 다시 시작" : "안내 시작",enabled:model.departureReady && model.canAdvanceInstruction) {model.startGuidance()}
         case .starting,.guiding: GuidanceButton(title:"일시정지") {model.pause()}
         case .paused:
@@ -48,7 +47,7 @@ struct GuidanceControls: View {
             GuidanceButton(title:"무대 다시 선택",secondary:true) {model.chooseAgain()}
             GuidanceButton(title:"공간 다시 확인",enabled:!model.tracking.busy) {model.restore()}
         case .finishing: GuidanceButton(title:"안내 종료 중…",enabled:false) {}
-        case .completed: GuidanceButton(title:model.saveError == nil ? "종료하고 기록 저장" : "기록 저장 다시 시도",enabled:!model.speaking && !model.savingRecord,action:saveAndClose)
+        case .completed: GuidanceButton(title:model.saveError == nil ? "종료하고 기록 저장" : "기록 저장 다시 시도",enabled:!model.savingRecord,action:saveAndClose)
         }
     }
 }
