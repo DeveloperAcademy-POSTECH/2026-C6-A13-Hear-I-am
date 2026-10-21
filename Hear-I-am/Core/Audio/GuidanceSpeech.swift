@@ -23,9 +23,9 @@ import HearIAmCore
         speak(line)
         return true
     }
-    func direction(_ text: String) {
+    func direction(_ text: String, volume: Float = SignalVolume.speech) {
         guard !isSpeaking, prepareAudio(), let line=queue.offerDirection(text) else { return }
-        speak(line)
+        speak(line,volume:volume)
     }
     func stop() {
         let callback=completion;completion=nil
@@ -46,9 +46,9 @@ import HearIAmCore
             return true
         } catch { onError?("음성을 재생할 수 없어요. 설명 다시 듣기로 다시 시도해주세요.");return false }
     }
-    private func speak(_ line: NarrationQueue.Line) {
+    private func speak(_ line: NarrationQueue.Line, volume: Float = SignalVolume.speech) {
         let next=AVSpeechUtterance(string:line.text)
-        next.voice=AVSpeechSynthesisVoice(language:"ko-KR");next.rate=0.48;next.volume=SignalVolume.speech
+        next.voice=AVSpeechSynthesisVoice(language:"ko-KR");next.rate=0.48;next.volume=volume
         utterance=next;lineID=line.id
         onSpeaking?(true);onText?(line.text);synthesizer.speak(next)
     }
