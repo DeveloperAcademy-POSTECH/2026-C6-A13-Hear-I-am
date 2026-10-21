@@ -44,7 +44,7 @@ extension SoundTestViewModel {
             if let cue=directionTicks.update(time:now,bearing:-error) {
                 if cue.shouldTick, !speaking { signals.play(.directionTick(toRight:cue.toRight)) }
             } else if wasTicking {
-                if directionTicks.isAligned { signals.play(.direction(signedDegrees:0)) } else { signals.stopDirection() }
+                if directionTicks.isAligned { signals.play(.aligned) } else { signals.stopDirection() }
             }
         } else { tolerance=Self.foundTolerance }
         if abs(error) <= tolerance { current.steadySince=current.steadySince ?? now } else { current.steadySince=nil }
