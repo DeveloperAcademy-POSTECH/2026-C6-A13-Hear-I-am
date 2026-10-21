@@ -16,7 +16,6 @@ import HearIAmCore
     @Published var spokenText=""
     @Published var audioIssue: String?
     @Published var message=""
-    @Published var countdown=8
     @Published var departureReady=false
     @Published var startDistance: Double?
     @Published var cue: GuidanceCue?
@@ -49,7 +48,6 @@ import HearIAmCore
     /// The pose of the current tick, written next to every signal in the trial log.
     var signalPose: (point: FloorPoint, heading: Double, time: Double)?
     var timer: Timer?
-    var countdownTask: Task<Void,Never>?
     var generation=UUID()
     var active=true
     var started=false
@@ -57,10 +55,9 @@ import HearIAmCore
     private var trackingSubscription: AnyCancellable?
     var currentInstruction: [String]=[]
 
-    let interactionSettings: GuidanceInteractionSettings
-    var canAdvanceInstruction: Bool {
-        interactionSettings.canAdvanceInstruction(done:instructionDone,speaking:speaking,audioFailed:audioIssue != nil)
-    }
+    /// Next-step buttons work while an instruction is still being read; pressing one stops it (10/21).
+    /// Position and checkpoint checks still apply.
+    var canAdvanceInstruction: Bool { audioIssue == nil }
     var hasStarted: Bool { started }
     var targetIndex: Int { guide?.targetIndex ?? 1 }
     var targetName: String { GuidanceCopy.target(targetIndex,last:(selected?.route?.points.count ?? 2)-1) }
@@ -69,8 +66,7 @@ import HearIAmCore
                          departureStatus:departureStatus,arrivedName:arrivedName,cue:cue,message:message)
     }
 
-    init(defaults: UserDefaults = .standard) {
-        interactionSettings=GuidanceInteractionSettings(defaults:defaults)
+    init() {
         tracking.showMesh=false
         trackingSubscription=tracking.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }
         voice.onSpeaking={ [weak self] in self?.speaking=$0;self?.signals.setSpeechActive($0) }
@@ -87,7 +83,7 @@ import HearIAmCore
         timer=Timer.scheduledTimer(withTimeInterval:0.1,repeats:true) { [weak self] _ in Task { @MainActor in self?.tick() } }
     }
     deinit {
-        timer?.invalidate();countdownTask?.cancel()
+        timer?.invalidate()
         observations.forEach {NotificationCenter.default.removeObserver($0)}
     }
 
@@ -95,7 +91,6 @@ import HearIAmCore
     func replay() {
         guard active else { return }
         if phase == .finishing || phase == .completed { playCompletion();return }
-        if phase == .countdown { beginWear();return }
         if phase == .guiding {
             guard let pose=freshPose(), let guide, let cue=guide.cue(position:pose.point,headingDegrees:pose.heading) else { return }
             read(["\(targetName)으로 이동합니다. \(cue.speech)"]);return
@@ -114,9 +109,9 @@ import HearIAmCore
             self.instructionDone=true;after?()
         }
     }
-    /// Cancels pending speech callbacks and the countdown; late callbacks see a new generation.
+    /// Cancels pending speech callbacks; late callbacks see a new generation.
     func invalidateTasks() {
-        generation=UUID();countdownTask?.cancel();countdownTask=nil;voice.stop();instructionDone=false;arrivedName=nil;arrivalShownAt=nil
+        generation=UUID();voice.stop();instructionDone=false;arrivedName=nil;arrivalShownAt=nil
         escape=nil;quietUntil=nil;signals.setWarning(nil);signals.setWarningQuiet(false)
     }
     /// A pose no older than 0.5 s from a verified session, or nil.
@@ -130,7 +125,7 @@ import HearIAmCore
         guard active, !showExit else { return }
         if phase == .restoring { tickRestoring();return }
         if phase == .checkpoint { tickCheckpoint();return }
-        if [.wear,.countdown,.departure,.starting,.guiding,.paused].contains(phase), !tracking.ready {
+        if [.wear,.departure,.starting,.guiding,.paused].contains(phase), !tracking.ready {
             interrupt("위치 추적이 끊겼어요. 확인점을 다시 확인해주세요.");return
         }
         if let p=tracking.position, let time=tracking.guidancePoseTime,
