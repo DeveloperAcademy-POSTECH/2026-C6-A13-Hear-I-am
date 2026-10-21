@@ -7,6 +7,7 @@ extension GuidanceViewModel {
     func playCompletion() {
         guard phase != .finishing || !speaking else { return }
         let arriving=phase == .guiding
+        captureReplay(force:true)
         if let guide { run?.arrive(guide:guide,at:Date(),uptime:ProcessInfo.processInfo.systemUptime) }
         // The completion record is saved separately; without this line the trial log never said the run finished (10/17).
         tracking.event("guidance_completed",detail:"points=\(guide?.route.points.count ?? 0)")
