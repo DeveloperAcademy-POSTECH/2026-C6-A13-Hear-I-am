@@ -38,12 +38,15 @@ import AVFoundation
 }
 
 /// Fixed loudness per signal. Overall level is set with the phone volume at rehearsal.
-/// The arrival ding matches the warning so it is heard while a warning plays (field test 10/17).
+/// The arrival ding sits a little under the warning since 10/21 so the side of the next point is heard over it.
 enum SignalVolume {
     static let warning: Float=1.0
     static let speech: Float=0.8
     static let buzz: Float=0.9
-    static let arrival: Float=1.0
+    /// It was 1.0 like the warning (10/17) until 10/21, when it masked the side of the next point.
+    static let arrival: Float=0.7
+    /// 「오른쪽」·「왼쪽」 for the next point: full speech volume (10/21).
+    static let nextSide: Float=1.0
     /// Below the warning, like speech: the direction beep should not hide how close an obstacle is.
     static let direction: Float=0.8
     /// Tones drop to this share of their level while speech plays, so words are not masked.

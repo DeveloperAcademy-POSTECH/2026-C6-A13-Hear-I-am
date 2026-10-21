@@ -23,6 +23,7 @@ extension GuidanceViewModel {
         read([started ? "안내를 다시 시작합니다." : "안내를 시작합니다.","\(targetName)으로 이동합니다."]) { [weak self] in
             guard let self, self.phase == .starting, var guide=self.guide else { return }
             guard let pose=self.freshPose() else { self.interrupt("현재 위치를 확인할 수 없어요. 확인점을 다시 확인해주세요.");return }
+            let first = !self.started
             let success=self.started ? guide.resume(position:pose.point,trackingValid:true) : guide.start(position:pose.point,headingDegrees:pose.heading,trackingValid:true)
             guard success else {
                 self.phase = .departure;self.departureReady=false;self.departureGate.reset();self.readyAnnounced=false
@@ -30,6 +31,8 @@ extension GuidanceViewModel {
             }
             self.guide=guide;self.run?.begin(at:Date(),uptime:ProcessInfo.processInfo.systemUptime);self.started=true;self.phase = .guiding;self.lastPoseTime=nil
             self.resetSignals()
+            // The start has no ding of its own here (it rang on settling), so the side comes on the first cue.
+            if first { self.announceNextSide=true }
         }
     }
     func tickDeparture(pose: (point: FloorPoint, heading: Double, time: Double), guide: RouteGuide) {
