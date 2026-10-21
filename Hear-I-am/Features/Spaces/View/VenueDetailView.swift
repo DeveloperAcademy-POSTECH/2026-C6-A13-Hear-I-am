@@ -24,6 +24,11 @@ struct VenueDetailView: View {
         url.queryItems=[URLQueryItem(name:"q",value:venue.name),URLQueryItem(name:"address",value:venue.address)]
         return url.url!
     }
+    private func roomStatus(_ room: VenueRoom) -> String {
+        let base=library.bases(in:room.id).isEmpty ? "기본 공간 미등록" : "기본 공간 있음"
+        let count=library.performances(in:room.id).count
+        return count>0 ? "\(base) · 내 공연 \(count)개" : base
+    }
     var body: some View {
         ScrollView {
             VStack(alignment:.leading,spacing:22) {
@@ -40,7 +45,7 @@ struct VenueDetailView: View {
                 Text("내부 공간").font(.title2.bold())
                 ForEach(venue.rooms) {room in
                     NavigationLink {RoomDetailView(venue:venue,room:room,library:library)} label:{
-                        RoomCard(room:room,detail:library.bases(in:room.id).isEmpty ? "공간 정보만 등록됨" : "기본 공간 있음 · 내 공연 \(library.performances(in:room.id).count)개")
+                        RoomCard(room:room,detail:roomStatus(room))
                     }.buttonStyle(.plain)
                 }
                 Text("공식 정보 확인 · \(venue.checkedOn)\n장소 정보와 실제 스캔은 별도로 관리됩니다.").font(.caption).foregroundStyle(.secondary)
