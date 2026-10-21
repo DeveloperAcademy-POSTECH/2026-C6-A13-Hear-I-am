@@ -12,6 +12,8 @@ import HearIAmCore
     var onText: ((String)->Void)?
     var onError: ((String)->Void)?
     var isSpeaking: Bool { queue.current != nil }
+    /// The line now speaking came from direction(_:): a distance or a side, never an instruction or a step.
+    private(set) var speakingDirection=false
 
     override init() { super.init(); synthesizer.delegate=self }
 
@@ -19,19 +21,22 @@ import HearIAmCore
         guard !queue.protectsCompletion else { return false }
         stop()
         guard prepareAudio(), let line=queue.replace(texts,completion:final) else { completion?(false); return false }
-        self.completion=completion
+        self.completion=completion;speakingDirection=false
         speak(line)
         return true
     }
-    /// False when the line was dropped because something else is speaking.
-    @discardableResult func direction(_ text: String, volume: Float = SignalVolume.speech) -> Bool {
+    /// False when the line was dropped because something else is speaking. With `interrupting`, another
+    /// direction line still speaking is cut instead (#57); instructions and steps never are.
+    @discardableResult func direction(_ text: String, volume: Float = SignalVolume.speech, interrupting: Bool = false) -> Bool {
+        if interrupting, isSpeaking, speakingDirection { stop() }
         guard !isSpeaking, prepareAudio(), let line=queue.offerDirection(text) else { return false }
+        speakingDirection=true
         speak(line,volume:volume)
         return true
     }
     func stop() {
         let callback=completion;completion=nil
-        utterance=nil;lineID=nil;queue.cancel()
+        utterance=nil;lineID=nil;queue.cancel();speakingDirection=false
         synthesizer.stopSpeaking(at:.immediate)
         onSpeaking?(false);callback?(false)
     }
