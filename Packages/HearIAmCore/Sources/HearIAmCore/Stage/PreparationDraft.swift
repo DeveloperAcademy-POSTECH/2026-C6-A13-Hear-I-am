@@ -102,7 +102,7 @@ public struct PreparationDraft: Sendable {
         let sx = area.width / PerformancePlan.width
         let sy = area.depth / PerformancePlan.depth
         func mapped(_ p: FloorPoint) -> Point3 { area.world(FloorPoint(p.x * sx, p.y * sy)) }
-        objects = plan.objects.map { WorldObstacle(id: $0.id, name: $0.name, kind: $0.kind, vertices: $0.vertices.map(mapped), height:$0.height, entryEdges:$0.entryEdges, exitEdges:$0.exitEdges) }
+        objects = plan.objects.map { WorldObstacle(id: $0.id, name: $0.name, kind: $0.kind, vertices: $0.vertices.map(mapped), height:$0.height, entryEdges:$0.entryEdges, exitEdges:$0.exitEdges, appearance:$0.appearance) }
         confirmedHeightPoints=[:]
         route = plan.points.map(mapped)
         routeFinished = plan.finished
