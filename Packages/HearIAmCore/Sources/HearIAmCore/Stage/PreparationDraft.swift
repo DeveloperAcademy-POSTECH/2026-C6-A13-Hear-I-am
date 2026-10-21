@@ -42,12 +42,12 @@ public struct PreparationDraft: Sendable {
     public mutating func addRoutePoint(_ point: Point3, asDestination: Bool = false, confirmHeightMismatch: Bool = false) throws {
         guard let area else { throw LabError.invalid("무대 영역을 먼저 지정해주세요.") }
         if let error=routeSurfaceError(point,in:area,ignoreEstimatedHeight:confirmHeightMismatch) { throw LabError.invalid(error) }
-        guard !routeFinished, route.count < 6 else { throw LabError.invalid("경로는 출발·도착을 포함해 최대 6개입니다.") }
+        guard !routeFinished, route.count < StageRoute.maxPointCount else { throw LabError.invalid("경로는 시작점 제외 최대 20개(도착점 포함)입니다.") }
         if asDestination {
             guard route.count >= 2 else { throw LabError.invalid("출발점과 내부 지점을 먼저 지정해주세요.") }
         } else if !route.isEmpty {
-            guard route.count < 5, area.contains(area.floor(point), margin: Self.boundaryMargin) else {
-                throw LabError.invalid("내부 지점은 무대 안에 최대 4개까지 지정할 수 있습니다.")
+            guard route.count < StageRoute.maxPointCount-1, area.contains(area.floor(point), margin: Self.boundaryMargin) else {
+                throw LabError.invalid("내부 지점은 무대 안에 최대 19개까지 지정할 수 있습니다.")
             }
         }
         if let last = route.last, last.distance(to: point) < 0.05 { throw LabError.invalid("이전 점에서 조금 더 떨어진 위치를 선택해주세요.") }
