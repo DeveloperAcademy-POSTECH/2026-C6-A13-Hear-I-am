@@ -3,6 +3,7 @@ import Foundation
 public struct ScanManifest: Codable, Sendable {
     public var version: Int
     public let route: StageRoute?
+    public internal(set) var space: ScanSpaceContext?
     public let photos: [ScanPhoto]
     public let settings: GuideSettings
     public let id: UUID
@@ -18,15 +19,17 @@ public struct ScanManifest: Codable, Sendable {
     public let appVersion: String
     public init(id: UUID, name: String, frame: StageFrame, checkpoint: Point3,
                 worldMapHash: String, meshHash: String, meshCount: Int, vertexCount: Int,
-                device: String, appVersion: String, route: StageRoute? = nil, settings: GuideSettings = GuideSettings(), photos: [ScanPhoto] = []) {
+                device: String, appVersion: String, route: StageRoute? = nil, settings: GuideSettings = GuideSettings(), photos: [ScanPhoto] = [], space: ScanSpaceContext? = nil) {
+        self.space=space
         version=route == nil ? 1 : 2; self.route=route; self.settings=settings; self.photos=photos
         self.id=id; self.name=name; date=Date(); self.frame=frame; self.checkpoint=checkpoint
         self.worldMapHash=worldMapHash; self.meshHash=meshHash; self.meshCount=meshCount
         self.vertexCount=vertexCount; self.device=device; self.appVersion=appVersion
     }
-    enum CodingKeys: String, CodingKey { case version, route, photos, settings, id, name, date, frame, checkpoint, worldMapHash, meshHash, meshCount, vertexCount, device, appVersion }
+    enum CodingKeys: String, CodingKey { case space, version, route, photos, settings, id, name, date, frame, checkpoint, worldMapHash, meshHash, meshCount, vertexCount, device, appVersion }
     public init(from decoder: Decoder) throws {
         let c=try decoder.container(keyedBy:CodingKeys.self)
+        space=try c.decodeIfPresent(ScanSpaceContext.self,forKey:.space)
         version=try c.decode(Int.self,forKey:.version)
         route=try c.decodeIfPresent(StageRoute.self,forKey:.route)
         photos=try c.decodeIfPresent([ScanPhoto].self,forKey:.photos) ?? []
@@ -45,6 +48,13 @@ public struct ScanManifest: Codable, Sendable {
     public var anchorName: String { "PoC4.reference."+id.uuidString }
     public func validate() throws {
         try frame.validate(); try settings.validate()
+        try space?.validate(scanID:id,route:route)
+        if let baseArea=space?.roomArea, space?.purpose == .base {
+            guard frame.origin.distance(to:baseArea.world(FloorPoint(0,0))) < 0.02,
+                  frame.front.distance(to:baseArea.world(FloorPoint(0,-1))) < 0.02 else {
+                throw LabError.invalid("기본 공간의 좌표 기준이 일치하지 않습니다.")
+            }
+        }
         guard photos.count<=ScanPhoto.maximumCount, Set(photos.map(\.id)).count==photos.count else {
             throw LabError.invalid("사진 수 또는 식별자가 올바르지 않습니다.")
         }

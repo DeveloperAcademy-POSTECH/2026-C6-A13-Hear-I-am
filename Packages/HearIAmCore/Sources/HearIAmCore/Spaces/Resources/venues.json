@@ -1,0 +1,230 @@
+[
+  {
+    "id": "daegu-practice",
+    "name": "대구공연예술연습공간",
+    "region": "대구",
+    "address": "대구광역시 남구 명덕로 42",
+    "rooms": [
+      {
+        "id": "daegu-practice-large",
+        "name": "대연습실",
+        "kind": "rehearsal",
+        "source": "https://dgpf.or.kr/page/14",
+        "photos": [
+          {
+            "url": "https://dgpf.or.kr/resources/images/contents/proom1.jpg",
+            "caption": "대연습실 공식 소개 사진",
+            "credit": "대구공연예술연습공간",
+            "source": "https://dgpf.or.kr/page/14"
+          },
+          {
+            "url": "https://dgpf.or.kr/resources/images/contents/proom1_1.jpg",
+            "caption": "대연습실 공식 소개 사진",
+            "credit": "대구공연예술연습공간",
+            "source": "https://dgpf.or.kr/page/14"
+          },
+          {
+            "url": "https://dgpf.or.kr/resources/images/contents/proom1_2.jpg",
+            "caption": "대연습실 공식 소개 사진",
+            "credit": "대구공연예술연습공간",
+            "source": "https://dgpf.or.kr/page/14"
+          }
+        ],
+        "floor": "2층",
+        "area": 245.64
+      },
+      {
+        "id": "daegu-practice-small",
+        "name": "소연습실",
+        "kind": "rehearsal",
+        "source": "https://dgpf.or.kr/page/17",
+        "photos": [
+          {
+            "url": "https://dgpf.or.kr/resources/images/contents/proom4.jpg",
+            "caption": "소연습실 공식 소개 사진",
+            "credit": "대구공연예술연습공간",
+            "source": "https://dgpf.or.kr/page/17"
+          },
+          {
+            "url": "https://dgpf.or.kr/resources/images/contents/proom4_1.jpg",
+            "caption": "소연습실 공식 소개 사진",
+            "credit": "대구공연예술연습공간",
+            "source": "https://dgpf.or.kr/page/17"
+          },
+          {
+            "url": "https://dgpf.or.kr/resources/images/contents/proom4_2.jpg",
+            "caption": "소연습실 공식 소개 사진",
+            "credit": "대구공연예술연습공간",
+            "source": "https://dgpf.or.kr/page/17"
+          }
+        ],
+        "floor": "1층",
+        "area": 51.75
+      },
+      {
+        "id": "daegu-daemyeong",
+        "name": "대명홀",
+        "kind": "rehearsal",
+        "source": "https://dgpf.or.kr/page/19",
+        "photos": [
+          {
+            "url": "https://dgpf.or.kr/resources/images/contents/dm1.jpg",
+            "caption": "대명홀 공식 소개 사진",
+            "credit": "대구공연예술연습공간",
+            "source": "https://dgpf.or.kr/page/19"
+          },
+          {
+            "url": "https://dgpf.or.kr/resources/images/contents/dm1_1.jpg",
+            "caption": "대명홀 공식 소개 사진",
+            "credit": "대구공연예술연습공간",
+            "source": "https://dgpf.or.kr/page/19"
+          },
+          {
+            "url": "https://dgpf.or.kr/resources/images/contents/dm1_2.jpg",
+            "caption": "대명홀 공식 소개 사진",
+            "credit": "대구공연예술연습공간",
+            "source": "https://dgpf.or.kr/page/19"
+          }
+        ],
+        "floor": "지하 1층",
+        "area": 459.9
+      }
+    ],
+    "source": "https://dgpf.or.kr/main",
+    "checkedOn": "2026-10-22",
+    "addedOrder": 0
+  },
+  {
+    "id": "sanwoollim",
+    "name": "소극장 산울림",
+    "region": "서울",
+    "address": "서울특별시 마포구 와우산로 157 지층",
+    "rooms": [
+      {
+        "id": "sanwoollim-hall",
+        "name": "공연장",
+        "kind": "theater",
+        "source": "https://www.smalltheater.or.kr/forum/view/1294896",
+        "photos": [
+          {
+            "url": "https://lh3.googleusercontent.com/EhW-p3qAOgd1dzMnab9FjEFnije-pDQg632U-oKax1_zXWFYYbsfSp774NomeJB0sZe7W3EORKsKyjUchV8OUN8koJDsApmOf5CtSOvwxQQYpi16zekU-g=w800",
+            "caption": "소극장 산울림 공식 소개 사진",
+            "credit": "한국소극장협회",
+            "source": "https://www.smalltheater.or.kr/forum/view/1294896"
+          }
+        ],
+        "seats": 76,
+        "floor": "지층"
+      }
+    ],
+    "source": "https://www.smalltheater.or.kr/forum/view/1294896",
+    "checkedOn": "2026-10-22",
+    "addedOrder": 1
+  },
+  {
+    "id": "heunghak",
+    "name": "아트스페이스 흥학관",
+    "region": "광주",
+    "address": "광주광역시 동구 문화전당로35번길 16-4 지하 1층",
+    "rooms": [
+      {
+        "id": "heunghak-hall",
+        "name": "공연장",
+        "kind": "theater",
+        "source": "https://www.smalltheater.or.kr/forum/view/1442419",
+        "photos": [
+          {
+            "url": "https://lh3.googleusercontent.com/T0ioGJL8m6KU8cR1hdqJrgQsYrA_20lM5_OtwmA5uhvFYt9eYS-jMJCgdQJz_53zvxV1UYoM72L2AOS71QK0UkqYYz96_MCIuJYDfs8KuPC3JfGESOTQTA=w800",
+            "caption": "아트스페이스 흥학관 공식 소개 사진",
+            "credit": "한국소극장협회",
+            "source": "https://www.smalltheater.or.kr/forum/view/1442419"
+          }
+        ],
+        "seats": 136,
+        "floor": "지하 1층"
+      }
+    ],
+    "source": "https://www.smalltheater.or.kr/forum/view/1442419",
+    "checkedOn": "2026-10-22",
+    "addedOrder": 2
+  },
+  {
+    "id": "kkamang",
+    "name": "까망극장",
+    "region": "경남",
+    "address": "경상남도 산청군 산청읍 물안실로 478-145",
+    "rooms": [
+      {
+        "id": "kkamang-hall",
+        "name": "공연장",
+        "kind": "theater",
+        "source": "https://www.smalltheater.or.kr/회원소극장-안내",
+        "photos": [
+          {
+            "url": "https://lh3.googleusercontent.com/lA0MY4Sw9c11ZjEAA5t3xR7CwzezT4kfrcVG8VPMkjjZhbJsSlgZEddPzi69hEb6evyHX3v89d1xfBYc-ksHlEu0Ag4c3Il43lmyI9AzCWqVYJZEg_lmgw=w800",
+            "caption": "까망극장 공식 소개 사진",
+            "credit": "한국소극장협회",
+            "source": "https://www.smalltheater.or.kr/회원소극장-안내"
+          }
+        ],
+        "seats": 180,
+        "floor": null
+      }
+    ],
+    "source": "https://www.smalltheater.or.kr/회원소극장-안내",
+    "checkedOn": "2026-10-22",
+    "addedOrder": 3
+  },
+  {
+    "id": "hyoja",
+    "name": "효자아트홀",
+    "region": "경북",
+    "address": "경상북도 포항시 남구 행복길 120",
+    "rooms": [
+      {
+        "id": "hyoja-hall",
+        "name": "공연장",
+        "kind": "theater",
+        "source": "https://www.posco.co.kr/homepage/docs/kor7/jsp/common/posco/s91a1000013c.jsp",
+        "photos": [
+          {
+            "url": "https://www.posco.co.kr/docs/kor7/jsp/resources/images/common/img_pohang4.jpg",
+            "caption": "효자아트홀 공식 소개 사진",
+            "credit": "POSCO",
+            "source": "https://www.posco.co.kr/homepage/docs/kor7/jsp/common/posco/s91a1000013c.jsp"
+          }
+        ],
+        "seats": 731
+      }
+    ],
+    "source": "https://www.posco.co.kr/homepage/docs/kor7/jsp/common/posco/s91a1000013c.jsp",
+    "checkedOn": "2026-10-22",
+    "addedOrder": 4
+  },
+  {
+    "id": "suseong",
+    "name": "수성아트피아",
+    "region": "대구",
+    "address": "대구광역시 수성구 무학로 180",
+    "rooms": [
+      {
+        "id": "suseong-grand",
+        "name": "대극장",
+        "kind": "theater",
+        "source": "https://ssartpia.kr/contents/07_agency/page.html?mid=318321331",
+        "photos": [
+          {
+            "url": "https://ssartpia.kr/images/content/img_hall_intro01.jpg",
+            "caption": "대극장 공식 소개 사진",
+            "credit": "수성아트피아",
+            "source": "https://ssartpia.kr/contents/07_agency/page.html?mid=318321331"
+          }
+        ],
+        "seats": 1159
+      }
+    ],
+    "source": "https://ssartpia.kr/contents/07_agency/page.html?mid=318321331",
+    "checkedOn": "2026-10-22",
+    "addedOrder": 5
+  }
+]
