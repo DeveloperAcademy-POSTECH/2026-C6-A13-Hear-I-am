@@ -8,9 +8,9 @@ public enum SignalSound: Equatable, Sendable {
     case arrival
     /// Direction beep for a 45° landmark; see DirectionPattern.beep.
     case direction(signedDegrees: Int)
-    /// Two soft rising notes the moment the ticks stop because the body faces the target. It was the
-    /// front direction beep (990 Hz, flat 0.16 s) until 10/21, which hurt the ears.
-    case aligned
+    /// Soft low-to-mid confirmation sound the moment the ticks stop because the body faces the target (#62).
+    /// Replaced the 990 Hz front beep (10/21) and the high F5→C6 chime (10/22) which hurt the ears.
+    case aligned(tone: AlignedTone = .warm)
     /// A short woodblock/marimba-like click ("톡") for continuous angle-proportional direction feedback (#44).
     case directionTick(toRight: Bool)
     /// A low tone pulsed about 12 times a second so it reads as a buzz rather than a note.
@@ -23,7 +23,7 @@ public enum SignalSound: Equatable, Sendable {
         case .warning(let level, let tone): return "warning_\(level.name)_\(tone.rawValue)"
         case .arrival: return "arrival"
         case .direction(let degrees): return "direction_"+DirectionPattern.name(signedDegrees:degrees)
-        case .aligned: return "aligned"
+        case .aligned(let tone): return tone == .warm ? "aligned" : "aligned_\(tone.rawValue)"
         case .directionTick(let toRight): return "direction_tick_"+(toRight ? "right" : "left")
         case .buzz(let hertz, let harmonic): return "buzz_\(Int(hertz))hz"+(harmonic ? "_harmonic" : "")
         }
