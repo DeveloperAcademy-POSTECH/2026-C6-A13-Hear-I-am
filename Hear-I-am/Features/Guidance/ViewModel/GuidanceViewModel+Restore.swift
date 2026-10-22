@@ -19,7 +19,7 @@ extension GuidanceViewModel {
         tracking.errorMessage=nil;tracking.verifyCheckpoint()
         if tracking.ready {
             phase = .wear;message="확인점이 일치합니다."
-            read(["확인점이 일치합니다.","휴대폰을 허리 앞쪽에 세로로 고정해주세요. 후면 카메라는 몸 바깥쪽을 향하고 렌즈는 가리지 말아주세요."])
+            read(["확인점이 일치합니다.",GuidanceCopy.doNotDisturb,"휴대폰을 허리 앞쪽에 세로로 고정해주세요. 후면 카메라는 몸 바깥쪽을 향하고 렌즈는 가리지 말아주세요."])
         } else {
             message=tracking.errorMessage ?? "저장된 확인점과 위치가 맞지 않아요."
             read(["\(message) 확인점을 다시 비춰주세요."])
