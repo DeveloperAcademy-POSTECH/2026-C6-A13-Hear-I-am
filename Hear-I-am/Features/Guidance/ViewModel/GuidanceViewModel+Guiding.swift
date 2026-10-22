@@ -95,7 +95,7 @@ extension GuidanceViewModel {
         } else if wasTicking {
             if directionTicks.isAligned {
                 // Replaces any tick still sounding on the direction node.
-                signals.play(.aligned)
+                signals.playAligned()
                 logSignal("signal_aligned",String(format:"bearing %+.0f°",bearing))
             } else { signals.stopDirection() }
         }

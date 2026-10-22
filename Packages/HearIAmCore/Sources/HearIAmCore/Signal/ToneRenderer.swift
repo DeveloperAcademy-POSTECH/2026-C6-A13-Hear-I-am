@@ -10,9 +10,10 @@ public enum ToneRenderer {
     /// 1.2 s (0.6 s until 10/19, when the performer walked past points without noticing it) and swells in
     /// over 15 ms, so nothing stings.
     static let arrivalHertz=392.0, arrivalLength=1.2, arrivalDecay=3.0, arrivalAttack=0.015
-    /// F5 then C6, a rising fifth, at least 10% from every tick, warning and the arrival pitch (they can
-    /// sound together). It replaces the front beep, so it need not stay apart from the direction beeps.
-    public static let alignedHertz=[698.46,1046.5]
+    /// Db4 then F4 (277.18 → 349.23 Hz), a warm marimba major third (#62). It was F5→C6 (698.46→1046.5 Hz)
+    /// on 10/21, whose 1–2 kHz energy still stung the ears on AirPods. Every AlignedTone pitch stays >10%
+    /// from every tick, warning and the arrival pitch.
+    public static let alignedHertz=AlignedTone.warm.pitches
     static let alignedNote=0.16, alignedStep=0.09
     static let buzzRate=12.0, buzzLength=0.6
     public static let tickLeftHertz=587.33, tickRightHertz=783.99, tickLength=0.045
@@ -27,17 +28,8 @@ public enum ToneRenderer {
                 let tone=sin(2 * .pi*arrivalHertz*t)+0.45*sin(2 * .pi*arrivalHertz*2*t)
                 return tone*exp(-t*arrivalDecay)*fade(t,length:arrivalLength,edge:arrivalAttack)
             })
-        case .aligned:
-            // Each note fades in over 8 ms and dies away like a soft marimba; the second overlaps the first.
-            let total=alignedStep*Double(alignedHertz.count-1)+alignedNote
-            return normalized(samples(total) { t in
-                alignedHertz.enumerated().reduce(0) { sum, note in
-                    let local=t-alignedStep*Double(note.offset)
-                    guard local >= 0, local < alignedNote else { return sum }
-                    let tone=sin(2 * .pi*note.element*local)+0.1*sin(2 * .pi*note.element*2*local)
-                    return sum+tone*exp(-local*18)*fade(local,length:alignedNote,edge:0.008)
-                }
-            })
+        case .aligned(let tone):
+            return normalized(alignedChime(tone))
         case .direction(let degrees):
             guard let beep=DirectionPattern.beep(signedDegrees:degrees) else { return [] }
             let length=DirectionPattern.beepLength, period=length+DirectionPattern.beepGap
@@ -59,6 +51,49 @@ public enum ToneRenderer {
                 let tone=sin(2 * .pi*hertz*t)+(harmonic ? 0.35*sin(2 * .pi*hertz*4*t) : 0)
                 return tone*pulse*fade(t,length:buzzLength,edge:0.01)
             })
+        }
+    }
+
+    /// Soft confirmation chime when the body aligns with the target (#62).
+    static func alignedChime(_ tone: AlignedTone) -> [Float] {
+        let p=tone.pitches
+        let total=alignedStep*Double(p.count-1)+alignedNote
+        switch tone {
+        case .warm:
+            // Db4 → F4 (277.18 → 349.23 Hz): warm marimba major third, 12 ms soft attack, minimal overtone.
+            return samples(total) { t in
+                p.enumerated().reduce(0) { sum, note in
+                    let local=t-alignedStep*Double(note.offset)
+                    guard local >= 0, local < alignedNote else { return sum }
+                    let body=sin(2 * .pi*note.element*local)+0.06*sin(2 * .pi*note.element*2*local)
+                    return sum+body*exp(-local*18)*fade(local,length:alignedNote,edge:0.012)
+                }
+            }
+        case .fifth:
+            // G3 → D4 (196.0 → 293.66 Hz): deep wooden fifth; a warm octave partial helps small speakers.
+            return samples(total) { t in
+                p.enumerated().reduce(0) { sum, note in
+                    let local=t-alignedStep*Double(note.offset)
+                    guard local >= 0, local < alignedNote else { return sum }
+                    let body=sin(2 * .pi*note.element*local)+0.22*sin(2 * .pi*note.element*2*local)
+                    return sum+body*exp(-local*16)*fade(local,length:alignedNote,edge:0.014)
+                }
+            }
+        case .chord:
+            // Db4 + F4 sounding together as a soft warm chord pad with a 20 ms swell.
+            return samples(total) { t in
+                let chord=0.55*sin(2 * .pi*p[0]*t)+0.45*sin(2 * .pi*p[1]*t)
+                return chord*exp(-t*13)*fade(t,length:total,edge:0.020)
+            }
+        case .softBell:
+            // E4 → E5 (329.63 → 659.25 Hz): pure sine octave chime without upper harmonics.
+            return samples(total) { t in
+                p.enumerated().reduce(0) { sum, note in
+                    let local=t-alignedStep*Double(note.offset)
+                    guard local >= 0, local < alignedNote else { return sum }
+                    return sum+sin(2 * .pi*note.element*local)*exp(-local*19)*fade(local,length:alignedNote,edge:0.012)
+                }
+            }
         }
     }
 
