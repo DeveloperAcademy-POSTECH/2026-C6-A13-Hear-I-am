@@ -12,11 +12,17 @@ import HearIAmCore
     /// Timbre for the warning; a running warning switches at once. The choice made in the sound test
     /// tab is saved, so guidance plays the same sound.
     private(set) var warningTone=SignalPlayer.savedWarningTone
+    /// Timbre for the aligned confirmation chime (#62); chosen in the sound test tab and used in guidance.
+    private(set) var alignedTone=SignalPlayer.savedAlignedTone
     /// 「낮은 삑」 was chosen on 10/18 (#33). A new key, so a tone tried earlier in the test tab does not
     /// override that choice.
     static let toneKey="signal.warningTone.v2"
     static var savedWarningTone: WarningTone {
         UserDefaults.standard.string(forKey:toneKey).flatMap(WarningTone.init(rawValue:)) ?? .low
+    }
+    static let alignedToneKey="signal.alignedTone.v1"
+    static var savedAlignedTone: AlignedTone {
+        UserDefaults.standard.string(forKey:alignedToneKey).flatMap(AlignedTone.init(rawValue:)) ?? .warm
     }
     static let directionModeKey="signal.directionMode"
     /// How guidance gives the direction at each 45° landmark; chosen in the sound test tab (#33).
@@ -43,6 +49,7 @@ import HearIAmCore
     private let format=AVAudioFormat(standardFormatWithSampleRate:ToneRenderer.sampleRate,channels:1)!
     private var buffers: [String:AVAudioPCMBuffer]=[:]
     private var shotVolume=SignalVolume.arrival
+    private var directionVolume=SignalVolume.direction
     /// The arrival ding is not ducked under speech (10/19: it was easy to miss).
     private var shotIsArrival=false
     private var observers: [NSObjectProtocol]=[]
@@ -70,7 +77,8 @@ import HearIAmCore
         guard prepare(sound.name), let buffer=buffer(sound) else { return }
         let node: AVAudioPlayerNode
         switch sound {
-        case .direction, .directionTick, .aligned: node=directionNode
+        case .direction, .directionTick, .aligned:
+            node=directionNode;directionVolume=volume(sound)
         default:
             node=shotNode;shotVolume=volume(sound)
             if case .arrival=sound { shotIsArrival=true } else { shotIsArrival=false }
@@ -79,6 +87,12 @@ import HearIAmCore
         node.scheduleBuffer(buffer,at:nil,options:.interrupts)
         if !node.isPlaying { node.play() }
         event("signal_play",sound.name)
+    }
+    /// Plays the currently selected aligned confirmation chime (#62).
+    func playAligned() { play(.aligned(tone:alignedTone)) }
+    func setAlignedTone(_ tone: AlignedTone) {
+        alignedTone=tone;UserDefaults.standard.set(tone.rawValue,forKey:Self.alignedToneKey)
+        event("signal_aligned_tone",tone.rawValue)
     }
     /// Immediately stops any in-flight direction beep or tick when entering the ±n° aligned deadband (#44).
     func stopDirection() {
@@ -147,14 +161,15 @@ import HearIAmCore
         switch sound {
         case .warning: return SignalVolume.warning
         case .arrival: return SignalVolume.arrival
-        case .direction, .directionTick, .aligned: return SignalVolume.direction
+        case .aligned: return SignalVolume.aligned
+        case .direction, .directionTick: return SignalVolume.direction
         case .buzz: return SignalVolume.buzz
         }
     }
     private func applyVolumes() {
         let share=speechActive ? SignalVolume.duckedShare : 1
         warningNode.volume=SignalVolume.warning*share*(warningQuiet ? SignalVolume.quietShare : 1);shotNode.volume=shotVolume*(shotIsArrival ? 1 : share)
-        directionNode.volume=SignalVolume.direction*share
+        directionNode.volume=directionVolume*share
     }
     private func routeChanged(_ reason: AVAudioSession.RouteChangeReason?) {
         event("signal_route",Self.name(reason)+" route="+HearAudioSession.route)

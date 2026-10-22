@@ -49,6 +49,8 @@ enum SignalVolume {
     static let nextSide: Float=1.0
     /// Below the warning, like speech: the direction beep should not hide how close an obstacle is.
     static let direction: Float=0.8
+    /// Softer than the 45 ms ticks so the 0.25 s aligned confirmation chime feels gentle on the ears (#62).
+    static let aligned: Float=0.65
     /// Tones drop to this share of their level while speech plays, so words are not masked.
     /// The arrival ding is the exception (10/19).
     static let duckedShare: Float=0.6

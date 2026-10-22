@@ -6,6 +6,7 @@ import HearIAmCore
 /// Since 10/21 it holds only what guidance plays; the tone, buzz and direction-finding trials are gone.
 @MainActor final class SoundTestViewModel: ObservableObject {
     @Published var warning: WarningLevel?
+    @Published var alignedTone=SignalPlayer.savedAlignedTone
     @Published var lastEvent="아직 없음"
     @Published var logStatus=""
     /// The warning tone guidance plays, chosen earlier in this tab and saved.
@@ -37,7 +38,10 @@ import HearIAmCore
     func setWarning(_ level: WarningLevel?) { warning=level;signals.setWarning(level) }
     func playArrival() { signals.play(.arrival) }
     func tick(toRight: Bool) { signals.play(.directionTick(toRight:toRight)) }
-    func playAligned() { signals.play(.aligned) }
+    func playAligned() { signals.playAligned() }
+    func selectAligned(_ tone: AlignedTone) {
+        alignedTone=tone;signals.setAlignedTone(tone);signals.playAligned()
+    }
 
     // ② speech
     func speak(_ text: String) { record("test_speech",text);voice.play([text]) }

@@ -2,7 +2,8 @@ import XCTest
 @testable import HearIAmCore
 
 final class SignalSoundTests: XCTestCase {
-    let all: [SignalSound]=WarningLevel.allCases.flatMap { level in WarningTone.allCases.map { .warning(level,tone:$0) } }+[.arrival,.aligned]
+    let all: [SignalSound]=WarningLevel.allCases.flatMap { level in WarningTone.allCases.map { .warning(level,tone:$0) } }+[.arrival]
+        + AlignedTone.allCases.map { .aligned(tone:$0) }
         + [40,60,80].flatMap { [SignalSound.buzz(hertz:$0,harmonic:false),.buzz(hertz:$0,harmonic:true)] }
         + DirectionPattern.landmarks.map { SignalSound.direction(signedDegrees:$0) }
         + [.directionTick(toRight:false),.directionTick(toRight:true)]
@@ -40,14 +41,19 @@ final class SignalSoundTests: XCTestCase {
         let s=ToneRenderer.render(.arrival), window=ToneRenderer.count(0.1)
         XCTAssertLessThan(rms(s.suffix(window)),rms(s.prefix(window))*0.3)
     }
-    /// Two notes, the second starting alignedStep after the first, both dying away (10/21).
+    /// Two notes, the second starting alignedStep after the first, both dying away (10/21, #62).
     func testAlignedChimeRisesAndDecays() {
-        let s=ToneRenderer.render(.aligned), window=ToneRenderer.count(0.02)
-        XCTAssertEqual(s.count,ToneRenderer.count(ToneRenderer.alignedStep+ToneRenderer.alignedNote))
-        XCTAssertEqual(s.first,0);XCTAssertEqual(s.last ?? 1,0,accuracy:1e-6)
-        let second=ToneRenderer.count(ToneRenderer.alignedStep)
-        XCTAssertGreaterThan(rms(s[(second+window)..<(second+2*window)]),rms(s[(second-window)..<second]))
-        XCTAssertLessThan(rms(s.suffix(window)),rms(s[second..<(second+window*2)])*0.3)
+        let window=ToneRenderer.count(0.02), second=ToneRenderer.count(ToneRenderer.alignedStep)
+        for tone in [AlignedTone.warm,.fifth,.softBell] {
+            let s=ToneRenderer.render(.aligned(tone:tone))
+            XCTAssertEqual(s.count,ToneRenderer.count(ToneRenderer.alignedStep+ToneRenderer.alignedNote),tone.rawValue)
+            XCTAssertEqual(s.first,0,tone.rawValue);XCTAssertEqual(s.last ?? 1,0,accuracy:1e-6,tone.rawValue)
+            XCTAssertGreaterThan(rms(s[(second+window)..<(second+2*window)]),rms(s[(second-window)..<second]),tone.rawValue)
+            XCTAssertLessThan(rms(s.suffix(window)),rms(s[second..<(second+window*2)])*0.3,tone.rawValue)
+        }
+        let chord=ToneRenderer.render(.aligned(tone:.chord))
+        XCTAssertEqual(chord.count,ToneRenderer.count(ToneRenderer.alignedStep+ToneRenderer.alignedNote))
+        XCTAssertLessThan(rms(chord.suffix(window)),rms(chord[window..<(window*3)])*0.3)
     }
     func testBuzzPulsesAndHarmonicChangesTheSound() {
         let plain=ToneRenderer.render(.buzz(hertz:60,harmonic:false))
@@ -97,12 +103,16 @@ final class SignalSoundTests: XCTestCase {
         }
         XCTAssertEqual(DirectionSignalMode.allCases.map { [$0.vibrates,$0.beeps] },[[true,false],[false,true],[true,true]])
     }
-    /// The aligned chime plays among ticks, warnings and the ding, so it shares no pitch with them (10/21).
+    /// The aligned chime plays among ticks, warnings and the ding, so it shares no pitch with them (10/21, #62),
+    /// and stays below 700 Hz so it never hurts the ears.
     func testAlignedChimeSharesNoPitchWithOtherGuidanceSounds() {
         let warnings=WarningTone.allCases.filter { $0 != .sharp }.flatMap(\.pitches)
         let others=[ToneRenderer.tickLeftHertz,ToneRenderer.tickRightHertz,ToneRenderer.arrivalHertz]+warnings
-        for pitch in ToneRenderer.alignedHertz {
-            XCTAssertTrue(others.allSatisfy { abs($0-pitch)/pitch > 0.1 },"aligned \(pitch) Hz")
+        for tone in AlignedTone.allCases {
+            for pitch in tone.pitches {
+                XCTAssertLessThan(pitch,700,"\(tone.rawValue) \(pitch) Hz")
+                XCTAssertTrue(others.allSatisfy { abs($0-pitch)/pitch > 0.1 },"\(tone.rawValue) \(pitch) Hz")
+            }
         }
     }
     func testNamesAreDistinctForLogs() {
@@ -111,6 +121,7 @@ final class SignalSoundTests: XCTestCase {
         XCTAssertEqual(SignalSound.direction(signedDegrees:-90).name,"direction_left_90")
         XCTAssertEqual(SignalSound.directionTick(toRight:false).name,"direction_tick_left")
         XCTAssertEqual(SignalSound.directionTick(toRight:true).name,"direction_tick_right")
-        XCTAssertEqual(SignalSound.aligned.name,"aligned")
+        XCTAssertEqual(SignalSound.aligned().name,"aligned")
+        XCTAssertEqual(SignalSound.aligned(tone:.fifth).name,"aligned_fifth")
     }
 }
