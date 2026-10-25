@@ -14,7 +14,7 @@ struct VoiceModePicker: View {
             }
             Text("어떻게 사용할까요?").font(.largeTitle.bold())
             ForEach(VoiceUsageMode.allCases) { mode in
-                Button {model.selectVoiceMode(mode)} label: {
+                Button {model.selectVoiceMode(mode,advanceAutomatically:false)} label: {
                     HStack(spacing:14) {
                         Image(systemName:mode.symbol).font(.title2).frame(width:32)
                         VStack(alignment:.leading,spacing:4) {
@@ -29,7 +29,7 @@ struct VoiceModePicker: View {
                 }.buttonStyle(.plain).foregroundStyle(Color.primary)
                     .accessibilityAddTraits(model.voiceMode == mode ? [.isSelected] : [])
             }
-            Text("말하거나 누르면 바로 다음 단계로 넘어가요. 취소하면 무대를 다시 선택해요.").font(.footnote).foregroundStyle(.secondary)
+            Text("말하면 바로 진행해요. 버튼으로 선택한 경우 아래 ‘다음’을 눌러주세요.").font(.footnote).foregroundStyle(.secondary)
         }
     }
 }
@@ -37,43 +37,43 @@ struct VoiceModePicker: View {
 struct VoiceRehearsalPanel: View {
     @ObservedObject var model: GuidanceViewModel
     var body: some View {
-        VStack(alignment:.leading,spacing:8) {
-            HStack(spacing:10) {
+        VStack(alignment:.leading,spacing:10) {
+            HStack(spacing:8) {
                 Image(systemName:model.voiceTurnActive ? "waveform" : model.voiceShouldListen ? "mic.fill" : "mic.slash.fill")
-                    .font(.title3).foregroundStyle(Color.primary).accessibilityHidden(true)
-                Text(model.voiceStatusTitle).font(.headline)
+                    .accessibilityHidden(true)
+                Text(model.voiceStatusTitle).font(.subheadline.weight(.semibold))
                 Spacer(minLength:0)
-                if let mode=model.voiceMode {Text(mode.title).font(.caption.weight(.semibold)).foregroundStyle(.secondary)}
+                if model.voiceRecognition.isRecovering {ProgressView().controlSize(.small)}
             }
-            if !model.voiceTranscript.isEmpty {
-                Text("“\(model.voiceTranscript)”").font(.subheadline).lineLimit(3)
-            }
-            if let error=model.voiceInputError {
-                Text(error).font(.footnote).foregroundStyle(.primary).fixedSize(horizontal:false,vertical:true)
-            } else {
-                Text(model.voiceStatusDetail).font(.footnote).foregroundStyle(.secondary).fixedSize(horizontal:false,vertical:true)
-            }
-            if model.canCancelVoiceSelection {
-                Button {model.cancelVoiceSelection()} label: {
-                    Label("취소 · 이전 선택",systemImage:"arrow.uturn.backward")
-                        .font(.subheadline.weight(.semibold)).frame(maxWidth:.infinity,minHeight:44,alignment:.leading)
-                }.buttonStyle(.plain)
-            }
+            // Keep the input area visible before speech, during recovery and after a command.
+            VStack(alignment:.leading,spacing:5) {
+                Text(model.voiceTurnActive ? "인식 중인 말" : "입력된 말").font(.caption).foregroundStyle(.secondary)
+                Text(model.voiceTranscript.isEmpty ? "말씀하신 내용이 여기에 표시돼요" : model.voiceTranscript)
+                    .font(.subheadline).foregroundStyle(model.voiceTranscript.isEmpty ? .secondary : .primary)
+                    .lineLimit(2...3).frame(maxWidth:.infinity,alignment:.leading)
+            }.padding(12).background(Color(.systemBackground),in:RoundedRectangle(cornerRadius:12))
+                .accessibilityElement(children:.combine)
+            Text(model.voiceInputError ?? model.voiceStatusDetail)
+                .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal:false,vertical:true)
             if model.voiceCanOfferInput {
-                HStack(spacing:12) {
-                    Button {model.retryVoiceListening()} label: {
-                        Label(model.voiceInputError == nil ? "다시 말하기" : "다시 듣기",systemImage:"mic")
-                            .frame(minHeight:44)
-                    }.buttonStyle(.plain).foregroundStyle(Color.primary)
-                    Spacer()
-                    if model.voiceListeningEnabled {
-                        Button("음성 끄기") {model.disableVoiceListening()}.frame(minHeight:44).foregroundStyle(.secondary)
-                    }
-                }.font(.subheadline.weight(.semibold))
+                ViewThatFits(in:.horizontal) {
+                    HStack(spacing:16) {inputActions}
+                    VStack(alignment:.leading,spacing:0) {inputActions}
+                }
             }
-        }.padding(14).background(Color.primary.opacity(0.07),in:RoundedRectangle(cornerRadius:18))
+        }.padding(14).background(Color(.systemGray6),in:RoundedRectangle(cornerRadius:18))
             .padding(.horizontal,24).padding(.top,8)
             .accessibilityElement(children:.contain)
+    }
+    @ViewBuilder private var inputActions: some View {
+        Button {model.retryVoiceListening()} label: {
+            Label(model.voiceInputError != nil || !model.voiceListeningEnabled ? "다시 듣기" : "다시 말하기",systemImage:"mic")
+                .font(.subheadline.weight(.semibold)).frame(minHeight:44)
+        }.buttonStyle(.plain)
+        if model.voiceListeningEnabled {
+            Button("음성 끄기") {model.disableVoiceListening()}
+                .font(.subheadline).foregroundStyle(.secondary).frame(minHeight:44)
+        }
     }
 }
 
@@ -103,16 +103,15 @@ struct VoiceStagePicker: View {
     @ObservedObject var model: GuidanceViewModel
     var body: some View {
         ScrollView {
-            VStack(alignment:.leading,spacing:20) {
+            VStack(alignment:.leading,spacing:16) {
                 Text(model.voiceChoosingMode ? "2 / 2 · 사용 방식" : "1 / 2 · 무대 선택")
                     .font(.subheadline.weight(.medium)).foregroundStyle(.secondary)
                 if model.voiceChoosingMode {
                     VoiceModePicker(model:model)
                 } else {
-                    Text("어느 무대를\n사용할까요?").font(.largeTitle.bold())
-                    Label("장소나 공연 이름으로 찾아보세요",systemImage:"magnifyingglass")
+                    Text("어느 무대를 사용할까요?").font(.title.bold()).fixedSize(horizontal:false,vertical:true)
+                    Text("이름이나 번호를 말하거나 목록에서 골라주세요.")
                         .font(.subheadline).foregroundStyle(.secondary)
-                    Text("예: “효자아트홀과 관련된 무대 열어줘”").font(.footnote).foregroundStyle(.secondary)
                     if let query=model.voiceSearchQuery {
                         HStack {
                             Text("‘\(query)’ 검색 결과").font(.headline)
@@ -146,7 +145,8 @@ struct VoiceStagePicker: View {
     }
     private func stage(_ item:ScanManifest,number:Int) -> some View {
         let usable=item.route.map {$0.conflicts(boundaryMargin:item.settings.boundaryMargin,obstacleClearance:item.settings.obstacleClearance).isEmpty} ?? false
-        return Button {model.select(item)} label: {
+        let selected=model.selected?.id == item.id
+        return Button {model.select(item,advanceAutomatically:false)} label: {
             HStack(alignment:.top,spacing:14) {
                 Text("\(number)").font(.headline).frame(width:32,height:32)
                     .background(Color.primary,in:Circle()).foregroundStyle(Color(.systemBackground))
@@ -158,11 +158,13 @@ struct VoiceStagePicker: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer(minLength:0)
-                Image(systemName:"chevron.right").font(.subheadline)
+                Image(systemName:selected ? "checkmark.circle.fill" : "circle").font(.title3).accessibilityHidden(true)
             }.multilineTextAlignment(.leading).padding(18).frame(maxWidth:.infinity,alignment:.leading)
                 .background(Color(.systemGray6),in:RoundedRectangle(cornerRadius:18))
+                .overlay(RoundedRectangle(cornerRadius:18).stroke(selected ? Color.primary : .clear,lineWidth:2))
         }.buttonStyle(.plain).disabled(!usable).opacity(usable ? 1 : 0.5)
+            .accessibilityAddTraits(selected ? [.isSelected] : [])
             .accessibilityLabel("\(number)번, \(item.name)")
-            .accessibilityHint(usable ? "선택하면 연습용 또는 실전용 선택으로 넘어갑니다" : "사용 가능한 동선을 먼저 준비해야 합니다")
+            .accessibilityHint(usable ? "선택한 후 다음 버튼을 누르면 사용 방식을 선택합니다" : "사용 가능한 동선을 먼저 준비해야 합니다")
     }
 }
