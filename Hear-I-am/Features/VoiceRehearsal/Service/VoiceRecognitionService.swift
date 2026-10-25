@@ -2,12 +2,15 @@ import AVFoundation
 import Combine
 import Speech
 import UIKit
+import OSLog
+import HearIAmCore
 
 /// An on-device, Korean command listener for the voice rehearsal experiment.
 /// The caller owns when listening is allowed; stop() releases microphone capture completely.
 @MainActor final class VoiceRecognitionService: NSObject, ObservableObject {
     @Published private(set) var isListening = false
     @Published private(set) var isAvailable = false
+    @Published private(set) var isRecovering = false
     @Published private(set) var transcript = ""
     @Published private(set) var statusMessage = "음성 입력이 꺼져 있어요"
 
@@ -15,6 +18,9 @@ import UIKit
     var onTranscript: ((String) -> Void)?
     /// Only a final recognizer result reaches this callback, once per recognition turn.
     var onFinal: ((String) -> Void)?
+    /// Transient failures pause a command, but keep the microphone session eligible for recovery.
+    var onRecoverableError: ((String) -> Void)?
+    var onRecoveryReady: (() -> Void)?
     var onError: ((String) -> Void)?
 
     private var engine: AVAudioEngine?
@@ -31,7 +37,8 @@ import UIKit
     private var speechDetected = false
     private var finalizing = false
     private var contextualStrings: [String] = []
-    private var consecutiveFailures = 0
+    private var recovery = VoiceInputRecoveryPolicy()
+    private let logger = Logger(subsystem: "org.heariam.poc4.scanlab", category: "VoiceInput")
     private var observers: [NSObjectProtocol] = []
     private var restartTimer: Task<Void, Never>?
     private var taskLimitTimer: Task<Void, Never>?
@@ -41,7 +48,20 @@ import UIKit
 
     override init() {
         super.init()
+        narration.onEngineUnavailable = { [weak self] in
+            self?.recover("오디오 연결을 다시 준비하고 있어요", rebuildAudio: true)
+        }
         let center = NotificationCenter.default
+        observers.append(center.addObserver(forName: .AVAudioEngineConfigurationChange, object: nil, queue: nil) { [weak self] notification in
+            guard let changed = notification.object as? AVAudioEngine else { return }
+            let identity = ObjectIdentifier(changed)
+            // Never tear down an engine on its own notification/render thread.
+            Task { @MainActor [weak self] in
+                guard let self, let engine = self.engine, ObjectIdentifier(engine) == identity,
+                      !engine.isRunning else { return }
+                self.recover("오디오 연결을 다시 준비하고 있어요", rebuildAudio: true)
+            }
+        })
         observers.append(center.addObserver(forName: AVAudioSession.interruptionNotification, object: nil, queue: .main) { [weak self] notification in
             let raw = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt
             guard raw == AVAudioSession.InterruptionType.began.rawValue else { return }
@@ -114,31 +134,34 @@ import UIKit
         self.contextualStrings = Array(contextualStrings.filter { !$0.isEmpty }.prefix(100))
         do {
             inputLease = try HearAudioSession.acquireVoiceInput()
-            let engine = AVAudioEngine()
-            self.engine = engine
-            // Set before starting either I/O node. Failure disables automatic listening rather than
-            // running a speaker listener without the echo processing this experiment depends on.
-            try engine.inputNode.setVoiceProcessingEnabled(true)
-            narration.attach(to: engine)
-            let format = engine.inputNode.outputFormat(forBus: 0)
-            guard format.sampleRate > 0, format.channelCount > 0 else {
-                throw VoiceRecognitionFailure.noInput
-            }
-            let bridge = inputBridge
-            engine.inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in
-                bridge.append(buffer)
-            }
-            hasInputTap = true
-            engine.prepare()
-            try engine.start()
-            guard sessionID == identifier else { stop(); return }
             wantsListening = true
             isAvailable = true
-            consecutiveFailures = 0
+            recovery.reset()
             beginTurn()
         } catch {
-            failPermanently("마이크를 준비할 수 없어요. 이어폰 연결을 확인하고 다시 듣기를 눌러주세요.")
+            logger.error("Voice input session failed: \(String(describing: error), privacy: .public)")
+            failPermanently("마이크를 준비할 수 없어요. 버튼으로 진행하거나 다시 듣기를 눌러주세요.")
         }
+    }
+
+    private func prepareEngine() throws {
+        let engine = AVAudioEngine()
+        self.engine = engine
+        try engine.inputNode.setVoiceProcessingEnabled(true)
+        // All graph connections are established before start(). Narration is converted to this
+        // fixed format rather than reconnecting the player when the first TTS buffer arrives.
+        narration.attach(to: engine)
+        let format = engine.inputNode.outputFormat(forBus: 0)
+        guard format.sampleRate > 0, format.channelCount > 0 else {
+            throw VoiceRecognitionFailure.noInput
+        }
+        let bridge = inputBridge
+        engine.inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in
+            bridge.append(buffer)
+        }
+        hasInputTap = true
+        engine.prepare()
+        try engine.start()
     }
 
     /// Cancels all delayed rearming as well as the current recognition task and microphone tap.
@@ -159,17 +182,32 @@ import UIKit
     /// Touch/back actions invalidate speech recorded for the previous choice screen.
     func discardPendingSpeech() {
         guard wantsListening else { return }
+        guard !isRecovering else { return }
         retireTurn(); isListening=false
         scheduleNextTurn(after: 0.05)
     }
 
     private func beginTurn() {
-        guard wantsListening, let recognizer, recognizer.isAvailable, engine?.isRunning == true else {
-            if wantsListening {
-                failPermanently("음성 입력 연결이 끊겼어요. 다시 듣기를 눌러주세요.")
-            }
+        guard wantsListening else { return }
+        let wasRecovering = isRecovering
+        isRecovering = false
+        guard let recognizer, recognizer.isAvailable else {
+            recover("음성 인식을 다시 연결하고 있어요", rebuildAudio: false)
             return
         }
+        do {
+            if engine == nil { try prepareEngine() }
+            guard engine?.isRunning == true else {
+                recover("오디오 연결을 다시 준비하고 있어요", rebuildAudio: true)
+                return
+            }
+        } catch {
+            logger.error("Voice engine start failed: \(String(describing: error), privacy: .public)")
+            recover("마이크를 다시 연결하고 있어요", rebuildAudio: true)
+            return
+        }
+        if wasRecovering { onRecoveryReady?() }
+        guard wantsListening else { return }
         retireTurn()
         let identifier = UUID()
         turnID = identifier
@@ -250,14 +288,14 @@ import UIKit
         let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if !text.isEmpty { detectedSpeech(turnID: turnID) }
         guard self.turnID == turnID, wantsListening else { return }
+        let hadSpeech = speechDetected
         retireTurn()
-        consecutiveFailures = 0
+        recovery.reset()
         transcript = text
         isListening = false
         if text.isEmpty {
             statusMessage = "말씀을 알아듣지 못했어요. 다시 말씀해주세요"
-            onError?(statusMessage)
-            scheduleNextTurn(after: 0.5)
+            rearmAfterSilence(discardCommand: hadSpeech)
             return
         }
         statusMessage = "말씀을 확인했어요"
@@ -267,7 +305,7 @@ import UIKit
         if wantsListening { scheduleNextTurn(after: 0.05) }
     }
 
-    fileprivate func taskFinished(successfully: Bool, errorDescription: String?, turnID: UUID) {
+    fileprivate func taskFinished(successfully: Bool, errorCode: Int?, errorDomain: String?, turnID: UUID) {
         guard self.turnID == turnID else { return }
         if successfully {
             // Delegate callbacks cross onto MainActor separately. Give an already-dispatched final
@@ -277,25 +315,54 @@ import UIKit
             finalResultTimer = Task { @MainActor [weak self] in
                 do { try await Task.sleep(nanoseconds: 300_000_000) } catch { return }
                 guard let self, self.turnID == turnID else { return }
-                self.recognitionFailed("말씀을 끝까지 확인하지 못했어요. 다시 말씀해주세요.", turnID: turnID)
+                if self.speechDetected {
+                    self.recognitionFailed("말씀을 끝까지 확인하지 못했어요. 다시 말씀해주세요.", turnID: turnID)
+                } else {
+                    self.retireTurn()
+                    self.rearmAfterSilence()
+                }
             }
+        } else if errorDomain == "kAFAssistantErrorDomain", errorCode == 1110, !speechDetected {
+            // No-speech is an ordinary end of an idle ASR task, not a disconnected microphone.
+            retireTurn()
+            rearmAfterSilence()
         } else {
-            recognitionFailed("음성을 확인하지 못했어요. 잠시 후 다시 들을게요.", turnID: turnID)
+            logger.error("Recognition task failed: domain=\(errorDomain ?? "none", privacy: .public) code=\(errorCode ?? 0)")
+            recognitionFailed("음성을 확인하지 못했어요. 다시 들을게요.", turnID: turnID)
         }
+    }
+
+    private func rearmAfterSilence(discardCommand: Bool = false) {
+        isListening = false
+        statusMessage = "말씀하시면 다시 들을게요"
+        // Idle/no-speech rollover must not pause an otherwise healthy walking session.
+        if discardCommand { onRecoverableError?(statusMessage) }
+        scheduleNextTurn(after: 0.5)
     }
 
     private func recognitionFailed(_ message: String, turnID: UUID) {
         guard self.turnID == turnID, wantsListening else { return }
-        retireTurn()
-        consecutiveFailures += 1
-        if consecutiveFailures >= 3 {
-            failPermanently("음성 입력이 반복해서 끊겼어요. 버튼으로 진행하거나 다시 듣기를 눌러주세요.")
+        recover(message, rebuildAudio: engine?.isRunning != true)
+    }
+
+    private func recover(_ message: String, rebuildAudio: Bool) {
+        guard wantsListening, !isRecovering else { return }
+        guard let delay = recovery.nextDelay(at: ProcessInfo.processInfo.systemUptime) else {
+            logger.error("Voice input recovery exhausted")
+            failPermanently("음성 입력을 연결하지 못했어요. 버튼으로 진행하거나 다시 듣기를 눌러주세요.")
             return
         }
+        isRecovering = true
         isListening = false
+        retireTurn()
         statusMessage = message
-        onError?(message)
-        scheduleNextTurn(after: Double(consecutiveFailures))
+        logger.notice("Recovering voice input: rebuildAudio=\(rebuildAudio), delay=\(delay)")
+        // The owner first cancels narration and pauses movement. An input failure must never
+        // silently continue walking, or turn a partial transcript into a command.
+        onRecoverableError?(message)
+        guard wantsListening else { return }
+        if rebuildAudio { tearDownEngine() }
+        scheduleNextTurn(after: delay)
     }
 
     private func scheduleNextTurn(after delay: Double) {
@@ -326,6 +393,21 @@ import UIKit
         sessionID = nil
         restartTimer?.cancel(); restartTimer = nil
         retireTurn()
+        tearDownEngine()
+        recognizer = nil
+        recovery.reset()
+        isRecovering = false
+        if let inputLease {
+            HearAudioSession.releaseVoiceInput(inputLease, restorePlayback: restorePlayback)
+        }
+        inputLease = nil
+        isListening = false
+        isAvailable = false
+    }
+
+    private func tearDownEngine() {
+        // Keep the session lease during recovery so other sounds do not switch to playback.
+        engine?.stop()
         narration.detach()
         if let engine {
             engine.stop()
@@ -334,13 +416,6 @@ import UIKit
         }
         engine = nil
         hasInputTap = false
-        recognizer = nil
-        if let inputLease {
-            HearAudioSession.releaseVoiceInput(inputLease, restorePlayback: restorePlayback)
-        }
-        inputLease = nil
-        isListening = false
-        isAvailable = false
     }
 
     private func failPermanently(_ message: String) {
@@ -405,9 +480,10 @@ private final class VoiceRecognitionTaskDelegate: NSObject, SFSpeechRecognitionT
         Task { @MainActor [weak service, turnID] in service?.receivedFinal(text, turnID: turnID) }
     }
     func speechRecognitionTask(_ task: SFSpeechRecognitionTask, didFinishSuccessfully successfully: Bool) {
-        let description = task.error?.localizedDescription
+        let error = task.error as NSError?
+        let code = error?.code, domain = error?.domain
         Task { @MainActor [weak service, turnID] in
-            service?.taskFinished(successfully: successfully, errorDescription: description, turnID: turnID)
+            service?.taskFinished(successfully: successfully, errorCode: code, errorDomain: domain, turnID: turnID)
         }
     }
 }
@@ -423,12 +499,13 @@ private final class VoiceRecognitionTaskDelegate: NSObject, SFSpeechRecognitionT
     private var pending=0
     private var ended=false
     private var hasAudio=false
-    private var format: AVAudioFormat?
+    var onEngineUnavailable: (() -> Void)?
+    private let converter = VoiceNarrationPCMConverter()
 
     func attach(to engine: AVAudioEngine) {
         self.engine=engine
         engine.attach(player)
-        engine.connect(player,to:engine.mainMixerNode,format:nil)
+        engine.connect(player,to:engine.mainMixerNode,format:converter.outputFormat)
     }
     func speak(_ utterance: AVSpeechUtterance, completion: @escaping (Bool)->Void) {
         stop()
@@ -444,25 +521,29 @@ private final class VoiceRecognitionTaskDelegate: NSObject, SFSpeechRecognitionT
         let callback=completion;completion=nil
         synthesizer.stopSpeaking(at:.immediate)
         player.stop();pending=0;ended=false;hasAudio=false
+        converter.reset()
         if notify {callback?(false)}
     }
     func detach() {
         stop(notify:false)
         if let engine {engine.disconnectNodeOutput(player);engine.detach(player)}
-        engine=nil;format=nil
+        engine=nil
     }
     private func receive(_ buffer: AVAudioPCMBuffer?,id: UUID) {
-        guard identifier == id, let engine, engine.isRunning else {return}
-        guard let buffer else {stop();return}
-        if buffer.frameLength == 0 {ended=true;completeIfReady(id);return}
-        if !hasAudio {
-            if format != buffer.format {
-                engine.connect(player,to:engine.mainMixerNode,format:buffer.format)
-                format=buffer.format
-            }
-            hasAudio=true
+        guard identifier == id else {return}
+        guard engine?.isRunning == true else {
+            onEngineUnavailable?()
+            return
         }
-        guard format == buffer.format else {stop();return}
+        guard let buffer else {stop();return}
+        do {
+            let buffers = try converter.convert(buffer)
+            for converted in buffers {schedule(converted,id:id)}
+            if buffer.frameLength == 0 {ended=true;completeIfReady(id)}
+        } catch {stop()}
+    }
+    private func schedule(_ buffer: AVAudioPCMBuffer,id: UUID) {
+        hasAudio=true
         pending+=1
         player.scheduleBuffer(buffer,completionCallbackType:.dataPlayedBack) { [weak self] _ in
             DispatchQueue.main.async {
@@ -489,4 +570,65 @@ private final class VoiceRecognitionTaskDelegate: NSObject, SFSpeechRecognitionT
         }
         return result
     }
+}
+
+
+/// Fixed graph format, independent of the selected speech voice or hardware sample rate.
+/// One streaming converter per utterance preserves its resampling state across TTS chunks.
+final class VoiceNarrationPCMConverter {
+    let outputFormat = AVAudioFormat(standardFormatWithSampleRate: 48_000, channels: 1)!
+    private var converter: AVAudioConverter?
+    private var inputFormat: AVAudioFormat?
+
+    func reset() { converter = nil; inputFormat = nil }
+
+    func convert(_ source: AVAudioPCMBuffer) throws -> [AVAudioPCMBuffer] {
+        let finishing = source.frameLength == 0
+        if !finishing && converter == nil {
+            inputFormat = source.format
+            converter = AVAudioConverter(from: source.format, to: outputFormat)
+        }
+        guard let converter else {
+            if finishing { return [] }
+            throw ConversionError.unsupportedFormat
+        }
+        guard finishing || inputFormat == source.format else { throw ConversionError.changedFormat }
+        var offset: AVAudioFrameCount = 0
+        var result: [AVAudioPCMBuffer] = []
+        var inputFailed = false
+        while true {
+            guard let output = AVAudioPCMBuffer(pcmFormat: outputFormat, frameCapacity: 4096) else {
+                throw ConversionError.allocation
+            }
+            var error: NSError?
+            let status = converter.convert(to: output, error: &error) { requested, status in
+                guard !finishing else { status.pointee = .endOfStream; return nil }
+                guard offset < source.frameLength else { status.pointee = .noDataNow; return nil }
+                let count = min(requested, source.frameLength - offset)
+                guard count > 0, let chunk = AVAudioPCMBuffer(pcmFormat: source.format, frameCapacity: count) else {
+                    inputFailed = true; status.pointee = .noDataNow; return nil
+                }
+                chunk.frameLength = count
+                let input = UnsafeMutableAudioBufferListPointer(UnsafeMutablePointer(mutating: source.audioBufferList))
+                let output = UnsafeMutableAudioBufferListPointer(chunk.mutableAudioBufferList)
+                let stride = Int(source.format.streamDescription.pointee.mBytesPerFrame)
+                for index in input.indices {
+                    if let from = input[index].mData, let to = output[index].mData {
+                        memcpy(to, from.advanced(by: Int(offset) * stride), Int(count) * stride)
+                    }
+                }
+                offset += count
+                status.pointee = .haveData
+                return chunk
+            }
+            if let error { throw error }
+            if inputFailed { throw ConversionError.allocation }
+            if status == .error { throw ConversionError.unsupportedFormat }
+            if output.frameLength > 0 { result.append(output) }
+            if status == .inputRanDry || status == .endOfStream { return result }
+            // A malformed converter must not spin on the main actor.
+            if output.frameLength == 0 { throw ConversionError.noProgress }
+        }
+    }
+    private enum ConversionError: Error { case unsupportedFormat, changedFormat, allocation, noProgress }
 }

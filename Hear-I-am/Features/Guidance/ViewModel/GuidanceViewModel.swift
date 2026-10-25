@@ -125,6 +125,13 @@ import HearIAmCore
     /// Re-reads the instruction for the current phase.
     func replay() {
         guard active else { return }
+        if voiceExperiment, phase == .selection {
+            // Replay the current question, not the last microphone error announcement.
+            if voiceChoosingMode {readVoiceModeQuestion()}
+            else if voiceSearchQuery != nil {announceVoiceStageResults()}
+            else {selectionDescription(empty:voiceStages.isEmpty)}
+            return
+        }
         if phase == .finishing || phase == .completed { playCompletion();return }
         if phase == .guiding {
             guard let pose=freshPose(), let guide, let cue=guide.cue(position:pose.point,headingDegrees:pose.heading) else { return }

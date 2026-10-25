@@ -10,7 +10,7 @@ extension GuidanceViewModel {
         }
         read([empty ? "저장된 무대가 없습니다. 홈에서 무대 준비하기를 통해 공간과 동선을 먼저 저장해주세요." : "안내에 사용할 무대를 선택해주세요."])
     }
-    func select(_ item: ScanManifest) {
+    func select(_ item: ScanManifest, advanceAutomatically: Bool = true) {
         guard phase == .selection else { return }
         guard let route=item.route, route.conflicts(boundaryMargin:item.settings.boundaryMargin,obstacleClearance:item.settings.obstacleClearance).isEmpty else {
             read(["이 무대에는 사용할 수 있는 동선이 없습니다. 무대를 다시 준비해주세요."]);return
@@ -19,11 +19,13 @@ extension GuidanceViewModel {
         started=false;cue=nil;pendingRecord=nil
         run=GuidanceRun(stageID:item.id,stageName:item.name,route:route)
         tracking.setGuidanceTarget(1)
-        var lines=["\(item.name)을 선택했습니다. 내부 지점은 \(max(0,route.points.count-2))개입니다."]
+        let lines=["\(item.name)을 선택했습니다. 내부 지점은 \(max(0,route.points.count-2))개입니다."]
         if voiceExperiment {
             voiceRecognition.discardPendingSpeech();voiceTurnActive=false
-            voiceMode=nil;voicePerformanceInputClosed=false;voiceChoosingMode=true
-            lines=["\(item.name)이 선택되었습니다.","연습용 또는 실전용을 선택해주세요. 취소라고 말씀하면 무대 선택으로 돌아갑니다."]
+            voiceMode=nil;voicePerformanceInputClosed=false;voiceChoosingMode=advanceAutomatically
+            if advanceAutomatically {readVoiceModeQuestion()}
+            else {prepareForVoiceTouch()}
+            return
         }
         read(lines)
     }

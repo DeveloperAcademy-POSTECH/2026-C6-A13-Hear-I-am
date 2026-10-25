@@ -13,6 +13,7 @@ extension GuidanceViewModel {
     var voiceProcessingCommand: Bool {voiceTurnActive && !voiceRecognition.isListening}
     var voiceStatusTitle: String {
         if voiceMode == .performance && voicePerformanceInputClosed {return "실전 안내 중 · 음성 인식 꺼짐"}
+        if voiceRecognition.isRecovering {return "음성 입력 다시 연결 중"}
         if voiceTurnActive {return voiceProcessingCommand ? "말씀을 확인하고 있어요" : started ? "듣고 있어요 · 이동 안내 일시정지" : "듣고 있어요"}
         if phase == .paused, let index=guide?.rehearsalReturnArrivalIndex {return "P\(index)에 도착했어요"}
         if voiceInputError != nil {return "음성 입력을 확인해주세요"}
@@ -23,6 +24,8 @@ extension GuidanceViewModel {
     }
     var voiceStatusDetail: String {
         if voiceMode == .performance && voicePerformanceInputClosed {return "마이크를 끈 상태로 저장된 동선을 안내해요."}
+        if voiceRecognition.isRecovering {return "잠시만 기다리거나 버튼으로 진행해주세요."}
+        if !voiceListeningEnabled {return "항목을 선택하고 아래 버튼으로 진행할 수 있어요."}
         if phase == .paused, guide?.rehearsalReturnArrivalIndex != nil {return "‘계속’이라고 말하거나 안내 다시 시작을 눌러주세요."}
         if voiceTurnActive {return phase == .selection ? (voiceChoosingMode ? "‘연습용’, ‘실전용’ 또는 ‘취소’라고 말씀해주세요." : "장소 이름, 무대 이름 또는 목록 번호를 말씀해주세요.") : "예: ‘P2 지점으로 다시 안내해 줘’, ‘계속’, ‘멈춰’."}
         if speaking {return "말씀하시면 읽던 안내를 멈추고 들을게요."}
@@ -36,6 +39,13 @@ extension GuidanceViewModel {
         voiceRecognition.onSpeechDetected={ [weak self] in self?.voiceSpeechDetected() }
         voiceRecognition.onTranscript={ [weak self] text in self?.voiceTranscript=text }
         voiceRecognition.onFinal={ [weak self] text in self?.handleVoiceCommand(text) }
+        voiceRecognition.onRecoverableError={ [weak self] message in self?.voiceInputRecovering(message) }
+        voiceRecognition.onRecoveryReady={ [weak self] in
+            // Stop any system-synthesizer fallback spoken while the engine was being rebuilt.
+            guard let self else {return}
+            self.generation=UUID();self.voice.stop();self.instructionDone=true
+            self.voiceReadyChimePending=true
+        }
         voiceRecognition.onError={ [weak self] error in self?.voiceInputFailed(error) }
         voiceRecognition.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }.store(in:&voiceSubscriptions)
         voiceRecognition.$isListening.dropFirst().sink { [weak self] listening in
@@ -61,19 +71,48 @@ extension GuidanceViewModel {
         voiceReadyChimePending=true
         syncVoiceListening()
     }
-    func selectVoiceMode(_ mode:VoiceUsageMode) {
+    func selectVoiceMode(_ mode:VoiceUsageMode, advanceAutomatically: Bool = true) {
         guard voiceExperiment, phase == .selection, voiceChoosingMode, selected != nil else {return}
         voiceRecognition.discardPendingSpeech();voiceTurnActive=false
         voicePerformanceInputClosed=false
         voiceMode=mode
-        restore(voiceIntroduction: "\(mode.title)을 선택했습니다.")
+        if advanceAutomatically {continueVoiceSelection()}
+        else {
+            generation=UUID();voice.stop();instructionDone=true
+        }
+    }
+    /// Touch selection stays on the current screen until Next; recognized choices still advance.
+    var canContinueVoiceSelection: Bool {
+        phase == .selection && selected != nil && (!voiceChoosingMode || voiceMode != nil)
+    }
+    func prepareForVoiceTouch() {
+        guard voiceExperiment else {return}
+        generation=UUID();voice.stop();instructionDone=true
+        voiceRecognition.discardPendingSpeech();voiceTurnActive=false
+    }
+    func continueVoiceSelection() {
+        guard voiceExperiment, active, canContinueVoiceSelection else {return}
+        prepareForVoiceTouch()
+        if voiceChoosingMode, let mode=voiceMode {
+            // Selection does not depend on a working microphone or finishing a spoken prompt.
+            // Subsequent position, checkpoint and output-audio checks are still enforced.
+            audioIssue=nil
+            restore(voiceIntroduction:"\(mode.title)을 선택했습니다.")
+        } else {
+            voiceChoosingMode=true
+            readVoiceModeQuestion()
+        }
+    }
+    func readVoiceModeQuestion() {
+        guard let selected else {return}
+        read(["\(selected.name)이 선택되었습니다.","연습용 또는 실전용을 선택해주세요. 취소라고 말씀하면 무대 선택으로 돌아갑니다."])
     }
     var visibleVoiceStages: [ScanManifest] {
         guard let ids=voiceSearchIDs else {return voiceStages}
         return ids.compactMap {id in voiceStages.first {$0.id == id}}
     }
     var canCancelVoiceSelection: Bool {
-        voiceExperiment && !started && (voiceChoosingMode || voiceSearchQuery != nil || phase != .selection)
+        voiceExperiment && !started && (selected != nil || voiceChoosingMode || voiceSearchQuery != nil || phase != .selection)
             && ![.starting,.finishing,.completed].contains(phase)
     }
     func cancelVoiceSelection() {
@@ -86,6 +125,9 @@ extension GuidanceViewModel {
             read(["사용 방식 선택으로 돌아왔어요.","연습용 또는 실전용이라고 말씀해주세요. 취소하면 무대를 다시 선택합니다."])
         } else if voiceChoosingMode {
             voiceChoosingMode=false;voiceMode=nil;selected=nil;guide=nil;run=nil;pendingRecord=nil
+            announceVoiceStageResults()
+        } else if selected != nil {
+            selected=nil;guide=nil;run=nil;pendingRecord=nil
             announceVoiceStageResults()
         } else if voiceSearchQuery != nil {
             voiceSearchQuery=nil;voiceSearchIDs=nil
@@ -158,12 +200,25 @@ extension GuidanceViewModel {
         listeningChime.play()
         logSignal("voice_listening","speech_detected")
     }
+    func voiceInputRecovering(_ message:String) {
+        guard voiceShouldListen else {return}
+        generation=UUID();voice.stop();instructionDone=true
+        voiceTurnActive=false
+        if phase == .guiding || phase == .starting {
+            guide?.pause();phase = started ? .paused : .departure;voicePausedNavigation=true
+            signals.stopDirection();quietUntil=nil
+            self.message="음성 입력을 다시 연결하는 동안 안내를 멈췄어요."
+            captureReplay(force:true)
+        }
+        // Do not narrate this transient state into the microphone or cancel the pending retry.
+        logSignal("voice_input_recovery",message)
+    }
     func voiceInputFailed(_ error:String) {
         stopVoiceExperiment()
         voiceRecognitionRequested=false;voiceTurnActive=false
         voiceListeningEnabled=false;voiceInputError=error
-        if voiceMode == .practice, phase == .guiding {
-            guide?.pause();phase = .paused;voicePausedNavigation=true;signals.stopDirection()
+        if phase == .guiding || phase == .starting {
+            guide?.pause();phase = started ? .paused : .departure;voicePausedNavigation=true;signals.stopDirection();quietUntil=nil
             message="음성 입력이 중단되어 연습 안내를 멈췄어요."
         }
         if active {read([error])}
@@ -207,6 +262,7 @@ extension GuidanceViewModel {
         case .selected(let index): select(voiceStages[index]);return true
         case .results(let query,let indices):
             voiceRecognition.discardPendingSpeech()
+            selected=nil;guide=nil;run=nil;pendingRecord=nil
             voiceSearchQuery=query;voiceSearchIDs=indices.map {voiceStages[$0].id}
             announceVoiceStageResults();return true
         case .none: return false
@@ -216,6 +272,7 @@ extension GuidanceViewModel {
         guard voiceExperiment, active else {return}
         switch phase {
         case .selection:
+            if canContinueVoiceSelection {continueVoiceSelection();return}
             read([voiceChoosingMode ? "연습용 또는 실전용이라고 말씀하면 바로 다음 단계로 넘어갑니다." : "사용할 무대 이름이나 목록 번호를 말씀해주세요."])
         case .checkpoint:
             if canVerify {verifyCheckpoint()} else {read(["확인점을 아직 확인할 수 없어요. 휴대폰 조준점을 저장한 확인점에 맞춰주세요."])}
