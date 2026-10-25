@@ -12,6 +12,17 @@ public struct RouteGuide: Sendable {
     public private(set) var state: GuideState = .idle
     public private(set) var targetIndex=1
     public private(set) var pauseReason: GuidePauseReason?
+    /// An opt-in rehearsal detour uses the original point identifiers and never rewrites the saved route.
+    public private(set) var rehearsalReturnDestinationIndex: Int?
+    /// A dwell-confirmed return destination waits here until explicit forward continuation.
+    public private(set) var rehearsalReturnArrivalIndex: Int?
+    public var isReturningForRehearsal: Bool {
+        rehearsalReturnDestinationIndex != nil && rehearsalReturnArrivalIndex == nil
+    }
+    /// The active segment may run backwards during rehearsal; consumers must not assume targetIndex - 1.
+    public var activeSegmentStartIndex: Int {
+        rehearsalReturnDestinationIndex == nil ? targetIndex - 1 : targetIndex + 1
+    }
     public var canAutomaticallyRecover: Bool { state == .paused && (pauseReason == .outsideStage || pauseReason == .sampleGap || pauseReason == .unclearHeading) }
     public let route: StageRoute
     public let settings: GuideSettings
@@ -62,16 +73,68 @@ public struct RouteGuide: Sendable {
         return true
     }
     public func canResume(position: FloorPoint, trackingValid: Bool) -> Bool {
-        state == .paused && trackingValid && position.valid &&
+        state == .paused && rehearsalReturnArrivalIndex == nil && trackingValid && position.valid &&
         (usesRouteCorridor ? positionIssue(position) == nil : route.area.contains(position,margin:settings.boundaryMargin)) &&
         route.conflicts(boundaryMargin:settings.boundaryMargin,obstacleClearance:settings.obstacleClearance).isEmpty
     }
+    /// Begins a rehearsal-only return along previously completed, contiguous route segments.
+    /// The caller must supply a fresh verified pose, stop competing speech, and explicitly opt in.
+    /// Every directed reverse leg is checked: a valid forward path may have entry-only platform edges.
+    public mutating func beginRehearsalReturn(to index: Int, position: FloorPoint,
+                                             headingDegrees: Double, trackingValid: Bool) throws {
+        guard usesRouteCorridor, state == .guiding || state == .paused,
+              rehearsalReturnDestinationIndex == nil,
+              (try? route.validate()) != nil, (try? settings.validate()) != nil,
+              route.conflicts(boundaryMargin:settings.boundaryMargin,obstacleClearance:settings.obstacleClearance).isEmpty else {
+            throw RehearsalReturnError.unavailable
+        }
+        guard trackingValid, position.valid, headingDegrees.isFinite else {
+            throw RehearsalReturnError.trackingUnavailable
+        }
+        guard index > 0, index < route.points.count-1, index < targetIndex else {
+            throw RehearsalReturnError.unvisitedDestination
+        }
+        if let issue=positionIssue(position) { throw RehearsalReturnError.positionUnsafe(issue) }
+        let firstIndex=targetIndex-1
+        var legStart=position
+        for destination in stride(from:firstIndex,through:index,by:-1) {
+            let legEnd=route.points[destination]
+            if let obstacle=route.obstacles.first(where: {
+                $0.blocksTravel(from:legStart,to:legEnd,clearance:settings.obstacleClearance)
+            }) { throw RehearsalReturnError.blockedByObstacle(obstacle.name) }
+            legStart=legEnd
+        }
+        // All validation happens before mutation so a rejected request preserves the current target.
+        rehearsalReturnDestinationIndex=index; rehearsalReturnArrivalIndex=nil; targetIndex=firstIndex
+        state = .guiding; pauseReason=nil; lastPosition=position; arrivedSince=nil; lastTime=nil
+        lastSpeech = -.infinity; sector=nil; reentrySince=nil; lastReentryTime=nil
+    }
+    public func canResumeForwardAfterRehearsalReturn(position: FloorPoint, trackingValid: Bool) -> Bool {
+        guard state == .paused, let arrived=rehearsalReturnArrivalIndex,
+              rehearsalReturnDestinationIndex == arrived, trackingValid, position.valid,
+              position.distance(to:route.points[arrived]) <= settings.startRadius else { return false }
+        var forward=self
+        forward.rehearsalReturnDestinationIndex=nil; forward.rehearsalReturnArrivalIndex=nil
+        forward.targetIndex=arrived+1
+        return forward.canResume(position:position,trackingValid:trackingValid)
+    }
+    /// A return is not completion of the original run. Explicit continuation restores the next saved point.
+    @discardableResult public mutating func resumeForwardAfterRehearsalReturn(position: FloorPoint, trackingValid: Bool) -> Bool {
+        guard canResumeForwardAfterRehearsalReturn(position:position,trackingValid:trackingValid),
+              let arrived=rehearsalReturnArrivalIndex else { return false }
+        rehearsalReturnDestinationIndex=nil; rehearsalReturnArrivalIndex=nil; targetIndex=arrived+1
+        return resume(position:position,trackingValid:trackingValid)
+    }
+
     /// Only the active entry/exit segment may extend outside the stage. This is not obstacle detection.
     public func positionIssue(_ position: FloorPoint) -> GuidePauseReason? {
-        guard position.valid, route.points.indices.contains(targetIndex), targetIndex > 0 else { return .invalidSample }
-        let externalSegment=route.version == 2 && (targetIndex == 1 || targetIndex == route.points.count-1)
+        guard position.valid, route.points.indices.contains(targetIndex), targetIndex > 0,
+              route.points.indices.contains(activeSegmentStartIndex) else { return .invalidSample }
+        let lowerIndex=min(activeSegmentStartIndex,targetIndex), upperIndex=max(activeSegmentStartIndex,targetIndex)
+        let externalSegment=route.version == 2 &&
+            (lowerIndex == 0 && upperIndex == 1 || lowerIndex == route.points.count-2 && upperIndex == route.points.count-1)
         if !route.area.contains(position) && !externalSegment { return .outsideStage }
-        let a=route.points[targetIndex-1], b=route.points[targetIndex]
+        let a=route.points[activeSegmentStartIndex], b=route.points[targetIndex]
         if position.distance(toSegmentFrom:a,to:b) > Self.corridorRadius { return .offRoute }
         if route.obstacles.contains(where: { $0.blocksTravel(from:position,to:b,clearance:settings.obstacleClearance) }) {
             return .obstacleProximity
@@ -120,12 +183,23 @@ public struct RouteGuide: Sendable {
         if allowsTargetAdvance && distance <= settings.arrivalRadius {
             if arrivedSince == nil { arrivedSince=time }
             if let since=arrivedSince, time-since >= settings.arrivalDwell {
-                if targetIndex == route.points.count-1 {
-                    state = .completed
-                    return GuideUpdate(state:state,targetIndex:targetIndex,announcement:GuidanceCopy.completed)
+                if let returnDestination=rehearsalReturnDestinationIndex {
+                    if targetIndex == returnDestination {
+                        rehearsalReturnArrivalIndex=targetIndex
+                        pause(reason:.manual)
+                        return GuideUpdate(state:state,targetIndex:targetIndex,
+                            announcement:"P\(targetIndex) 지점에 도착했습니다. 계속하려면 계속이라고 말씀해주세요.")
+                    }
+                    arrivedIndex=targetIndex
+                    targetIndex -= 1; arrivedSince=nil; sector=nil
+                } else {
+                    if targetIndex == route.points.count-1 {
+                        state = .completed
+                        return GuideUpdate(state:state,targetIndex:targetIndex,announcement:GuidanceCopy.completed)
+                    }
+                    arrivedIndex=targetIndex
+                    targetIndex += 1; arrivedSince=nil; sector=nil
                 }
-                arrivedIndex=targetIndex
-                targetIndex += 1; arrivedSince=nil; sector=nil
                 goal=route.points[targetIndex]; distance=position.distance(to:goal)
             }
         } else { arrivedSince=nil }
