@@ -21,7 +21,7 @@ struct HomeView: View {
                             Text("말로 안내 시작").font(.title2.bold())
                             Text("띠링 소리가 나면 말씀해주세요").font(.subheadline)
                         }.frame(maxWidth:.infinity).padding(.vertical,24)
-                            .foregroundStyle(.white).background(Color.hearGreen,in:RoundedRectangle(cornerRadius:22))
+                            .foregroundStyle(Color(.systemBackground)).background(Color.primary,in:RoundedRectangle(cornerRadius:22))
                     }.buttonStyle(.plain).disabled(model.selection.selecting)
                         .accessibilityHint("저장한 무대와 연습용 또는 실전용을 음성으로 선택합니다")
                     VStack(alignment:.leading,spacing:12) {
