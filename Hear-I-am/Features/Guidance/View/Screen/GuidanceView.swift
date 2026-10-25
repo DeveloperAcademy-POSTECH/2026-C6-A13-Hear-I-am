@@ -15,7 +15,9 @@ struct GuidanceView: View {
     var body: some View {
         NavigationStack {
             VStack(alignment:.leading,spacing:12) {
-                Text(model.phase.stepLabel(targetName:model.targetName)).font(.subheadline.weight(.semibold)).foregroundStyle(Color.hearGreen).padding(.horizontal,24)
+                if !model.voiceExperiment || model.phase != .selection {
+                    Text(model.phase.stepLabel(targetName:model.targetName)).font(.subheadline.weight(.semibold)).foregroundStyle(model.voiceExperiment ? Color.primary : Color.hearGreen).padding(.horizontal,24)
+                }
                 if model.phase.showsRouteCamera { GuidanceRouteHeader(model:model) }
                 ZStack {
                     // Keep one AR view attached throughout the flow, including when the screen shows instructions.
@@ -23,7 +25,11 @@ struct GuidanceView: View {
                     if model.voiceExperiment && model.phase == .paused && (model.voiceTurnActive || model.guide?.rehearsalReturnArrivalIndex != nil) {VoiceListeningOverlay(model:model)}
                     else if model.phase.showsRouteCamera { GuidanceRouteOverlay(model:model) }
                     else if model.phase.isCameraStep { GuidanceCameraPrompt(model:model) }
-                    else if model.phase == .selection { Color(.systemBackground); GuidanceStageList(library:library,model:model) }
+                    else if model.phase == .selection {
+                        Color(.systemBackground)
+                        if model.voiceExperiment {VoiceStagePicker(library:library,model:model)}
+                        else {GuidanceStageList(library:library,model:model)}
+                    }
                     else { Color(.systemBackground).opacity(model.phase.showsCameraBehindInstruction ? 0.7 : 1); GuidanceInstruction(model:model) }
                 }.clipShape(RoundedRectangle(cornerRadius:model.phase.showsRouteCamera ? 18 : 0))
                     .padding(.horizontal,model.phase.showsRouteCamera ? 20 : 0)
@@ -42,6 +48,7 @@ struct GuidanceView: View {
                 }.background(Color(.systemBackground))
             }
             .background(Color(.systemBackground))
+            .tint(model.voiceExperiment ? .primary : .hearGreen)
             .alert("안내를 끝낼까요?",isPresented:$model.showExit) {
                 Button("안내 끝내기",role:.destructive) { close() }
                 Button("계속 사용하기",role:.cancel) { model.cancelExit() }
@@ -51,8 +58,8 @@ struct GuidanceView: View {
         .onAppear {ScreenOrientation.set(.portrait)}
         .task {
             await library.refresh()
-            model.prepareVoiceExperiment(records:library.groups.pinned+library.groups.recent)
-            model.selectionDescription(empty:library.records.isEmpty)
+            if model.voiceExperiment {model.prepareVoiceExperiment(records:library.groups.pinned+library.groups.recent)}
+            else {model.selectionDescription(empty:library.records.isEmpty)}
         }
         .onDisappear {model.finish();ScreenOrientation.set(.portrait)}
         .onChange(of:scenePhase) { _, value in

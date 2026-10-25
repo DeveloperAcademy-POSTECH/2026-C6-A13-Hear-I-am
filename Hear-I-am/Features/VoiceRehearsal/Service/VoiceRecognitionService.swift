@@ -23,11 +23,11 @@ import UIKit
     private var recognitionTask: SFSpeechRecognitionTask?
     private var taskDelegate: VoiceRecognitionTaskDelegate?
     private let inputBridge = VoiceRecognitionInputBridge()
+    private let narration = VoiceNarrationPlayer()
     private var inputLease: UUID?
     private var sessionID: UUID?
     private var turnID: UUID?
     private var wantsListening = false
-    private var outputSuppressed = false
     private var speechDetected = false
     private var finalizing = false
     private var contextualStrings: [String] = []
@@ -82,11 +82,7 @@ import UIKit
     /// This PoC never silently falls back to server recognition.
     /// Permission/availability failures leave microphone capture off and explain the reason.
     func start(contextualStrings: [String] = []) async {
-        // A screen may already be narrating when it asks to prepare listening. Preserve that hold
-        // across setup; only an explicit external stop() clears it.
-        let initialSuppression = outputSuppressed
         stop()
-        outputSuppressed = initialSuppression
         let identifier = UUID()
         sessionID = identifier
         statusMessage = "마이크와 음성 인식을 준비하고 있어요"
@@ -123,6 +119,7 @@ import UIKit
             // Set before starting either I/O node. Failure disables automatic listening rather than
             // running a speaker listener without the echo processing this experiment depends on.
             try engine.inputNode.setVoiceProcessingEnabled(true)
+            narration.attach(to: engine)
             let format = engine.inputNode.outputFormat(forBus: 0)
             guard format.sampleRate > 0, format.channelCount > 0 else {
                 throw VoiceRecognitionFailure.noInput
@@ -138,11 +135,7 @@ import UIKit
             wantsListening = true
             isAvailable = true
             consecutiveFailures = 0
-            if outputSuppressed {
-                statusMessage = "안내를 말하는 동안 잠시 기다려주세요"
-            } else {
-                beginTurn()
-            }
+            beginTurn()
         } catch {
             failPermanently("마이크를 준비할 수 없어요. 이어폰 연결을 확인하고 다시 듣기를 눌러주세요.")
         }
@@ -155,26 +148,24 @@ import UIKit
         statusMessage = "음성 입력이 꺼져 있어요"
     }
 
-    /// Explicit half-duplex protection for app narration. Capture remains configured, but no buffers
-    /// reach ASR while suppressed. The current turn is discarded, never executed after narration.
-    /// Do not suppress the short listening chime: the user's first syllable is already being captured.
-    func setOutputSuppressed(_ suppressed: Bool) {
-        guard outputSuppressed != suppressed else { return }
-        outputSuppressed = suppressed
+    /// Render narration through the same voice-processing engine as microphone capture.
+    func speakNarration(_ utterance: AVSpeechUtterance, completion: @escaping (Bool) -> Void) -> Bool {
+        guard wantsListening, let engine, engine.isRunning else { return false }
+        narration.speak(utterance, completion: completion)
+        return true
+    }
+    func stopNarration() { narration.stop() }
+
+    /// Touch/back actions invalidate speech recorded for the previous choice screen.
+    func discardPendingSpeech() {
         guard wantsListening else { return }
-        restartTimer?.cancel()
-        if suppressed {
-            retireTurn()
-            isListening = false
-            statusMessage = "안내를 말하는 동안 잠시 기다려주세요"
-        } else {
-            scheduleNextTurn(after: 0.35)
-        }
+        retireTurn(); isListening=false
+        scheduleNextTurn(after: 0.05)
     }
 
     private func beginTurn() {
-        guard wantsListening, !outputSuppressed, let recognizer, recognizer.isAvailable, engine?.isRunning == true else {
-            if wantsListening, !outputSuppressed {
+        guard wantsListening, let recognizer, recognizer.isAvailable, engine?.isRunning == true else {
+            if wantsListening {
                 failPermanently("음성 입력 연결이 끊겼어요. 다시 듣기를 눌러주세요.")
             }
             return
@@ -210,7 +201,7 @@ import UIKit
     }
 
     fileprivate func detectedSpeech(turnID: UUID) {
-        guard self.turnID == turnID, wantsListening, !outputSuppressed, !speechDetected, !finalizing else { return }
+        guard self.turnID == turnID, wantsListening, !speechDetected, !finalizing else { return }
         speechDetected = true
         statusMessage = "듣고 있어요"
         speechLimitTimer = Task { @MainActor [weak self] in
@@ -221,12 +212,12 @@ import UIKit
     }
 
     fileprivate func receivedPartial(_ text: String, turnID: UUID) {
-        guard self.turnID == turnID, wantsListening, !outputSuppressed, !finalizing else { return }
+        guard self.turnID == turnID, wantsListening, !finalizing else { return }
         let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         // Some recognizer routes provide text before the optional detection delegate callback.
         detectedSpeech(turnID: turnID)
-        guard self.turnID == turnID, !outputSuppressed else { return }
+        guard self.turnID == turnID else { return }
         transcript = text
         statusMessage = "듣고 있어요"
         onTranscript?(text)
@@ -238,7 +229,7 @@ import UIKit
     }
 
     private func finishInput(turnID: UUID) {
-        guard self.turnID == turnID, wantsListening, !outputSuppressed, !finalizing else { return }
+        guard self.turnID == turnID, wantsListening, !finalizing else { return }
         finalizing = true
         isListening = false
         statusMessage = "말씀을 확인하고 있어요"
@@ -255,8 +246,10 @@ import UIKit
     }
 
     fileprivate func receivedFinal(_ text: String, turnID: UUID) {
-        guard self.turnID == turnID, wantsListening, !outputSuppressed else { return }
+        guard self.turnID == turnID, wantsListening else { return }
         let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !text.isEmpty { detectedSpeech(turnID: turnID) }
+        guard self.turnID == turnID, wantsListening else { return }
         retireTurn()
         consecutiveFailures = 0
         transcript = text
@@ -271,7 +264,7 @@ import UIKit
         // turnID is invalidated before calling application code so duplicate final callbacks and
         // a cancellation delivered afterward can never execute the command a second time.
         onFinal?(text)
-        if wantsListening, !outputSuppressed { scheduleNextTurn(after: 0.5) }
+        if wantsListening { scheduleNextTurn(after: 0.05) }
     }
 
     fileprivate func taskFinished(successfully: Bool, errorDescription: String?, turnID: UUID) {
@@ -307,10 +300,10 @@ import UIKit
 
     private func scheduleNextTurn(after delay: Double) {
         restartTimer?.cancel()
-        guard wantsListening, !outputSuppressed, let sessionID else { return }
+        guard wantsListening, let sessionID else { return }
         restartTimer = Task { @MainActor [weak self] in
             do { try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000)) } catch { return }
-            guard let self, self.sessionID == sessionID, self.wantsListening, !self.outputSuppressed else { return }
+            guard let self, self.sessionID == sessionID, self.wantsListening else { return }
             self.beginTurn()
         }
     }
@@ -333,6 +326,7 @@ import UIKit
         sessionID = nil
         restartTimer?.cancel(); restartTimer = nil
         retireTurn()
+        narration.detach()
         if let engine {
             engine.stop()
             if hasInputTap { engine.inputNode.removeTap(onBus: 0) }
@@ -347,7 +341,6 @@ import UIKit
         inputLease = nil
         isListening = false
         isAvailable = false
-        outputSuppressed = false
     }
 
     private func failPermanently(_ message: String) {
@@ -416,5 +409,84 @@ private final class VoiceRecognitionTaskDelegate: NSObject, SFSpeechRecognitionT
         Task { @MainActor [weak service, turnID] in
             service?.taskFinished(successfully: successfully, errorDescription: description, turnID: turnID)
         }
+    }
+}
+
+/// Streams synthesized PCM through the input engine's output graph for echo cancellation.
+/// Completion waits for the final buffer to be heard; stale callbacks cannot finish a new line.
+@MainActor private final class VoiceNarrationPlayer {
+    private let synthesizer=AVSpeechSynthesizer()
+    private let player=AVAudioPlayerNode()
+    private weak var engine: AVAudioEngine?
+    private var identifier: UUID?
+    private var completion: ((Bool)->Void)?
+    private var pending=0
+    private var ended=false
+    private var hasAudio=false
+    private var format: AVAudioFormat?
+
+    func attach(to engine: AVAudioEngine) {
+        self.engine=engine
+        engine.attach(player)
+        engine.connect(player,to:engine.mainMixerNode,format:nil)
+    }
+    func speak(_ utterance: AVSpeechUtterance, completion: @escaping (Bool)->Void) {
+        stop()
+        let id=UUID();identifier=id;self.completion=completion
+        synthesizer.write(utterance) { [weak self] buffer in
+            guard let pcm=buffer as? AVAudioPCMBuffer else { return }
+            let copy=Self.copy(pcm)
+            DispatchQueue.main.async { self?.receive(copy,id:id) }
+        }
+    }
+    func stop(notify: Bool = true) {
+        identifier=nil
+        let callback=completion;completion=nil
+        synthesizer.stopSpeaking(at:.immediate)
+        player.stop();pending=0;ended=false;hasAudio=false
+        if notify {callback?(false)}
+    }
+    func detach() {
+        stop(notify:false)
+        if let engine {engine.disconnectNodeOutput(player);engine.detach(player)}
+        engine=nil;format=nil
+    }
+    private func receive(_ buffer: AVAudioPCMBuffer?,id: UUID) {
+        guard identifier == id, let engine, engine.isRunning else {return}
+        guard let buffer else {stop();return}
+        if buffer.frameLength == 0 {ended=true;completeIfReady(id);return}
+        if !hasAudio {
+            if format != buffer.format {
+                engine.connect(player,to:engine.mainMixerNode,format:buffer.format)
+                format=buffer.format
+            }
+            hasAudio=true
+        }
+        guard format == buffer.format else {stop();return}
+        pending+=1
+        player.scheduleBuffer(buffer,completionCallbackType:.dataPlayedBack) { [weak self] _ in
+            DispatchQueue.main.async {
+                guard let self, self.identifier == id else {return}
+                self.pending-=1;self.completeIfReady(id)
+            }
+        }
+        if !player.isPlaying {player.play()}
+    }
+    private func completeIfReady(_ id: UUID) {
+        guard identifier == id, ended, pending == 0 else {return}
+        let success=hasAudio
+        identifier=nil;player.stop()
+        let callback=completion;completion=nil;callback?(success)
+    }
+    nonisolated private static func copy(_ source: AVAudioPCMBuffer) -> AVAudioPCMBuffer? {
+        guard let result=AVAudioPCMBuffer(pcmFormat:source.format,frameCapacity:max(1,source.frameLength)) else {return nil}
+        result.frameLength=source.frameLength
+        let input=UnsafeMutableAudioBufferListPointer(UnsafeMutablePointer(mutating:source.audioBufferList))
+        let output=UnsafeMutableAudioBufferListPointer(result.mutableAudioBufferList)
+        for index in input.indices {
+            guard let from=input[index].mData, let to=output[index].mData else {continue}
+            memcpy(to,from,Int(input[index].mDataByteSize))
+        }
+        return result
     }
 }

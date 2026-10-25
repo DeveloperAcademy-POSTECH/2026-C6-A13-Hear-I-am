@@ -4,13 +4,13 @@ import HearIAmCore
 extension GuidanceViewModel {
     var canVerify: Bool { phase == .checkpoint && canAdvanceInstruction && tracking.canVerify }
 
-    func restore() {
+    func restore(voiceIntroduction: String? = nil) {
         guard let selected, active, !tracking.busy, phase != .selection || canAdvanceInstruction else { return }
         invalidateTasks();departureReady=false;departureGate.reset();readyAnnounced=false;lastPoseTime=nil
         tracking.endSession();tracking.setActive(true);tracking.errorMessage=nil
         message="저장한 공연장 위치를 확인하고 있어요."
         phase = .restoring
-        read(["휴대폰을 손에 들고 주변을 천천히 비춰주세요."])
+        read((voiceIntroduction.map {[$0]} ?? [])+["휴대폰을 손에 들고 주변을 천천히 비춰주세요."])
         tracking.restore(selected)
     }
     func verifyCheckpoint() {
@@ -26,6 +26,7 @@ extension GuidanceViewModel {
         }
     }
     func tickRestoring() {
+        guard !voiceTurnActive else {return}
         if let error=tracking.errorMessage { fail(error);return }
         if !tracking.busy && tracking.mode == .idle { fail(tracking.status);return }
         if tracking.canVerify, canAdvanceInstruction {

@@ -9,7 +9,6 @@ struct GuidanceStageList: View {
         ScrollView {
             VStack(alignment:.leading,spacing:20) {
                 Text("저장한 공연장에서\n안내를 시작해요").font(.largeTitle.bold())
-                if model.voiceExperiment {VoiceModePicker(model:model)}
                 if library.loading {ProgressView("저장한 무대를 불러오고 있어요")}
                 if library.records.isEmpty && !library.loading {
                     Image("StageEmpty").resizable().scaledToFit().frame(height:180).accessibilityHidden(true)

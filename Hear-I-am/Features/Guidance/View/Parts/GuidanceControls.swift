@@ -8,12 +8,12 @@ struct GuidanceControls: View {
     let saveAndClose: () -> Void
     var body: some View {
         VStack(spacing:10) {
-            if let saveError=model.saveError {Text(saveError).font(.footnote).foregroundStyle(.red).fixedSize(horizontal:false,vertical:true)}
+            if let saveError=model.saveError {Text(saveError).font(.footnote).foregroundStyle(model.voiceExperiment ? Color.primary : Color.red).fixedSize(horizontal:false,vertical:true)}
             if model.savingRecord {ProgressView("완료 기록을 저장하고 있어요")}
-            if let error=model.audioIssue {Text(error).font(.footnote).foregroundStyle(.red).fixedSize(horizontal:false,vertical:true)}
+            if let error=model.audioIssue {Text(error).font(.footnote).foregroundStyle(model.voiceExperiment ? Color.primary : Color.red).fixedSize(horizontal:false,vertical:true)}
             if model.speaking {
                 HStack(alignment:.top,spacing:8) {
-                    Image(systemName:"speaker.wave.2.fill").foregroundStyle(Color.hearGreen)
+                    Image(systemName:"speaker.wave.2.fill").foregroundStyle(model.voiceExperiment ? Color.primary : Color.hearGreen)
                     Text(model.spokenText).font(.caption).lineLimit(3)
                 }.frame(maxWidth:.infinity,alignment:.leading)
             }
@@ -21,7 +21,7 @@ struct GuidanceControls: View {
                 Button {model.replay()} label: {
                     Label(model.phase == .finishing ? "종료 안내 다시 듣기" : "설명 다시 듣기",systemImage:"speaker.wave.2")
                         .font(.subheadline.weight(.medium)).frame(minHeight:44).padding(.horizontal,12)
-                }.buttonStyle(.plain).foregroundStyle(Color.hearGreen)
+                }.buttonStyle(.plain).foregroundStyle(model.voiceExperiment ? Color.primary : Color.hearGreen)
                     .disabled(model.speaking || model.savingRecord)
                     .opacity(model.speaking || model.savingRecord ? 0.45 : 1)
             }
@@ -32,7 +32,7 @@ struct GuidanceControls: View {
         switch model.phase {
         case .selection:
             if library.records.isEmpty {GuidanceButton(title:"홈으로 돌아가기",action:close)}
-            else {GuidanceButton(title:"이 무대 사용하기",enabled:model.selected != nil && model.canAdvanceInstruction) {model.restore()}}
+            else if !model.voiceExperiment {GuidanceButton(title:"이 무대 사용하기",enabled:model.selected != nil && model.canAdvanceInstruction) {model.restore()}}
         case .restoring: GuidanceButton(title:"공간 확인 중…",enabled:false) {}
         case .checkpoint: GuidanceButton(title:"확인점 확인하기",enabled:model.canVerify) {model.verifyCheckpoint()}
         case .wear: GuidanceButton(title:"착용 완료",enabled:model.canAdvanceInstruction && model.tracking.ready) {model.finishWear()}

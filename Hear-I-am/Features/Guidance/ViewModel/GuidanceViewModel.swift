@@ -8,7 +8,10 @@ import HearIAmCore
 /// Phase-specific actions live in the GuidanceViewModel+<Phase> files.
 @MainActor final class GuidanceViewModel: ObservableObject {
     @Published var phase: GuidancePhase = .selection {
-        didSet { run?.setRunning(phase == .guiding,uptime:ProcessInfo.processInfo.systemUptime);captureReplay(force:true);syncVoiceListening() }
+        didSet {
+            if voiceExperiment, voiceMode == .performance, phase == .starting {voicePerformanceInputClosed=true}
+            run?.setRunning(phase == .guiding,uptime:ProcessInfo.processInfo.systemUptime);captureReplay(force:true);syncVoiceListening()
+        }
     }
     @Published var selected: ScanManifest?
     @Published var instructionDone=false
@@ -25,6 +28,11 @@ import HearIAmCore
     @Published var saveError: String?
     let voiceExperiment: Bool
     @Published var voiceMode: VoiceUsageMode?
+    @Published var voiceChoosingMode=false
+    @Published var voicePerformanceInputClosed=false
+    @Published var voiceSearchQuery: String?
+    @Published var voiceSearchIDs: [UUID]?
+    var voiceInitialPromptPending=false
     @Published var voiceListeningEnabled=true
     @Published var voiceTurnActive=false
     @Published var voiceTranscript=""
@@ -88,10 +96,7 @@ import HearIAmCore
         trackingSubscription=tracking.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }
         voice.onSpeaking={ [weak self] value in
             self?.speaking=value;self?.signals.setSpeechActive(value)
-            if self?.voiceExperiment == true {
-                if value {self?.voiceTurnActive=false}
-                self?.voiceRecognition.setOutputSuppressed(value)
-            }
+
         }
         signals.onEvent={ [weak self] in self?.logSignal($0,$1) }
         voice.onText={ [weak self] in self?.spokenText=$0;self?.logSignal("voice",$0) }
@@ -101,6 +106,12 @@ import HearIAmCore
             if self.phase == .guiding || self.phase == .starting {
                 self.guide?.pause();self.phase = self.started ? .paused : .departure;self.message="음성 재생을 확인한 후 다시 시작해주세요."
             }
+        }
+        if voiceExperiment {
+            voice.bufferedOutput={ [weak self] utterance, completion in
+                self?.voiceRecognition.speakNarration(utterance,completion:completion) ?? false
+            }
+            voice.stopBufferedOutput={ [weak self] in self?.voiceRecognition.stopNarration() }
         }
         configureVoiceExperiment()
         observeAudioSession()
@@ -126,6 +137,10 @@ import HearIAmCore
         read(currentInstruction)
     }
     func read(_ texts: [String], after: (()->Void)? = nil) {
+        if voiceExperiment, voiceTurnActive {
+            // A tracking/audio interruption must not apply an old command to a new recovery step.
+            voiceRecognition.discardPendingSpeech();voiceTurnActive=false
+        }
         audioIssue=nil;instructionDone=false;currentInstruction=texts
         let operation=generation
         voice.play(texts) { [weak self] finished in

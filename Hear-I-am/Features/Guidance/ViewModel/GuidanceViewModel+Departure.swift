@@ -52,7 +52,7 @@ extension GuidanceViewModel {
             signals.play(.arrival);logSignal("signal_arrival","\(GuidanceCopy.target(0,last:guide.route.points.count-1)) ready")
         }
         if !eligible {
-            if readyAnnounced {read(["출발 위치 또는 방향이 달라졌습니다. 다시 확인해주세요."])}
+            if readyAnnounced && !voiceTurnActive {read(["출발 위치 또는 방향이 달라졌습니다. 다시 확인해주세요."])}
             readyAnnounced=false
         }
         if departureReady, !readyAnnounced, instructionDone, !speaking, !voiceTurnActive {
