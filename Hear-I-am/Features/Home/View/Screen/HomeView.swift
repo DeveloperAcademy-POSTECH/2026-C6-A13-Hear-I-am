@@ -4,6 +4,7 @@ import HearIAmCore
 struct HomeView: View {
     @ObservedObject var library: StageLibrary
     @StateObject private var model=HomeViewModel()
+    @State private var showingVoiceExperiment=false
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -14,6 +15,15 @@ struct HomeView: View {
                         Spacer()
                         Button {model.showingSettings=true} label: {Image(systemName:"gearshape").font(.title3).frame(width:44,height:44)}.accessibilityLabel("설정")
                     }
+                    Button {showingVoiceExperiment=true} label: {
+                        VStack(spacing:10) {
+                            Image(systemName:"mic.fill").font(.system(size:34))
+                            Text("말로 안내 시작").font(.title2.bold())
+                            Text("띠링 소리가 나면 말씀해주세요").font(.subheadline)
+                        }.frame(maxWidth:.infinity).padding(.vertical,24)
+                            .foregroundStyle(.white).background(Color.hearGreen,in:RoundedRectangle(cornerRadius:22))
+                    }.buttonStyle(.plain).disabled(model.selection.selecting)
+                        .accessibilityHint("저장한 무대와 연습용 또는 실전용을 음성으로 선택합니다")
                     VStack(alignment:.leading,spacing:12) {
                         Text("무엇을 시작할까요?").font(.title3).foregroundStyle(.secondary)
                         HStack(spacing:12) {
@@ -55,6 +65,7 @@ struct HomeView: View {
                 .refreshable {await library.refresh()}
                 .fullScreenCover(isPresented:$model.preparing,onDismiss:{Task {await library.refresh()}}) {PreparationView(library:library)}
                 .fullScreenCover(isPresented:$model.guiding) {GuidanceView(library:library)}
+                .fullScreenCover(isPresented:$showingVoiceExperiment) {GuidanceView(library:library,voiceExperiment:true)}
                 .alert("Hear I am",isPresented:Binding(get:{model.notice != nil},set:{if !$0 {model.notice=nil}})) {Button("확인",role:.cancel) {model.notice=nil}} message: {Text(model.notice ?? "")}
         }
     }

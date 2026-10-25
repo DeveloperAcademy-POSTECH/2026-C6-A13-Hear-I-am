@@ -10,6 +10,7 @@ extension GuidanceViewModel {
         phase = .paused
         let bearing=escapeBearing(pose:pose,guide:guide)
         escape=EscapeState(reason:reason,startedAt:pose.time,lastSpoken:pose.time)
+        syncVoiceListening()
         message=SignalCopy.escape(toRight:bearing > 0)
         voice.play([message])
         let side=bearing > 0 ? "right" : "left"
@@ -37,8 +38,8 @@ extension GuidanceViewModel {
     /// away from the nearest blocking obstacle. Positive bearing means to the right.
     private func escapeBearing(pose: (point: FloorPoint, heading: Double, time: Double), guide: RouteGuide) -> Double {
         let points=guide.route.points, i=guide.targetIndex
-        if i > 0, points.indices.contains(i) {
-            let toward=Self.closest(on:points[i-1],points[i],to:pose.point)
+        if points.indices.contains(guide.activeSegmentStartIndex), points.indices.contains(i) {
+            let toward=Self.closest(on:points[guide.activeSegmentStartIndex],points[i],to:pose.point)
             if pose.point.distance(to:toward) > 0.1 { return StageHeading.bearing(from:pose.point,to:toward,headingDegrees:pose.heading) }
         }
         guard let blocked=guide.route.obstacles.compactMap({$0.blockingPoint(from:pose.point)}).min(by: {

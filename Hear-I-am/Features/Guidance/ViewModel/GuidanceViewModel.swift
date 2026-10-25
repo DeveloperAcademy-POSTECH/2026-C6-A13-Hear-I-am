@@ -8,13 +8,13 @@ import HearIAmCore
 /// Phase-specific actions live in the GuidanceViewModel+<Phase> files.
 @MainActor final class GuidanceViewModel: ObservableObject {
     @Published var phase: GuidancePhase = .selection {
-        didSet { run?.setRunning(phase == .guiding,uptime:ProcessInfo.processInfo.systemUptime);captureReplay(force:true) }
+        didSet { run?.setRunning(phase == .guiding,uptime:ProcessInfo.processInfo.systemUptime);captureReplay(force:true);syncVoiceListening() }
     }
     @Published var selected: ScanManifest?
     @Published var instructionDone=false
     @Published var speaking=false
     @Published var spokenText=""
-    @Published var audioIssue: String?
+    @Published var audioIssue: String? { didSet {syncVoiceListening()} }
     @Published var message=""
     @Published var departureReady=false
     @Published var startDistance: Double?
@@ -23,6 +23,20 @@ import HearIAmCore
     @Published var showExit=false
     @Published var savingRecord=false
     @Published var saveError: String?
+    let voiceExperiment: Bool
+    @Published var voiceMode: VoiceUsageMode?
+    @Published var voiceListeningEnabled=true
+    @Published var voiceTurnActive=false
+    @Published var voiceTranscript=""
+    @Published var voiceInputError: String?
+    let voiceRecognition=VoiceRecognitionService()
+    let listeningChime=VoiceListeningChime()
+    var voiceSubscriptions=Set<AnyCancellable>()
+    var voiceInputTask: Task<Void,Never>?
+    var voiceRecognitionRequested=false
+    var voiceReadyChimePending=false
+    var voicePausedNavigation=false
+    var voiceStages: [ScanManifest]=[]
     let tracking=ARSessionController(purpose:.guidance)
     let voice=GuidanceSpeech()
     /// Earbud tones: warning, arrival ding, direction ticks. No vibration since 10/20 (team decision).
@@ -59,7 +73,7 @@ import HearIAmCore
 
     /// Next-step buttons work while an instruction is still being read; pressing one stops it (10/21).
     /// Position and checkpoint checks still apply.
-    var canAdvanceInstruction: Bool { audioIssue == nil }
+    var canAdvanceInstruction: Bool { audioIssue == nil && (!voiceExperiment || voiceMode != nil) }
     var hasStarted: Bool { started }
     var targetIndex: Int { guide?.targetIndex ?? 1 }
     var targetName: String { GuidanceCopy.target(targetIndex,last:(selected?.route?.points.count ?? 2)-1) }
@@ -68,10 +82,17 @@ import HearIAmCore
                          departureStatus:departureStatus,arrivedName:arrivedName,cue:cue,message:message)
     }
 
-    init() {
+    init(voiceExperiment: Bool = false) {
+        self.voiceExperiment=voiceExperiment
         tracking.showMesh=false
         trackingSubscription=tracking.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }
-        voice.onSpeaking={ [weak self] in self?.speaking=$0;self?.signals.setSpeechActive($0) }
+        voice.onSpeaking={ [weak self] value in
+            self?.speaking=value;self?.signals.setSpeechActive(value)
+            if self?.voiceExperiment == true {
+                if value {self?.voiceTurnActive=false}
+                self?.voiceRecognition.setOutputSuppressed(value)
+            }
+        }
         signals.onEvent={ [weak self] in self?.logSignal($0,$1) }
         voice.onText={ [weak self] in self?.spokenText=$0;self?.logSignal("voice",$0) }
         voice.onError={ [weak self] text in
@@ -81,6 +102,7 @@ import HearIAmCore
                 self.guide?.pause();self.phase = self.started ? .paused : .departure;self.message="음성 재생을 확인한 후 다시 시작해주세요."
             }
         }
+        configureVoiceExperiment()
         observeAudioSession()
         timer=Timer.scheduledTimer(withTimeInterval:0.1,repeats:true) { [weak self] _ in Task { @MainActor in self?.tick() } }
     }
@@ -145,6 +167,7 @@ import HearIAmCore
         guard pose.time != lastPoseTime else { return }
         lastPoseTime=pose.time;signalPose=pose
         if let first=selected?.route?.points.first { startDistance=pose.point.distance(to:first) }
+        tickVoiceHold(pose:pose)
         if phase == .departure, let guide { tickDeparture(pose:pose,guide:guide);return }
         if phase == .paused, escape != nil, let guide { tickEscape(pose:pose,guide:guide);return }
         guard phase == .guiding, let guide else { return }

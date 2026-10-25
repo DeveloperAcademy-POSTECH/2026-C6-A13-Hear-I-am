@@ -12,6 +12,7 @@ extension GuidanceViewModel {
 
     var canResume: Bool {
         guard let pose=freshPose(), let guide else { return false }
+        if guide.rehearsalReturnArrivalIndex != nil {return guide.canResumeForwardAfterRehearsalReturn(position:pose.point,trackingValid:true)}
         return guide.canResume(position:pose.point,trackingValid:true)
     }
     func pause() {
@@ -32,6 +33,7 @@ extension GuidanceViewModel {
         let update=guide.observe(time:pose.time,position:pose.point,headingDegrees:pose.heading,trackingValid:true)
         self.guide=guide;cue=guide.cue(position:pose.point,headingDegrees:pose.heading)
         tracking.setGuidanceTarget(guide.targetIndex,completed:guide.state == .completed)
+        if let index=guide.rehearsalReturnArrivalIndex {reachedVoiceReturn(index,time:pose.time);return}
         if update.state == .completed { playCompletion();return }
         if update.state == .paused {
             if let reason=guide.pauseReason, Self.escapeReasons.contains(reason) { beginEscape(reason:reason,pose:pose,guide:guide) }

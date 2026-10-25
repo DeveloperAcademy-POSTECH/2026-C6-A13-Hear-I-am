@@ -15,6 +15,12 @@ extension GuidanceViewModel {
     }
     func setActive(_ value: Bool) {
         guard active != value else { return };active=value
+        if voiceExperiment {
+            if !value {
+                voiceListeningEnabled=false
+                stopVoiceExperiment()
+            } else {syncVoiceListening()}
+        }
         if !value {
             interrupt("앱이 중단됐어요. 확인점과 착용 상태를 다시 확인해주세요.",announce:false)
             tracking.setActive(false)
@@ -28,9 +34,10 @@ extension GuidanceViewModel {
         guard phase != .finishing else { return }
         if phase == .guiding || phase == .starting { guide?.pause();phase = started ? .paused : .departure }
         invalidateTasks();showExit=true
+        syncVoiceListening()
         read(["안내를 끝낼까요? 계속 사용하려면 계속 사용하기를 눌러주세요."])
     }
-    func cancelExit() { showExit=false;replay() }
+    func cancelExit() { showExit=false;replay();syncVoiceListening() }
 
     func observeAudioSession() {
         observations.append(NotificationCenter.default.addObserver(forName:AVAudioSession.interruptionNotification,object:nil,queue:.main) { [weak self] n in
