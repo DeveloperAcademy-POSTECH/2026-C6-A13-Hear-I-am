@@ -32,12 +32,7 @@ struct SoundTestView: View {
                 ActionButton(title:"오른쪽 톡",primary:false) { model.tick(toRight:true) }
             }
             SoundTestRow(label:"방향 맞음 (목표 정면 ±15° 안에 들어오면 울림)") {
-                ActionButton(title:"방향 맞음 (\(Self.alignedLabel(model.alignedTone)))",primary:false) { model.playAligned() }
-            }
-            SoundTestRow(label:"방향 맞음 소리 종류 (누르면 바로 듣고 안내에도 적용)") {
-                ForEach(AlignedTone.allCases,id:\.self) { tone in
-                    ActionButton(title:Self.alignedLabel(tone),primary:model.alignedTone == tone) { model.selectAligned(tone) }
-                }
+                ActionButton(title:"방향 맞음 (깊은 우드)",primary:false) { model.playAligned() }
             }
             SoundTestRow(label:"출발 준비 완료 · 마지막 지점 도착 신호음") {
                 ActionButton(title:"띵",primary:false) { model.playArrival() }
@@ -79,15 +74,6 @@ struct SoundTestView: View {
                     ActionButton(title:line,primary:false) { model.speak(line) }
                 }
             }
-        }
-    }
-
-    static func alignedLabel(_ tone: AlignedTone) -> String {
-        switch tone {
-        case .warm: return "따뜻한 딩동 (장3도)"
-        case .fifth: return "깊은 우드 (5도)"
-        case .chord: return "포근한 화음"
-        case .softBell: return "맑은 중음"
         }
     }
 }
