@@ -62,12 +62,8 @@ struct StageMap: View {
                     if object.isStep {
                         for i in object.vertices.indices {
                             var edge=Path(); edge.move(to:project(object.vertices[i])); edge.addLine(to:project(object.vertices[(i+1)%object.vertices.count]))
-                            let entry=object.permitsEntry(i), exit=object.permitsExit(i)
-                            let color: Color=entry && exit ? .green : (entry ? .blue : (exit ? .orange : .red))
-                            if !entry && !exit, let clearance {
-                                context.stroke(edge,with:.color(.red.opacity(0.25)),style:StrokeStyle(lineWidth:2*clearance*scale,lineCap:.round))
-                            }
-                            context.stroke(edge,with:.color(color),lineWidth:3)
+                            let isFacing = object.facingEdge == i
+                            context.stroke(edge,with:.color(isFacing ? .green : .blue),lineWidth:isFacing ? 3.5 : 2.5)
                         }
                     }
                 }
