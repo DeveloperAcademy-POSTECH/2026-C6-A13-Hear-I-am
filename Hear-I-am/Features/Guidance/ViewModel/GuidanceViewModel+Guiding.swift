@@ -25,13 +25,13 @@ extension GuidanceViewModel {
     /// Clears every signal rule; called when guidance starts or resumes.
     func resetSignals() {
         directionTicks.deadbandDegrees=SignalPlayer.directionDeadbandDegrees
-        directionTicks.reset();warnings.reset();distances.reset();arrivalShownAt=nil;quietUntil=nil;announceNextSide=false;pendingTurnSide=false;ticksWaitForWord=false
+        directionTicks.reset();warnings.reset();distances.reset();arrivalShownAt=nil;quietUntil=nil;aligningStep=nil;announceNextSide=false;pendingTurnSide=false;ticksWaitForWord=false
         signals.setWarning(nil);signals.stopDirection()
     }
     func tickGuiding(pose: (point: FloorPoint, heading: Double, time: Double), guide current: RouteGuide) {
         var guide=current
         let previous=guide.targetIndex
-        let update=guide.observe(time:pose.time,position:pose.point,headingDegrees:pose.heading,trackingValid:true)
+        let update=guide.observe(time:pose.time,position:pose.point,headingDegrees:pose.heading,trackingValid:true,allowsTargetAdvance:aligningStep == nil)
         self.guide=guide;cue=guide.cue(position:pose.point,headingDegrees:pose.heading)
         tracking.setGuidanceTarget(guide.targetIndex,completed:guide.state == .completed)
         if update.state == .completed { playCompletion();return }
@@ -44,30 +44,41 @@ extension GuidanceViewModel {
         signal(pose:pose,guide:guide)
     }
 
-    /// Speaks the reached point name (「피원」 · 「피투」 · 「피쓰리」, #74) instead of the arrival ding.
-    /// Once the point name is spoken, the side of the next target spot is announced.
+    /// Speaks the reached point name (「피일」 · 「피이」 · 「피삼」, #74) instead of the arrival ding.
+    /// If the reached point stands on a chair or stairs with a `facingEdge`, aligns the performer with
+    /// that edge first (#76); once aligned, the side of the next target spot is announced.
     private func arrived(_ previous: Int, guide: RouteGuide, time: Double) {
         let name=SignalCopy.point(previous)
         arrivedName=name;arrivalShownAt=time
         directionTicks.reset();announceNextSide=true;pendingTurnSide=false
+        if let step=guide.route.step(at:previous), step.facingEdge != nil {
+            aligningStep=step
+        } else {
+            aligningStep=nil
+        }
         signals.stopDirection()
         ticksWaitForWord=voice.play([name])
         quietUntil=ticksWaitForWord ? nil : time+Self.arrivalQuietSeconds
-        logSignal("signal_arrival","\(name) next=\(guide.targetIndex)")
+        logSignal("signal_arrival","\(name) next=\(guide.targetIndex)\(aligningStep.map { " align=\($0.name)#\(($0.facingEdge ?? 0)+1)" } ?? "")")
     }
     private func signal(pose: (point: FloorPoint, heading: Double, time: Double), guide: RouteGuide) {
+        let quiet=quietUntil.map { pose.time < $0 } ?? false
+        if !quiet { quietUntil=nil }
+        if ticksWaitForWord, !speaking { ticksWaitForWord=false }
+        if let step=aligningStep, let stepBearing=step.facingBearing(headingDegrees:pose.heading) {
+            signalStepAlignment(pose:pose,step:step,bearing:stepBearing,quiet:quiet,guide:guide)
+            return
+        }
+        aligningStep=nil
         guard guide.route.points.indices.contains(guide.targetIndex) else { return }
         let target=guide.route.points[guide.targetIndex]
         let bearing=StageHeading.bearing(from:pose.point,to:target,headingDegrees:pose.heading)
-        let quiet=quietUntil.map { pose.time < $0 } ?? false
-        if !quiet { quietUntil=nil }
         // Direction (#44): silent within ±n° of the target; outside it 「왼쪽」 or 「오른쪽」 once, then ticks that
         // quicken as the body turns toward it. The word was dropped on 10/20 and restored on 10/21. The moment
         // the ticks stop because the body faces the target, the aligned chime says so.
         let wasTicking=directionTicks.activeSide != nil
         let cue=directionTicks.update(time:pose.time,bearing:bearing)
         // The side waits for the point announcement and for any line being spoken; facing the target already needs no word.
-        if ticksWaitForWord, !speaking { ticksWaitForWord=false }
         if announceNextSide, !quiet, !speaking, let step=guide.route.step(at:guide.targetIndex) {
             // Said even when already facing it: the performer needs to know a chair or stairs is there.
             announceNextSide=false
@@ -113,6 +124,38 @@ extension GuidanceViewModel {
             if quiet || speaking {
                 logSignal("signal_distance_skipped","\(line) reason=\(quiet ? "arrival" : "speaking")")
             } else { voice.direction(line);logSignal("signal_distance",line) }
+        }
+    }
+    /// 1st orientation after arriving on a chair or stairs (#76): guides the performer's heading toward
+    /// the green `facingEdge` outward normal, plays the aligned chime when aligned, and then resumes
+    /// route guidance toward the next spot.
+    private func signalStepAlignment(pose: (point: FloorPoint, heading: Double, time: Double), step: StageObstacle, bearing: Double, quiet: Bool, guide: RouteGuide) {
+        if announceNextSide && (quiet || speaking) { return }
+        let cue=directionTicks.update(time:pose.time,bearing:bearing)
+        if let cue {
+            if announceNextSide {
+                announceNextSide=false
+                sayDirection(cue.word,volume:SignalVolume.nextSide,bearing:bearing,guide:guide)
+            } else if cue.spokenWord != nil || pendingTurnSide {
+                if speaking, !voice.speakingDirection {
+                    if !pendingTurnSide { logSignal("signal_direction_word_deferred",String(format:"%@ bearing %+.0f° reason=speaking",cue.word,bearing)) }
+                    pendingTurnSide=true
+                } else {
+                    pendingTurnSide=false
+                    if speaking { logSignal("signal_voice_cut","\(spokenText) for=\(cue.word)") }
+                    sayDirection(cue.word,volume:SignalVolume.speech,bearing:bearing,guide:guide,interrupting:true)
+                }
+            }
+            if cue.shouldTick, !announceNextSide, !pendingTurnSide, !ticksWaitForWord {
+                signals.play(.directionTick(toRight:cue.toRight))
+            }
+        } else if !quiet, !speaking {
+            signals.playAligned()
+            logSignal("signal_step_aligned",String(format:"%@ edge=%d bearing %+.0f°",step.name,(step.facingEdge ?? 0)+1,bearing))
+            aligningStep=nil
+            directionTicks.reset();distances.reset()
+            announceNextSide=true;pendingTurnSide=false;ticksWaitForWord=false
+            quietUntil=pose.time+Self.arrivalQuietSeconds
         }
     }
     /// Speaks a side and holds the ticks until it is done; logs whether it was actually said.
