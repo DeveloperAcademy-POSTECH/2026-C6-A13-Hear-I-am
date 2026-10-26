@@ -272,6 +272,9 @@ final class SignalRuleTests: XCTestCase {
     }
 
     func testStepPointLabelsAndSpokenNamesPerKind() throws {
+        XCTAssertEqual(SignalCopy.start,"출발")
+        XCTAssertEqual(SignalCopy.stepHint(stairs:false),"의자")
+        XCTAssertEqual(SignalCopy.stepHint(stairs:true),"계단")
         XCTAssertEqual(SignalCopy.stepPoint(stairs:false,number:1),"의자일")
         XCTAssertEqual(SignalCopy.stepPoint(stairs:false,number:2),"의자이")
         XCTAssertEqual(SignalCopy.stepPoint(stairs:true,number:1),"계단일")

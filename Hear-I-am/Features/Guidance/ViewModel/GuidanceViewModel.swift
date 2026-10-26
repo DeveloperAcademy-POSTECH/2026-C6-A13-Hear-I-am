@@ -30,6 +30,8 @@ import HearIAmCore
     var directionTicks=DirectionTickGate(deadbandDegrees:SignalPlayer.directionDeadbandDegrees)
     /// Set on leaving the start and on reaching a point: the next direction cue speaks the side of the new target once.
     var announceNextSide=false
+    /// Set when the next target spot stands on a chair or stairs: speaks 「의자」 or 「계단」 once when aligned before distance marks (#76).
+    var announceStepHint=false
     /// A side to say on turning away that waits for the line being spoken (#57).
     var pendingTurnSide=false
     /// Ticks wait while a side word is spoken: speech starts a little late, so a tick would come first (10/21).

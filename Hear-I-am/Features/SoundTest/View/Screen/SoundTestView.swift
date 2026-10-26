@@ -42,6 +42,9 @@ struct SoundTestView: View {
 
     private var speech: some View {
         VStack(alignment:.leading,spacing:16) {
+            SoundTestRow(label:"출발 안내 (안내 시작 직후)") {
+                ActionButton(title:SignalCopy.start,primary:false) { model.speak(SignalCopy.start) }
+            }
             SoundTestRow(label:"중간 목표 지점 도착 (P1, 의자1, 계단1... 지점 이름을 말해요)") {
                 ForEach([SignalCopy.point(1),SignalCopy.point(2),SignalCopy.stepPoint(stairs:false,number:1),SignalCopy.stepPoint(stairs:true,number:1)],id:\.self) { line in
                     ActionButton(title:line,primary:false) { model.speak(line) }
@@ -61,15 +64,14 @@ struct SoundTestView: View {
                     ActionButton(title:line,primary:false) { model.speak(line) }
                 }
             }
-            SoundTestRow(label:"남은 거리") {
-                ForEach([3.0,2,1,0.5],id:\.self) { meters in
-                    let line=SignalCopy.distance(meters)
+            SoundTestRow(label:"의자 · 계단 사전 암시 (방향 맞음 후 거리 안내 전 1회 안내)") {
+                ForEach([SignalCopy.stepHint(stairs:false),SignalCopy.stepHint(stairs:true)],id:\.self) { line in
                     ActionButton(title:line,primary:false) { model.speak(line) }
                 }
             }
-            SoundTestRow(label:"의자 · 계단 위치 (다음 지점이 의자·계단 위일 때)") {
-                ForEach([SignalCopy.place(bearing:0,stairs:false),SignalCopy.place(bearing:90,stairs:false),
-                         SignalCopy.place(bearing:-90,stairs:true),SignalCopy.place(bearing:180,stairs:true)],id:\.self) { line in
+            SoundTestRow(label:"남은 거리") {
+                ForEach([3.0,2,1,0.5],id:\.self) { meters in
+                    let line=SignalCopy.distance(meters)
                     ActionButton(title:line,primary:false) { model.speak(line) }
                 }
             }
