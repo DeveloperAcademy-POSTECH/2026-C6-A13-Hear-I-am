@@ -255,8 +255,8 @@ final class SignalRuleTests: XCTestCase {
         let alignCue=try XCTUnwrap(gate.update(time:1.0,bearing:firstBearing))
         XCTAssertEqual(alignCue.spokenWord,"오른쪽")
         XCTAssertTrue(alignCue.toRight)
-        XCTAssertEqual(SignalCopy.look(toRight:alignCue.toRight),"오른쪽 바라봐")
-        XCTAssertEqual(SignalCopy.look(toRight:false),"왼쪽 바라봐")
+        XCTAssertEqual(SignalCopy.look(toRight:alignCue.toRight),"오른쪽 봐")
+        XCTAssertEqual(SignalCopy.look(toRight:false),"왼쪽 봐")
 
         // Turning to face the green edge within ±15° completes 1st alignment.
         let alignedBearing=try XCTUnwrap(reachedStep.facingBearing(headingDegrees:-5))
