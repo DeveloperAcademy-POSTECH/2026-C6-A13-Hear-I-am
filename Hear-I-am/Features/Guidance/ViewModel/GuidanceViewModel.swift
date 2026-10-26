@@ -166,7 +166,7 @@ extension GuidanceViewModel {
         if let guide, guide.route.points.indices.contains(guide.targetIndex) {
             let target=guide.route.points[guide.targetIndex]
             context+=String(format:" target=p%d(%@) dist=%.2f bearing=%+.0f",guide.targetIndex,
-                GuidanceCopy.target(guide.targetIndex,last:guide.route.points.count-1),pose.point.distance(to:target),
+                guide.route.pointLabel(at:guide.targetIndex),pose.point.distance(to:target),
                 StageHeading.bearing(from:pose.point,to:target,headingDegrees:pose.heading))
         }
         tracking.event(name,detail:"\(detail) @ \(context) phase=\(phase)")

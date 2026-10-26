@@ -44,12 +44,13 @@ extension GuidanceViewModel {
         signal(pose:pose,guide:guide)
     }
 
-    /// Speaks the reached point name (「피일」 · 「피이」 · 「피삼」, #74) instead of the arrival ding.
+    /// Speaks the reached point name (「피일」 · 「의자일」 · 「계단일」, #74, #76) instead of the arrival ding.
     /// If the reached point stands on a chair or stairs with a `facingEdge`, aligns the performer with
     /// that edge first (#76); once aligned, the side of the next target spot is announced.
     private func arrived(_ previous: Int, guide: RouteGuide, time: Double) {
-        let name=SignalCopy.point(previous)
-        arrivedName=name;arrivalShownAt=time
+        let name=guide.route.spokenPointName(at:previous)
+        let label=guide.route.pointLabel(at:previous)
+        arrivedName=label;arrivalShownAt=time
         directionTicks.reset();announceNextSide=true;pendingTurnSide=false
         if let step=guide.route.step(at:previous), step.facingEdge != nil {
             aligningStep=step
@@ -59,7 +60,7 @@ extension GuidanceViewModel {
         signals.stopDirection()
         ticksWaitForWord=voice.play([name])
         quietUntil=ticksWaitForWord ? nil : time+Self.arrivalQuietSeconds
-        logSignal("signal_arrival","\(name) next=\(guide.targetIndex)\(aligningStep.map { " align=\($0.name)#\(($0.facingEdge ?? 0)+1)" } ?? "")")
+        logSignal("signal_arrival","\(label)(\(name)) next=\(guide.targetIndex)\(aligningStep.map { " align=\($0.name)#\(($0.facingEdge ?? 0)+1)" } ?? "")")
     }
     private func signal(pose: (point: FloorPoint, heading: Double, time: Double), guide: RouteGuide) {
         let quiet=quietUntil.map { pose.time < $0 } ?? false

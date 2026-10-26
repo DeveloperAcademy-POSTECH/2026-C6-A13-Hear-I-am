@@ -118,7 +118,31 @@ public struct PreparationDraft: Sendable {
             throw LabError.invalid("경로가 새 무대 바닥과 높이가 다릅니다. 경로를 다시 지정해주세요.")
         }
         let obstacles = try objects.map { try $0.projected(in: area) }
-        return try StageRoute(area: area, points: route.map(area.floor), obstacles: obstacles, allowsOutsideEndpoints: true, dangerZones: dangerZones, pointHeights:route.map {$0.y-area.floorHeight})
+        let floorPoints = route.map(area.floor)
+        return try StageRoute(area: area, points: floorPoints, obstacles: obstacles, allowsOutsideEndpoints: true, dangerZones: dangerZones, pointHeights:route.map {$0.y-area.floorHeight}, pointNames:StageRoute.pointLabels(points:floorPoints,obstacles:obstacles,finished:true))
+    }
+    /// Display labels for the draft's current route points (「출발」, 「P1」, 「의자1」, 「계단1」, 「도착」).
+    public var routePointLabels: [String] {
+        guard let area else {
+            return route.indices.map { i in i == 0 ? "출발" : (routeFinished && i == route.count-1 ? "도착" : "P\(i)") }
+        }
+        let obstacles = objects.compactMap { try? $0.projected(in: area) }
+        return StageRoute.pointLabels(points: route.map(area.floor), obstacles: obstacles, finished: routeFinished)
+    }
+    /// Label for the next route point to be placed at `aim` (e.g. 「출발점」, 「P1」, 「의자1」, 「계단1」).
+    public func nextRoutePointLabel(at aim: Point3? = nil) -> String {
+        guard !route.isEmpty else { return "출발점" }
+        guard let area else { return "P\(route.count)" }
+        let obstacles = objects.compactMap { try? $0.projected(in: area) }
+        var floorPoints = route.map(area.floor)
+        if let aim, aim.valid {
+            floorPoints.append(area.floor(aim))
+            return StageRoute.pointLabels(points: floorPoints, obstacles: obstacles, finished: false).last ?? "P\(route.count)"
+        }
+        let floorCount = floorPoints.dropFirst().filter { p in
+            !obstacles.contains(where: { $0.isStep && $0.contains(p) })
+        }.count
+        return "P\(floorCount + 1)"
     }
     public var objectErrors: [String] {
         guard let area else { return boundaryErrors }
@@ -147,13 +171,14 @@ public struct PreparationDraft: Sendable {
     /// Points already in a danger zone, e.g. from a performance plan. New points are refused by `edgeIssue`.
     public var dangerZoneRoutePointLabels: [String] {
         guard let area else { return [] }
+        let labels = routePointLabels
         return route.enumerated().compactMap { index, point in
             guard dangerZones.contains(where: {
                 $0.contains(area.floor(point),width:area.width,depth:area.depth)
             }) else { return nil }
             if index == 0 { return "시작점" }
             if routeFinished && index == route.count-1 { return "종료점" }
-            return "P\(index)"
+            return labels.indices.contains(index) ? labels[index] : "P\(index)"
         }
     }
     public var routeErrors: [String] {
