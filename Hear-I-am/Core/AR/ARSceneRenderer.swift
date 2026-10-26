@@ -24,6 +24,7 @@ final class ARSceneRenderer {
         /// Route clearance around blocking objects, filled in red in both preparation and guidance (#38).
         var clearance: Double
         var dangerZones: [StageDangerZone] = []
+        var planReference: StagePlanReference? = nil
     }
 
     let meshLayer=SCNNode()
