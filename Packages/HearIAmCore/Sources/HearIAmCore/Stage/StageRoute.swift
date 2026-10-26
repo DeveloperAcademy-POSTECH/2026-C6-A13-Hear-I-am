@@ -41,7 +41,7 @@ public struct StageRoute: Codable, Equatable, Sendable {
         }
         guard [1,2].contains(version), ((version == 2 ? 3 : 2)...Self.maxPointCount).contains(points.count), points.allSatisfy(\.valid),
               Set(obstacles.map(\.id)).count == obstacles.count else { throw LabError.invalid("경로 버전, 순서 또는 점 개수가 유효하지 않습니다.") }
-        for o in obstacles { try o.validate(); guard o.vertices.allSatisfy({area.contains($0)}) else { throw LabError.invalid("장애물이 무대 밖에 있습니다.") } }
+        for o in obstacles { try o.validate(); guard o.vertices.allSatisfy({area.contains($0)}) else { throw LabError.invalid("기물이 무대 밖에 있습니다.") } }
     }
     /// Display labels per route point (#76): start is 「출발」, finished last point is 「도착」,
     /// points inside a chair/stairs boundary count per kind (「의자1」, 「계단1」), and floor points count as 「P1」, 「P2」.

@@ -142,7 +142,7 @@
 		3721BA1178E90F236544AA53 /* PreparationPlanPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreparationPlanPicker.swift; sourceTree = "<group>"; };
 		38CE34E2EE5B2FB98E57F699 /* ARSceneRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ARSceneRenderer.swift; sourceTree = "<group>"; };
 		392E920D4DD249EC30519537 /* GuidanceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuidanceView.swift; sourceTree = "<group>"; };
-		3BB83D4B60EFF01F074B6D12 /* Hear-I-am.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = "Hear-I-am.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		3BB83D4B60EFF01F074B6D12 /* Hear-I-am.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Hear-I-am.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		3C9D9C4A569E37093119B17B /* DirectionHaptics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DirectionHaptics.swift; sourceTree = "<group>"; };
 		3D67B6843CBC3F6EAAB79896 /* ScanPhotoCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanPhotoCapture.swift; sourceTree = "<group>"; };
 		3D8307AA2FCB90242FC33A85 /* HearIAmCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = HearIAmCore; path = Packages/HearIAmCore; sourceTree = SOURCE_ROOT; };
@@ -176,7 +176,7 @@
 		722D44DB888422F0F5634E0C /* PreparationViewModel+Route.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PreparationViewModel+Route.swift"; sourceTree = "<group>"; };
 		736F3E79026A771CBBB15878 /* HomeViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeViewModel.swift; sourceTree = "<group>"; };
 		754DA2DEA96D2C68486BF8AB /* LibrarySelectionState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibrarySelectionState.swift; sourceTree = "<group>"; };
-		75897F93E4C7DD266125D339 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		75897F93E4C7DD266125D339 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		762A0C379B38BA796CA6B531 /* EscapeState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EscapeState.swift; sourceTree = "<group>"; };
 		78FF7D9B0DF5D1D7F5A352F9 /* PreparationMiniMap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreparationMiniMap.swift; sourceTree = "<group>"; };
 		7B2904B1F74C127204B46FE5 /* PreparationDangerZoneSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreparationDangerZoneSheet.swift; sourceTree = "<group>"; };
@@ -1032,6 +1032,15 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = 7C2363N8Z6;
+				INFOPLIST_KEY_CFBundleDisplayName = "Hear I am 히얼아이엠";
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = "무대 스캔, 현장 사진 촬영과 착용 위치 추적을 위해 카메라를 사용합니다.";
+				INFOPLIST_KEY_NSMotionUsageDescription = "에어팟으로 고개 방향을 재기 위해 움직임 정보를 사용합니다.";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -1194,6 +1203,15 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = 7C2363N8Z6;
+				INFOPLIST_KEY_CFBundleDisplayName = "Hear I am 히얼아이엠";
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = "무대 스캔, 현장 사진 촬영과 착용 위치 추적을 위해 카메라를 사용합니다.";
+				INFOPLIST_KEY_NSMotionUsageDescription = "에어팟으로 고개 방향을 재기 위해 움직임 정보를 사용합니다.";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
