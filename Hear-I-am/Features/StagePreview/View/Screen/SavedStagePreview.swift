@@ -63,7 +63,7 @@ struct SavedStagePreview: View {
                             ScrollView(.horizontal) {
                                 HStack {
                                     ForEach(route.points.indices,id:\.self) {i in
-                                        selectionButton("\(i+1) "+(i==0 ? "출발" : i==route.points.count-1 ? "도착" : "이동"),.point(i))
+                                        selectionButton(route.pointLabel(at:i),.point(i))
                                     }
                                 }
                             }
