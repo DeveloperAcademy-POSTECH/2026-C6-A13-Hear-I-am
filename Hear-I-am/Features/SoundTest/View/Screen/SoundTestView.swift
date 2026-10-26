@@ -1,85 +1,115 @@
 import SwiftUI
 import HearIAmCore
 
-/// Signal tutorial tab (#74): lets visually impaired users hear and practice the active guidance signals.
+/// Select any lesson directly. This lives inside Settings, not a tab or a nested NavigationStack.
 struct SoundTestView: View {
-    @StateObject private var model=SoundTestViewModel()
-    @AppStorage(HearAudioSession.speakerKey) private var forcesSpeaker=false
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment:.leading,spacing:20) {
-                    VStack(alignment:.leading,spacing:8) {
-                        Text("무대 안내 중에 들리는 신호음과 음성 안내를 미리 들어보고 익힐 수 있어요.")
-                            .font(.subheadline).foregroundStyle(.secondary)
-                        // Same setting as 홈 설정 › 소리 출력; the next sound plays through the new output.
-                        Toggle("폰 스피커로 듣기 (끄면 에어팟)",isOn:$forcesSpeaker).font(.subheadline)
-                            .onChange(of:forcesSpeaker) {_,value in model.record("audio_output",value ? "speaker" : "auto")}
+        ScrollView {
+            VStack(alignment:.leading,spacing:22) {
+                Text("처음에는 조력자와 함께\n편한 속도로 들어보세요.")
+                    .font(.subheadline).foregroundStyle(.secondary).fixedSize(horizontal:false,vertical:true)
+                TutorialOutputLink()
+                VStack(spacing:0) {
+                    ForEach(SoundTestSection.allCases) { step in
+                        NavigationLink {SignalLessonView(step:step)} label: {
+                            HStack(spacing:14) {
+                                Text(String(format:"%02d",step.id)).font(.system(size:17,weight:.medium)).monospacedDigit()
+                                    .frame(width:42,height:42).background(Color(.systemGray6),in:Circle()).accessibilityHidden(true)
+                                VStack(alignment:.leading,spacing:6) {
+                                    Text(step.title).font(.headline)
+                                    Text(step.subtitle).font(.subheadline).foregroundStyle(.secondary)
+                                }.fixedSize(horizontal:false,vertical:true).frame(maxWidth:.infinity,alignment:.leading)
+                                Image(systemName:"chevron.right").font(.system(size:13)).foregroundStyle(.secondary).accessibilityHidden(true)
+                            }.padding(16).frame(minHeight:84).contentShape(Rectangle())
+                        }.buttonStyle(.plain).accessibilityLabel("\(step.id)단계, \(step.title)").accessibilityHint(step.subtitle)
+                            .accessibilityIdentifier("tutorial.step.\(step.id)")
+                        if step.next != nil {Divider().padding(.leading,72)}
                     }
-                    SoundTestCard(section:.sounds) { sounds }
-                    SoundTestCard(section:.speech) { speech }
-                }.padding(.horizontal,20).padding(.vertical,16)
-            }.navigationTitle("신호 튜토리얼")
-        }
-        .onAppear { model.appear() }
-        .onDisappear { model.disappear() }
+                }.background(Color(.systemBackground),in:RoundedRectangle(cornerRadius:20))
+                    .overlay(RoundedRectangle(cornerRadius:20).stroke(Color(.systemGray5),lineWidth:1))
+            }.padding(20)
+        }.background(Color(.systemGroupedBackground))
+            .navigationTitle("안내 신호 익히기").navigationBarTitleDisplayMode(.large)
+            .toolbar(.hidden,for:.tabBar).tint(.hearInk)
     }
+}
 
-    private var sounds: some View {
-        VStack(alignment:.leading,spacing:16) {
-            SoundTestRow(label:"방향 찾기 (톡톡톡 · 왼쪽 낮게 / 오른쪽 높게, 가까워질수록 빨라짐)") {
-                ActionButton(title:"왼쪽 톡",primary:false) { model.tick(toRight:false) }
-                ActionButton(title:"오른쪽 톡",primary:false) { model.tick(toRight:true) }
+struct SignalLessonView: View {
+    @State var step: SoundTestSection
+    @StateObject private var model=SoundTestViewModel()
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.scenePhase) private var scenePhase
+    @AccessibilityFocusState private var headingFocused: Bool
+    var body: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment:.leading,spacing:22) {
+                    VStack(alignment:.leading,spacing:8) {
+                        Text("\(step.id) / \(SoundTestSection.allCases.count) 단계").font(.subheadline).foregroundStyle(.secondary)
+                        HStack(spacing:6) {
+                            ForEach(SoundTestSection.allCases) { item in
+                                Capsule().fill(item.id <= step.id ? Color.hearInk : Color(.systemGray5)).frame(height:5)
+                            }
+                        }.accessibilityHidden(true)
+                    }.id("lesson-top")
+                    Text(step.question).font(.largeTitle.bold()).fixedSize(horizontal:false,vertical:true)
+                        .accessibilityAddTraits(.isHeader).accessibilityFocused($headingFocused)
+                    Text(step.explanation).font(.body).fixedSize(horizontal:false,vertical:true)
+                    if step == .preparation {TutorialOutputLink()}
+                    Button {model.explain(step)} label: {
+                        Label(model.activeID == "explanation-\(step.id)" ? "설명 중지" : "설명 듣기",systemImage:model.activeID == "explanation-\(step.id)" ? "stop.fill" : "speaker.wave.2")
+                            .font(.subheadline.weight(.semibold)).padding(.horizontal,18).frame(minHeight:48)
+                            .background(Color(.systemGray6),in:Capsule())
+                    }.buttonStyle(.plain).accessibilityIdentifier("tutorial.explanation")
+                    if step == .direction {
+                        NavigationLink { FrontDirectionPracticeView() } label: {
+                            HStack(spacing: 14) {
+                                Image(systemName: "location.north.circle").font(.system(size: 30)).accessibilityHidden(true)
+                                VStack(alignment: .leading, spacing: 5) {
+                                    Text("정면 찾기 연습").font(.headline)
+                                    Text("몸을 돌려 실제 신호로 정면을 찾아보세요").font(.subheadline).foregroundStyle(.secondary)
+                                }.fixedSize(horizontal: false, vertical: true)
+                                Spacer(minLength: 0)
+                                Image(systemName: "chevron.right").accessibilityHidden(true)
+                            }.padding(16).frame(maxWidth: .infinity, minHeight: 76, alignment: .leading)
+                                .background(Color(.systemGray6), in: RoundedRectangle(cornerRadius: 18))
+                        }.buttonStyle(.plain).accessibilityIdentifier("tutorial.front-practice")
+                    }
+                    if let error=model.error {TutorialPlaybackError(message:error)}
+                    ForEach(step.groups) { group in
+                        VStack(alignment:.leading,spacing:10) {
+                            Text(group.title).font(.headline).accessibilityAddTraits(.isHeader)
+                            ForEach(group.examples) {TutorialExampleRow(example:$0,model:model)}
+                        }
+                    }
+                    VStack(alignment:.leading,spacing:8) {
+                        Text(step == .arrival ? "공연 대기는 이렇게 진행돼요" : "함께 확인해요").font(.headline)
+                        Text(step.together).font(.subheadline).fixedSize(horizontal:false,vertical:true)
+                    }.padding(16).frame(maxWidth:.infinity,alignment:.leading)
+                        .background(Color(.systemGray6),in:RoundedRectangle(cornerRadius:18))
+                }.padding(20)
+            }.onChange(of:step) {_,_ in
+                model.stop();model.clearError();proxy.scrollTo("lesson-top",anchor:.top);headingFocused=true
             }
-            SoundTestRow(label:"방향 맞음 (목표 정면 ±15° 안에 들어오면 울림)") {
-                ActionButton(title:"방향 맞음 (깊은 우드)",primary:false) { model.playAligned() }
+        }.background(Color(.systemBackground))
+            .navigationTitle(step.title).navigationBarTitleDisplayMode(.inline)
+            .toolbar(.hidden,for:.tabBar).tint(.hearInk)
+            .safeAreaInset(edge:.bottom) {
+                HStack(spacing:12) {
+                    Button {if let previous=step.previous {step=previous}} label: {
+                        Text("이전").font(.headline).frame(maxWidth:.infinity,minHeight:52)
+                            .background(Color(.systemGray6),in:RoundedRectangle(cornerRadius:14))
+                    }.disabled(step.previous == nil).opacity(step.previous == nil ? 0.4 : 1).accessibilityIdentifier("tutorial.previous")
+                    Button {
+                        model.stop()
+                        if let next=step.next {step=next} else {dismiss()}
+                    } label: {
+                        Text(step.next == nil ? "목록으로" : "다음").font(.headline).frame(maxWidth:.infinity,minHeight:52)
+                            .foregroundStyle(.white).background(Color.hearInk,in:RoundedRectangle(cornerRadius:14))
+                    }.accessibilityIdentifier("tutorial.next")
+                }.buttonStyle(.plain).padding(.horizontal,20).padding(.vertical,12).background(Color(.systemBackground))
             }
-            SoundTestRow(label:"출발 준비 완료 · 마지막 지점 도착 신호음") {
-                ActionButton(title:"띵",primary:false) { model.playArrival() }
-            }
-        }
-    }
-
-    private var speech: some View {
-        VStack(alignment:.leading,spacing:16) {
-            SoundTestRow(label:"출발 안내 (안내 시작 직후)") {
-                ActionButton(title:SignalCopy.start,primary:false) { model.speak(SignalCopy.start) }
-            }
-            SoundTestRow(label:"중간 목표 지점 도착 (P1, 의자1, 계단1... 지점 이름을 말해요)") {
-                ForEach([SignalCopy.point(1),SignalCopy.point(2),SignalCopy.stepPoint(stairs:false,number:1),SignalCopy.stepPoint(stairs:true,number:1)],id:\.self) { line in
-                    ActionButton(title:line,primary:false) { model.speak(line) }
-                }
-            }
-            SoundTestRow(label:"마지막 지점 도착 (띵 소리 0.7초 뒤 완료 안내)") {
-                ActionButton(title:"띵 + \(GuidanceCopy.completed)",primary:false) { model.playCompletionPreview() }
-                ActionButton(title:GuidanceCopy.completed,primary:false) { model.speak(GuidanceCopy.completed) }
-            }
-            SoundTestRow(label:"다음 지점 방향 (출발 · 지점 도착 직후 크게 안내)") {
-                ForEach([SignalCopy.right,SignalCopy.left],id:\.self) { line in
-                    ActionButton(title:line,primary:false) { model.speakNextSide(line) }
-                }
-            }
-            SoundTestRow(label:"방향이 틀렸을 때 (톡톡톡 시작 전 1회 안내)") {
-                ForEach([SignalCopy.right,SignalCopy.left],id:\.self) { line in
-                    ActionButton(title:line,primary:false) { model.speak(line) }
-                }
-            }
-            SoundTestRow(label:"의자 · 계단 사전 암시 (방향 맞음 후 거리 안내 전 1회 안내)") {
-                ForEach([SignalCopy.stepHint(stairs:false),SignalCopy.stepHint(stairs:true)],id:\.self) { line in
-                    ActionButton(title:line,primary:false) { model.speak(line) }
-                }
-            }
-            SoundTestRow(label:"남은 거리") {
-                ForEach([3.0,2,1,0.5],id:\.self) { meters in
-                    let line=SignalCopy.distance(meters)
-                    ActionButton(title:line,primary:false) { model.speak(line) }
-                }
-            }
-            SoundTestRow(label:"의자 · 계단 도착 후 바라볼 방향 (초록색 변 방향으로 몸 돌리기)") {
-                ForEach([SignalCopy.look(toRight:true),SignalCopy.look(toRight:false)],id:\.self) { line in
-                    ActionButton(title:line,primary:false) { model.speak(line) }
-                }
-            }
-        }
+            .onAppear {model.appear()}.onDisappear {model.disappear()}
+            .onChange(of:scenePhase) {_,phase in if phase != .active {model.stop()} }
     }
 }
