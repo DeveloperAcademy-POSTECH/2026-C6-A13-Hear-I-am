@@ -20,6 +20,7 @@ import HearIAmCore
     @Published var startDistance: Double?
     @Published var cue: GuidanceCue?
     @Published var arrivedName: String?
+    @Published var performanceHoldRemaining: Double = 0
     @Published var showExit=false
     @Published var savingRecord=false
     @Published var saveError: String?
@@ -67,7 +68,10 @@ import HearIAmCore
     var targetIndex: Int { guide?.targetIndex ?? 1 }
     var targetName: String { GuidanceCopy.target(targetIndex,last:(selected?.route?.points.count ?? 2)-1) }
     var headline: GuidanceHeadline {
-        GuidanceHeadline(phase:phase,targetName:targetName,hasStarted:started,departureReady:departureReady,
+        if phase == .guiding, performanceHoldRemaining > 0 {
+            return GuidanceHeadline(holdingSeconds:performanceHoldRemaining,pointName:guide?.route.pointLabel(at:max(1,targetIndex-1)) ?? SignalCopy.point(max(1,targetIndex-1)))
+        }
+        return GuidanceHeadline(phase:phase,targetName:targetName,hasStarted:started,departureReady:departureReady,
                          departureStatus:departureStatus,arrivedName:arrivedName,cue:cue,message:message)
     }
 
@@ -98,6 +102,9 @@ import HearIAmCore
         if phase == .finishing || phase == .completed { playCompletion();return }
         if phase == .guiding {
             if let step=aligningStep { read(["\(step.name)에서 설정된 방향으로 몸을 돌려주세요."]);return }
+            if let guide, guide.isHolding {
+                read(["공연 대기 중입니다. 다음 지점 안내까지 \(Int(ceil(guide.holdRemaining)))초 남았습니다."]);return
+            }
             guard let pose=freshPose(), let guide, let cue=guide.cue(position:pose.point,headingDegrees:pose.heading) else { return }
             read(["\(targetName)으로 이동합니다. \(cue.speech)"]);return
         }
@@ -118,7 +125,8 @@ import HearIAmCore
     /// Cancels pending speech callbacks; late callbacks see a new generation.
     func invalidateTasks() {
         generation=UUID();voice.stop();instructionDone=false;arrivedName=nil;arrivalShownAt=nil
-        aligningStep=nil;escape=nil;quietUntil=nil;signals.setWarning(nil);signals.setWarningQuiet(false)
+        if guide?.isHolding != true { aligningStep=nil }
+        escape=nil;quietUntil=nil;signals.setWarning(nil);signals.setWarningQuiet(false)
     }
     /// A pose no older than 0.5 s from a verified session, or nil.
     func freshPose() -> (point: FloorPoint, heading: Double, time: Double)? {

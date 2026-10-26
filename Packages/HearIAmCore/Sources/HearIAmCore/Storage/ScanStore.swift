@@ -5,6 +5,9 @@ public struct LoadedScan: Sendable {
     public let manifest: ScanManifest
     public let worldMap: Data
     public let meshes: [MeshSnapshot]
+    public init(manifest: ScanManifest, worldMap: Data, meshes: [MeshSnapshot]) {
+        self.manifest=manifest; self.worldMap=worldMap; self.meshes=meshes
+    }
 }
 /// Actor keeps serialization/disk access off UI; directories are published only after all files exist.
 public actor ScanStore {
@@ -91,6 +94,19 @@ public actor ScanStore {
         try manifest.validate()
         manifest.name=trimmed
         let encoder=JSONEncoder();encoder.outputFormatting=[.sortedKeys]
+        try encoder.encode(manifest).write(to:url,options:.atomic)
+        return manifest
+    }
+    /// Read the latest manifest so changing one point preserves concurrent edits to other metadata.
+    public func setPointHold(_ id: UUID, index: Int, seconds: Int) throws -> ScanManifest {
+        let url=root.appendingPathComponent(id.uuidString,isDirectory:true).appendingPathComponent("manifest.json")
+        var manifest=try JSONDecoder().decode(ScanManifest.self,from:Data(contentsOf:url))
+        guard manifest.id==id, var route=manifest.route else { throw LabError.invalid("저장된 무대 경로를 찾을 수 없습니다.") }
+        try manifest.validate()
+        try route.setHoldSeconds(seconds,at:index)
+        manifest.route=route
+        try manifest.validate()
+        let encoder=JSONEncoder(); encoder.outputFormatting=[.sortedKeys]
         try encoder.encode(manifest).write(to:url,options:.atomic)
         return manifest
     }
