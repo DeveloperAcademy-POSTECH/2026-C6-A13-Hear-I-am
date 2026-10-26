@@ -11,6 +11,7 @@ struct StageMap: View {
     var objects: [StageObstacle] = []
     var dangerZones: [StageDangerZone] = []
     var checkpoint: FloorPoint?
+    var secondCheckpoint: FloorPoint? = nil
     var cornerStates: [Bool]? = nil
     var activeCorner: Int? = nil
     var selectedObject: UUID? = nil
@@ -91,10 +92,12 @@ struct StageMap: View {
                     let p=project(aim)
                     context.stroke(Path(ellipseIn:CGRect(x:p.x-6,y:p.y-6,width:12,height:12)),with:.color(aimBlocked ? .red : .hearGreen),lineWidth:2)
                 }
-                if let checkpoint {
-                    let p=project(checkpoint)
-                    context.fill(Path(ellipseIn:CGRect(x:p.x-6,y:p.y-6,width:12,height:12)),with:.color(.red))
-                    context.draw(Text("확인점").font(.system(size:10)).foregroundColor(.red),at:CGPoint(x:p.x,y:p.y-15))
+                for (index,point) in [checkpoint,secondCheckpoint].enumerated() {
+                    if let point {
+                        let p=project(point)
+                        context.fill(Path(ellipseIn:CGRect(x:p.x-6,y:p.y-6,width:12,height:12)),with:.color(.red))
+                        context.draw(Text("확인점 \(index+1)").font(.system(size:10)).foregroundColor(.red),at:CGPoint(x:p.x,y:p.y-15))
+                    }
                 }
             }
             .contentShape(Rectangle())

@@ -101,6 +101,7 @@ final class PlatformEdgesTests: XCTestCase {
         var draft=PreparationDraft()
         draft.corners=[Point3(6,0,0),Point3(0,0,0),Point3(0,0,6),Point3(6,0,6)].map(Optional.some)
         let area=try XCTUnwrap(draft.area), shape=try object()
+        draft.secondCheckpoint=area.world(.init(5,5))
         for kind in [ObstacleKind.other,.box,.platform,.stairs] {
             draft.objects=[WorldObstacle(name:"기물",kind:kind,vertices:shape.vertices.map(area.world),height:0.5)]
             for point in [FloorPoint(1.9,3),.init(2,3),.init(2.049,3),.init(2.05,3),.init(2,2)] {
