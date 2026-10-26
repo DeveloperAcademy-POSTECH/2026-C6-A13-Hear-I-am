@@ -29,6 +29,7 @@ import HearIAmCore
     let voiceExperiment: Bool
     @Published var voiceMode: VoiceUsageMode?
     @Published var voiceChoosingMode=false
+    @Published var voiceSelectionControlsVisible=false
     @Published var voicePerformanceInputClosed=false
     @Published var voiceSearchQuery: String?
     @Published var voiceSearchIDs: [UUID]?

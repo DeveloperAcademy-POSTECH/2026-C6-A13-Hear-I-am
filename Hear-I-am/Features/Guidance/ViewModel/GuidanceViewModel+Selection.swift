@@ -23,6 +23,7 @@ extension GuidanceViewModel {
         if voiceExperiment {
             voiceRecognition.discardPendingSpeech();voiceTurnActive=false
             voiceMode=nil;voicePerformanceInputClosed=false;voiceChoosingMode=advanceAutomatically
+            voiceSelectionControlsVisible = !advanceAutomatically
             if advanceAutomatically {readVoiceModeQuestion()}
             else {prepareForVoiceTouch()}
             return

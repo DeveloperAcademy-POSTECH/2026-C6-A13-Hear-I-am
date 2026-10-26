@@ -29,7 +29,7 @@ struct VoiceModePicker: View {
                 }.buttonStyle(.plain).foregroundStyle(Color.primary)
                     .accessibilityAddTraits(model.voiceMode == mode ? [.isSelected] : [])
             }
-            Text("말하면 바로 진행해요. 버튼으로 선택한 경우 아래 ‘다음’을 눌러주세요.").font(.footnote).foregroundStyle(.secondary)
+            Text("말하면 바로 진행해요. 카드를 누르면 다음 버튼이 나타나요.").font(.footnote).foregroundStyle(.secondary)
         }
     }
 }
@@ -46,7 +46,7 @@ struct VoiceRehearsalPanel: View {
                        detail: model.voiceInputError ?? model.voiceStatusDetail,
                        transcript: model.voiceTranscript,
                        pulse: model.voiceListeningPulse) {
-            if model.voiceCanOfferInput {
+            if model.voiceCanOfferInput || model.phase == .selection {
                 ViewThatFits(in: .horizontal) {
                     HStack(spacing: 16) { inputActions }
                     VStack(alignment: .leading, spacing: 0) { inputActions }
@@ -55,13 +55,21 @@ struct VoiceRehearsalPanel: View {
         }.padding(.horizontal, 24).padding(.top, 10).padding(.bottom, 4)
     }
     @ViewBuilder private var inputActions: some View {
-        Button {model.retryVoiceListening()} label: {
-            Label(model.voiceInputError != nil || !model.voiceListeningEnabled ? "다시 듣기" : "다시 말하기",systemImage:"mic")
-                .font(.subheadline.weight(.semibold)).frame(minHeight:44)
-        }.buttonStyle(.plain)
-        if model.voiceListeningEnabled {
-            Button("음성 끄기") {model.disableVoiceListening()}
-                .font(.subheadline).foregroundStyle(.secondary).frame(minHeight:44)
+        if model.voiceCanOfferInput {
+            Button {model.retryVoiceListening()} label: {
+                Label(model.voiceInputError != nil || !model.voiceListeningEnabled ? "다시 듣기" : "다시 말하기",systemImage:"mic")
+                    .font(.subheadline.weight(.semibold)).frame(minHeight:44)
+            }.buttonStyle(.plain)
+            if model.voiceListeningEnabled {
+                Button("음성 끄기") {model.disableVoiceListening()}
+                    .font(.subheadline).foregroundStyle(.secondary).frame(minHeight:44)
+            }
+        }
+        if model.phase == .selection {
+            Button(model.voiceSelectionControlsVisible ? "버튼 접기" : "버튼으로 선택") {
+                model.toggleVoiceSelectionControls()
+            }.font(.subheadline).frame(minHeight:44).buttonStyle(.plain)
+                .accessibilityHint(model.voiceSelectionControlsVisible ? "선택은 유지하고 하단 진행 버튼을 숨깁니다" : "설명 다시 듣기와 다음 버튼을 표시합니다")
         }
     }
 }

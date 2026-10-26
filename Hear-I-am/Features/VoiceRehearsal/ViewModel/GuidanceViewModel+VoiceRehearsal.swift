@@ -79,6 +79,7 @@ extension GuidanceViewModel {
         voiceRecognition.discardPendingSpeech();voiceTurnActive=false
         voicePerformanceInputClosed=false
         voiceMode=mode
+        voiceSelectionControlsVisible = !advanceAutomatically
         if advanceAutomatically {continueVoiceSelection()}
         else {
             generation=UUID();voice.stop();instructionDone=true
@@ -87,6 +88,11 @@ extension GuidanceViewModel {
     /// Touch selection stays on the current screen until Next; recognized choices still advance.
     var canContinueVoiceSelection: Bool {
         phase == .selection && selected != nil && (!voiceChoosingMode || voiceMode != nil)
+    }
+    func toggleVoiceSelectionControls() {
+        guard voiceExperiment, phase == .selection, active else {return}
+        voiceSelectionControlsVisible.toggle()
+        if voiceSelectionControlsVisible {prepareForVoiceTouch()}
     }
     func prepareForVoiceTouch() {
         guard voiceExperiment else {return}
@@ -232,7 +238,7 @@ extension GuidanceViewModel {
         voiceTurnActive=false;voiceTranscript=text
         logSignal("voice_command",text)
         let parsed=VoiceCommandParser.parse(text)
-        if parsed == .cancel, !started {cancelVoiceSelection();return}
+        if parsed == .cancel, !started {voiceSelectionControlsVisible=false;cancelVoiceSelection();return}
         if phase == .selection, !voiceChoosingMode, parsed != .practice, parsed != .performance,
            parsed != .repeatInstruction, parsed != .pause, parsed != .next, parsed != .start, parsed != .continueGuidance,
            selectStageWithVoice(text) {return}
@@ -265,6 +271,7 @@ extension GuidanceViewModel {
         switch VoiceStageSearch.resolve(text,names:voiceStages.map(\.name)) {
         case .selected(let index): select(voiceStages[index]);return true
         case .results(let query,let indices):
+            voiceSelectionControlsVisible=false
             voiceRecognition.discardPendingSpeech()
             selected=nil;guide=nil;run=nil;pendingRecord=nil
             voiceSearchQuery=query;voiceSearchIDs=indices.map {voiceStages[$0].id}
@@ -276,7 +283,7 @@ extension GuidanceViewModel {
         guard voiceExperiment, active else {return}
         switch phase {
         case .selection:
-            if canContinueVoiceSelection {continueVoiceSelection();return}
+            if canContinueVoiceSelection {voiceSelectionControlsVisible=false;continueVoiceSelection();return}
             read([voiceChoosingMode ? "연습용 또는 실전용이라고 말씀하면 바로 다음 단계로 넘어갑니다." : "사용할 무대 이름이나 목록 번호를 말씀해주세요."])
         case .checkpoint:
             if canVerify {verifyCheckpoint()} else {read(["확인점을 아직 확인할 수 없어요. 휴대폰 조준점을 저장한 확인점에 맞춰주세요."])}

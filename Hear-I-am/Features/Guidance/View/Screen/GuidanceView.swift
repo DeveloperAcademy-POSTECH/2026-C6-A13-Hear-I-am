@@ -44,7 +44,10 @@ struct GuidanceView: View {
             .safeAreaInset(edge:.bottom,spacing:0) {
                 VStack(spacing:0) {
                     if model.voiceExperiment {VoiceRehearsalPanel(model:model)}
-                    GuidanceControls(library:library,model:model,close:close,saveAndClose:saveAndClose)
+                    // Selection starts voice-first; navigation and recovery controls stay available.
+                    if !model.voiceExperiment || model.phase != .selection || model.voiceSelectionControlsVisible || model.audioIssue != nil {
+                        GuidanceControls(library:library,model:model,close:close,saveAndClose:saveAndClose)
+                    }
                 }.background {
                     ZStack(alignment: .bottom) {
                         Color(.systemBackground)
