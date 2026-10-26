@@ -32,7 +32,7 @@ extension ARSessionController {
     /// Mirrors the preparation draft into anchors and the overlay. World coordinates stay authoritative.
     func applyPreparation(_ draft: PreparationDraft, pendingObject world: [Point3]) {
         preparedDraft=draft
-        corners=draft.corners; checkpoint=draft.checkpoint; area=draft.area
+        corners=draft.corners; checkpoint=draft.checkpoint; secondCheckpoint=draft.secondCheckpoint; area=draft.area
         removeReferenceAnchors(); addCornerAnchors()
         if let area {
             origin=area.world(FloorPoint(0,0)); front=area.world(FloorPoint(0,-1))
@@ -44,6 +44,7 @@ extension ARSessionController {
             settings.obstacleClearance=draft.effectiveObstacleClearance
         } else { origin=nil; front=nil; stage=nil; routePoints=[]; obstacles=[]; pendingObject=[] }
         if let checkpoint {addReference(checkpoint,suffix:".check")}
+        if let secondCheckpoint {addReference(secondCheckpoint,suffix:".check2")}
         canSave=false; redrawReferences()
     }
     /// Visual settings do not change spatial anchors or invalidate an already mapped stage.
@@ -52,17 +53,35 @@ extension ARSessionController {
         preparedDraft?.dangerZones=zones
         redrawReferences()
     }
+    func clearAlignment() {
+        measuredCheckpoints=[]; checkpointStableSince=nil; alignment=nil
+        renderer.applyAlignment(nil)
+    }
     func verifyCheckpoint() {
-        guard !busy, let checkpoint else { return }
+        guard !busy, gate.canVerify(now:now), let checkpoint, let secondCheckpoint else { return }
         do {
+            if !measuredCheckpoints.isEmpty && checkpointStableSince != gate.normalSince { clearAlignment() }
             let observed=try centerFloorPoint()
-            let distance=observed.distance(to:checkpoint)
-            let ok=gate.verify(error:distance,tolerance:checkpointTolerance,now:now)
-            ready=ok
-            event("checkpoint",detail:ok ? "pass" : "fail",position:observed,error:distance)
-            if ok { status="C 검증 통과 · 배에 카메라를 앞쪽으로 고정하고 추적 시작"; restoreStarted=nil }
-            else { invalidateWear("C 검증 실패 · 표식과 공간 복원을 다시 확인하세요") }
-        } catch { gate.invalidate(); invalidateWear("확인점 선택 실패"); errorMessage=error.localizedDescription }
+            event("checkpoint",detail:"point \(nextCheckpointNumber)",position:observed)
+            measuredCheckpoints.append(observed)
+            if measuredCheckpoints.count == 1 {
+                checkpointStableSince=gate.normalSince
+                status="확인점 1 측정 완료 · 저장한 확인점 2를 선택하세요"
+                return
+            }
+            let correction=try CheckpointAlignment(saved:[checkpoint,secondCheckpoint],observed:measuredCheckpoints)
+            guard gate.verify(error:correction.residual,tolerance:checkpointTolerance,now:now) else {
+                throw LabError.invalid("위치 추적이 불안정해요. 1번부터 다시 확인해주세요.")
+            }
+            alignment=correction; renderer.applyAlignment(correction)
+            ready=true; restoreStarted=nil
+            status="두 확인점 보정 완료 · 휴대폰 착용을 진행하세요"
+            event("checkpoint_alignment",detail:"translation=\(correction.translation)m yaw=\(correction.yawDegrees)deg lengthDifference=\(correction.lengthDifference)m residual=\(correction.residual)m",error:correction.residual)
+        } catch {
+            event("checkpoint_alignment",detail:"fail: \(error.localizedDescription)")
+            gate.invalidate(); invalidateWear("두 확인점 보정 실패")
+            errorMessage=error.localizedDescription
+        }
     }
 
     private func removeReferenceAnchors() {

@@ -8,6 +8,9 @@ extension GuidanceViewModel {
     }
     func select(_ item: ScanManifest) {
         guard phase == .selection else { return }
+        guard item.supportsAlignment else {
+            read(["이 무대는 확인점이 하나인 이전 버전입니다. 열람은 가능하지만 안내하려면 무대를 다시 준비해 확인점 두 개를 저장해주세요."]);return
+        }
         guard let route=item.route, route.conflicts(boundaryMargin:item.settings.boundaryMargin,obstacleClearance:item.settings.obstacleClearance).isEmpty else {
             read(["이 무대에는 사용할 수 있는 동선이 없습니다. 무대를 다시 준비해주세요."]);return
         }

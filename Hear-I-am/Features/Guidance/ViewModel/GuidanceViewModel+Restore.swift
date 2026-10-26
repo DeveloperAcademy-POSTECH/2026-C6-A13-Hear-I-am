@@ -18,11 +18,14 @@ extension GuidanceViewModel {
         invalidateTasks()
         tracking.errorMessage=nil;tracking.verifyCheckpoint()
         if tracking.ready {
-            phase = .wear;message="확인점이 일치합니다."
-            read(["확인점이 일치합니다.",GuidanceCopy.doNotDisturb,"휴대폰을 허리 앞쪽에 세로로 고정해주세요. 후면 카메라는 몸 바깥쪽을 향하고 렌즈는 가리지 말아주세요."])
+            phase = .wear;message="두 확인점 기준으로 위치와 방향을 보정했습니다."
+            read(["두 확인점 보정을 완료했습니다.",GuidanceCopy.doNotDisturb,"휴대폰을 허리 앞쪽에 세로로 고정해주세요. 후면 카메라는 몸 바깥쪽을 향하고 렌즈는 가리지 말아주세요."])
+        } else if tracking.measuredCheckpoints.count == 1 {
+            message="확인점 1번을 측정했습니다. 저장한 확인점 2번에 조준점을 맞춰주세요."
+            read([message])
         } else {
             message=tracking.errorMessage ?? "저장된 확인점과 위치가 맞지 않아요."
-            read(["\(message) 확인점을 다시 비춰주세요."])
+            read(["\(message) 확인점 1번부터 다시 비춰주세요."])
         }
     }
     func tickRestoring() {
@@ -30,12 +33,16 @@ extension GuidanceViewModel {
         if !tracking.busy && tracking.mode == .idle { fail(tracking.status);return }
         if tracking.canVerify, canAdvanceInstruction {
             invalidateTasks()
-            phase = .checkpoint;message="중앙 조준점을 저장한 확인점에 맞춰주세요."
-            read(["공연장을 찾았습니다. 확인점에 조준점을 맞추고 눌러주세요."])
+            phase = .checkpoint;message="중앙 조준점을 저장한 확인점 1번에 맞춰주세요."
+            read(["공연장을 찾았습니다. 저장한 확인점 1번에 조준점을 맞추고 눌러주세요."])
         }
     }
     func tickCheckpoint() {
-        if tracking.mode == .idle { fail(tracking.status) }
+        if tracking.mode == .idle { fail(tracking.status); return }
+        if tracking.measuredCheckpoints.isEmpty && message.hasPrefix("확인점 1번을 측정했습니다.") {
+            message="추적이 변경됐어요. 확인점 1번부터 다시 확인해주세요."
+            read([message])
+        }
     }
     func fail(_ error: String) {
         phase = .failed;message=error;tracking.endSession()

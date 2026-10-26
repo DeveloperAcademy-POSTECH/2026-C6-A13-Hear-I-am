@@ -26,14 +26,14 @@ struct GuidanceStageList: View {
         VStack(alignment:.leading,spacing:12) {
             Text(title).font(.headline)
             ForEach(items,id:\.id) { item in
-                let usable=item.route.map {$0.conflicts(boundaryMargin:item.settings.boundaryMargin,obstacleClearance:item.settings.obstacleClearance).isEmpty} ?? false
+                let usable=item.supportsAlignment && (item.route.map {$0.conflicts(boundaryMargin:item.settings.boundaryMargin,obstacleClearance:item.settings.obstacleClearance).isEmpty} ?? false)
                 Button {model.select(item)} label: {
                     VStack(alignment:.leading,spacing:12) {
                     HStack(alignment:.top,spacing:12) {
                         Image(systemName:model.selected?.id == item.id ? "checkmark.circle.fill" : "circle").font(.title2).foregroundStyle(Color.hearGreen)
                         VStack(alignment:.leading,spacing:8) {
                             Text(item.name).font(.headline).multilineTextAlignment(.leading)
-                            Text(usable ? "내부 지점 \(max(0,(item.route?.points.count ?? 2)-2))개 · 기물 \(item.route?.obstacles.count ?? 0)개" : "사용할 동선이 없어요 · 무대 다시 준비 필요")
+                            Text(!item.supportsAlignment ? "확인점 2개 등록 필요 · 무대를 다시 준비해주세요" : usable ? "내부 지점 \(max(0,(item.route?.points.count ?? 2)-2))개 · 기물 \(item.route?.obstacles.count ?? 0)개" : "사용할 동선이 없어요 · 무대 다시 준비 필요")
                                 .font(.subheadline).foregroundStyle(.secondary)
                             Text(item.date.formatted(.dateTime.locale(Locale(identifier:"ko_KR")).month().day().hour().minute())+" 저장").font(.caption).foregroundStyle(.secondary)
                         }
@@ -42,6 +42,7 @@ struct GuidanceStageList: View {
                     }
                     if model.selected?.id == item.id, let route=item.route {
                         StageMap(width:route.area.width,depth:route.area.depth,points:route.points,objects:route.obstacles,dangerZones:route.dangerZones,
+                                 checkpoint:route.area.floor(item.checkpoint),secondCheckpoint:item.secondCheckpoint.map(route.area.floor),
                                  clearance:item.settings.obstacleClearance)
                             .frame(height:140).accessibilityHidden(true)
                     }

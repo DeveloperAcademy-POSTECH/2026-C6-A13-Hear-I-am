@@ -13,13 +13,15 @@ extension ARSceneRenderer {
         case .preparation(let finished): preparing=true; routeFinished=finished; target=nil; completed=false
         case .guidance(let index, let done): preparing=false; routeFinished=false; target=index; completed=done
         }
-        if let p=content.checkpoint {
-            let node=SCNNode(geometry:SCNSphere(radius:0.04)); node.geometry?.firstMaterial?.diffuse.contents=UIColor.systemYellow
-            node.position=SCNVector3(Float(p.x),Float(p.y)+0.04,Float(p.z)); referenceLayer.addChildNode(node)
-            let text=SCNText(string:"확인점",extrusionDepth:0); text.font = .boldSystemFont(ofSize:Self.annotationFontSize)
-            let n=SCNNode(geometry:text); n.scale=Self.annotationScale
-            n.position=SCNVector3(Float(p.x),Float(p.y)+0.12,Float(p.z)); n.constraints=[SCNBillboardConstraint()]
-            referenceLayer.addChildNode(n)
+        for (index,point) in [content.checkpoint,content.secondCheckpoint].enumerated() {
+            if let p=point {
+                let node=SCNNode(geometry:SCNSphere(radius:0.04)); node.geometry?.firstMaterial?.diffuse.contents=UIColor.systemYellow
+                node.position=SCNVector3(Float(p.x),Float(p.y)+0.04,Float(p.z)); referenceLayer.addChildNode(node)
+                let text=SCNText(string:"확인점 \(index+1)",extrusionDepth:0); text.font = .boldSystemFont(ofSize:Self.annotationFontSize)
+                let n=SCNNode(geometry:text); n.scale=Self.annotationScale
+                n.position=SCNVector3(Float(p.x),Float(p.y)+0.12,Float(p.z)); n.constraints=[SCNBillboardConstraint()]
+                referenceLayer.addChildNode(n)
+            }
         }
         let corners=content.corners
         for (i,p) in corners.enumerated() {
