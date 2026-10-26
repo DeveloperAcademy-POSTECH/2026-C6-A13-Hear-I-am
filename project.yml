@@ -14,6 +14,7 @@ settings:
     CODE_SIGN_STYLE: Automatic
     GENERATE_INFOPLIST_FILE: YES
     INFOPLIST_KEY_NSCameraUsageDescription: 무대 스캔, 현장 사진 촬영과 착용 위치 추적을 위해 카메라를 사용합니다.
+    INFOPLIST_KEY_NSMotionUsageDescription: 정면 찾기 연습에서 휴대폰을 착용한 몸의 회전 방향을 확인합니다.
     INFOPLIST_KEY_CFBundleDisplayName: Hear I am 히얼아이엠
     INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
     INFOPLIST_KEY_UILaunchScreen_Generation: YES

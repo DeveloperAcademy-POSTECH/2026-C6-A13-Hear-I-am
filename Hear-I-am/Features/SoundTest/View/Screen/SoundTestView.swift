@@ -61,6 +61,20 @@ struct SignalLessonView: View {
                             .font(.subheadline.weight(.semibold)).padding(.horizontal,18).frame(minHeight:48)
                             .background(Color(.systemGray6),in:Capsule())
                     }.buttonStyle(.plain).accessibilityIdentifier("tutorial.explanation")
+                    if step == .direction {
+                        NavigationLink { FrontDirectionPracticeView() } label: {
+                            HStack(spacing: 14) {
+                                Image(systemName: "location.north.circle").font(.system(size: 30)).accessibilityHidden(true)
+                                VStack(alignment: .leading, spacing: 5) {
+                                    Text("정면 찾기 연습").font(.headline)
+                                    Text("몸을 돌려 실제 신호로 정면을 찾아보세요").font(.subheadline).foregroundStyle(.secondary)
+                                }.fixedSize(horizontal: false, vertical: true)
+                                Spacer(minLength: 0)
+                                Image(systemName: "chevron.right").accessibilityHidden(true)
+                            }.padding(16).frame(maxWidth: .infinity, minHeight: 76, alignment: .leading)
+                                .background(Color(.systemGray6), in: RoundedRectangle(cornerRadius: 18))
+                        }.buttonStyle(.plain).accessibilityIdentifier("tutorial.front-practice")
+                    }
                     if let error=model.error {TutorialPlaybackError(message:error)}
                     ForEach(step.groups) { group in
                         VStack(alignment:.leading,spacing:10) {

@@ -124,6 +124,9 @@
 		708419BECC9B620ABDC94753 /* PlaceEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38B6BD8546DBD3A62FFA0FA5 /* PlaceEditorView.swift */; };
 		1C398E870B6674B5A3204585 /* PlaceMoveView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04E3E3A46607028B6145A9B1 /* PlaceMoveView.swift */; };
 		7FCA79F5AB73358F7B9819EC /* PlacesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2DE6DA32B87A7DC76AFCF4E /* PlacesView.swift */; };
+		6059679D0A0A9EF0B9EEBABA /* FrontDirectionSensor.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5DD490E6C8B13E5386CFAF0 /* FrontDirectionSensor.swift */; };
+		C4A537E8319A43F16E140807 /* FrontDirectionPracticeViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FB4F7E0A74FB58A995DC87C /* FrontDirectionPracticeViewModel.swift */; };
+		58E03895806D9F55B7E3E465 /* FrontDirectionPracticeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE264B9FF2297F674DAAAB1F /* FrontDirectionPracticeView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -245,6 +248,9 @@
 		38B6BD8546DBD3A62FFA0FA5 /* PlaceEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaceEditorView.swift; sourceTree = "<group>"; };
 		04E3E3A46607028B6145A9B1 /* PlaceMoveView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaceMoveView.swift; sourceTree = "<group>"; };
 		D2DE6DA32B87A7DC76AFCF4E /* PlacesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlacesView.swift; sourceTree = "<group>"; };
+		E5DD490E6C8B13E5386CFAF0 /* FrontDirectionSensor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrontDirectionSensor.swift; sourceTree = "<group>"; };
+		3FB4F7E0A74FB58A995DC87C /* FrontDirectionPracticeViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrontDirectionPracticeViewModel.swift; sourceTree = "<group>"; };
+		DE264B9FF2297F674DAAAB1F /* FrontDirectionPracticeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrontDirectionPracticeView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -394,6 +400,7 @@
 			isa = PBXGroup;
 			children = (
 				86127854F38256585AE9495B /* SoundTestLog.swift */,
+				E5DD490E6C8B13E5386CFAF0 /* FrontDirectionSensor.swift */,
 			);
 			path = Sensor;
 			sourceTree = "<group>";
@@ -672,6 +679,7 @@
 			isa = PBXGroup;
 			children = (
 				B81D859DA967D4DFD75AC8C5 /* SoundTestView.swift */,
+				DE264B9FF2297F674DAAAB1F /* FrontDirectionPracticeView.swift */,
 			);
 			path = Screen;
 			sourceTree = "<group>";
@@ -837,6 +845,7 @@
 			isa = PBXGroup;
 			children = (
 				7CCEAAA341C35912CFF2B73B /* SoundTestViewModel.swift */,
+				3FB4F7E0A74FB58A995DC87C /* FrontDirectionPracticeViewModel.swift */,
 			);
 			path = ViewModel;
 			sourceTree = "<group>";
@@ -1059,9 +1068,12 @@
 				1E1B156B59E944E72CB42E88 /* SignalPlayer.swift in Sources */,
 				CA2EAC6BC68B00BD57B4FA92 /* SoundTestCard.swift in Sources */,
 				B12DB1BBB33173F967876412 /* SoundTestLog.swift in Sources */,
+				6059679D0A0A9EF0B9EEBABA /* FrontDirectionSensor.swift in Sources */,
 				553B72480CC8AD35363BB284 /* SoundTestSection.swift in Sources */,
 				D3E7E069A3068E057B2B76D9 /* SoundTestView.swift in Sources */,
+				58E03895806D9F55B7E3E465 /* FrontDirectionPracticeView.swift in Sources */,
 				BDC2F11D3BD54A3FD7CF4480 /* SoundTestViewModel.swift in Sources */,
+				C4A537E8319A43F16E140807 /* FrontDirectionPracticeViewModel.swift in Sources */,
 				026DC55939F4D0F2D7C900AD /* StageDangerZoneOverlay.swift in Sources */,
 				CBEE9F01464EC8020B4ED083 /* StageLibrary.swift in Sources */,
 				7E1C4372DA56BCA7AE9AC943 /* StageMap.swift in Sources */,
@@ -1085,7 +1097,7 @@
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "무대 스캔, 현장 사진 촬영과 착용 위치 추적을 위해 카메라를 사용합니다.";
-				INFOPLIST_KEY_NSMotionUsageDescription = "에어팟으로 고개 방향을 재기 위해 움직임 정보를 사용합니다.";
+				INFOPLIST_KEY_NSMotionUsageDescription = "정면 찾기 연습에서 휴대폰을 착용한 몸의 회전 방향을 확인합니다.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -1152,6 +1164,7 @@
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "무대 스캔, 현장 사진 촬영과 착용 위치 추적을 위해 카메라를 사용합니다.";
+				INFOPLIST_KEY_NSMotionUsageDescription = "정면 찾기 연습에서 휴대폰을 착용한 몸의 회전 방향을 확인합니다.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIFileSharingEnabled = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -1228,6 +1241,7 @@
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "무대 스캔, 현장 사진 촬영과 착용 위치 추적을 위해 카메라를 사용합니다.";
+				INFOPLIST_KEY_NSMotionUsageDescription = "정면 찾기 연습에서 휴대폰을 착용한 몸의 회전 방향을 확인합니다.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIFileSharingEnabled = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -1256,7 +1270,7 @@
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "무대 스캔, 현장 사진 촬영과 착용 위치 추적을 위해 카메라를 사용합니다.";
-				INFOPLIST_KEY_NSMotionUsageDescription = "에어팟으로 고개 방향을 재기 위해 움직임 정보를 사용합니다.";
+				INFOPLIST_KEY_NSMotionUsageDescription = "정면 찾기 연습에서 휴대폰을 착용한 몸의 회전 방향을 확인합니다.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
