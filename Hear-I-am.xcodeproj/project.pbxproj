@@ -118,6 +118,12 @@
 		F476B18BC3F90D9743A82ADE /* ScanPhotoCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D67B6843CBC3F6EAAB79896 /* ScanPhotoCapture.swift */; };
 		FF831C64D02C6732D6831BF4 /* HomeSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC8A4BF4410000A803BAE8B2 /* HomeSettingsView.swift */; };
 		FF9883DC37B450395C743F80 /* GuidanceViewModel+Recording.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3ECAE078F712DCFE039B1ED7 /* GuidanceViewModel+Recording.swift */; };
+		0B3695A647EBEF42189B9EBD /* PlaceLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = E207C30FB7BA913E9B8C5FCE /* PlaceLibrary.swift */; };
+		2CA81AD12540E92100F7D501 /* PlaceComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40B9FDBAA3BA5DC980318CF6 /* PlaceComponents.swift */; };
+		6C5C887B6BB7FBFF752289A3 /* PlaceContentsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3E560052F7B813A97533E71 /* PlaceContentsView.swift */; };
+		708419BECC9B620ABDC94753 /* PlaceEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38B6BD8546DBD3A62FFA0FA5 /* PlaceEditorView.swift */; };
+		1C398E870B6674B5A3204585 /* PlaceMoveView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04E3E3A46607028B6145A9B1 /* PlaceMoveView.swift */; };
+		7FCA79F5AB73358F7B9819EC /* PlacesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2DE6DA32B87A7DC76AFCF4E /* PlacesView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -233,6 +239,12 @@
 		FC2463CC15C59B86D72DD3D6 /* ScreenOrientation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenOrientation.swift; sourceTree = "<group>"; };
 		FDB6273190FA1ACD948CD2D7 /* PlanLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanLibraryView.swift; sourceTree = "<group>"; };
 		FEC77E507C26088A784CBBCE /* Color+Hear.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Color+Hear.swift"; sourceTree = "<group>"; };
+		E207C30FB7BA913E9B8C5FCE /* PlaceLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaceLibrary.swift; sourceTree = "<group>"; };
+		40B9FDBAA3BA5DC980318CF6 /* PlaceComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaceComponents.swift; sourceTree = "<group>"; };
+		B3E560052F7B813A97533E71 /* PlaceContentsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaceContentsView.swift; sourceTree = "<group>"; };
+		38B6BD8546DBD3A62FFA0FA5 /* PlaceEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaceEditorView.swift; sourceTree = "<group>"; };
+		04E3E3A46607028B6145A9B1 /* PlaceMoveView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaceMoveView.swift; sourceTree = "<group>"; };
+		D2DE6DA32B87A7DC76AFCF4E /* PlacesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlacesView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -430,6 +442,7 @@
 			children = (
 				65E5D193BA4992BBBB35E91B /* Guidance */,
 				E5FD3EADA5C275D14CBDEAD1 /* Home */,
+				23D9E329D58020B99BDDE289 /* Places */,
 				5A5D4386ACC24D0305A2C172 /* Planning */,
 				7D72D7E7B1369BE7CDCA53FC /* Preparation */,
 				93804605A383D36621768212 /* Records */,
@@ -837,6 +850,35 @@
 			path = View;
 			sourceTree = "<group>";
 		};
+		2EC7CB3F9B9A97E8450E0394 /* Model */ = {
+			isa = PBXGroup;
+			children = (
+				E207C30FB7BA913E9B8C5FCE /* PlaceLibrary.swift */,
+			);
+			path = Model;
+			sourceTree = "<group>";
+		};
+		C105CBFE9E77B86FB58B2F03 /* View */ = {
+			isa = PBXGroup;
+			children = (
+				40B9FDBAA3BA5DC980318CF6 /* PlaceComponents.swift */,
+				B3E560052F7B813A97533E71 /* PlaceContentsView.swift */,
+				38B6BD8546DBD3A62FFA0FA5 /* PlaceEditorView.swift */,
+				04E3E3A46607028B6145A9B1 /* PlaceMoveView.swift */,
+				D2DE6DA32B87A7DC76AFCF4E /* PlacesView.swift */,
+			);
+			path = View;
+			sourceTree = "<group>";
+		};
+		23D9E329D58020B99BDDE289 /* Places */ = {
+			isa = PBXGroup;
+			children = (
+				2EC7CB3F9B9A97E8450E0394 /* Model */,
+				C105CBFE9E77B86FB58B2F03 /* View */,
+			);
+			path = Places;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -914,6 +956,12 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				0B3695A647EBEF42189B9EBD /* PlaceLibrary.swift in Sources */,
+				2CA81AD12540E92100F7D501 /* PlaceComponents.swift in Sources */,
+				6C5C887B6BB7FBFF752289A3 /* PlaceContentsView.swift in Sources */,
+				708419BECC9B620ABDC94753 /* PlaceEditorView.swift in Sources */,
+				1C398E870B6674B5A3204585 /* PlaceMoveView.swift in Sources */,
+				7FCA79F5AB73358F7B9819EC /* PlacesView.swift in Sources */,
 				4451219074A9A9D113B917C9 /* ARSceneRenderer+Annotations.swift in Sources */,
 				920DF18E116D5EA38C24AD65 /* ARSceneRenderer.swift in Sources */,
 				B77F4E3AA6F6548C9189E5B0 /* ARSessionController+Lifecycle.swift in Sources */,
