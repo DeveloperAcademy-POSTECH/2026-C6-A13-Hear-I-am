@@ -38,7 +38,7 @@ struct HomeView: View {
                         } else {HomeStageList(library:library,model:model,records:library.groups.recent)}
                     }
                 }.padding(20).padding(.bottom,16)
-            }.background(Color(.systemBackground)).toolbar(.hidden,for:.navigationBar)
+            }.background(Color(.systemBackground)).navigationTitle("홈").toolbar(.hidden,for:.navigationBar).toolbar(model.showingSettings ? .hidden : .visible,for:.tabBar)
                 .safeAreaInset(edge:.bottom) {
                     if model.selection.selecting {LibrarySelectionBar(count:model.selection.ids.count,busy:model.selection.deleting,cancel:{model.selection.cancel()},delete:{model.selection.confirmingDelete=true})}
                 }
@@ -51,7 +51,7 @@ struct HomeView: View {
                     Button("취소",role:.cancel) {model.cancelRename()}
                     Button("저장") {model.rename(in:library)}.disabled(!model.canSaveName)
                 } message: {Text("무대 이름을 80자 이내로 입력해주세요.")}
-                .sheet(isPresented:$model.showingSettings) {HomeSettingsView()}
+                .navigationDestination(isPresented:$model.showingSettings) {HomeSettingsView()}
                 .refreshable {await library.refresh()}
                 .fullScreenCover(isPresented:$model.preparing,onDismiss:{Task {await library.refresh()}}) {PreparationView(library:library)}
                 .fullScreenCover(isPresented:$model.guiding) {GuidanceView(library:library)}
