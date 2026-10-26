@@ -12,13 +12,13 @@ extension GuidanceViewModel {
             read(["이 무대에는 사용할 수 있는 동선이 없습니다. 무대를 다시 준비해주세요."]);return
         }
         selected=item;guide=RouteGuide(route:route,settings:item.settings,usesRouteCorridor:true,pausesForPositionIssues:false)
-        started=false;cue=nil;performanceHoldRemaining=0;pendingRecord=nil
+        started=false;aligningStep=nil;cue=nil;performanceHoldRemaining=0;pendingRecord=nil
         run=GuidanceRun(stageID:item.id,stageName:item.name,route:route)
         tracking.setGuidanceTarget(1)
         read(["\(item.name)을 선택했습니다. 내부 지점은 \(max(0,route.points.count-2))개입니다."])
     }
     func chooseAgain() {
-        invalidateTasks();tracking.endSession();guide=nil;run=nil;pendingRecord=nil;selected=nil;started=false;phase = .selection
+        invalidateTasks();tracking.endSession();guide=nil;run=nil;pendingRecord=nil;selected=nil;started=false;aligningStep=nil;phase = .selection
         read(["안내에 사용할 무대를 다시 선택해주세요."])
     }
 }

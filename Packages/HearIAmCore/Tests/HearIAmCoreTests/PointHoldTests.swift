@@ -112,4 +112,28 @@ final class PointHoldTests: XCTestCase {
         let list=try await store.list()
         XCTAssertEqual(list.first?.route?.holdSeconds(at:1),30)
     }
+    func testFacingAlignmentStillBlocksProgressAfterHoldExpires() throws {
+        var g=try guide(seconds:1)
+        observe(&g,0);observe(&g,0.25)
+        for time in [0.5,0.75,1.0,1.25,1.5,1.75,2.0] {
+            _=g.observe(time:time,position:g.route.points[2],headingDegrees:0,trackingValid:true,allowsTargetAdvance:false)
+            XCTAssertEqual(g.targetIndex,2)
+        }
+        XCTAssertFalse(g.isHolding)
+        observe(&g,2.25,2);observe(&g,2.5,2)
+        XCTAssertEqual(g.targetIndex,3)
+    }
+    func testStepNamesAndFacingEdgeRoundTripAlongsideHold() throws {
+        var r=try route()
+        r.obstacles=[try StageObstacle(name:"의자",kind:.platform,vertices:[.init(2.5,1.5),.init(3.5,1.5),.init(3.5,2.5),.init(2.5,2.5)],facingEdge:0)]
+        r.pointNames=StageRoute.pointLabels(points:r.points,obstacles:r.obstacles)
+        try r.setHoldSeconds(20,at:1)
+        let decoded=try JSONDecoder().decode(StageRoute.self,from:JSONEncoder().encode(r))
+        XCTAssertEqual(decoded.pointLabel(at:1),"의자1")
+        XCTAssertEqual(decoded.spokenPointName(at:1),r.spokenPointName(at:1))
+        XCTAssertEqual(decoded.step(at:1)?.facingEdge,0)
+        XCTAssertEqual(decoded.holdSeconds(at:1),20)
+        XCTAssertEqual(decoded.pointLabel(at:2),"P1")
+    }
+
 }
