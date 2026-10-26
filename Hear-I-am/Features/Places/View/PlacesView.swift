@@ -9,6 +9,7 @@ struct PlacesView: View {
     @State private var favoritesOnly=false
     @State private var sort=PlaceSort.recent
     @FocusState private var searchFocused: Bool
+    @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(\.scenePhase) private var scenePhase
     private var searching: Bool {!query.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty}
     private var places: [PlaceEntry] {sort.sorted(model.index.places.filter {(kind == nil || $0.kind == kind) && (!favoritesOnly || $0.favorite)})}
@@ -20,7 +21,7 @@ struct PlacesView: View {
                     HStack {
                         Text("장소").font(.largeTitle.bold()).accessibilityAddTraits(.isHeader)
                         Spacer()
-                        Button {searchFocused=false;model.present(.edit(nil))} label:{Image(systemName:"plus").font(.title3).frame(width:44,height:44).background(Color(.systemGray6),in:Circle())}
+                        Button {searchFocused=false;model.present(.edit(nil))} label:{Image(systemName:"plus").font(.system(size:20)).frame(width:44,height:44).background(Color(.systemGray6),in:Circle())}
                             .accessibilityLabel("장소 등록").disabled(!model.ready || model.busy || model.loading)
                     }
                     searchField
@@ -34,7 +35,7 @@ struct PlacesView: View {
                 .toolbar(.hidden,for:.navigationBar)
                 .safeAreaInset(edge:.bottom,alignment:.trailing) {
                     if !searchFocused {
-                        HStack {Spacer();Button {Task {await model.beginScan(at:nil,library:library)}} label:{Label("새 스캔",systemImage:"viewfinder").font(.subheadline.weight(.semibold)).padding(.horizontal,20).frame(minHeight:50).foregroundStyle(.white).background(Color.hearInk,in:Capsule()).shadow(color:.black.opacity(0.16),radius:8,y:3)}.accessibilityHint("장소를 지정하지 않고 새 스캔을 시작합니다").disabled(!model.ready || model.busy || model.loading)}
+                        HStack {Spacer();Button {Task {await model.beginScan(at:nil,library:library)}} label:{HStack(spacing:8) {Image(systemName:"viewfinder").font(.system(size:20));Text("새 스캔").font(.subheadline.weight(.semibold))}.padding(.horizontal,20).frame(minHeight:50).foregroundStyle(.white).background(Color.hearInk,in:Capsule()).shadow(color:.black.opacity(0.16),radius:8,y:3)}.accessibilityHint("장소를 지정하지 않고 새 스캔을 시작합니다").disabled(!model.ready || model.busy || model.loading)}
                             .padding(.horizontal,20).padding(.top,10).padding(.bottom,12)
                     }
                 }
@@ -56,9 +57,9 @@ struct PlacesView: View {
     private var searchField: some View {
         HStack(spacing:10) {
             HStack(spacing:8) {
-                Image(systemName:"magnifyingglass").foregroundStyle(.secondary).accessibilityHidden(true)
+                Image(systemName:"magnifyingglass").font(.system(size:17)).foregroundStyle(.secondary).accessibilityHidden(true)
                 TextField("장소 · 공연 검색",text:$query).focused($searchFocused).submitLabel(.search).autocorrectionDisabled().textInputAutocapitalization(.never).accessibilityLabel("장소 또는 공연 검색")
-                if !query.isEmpty {Button {query=""} label:{Image(systemName:"xmark.circle.fill").foregroundStyle(.secondary).frame(width:32,height:40)}.accessibilityLabel("검색어 지우기")}
+                if !query.isEmpty {Button {query=""} label:{Image(systemName:"xmark.circle.fill").font(.system(size:18)).foregroundStyle(.secondary).frame(width:32,height:40)}.accessibilityLabel("검색어 지우기")}
             }.font(.subheadline).padding(.horizontal,12).frame(minHeight:44).background(Color(.systemGray6),in:RoundedRectangle(cornerRadius:13))
             if searchFocused || searching {Button("취소") {query="";searchFocused=false}.font(.subheadline).frame(minHeight:44)}
         }
@@ -67,14 +68,19 @@ struct PlacesView: View {
         VStack(alignment:.leading,spacing:20) {
             NavigationLink {PlaceContentsView(destination:nil,model:model,library:library)} label:{
                 HStack(spacing:10) {
-                    Image(systemName:"tray").font(.title3);Text("장소 미지정").font(.subheadline.weight(.semibold));Spacer()
-                    Text("공연 \(model.records(library.records,at:nil).count)개").font(.caption).foregroundStyle(.secondary)
-                    Image(systemName:"chevron.right").font(.caption).foregroundStyle(.secondary)
+                    Image(systemName:"tray").font(.system(size:22))
+                    (typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment:.leading,spacing:8)) : AnyLayout(HStackLayout())) {
+                        Text("장소 미지정").font(.subheadline.weight(.semibold)).fixedSize(horizontal:false,vertical:true)
+                        if !typeSize.isAccessibilitySize {Spacer()}
+                        Text("공연 \(model.records(library.records,at:nil).count)개").font(.caption).foregroundStyle(.secondary)
+                    }.frame(maxWidth:.infinity,alignment:.leading)
+                    Image(systemName:"chevron.right").font(.system(size:12)).foregroundStyle(.secondary)
                 }.padding(16).placeCardStyle()
             }.buttonStyle(.plain)
             VStack(alignment:.leading,spacing:12) {
-                HStack {
-                    Text("내 장소").font(.headline);Text("\(places.count)").font(.headline).foregroundStyle(.secondary);Spacer()
+                (typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment:.leading,spacing:4)) : AnyLayout(HStackLayout())) {
+                    HStack {Text("내 장소").font(.headline);Text("\(places.count)").font(.headline).foregroundStyle(.secondary)}
+                    if !typeSize.isAccessibilitySize {Spacer()}
                     Menu {
                         ForEach(PlaceSort.allCases,id:\.self) {option in
                             Button {sort=option} label:{
@@ -84,8 +90,9 @@ struct PlacesView: View {
                     } label:{HStack(spacing:6) {Text(sort.title);Image(systemName:"chevron.down")}.font(.caption).frame(minHeight:44)}
                 }
                 HStack(spacing:10) {
-                    Picker("장소 유형",selection:$kind) {Text("전체").tag(nil as PlaceKind?);ForEach(PlaceKind.allCases,id:\.self) {Text($0.title).tag(Optional($0))}}.pickerStyle(.segmented)
-                    Button {favoritesOnly.toggle()} label:{Image(systemName:favoritesOnly ? "star.fill" : "star").font(.title3).frame(width:44,height:44).background(Color(.systemGray6),in:Circle())}.accessibilityLabel("즐겨찾기만 보기").accessibilityValue(favoritesOnly ? "켬" : "끔")
+                    if typeSize.isAccessibilitySize {kindPicker.pickerStyle(.menu).labelsHidden().frame(maxWidth:.infinity,alignment:.leading)}
+                    else {kindPicker.pickerStyle(.segmented)}
+                    Button {favoritesOnly.toggle()} label:{Image(systemName:favoritesOnly ? "star.fill" : "star").font(.system(size:20)).frame(width:44,height:44).background(Color(.systemGray6),in:Circle())}.accessibilityLabel("즐겨찾기만 보기").accessibilityValue(favoritesOnly ? "켬" : "끔")
                 }
                 if places.isEmpty {
                     if model.index.places.isEmpty {
@@ -96,6 +103,12 @@ struct PlacesView: View {
                 } else {LazyVStack(spacing:10) {ForEach(places) {PlaceCard(place:$0,model:model,library:library)}}}
             }
         }
+    }
+    private var kindPicker: some View {
+        Picker("장소 유형",selection:$kind) {
+            Text("전체").tag(nil as PlaceKind?)
+            ForEach(PlaceKind.allCases,id:\.self) {Text($0.title).tag(Optional($0))}
+        }.accessibilityLabel("장소 유형")
     }
     private var searchResults: some View {
         let results=self.results

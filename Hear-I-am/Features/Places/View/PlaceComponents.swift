@@ -34,10 +34,10 @@ struct PlaceCard: View {
             }.buttonStyle(.plain)
             VStack(spacing:2) {
                 Button {Task {await model.update {try await model.store.togglePlaceFavorite(place.id)}}} label: {
-                    Image(systemName:place.favorite ? "star.fill" : "star").font(.title3).frame(width:44,height:44)
+                    Image(systemName:place.favorite ? "star.fill" : "star").font(.system(size:20)).frame(width:44,height:44)
                 }.buttonStyle(.plain).disabled(model.busy)
                     .accessibilityLabel("\(place.name) 즐겨찾기 \(place.favorite ? "해제" : "추가")")
-                Image(systemName:"chevron.right").font(.caption).foregroundStyle(.secondary).padding(.top,6).accessibilityHidden(true)
+                Image(systemName:"chevron.right").font(.system(size:12)).foregroundStyle(.secondary).padding(.top,6).accessibilityHidden(true)
             }
         }.padding(14).placeCardStyle()
     }
@@ -84,7 +84,7 @@ struct PlacePerformanceCard: View {
                     Button(model.index.favoriteScans.contains(record.id) ? "즐겨찾기 해제" : "즐겨찾기",systemImage:"star") {
                         Task {await model.update {try await model.store.togglePerformanceFavorite(record.id)}}
                     }
-                } label:{Image(systemName:"ellipsis").frame(width:44,height:44)}
+                } label:{Image(systemName:"ellipsis").font(.system(size:20)).frame(width:44,height:44)}
                     .accessibilityLabel("\(record.name), \(model.index.path(for:record.id).joined(separator:", ")), 관리")
                     .disabled(model.busy)
             }
