@@ -30,7 +30,7 @@ struct PlacesView: View {
                         else {ContentUnavailableView {Label("장소를 불러오지 못했어요",systemImage:"folder.badge.questionmark")} description:{Text("기존 스캔은 유지됩니다.")} actions:{Button("다시 불러오기") {Task {await model.refresh()}}}}
                     } else if searching {searchResults}
                     else {placeList}
-                }.padding(.horizontal,20).padding(.top,8).padding(.bottom,12)
+                }.padding(.horizontal,20).padding(.top,48).padding(.bottom,12)
             }.background(Color(.systemBackground)).scrollDismissesKeyboard(.interactively)
                 .toolbar(.hidden,for:.navigationBar)
                 .safeAreaInset(edge:.bottom,alignment:.trailing) {
