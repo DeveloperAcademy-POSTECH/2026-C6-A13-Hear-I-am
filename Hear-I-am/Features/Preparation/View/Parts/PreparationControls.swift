@@ -45,7 +45,10 @@ struct PreparationControls: View {
                 if draft.route.count>=2 {ActionButton(title:"도착점 지정",enabled:model.canPlacePoint && draft.area != nil) {model.addRoutePoint(destination:true)}}
             }
         case .checkpoint:
-            ActionButton(title:draft.checkpoint == nil ? "확인점 지정" : "다시 찍기",primary:draft.checkpoint == nil,enabled:model.canPlacePoint && draft.area != nil) {model.placeCheckpoint()}
+            ActionButton(title:draft.checkpoint == nil ? "확인점 1 지정" : "확인점 1 다시 찍기",primary:draft.checkpoint == nil,enabled:model.canPlacePoint && draft.area != nil) {model.placeCheckpoint(0)}
+            if draft.checkpoint != nil {
+                ActionButton(title:draft.secondCheckpoint == nil ? "확인점 2 지정" : "확인점 2 다시 찍기",primary:draft.secondCheckpoint == nil,enabled:model.canPlacePoint) {model.placeCheckpoint(1)}
+            }
             if draft.checkpoint != nil {ActionButton(title:"검토하기",enabled:draft.checkpointErrors.isEmpty) {model.review=true}}
         }
     }
