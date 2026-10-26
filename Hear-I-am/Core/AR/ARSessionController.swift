@@ -80,6 +80,7 @@ final class ARSessionController: ObservableObject {
     var routePoints: [FloorPoint] = []
     var obstacles: [StageObstacle] = []
     var pendingObject: [FloorPoint] = []
+    var pendingFacingEdge: Int? = nil
     /// The preparation draft last applied; saving builds the route from it.
     var preparedDraft: PreparationDraft?
     var planReference: StagePlanReference?
@@ -126,7 +127,7 @@ final class ARSessionController: ObservableObject {
         renderer.draw(.init(
             style:purpose == .preparation ? .preparation(routeFinished:preparedDraft?.routeFinished == true)
                                           : .guidance(target:visibleGuidanceTarget,completed:guidanceCompleted),
-            checkpoint:checkpoint,corners:corners,area:area,routePoints:routePoints,routeHeights:preparedDraft.flatMap { draft in draft.area.map { area in draft.route.map {$0.y-area.floorHeight} } } ?? manifest?.route?.pointHeights,obstacles:obstacles,pendingObject:pendingObject,
+            checkpoint:checkpoint,corners:corners,area:area,routePoints:routePoints,routeHeights:preparedDraft.flatMap { draft in draft.area.map { area in draft.route.map {$0.y-area.floorHeight} } } ?? manifest?.route?.pointHeights,obstacles:obstacles,pendingObject:pendingObject,pendingFacingEdge:pendingFacingEdge,
             clearance:settings.obstacleClearance,
             dangerZones:preparedDraft?.dangerZones ?? manifest?.route?.dangerZones ?? [],
             planReference:purpose == .preparation ? planReference : nil))
@@ -158,7 +159,7 @@ final class ARSessionController: ObservableObject {
         cornerAnchors.removeAll()
         renderer.meshLayer.isHidden = !showMesh; renderer.referenceLayer.isHidden=false
         planReference=nil; manifest=nil; origin=nil; front=nil; checkpoint=nil; stage=nil; area=nil
-        corners=Array(repeating:nil,count:4); routePoints=[]; obstacles=[]; pendingObject=[]
+        corners=Array(repeating:nil,count:4); routePoints=[]; obstacles=[]; pendingObject=[]; pendingFacingEdge=nil
         restoreStarted=nil; updateCounts(); lastUI = -.infinity; lastPoseLog = -.infinity
     }
 }

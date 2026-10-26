@@ -53,9 +53,6 @@ public struct PreparationDraft: Sendable {
         if let last = route.last, last.distance(to: point) < 0.05 { throw LabError.invalid("이전 점에서 조금 더 떨어진 위치를 선택해주세요.") }
         if let issue = edgeIssue(adding: point, asDestination: asDestination) { throw LabError.invalid(issue) }
         if let hit = clearanceHit(adding: point) { throw LabError.invalid(hit.message+". 빨간 영역 밖을 찍어주세요.") }
-        if let previous=route.last, let blocked=objects.compactMap({try? $0.projected(in:area)}).first(where: {
-            $0.isStep && $0.blocksTravel(from:area.floor(previous),to:area.floor(point),clearance:effectiveObstacleClearance)
-        }) { throw LabError.invalid("\(blocked.name)의 허용된 올라가는 변·내려오는 변으로 경로를 지정해주세요.") }
         if confirmHeightMismatch { confirmedHeightPoints[route.count]=point }
         route.append(point); routeFinished = asDestination; planApplied = false
     }
@@ -102,7 +99,7 @@ public struct PreparationDraft: Sendable {
         let sx = area.width / PerformancePlan.width
         let sy = area.depth / PerformancePlan.depth
         func mapped(_ p: FloorPoint) -> Point3 { area.world(FloorPoint(p.x * sx, p.y * sy)) }
-        objects = plan.objects.map { WorldObstacle(id: $0.id, name: $0.name, kind: $0.kind, vertices: $0.vertices.map(mapped), height:$0.height, entryEdges:$0.entryEdges, exitEdges:$0.exitEdges, appearance:$0.appearance) }
+        objects = plan.objects.map { WorldObstacle(id: $0.id, name: $0.name, kind: $0.kind, vertices: $0.vertices.map(mapped), height:$0.height, entryEdges:$0.entryEdges, exitEdges:$0.exitEdges, facingEdge:$0.facingEdge, appearance:$0.appearance) }
         confirmedHeightPoints=[:]
         route = plan.points.map(mapped)
         routeFinished = plan.finished
@@ -121,7 +118,31 @@ public struct PreparationDraft: Sendable {
             throw LabError.invalid("경로가 새 무대 바닥과 높이가 다릅니다. 경로를 다시 지정해주세요.")
         }
         let obstacles = try objects.map { try $0.projected(in: area) }
-        return try StageRoute(area: area, points: route.map(area.floor), obstacles: obstacles, allowsOutsideEndpoints: true, dangerZones: dangerZones, pointHeights:route.map {$0.y-area.floorHeight})
+        let floorPoints = route.map(area.floor)
+        return try StageRoute(area: area, points: floorPoints, obstacles: obstacles, allowsOutsideEndpoints: true, dangerZones: dangerZones, pointHeights:route.map {$0.y-area.floorHeight}, pointNames:StageRoute.pointLabels(points:floorPoints,obstacles:obstacles,finished:true))
+    }
+    /// Display labels for the draft's current route points (「출발」, 「P1」, 「의자1」, 「계단1」, 「도착」).
+    public var routePointLabels: [String] {
+        guard let area else {
+            return route.indices.map { i in i == 0 ? "출발" : (routeFinished && i == route.count-1 ? "도착" : "P\(i)") }
+        }
+        let obstacles = objects.compactMap { try? $0.projected(in: area) }
+        return StageRoute.pointLabels(points: route.map(area.floor), obstacles: obstacles, finished: routeFinished)
+    }
+    /// Label for the next route point to be placed at `aim` (e.g. 「출발점」, 「P1」, 「의자1」, 「계단1」).
+    public func nextRoutePointLabel(at aim: Point3? = nil) -> String {
+        guard !route.isEmpty else { return "출발점" }
+        guard let area else { return "P\(route.count)" }
+        let obstacles = objects.compactMap { try? $0.projected(in: area) }
+        var floorPoints = route.map(area.floor)
+        if let aim, aim.valid {
+            floorPoints.append(area.floor(aim))
+            return StageRoute.pointLabels(points: floorPoints, obstacles: obstacles, finished: false).last ?? "P\(route.count)"
+        }
+        let floorCount = floorPoints.dropFirst().filter { p in
+            !obstacles.contains(where: { $0.isStep && $0.contains(p) })
+        }.count
+        return "P\(floorCount + 1)"
     }
     public var objectErrors: [String] {
         guard let area else { return boundaryErrors }
@@ -150,13 +171,14 @@ public struct PreparationDraft: Sendable {
     /// Points already in a danger zone, e.g. from a performance plan. New points are refused by `edgeIssue`.
     public var dangerZoneRoutePointLabels: [String] {
         guard let area else { return [] }
+        let labels = routePointLabels
         return route.enumerated().compactMap { index, point in
             guard dangerZones.contains(where: {
                 $0.contains(area.floor(point),width:area.width,depth:area.depth)
             }) else { return nil }
             if index == 0 { return "시작점" }
             if routeFinished && index == route.count-1 { return "종료점" }
-            return "P\(index)"
+            return labels.indices.contains(index) ? labels[index] : "P\(index)"
         }
     }
     public var routeErrors: [String] {
