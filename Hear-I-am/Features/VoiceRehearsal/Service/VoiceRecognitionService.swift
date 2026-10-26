@@ -25,6 +25,14 @@ import HearIAmCore
 
     private var engine: AVAudioEngine?
     private var hasInputTap = false
+    private var engineID: UUID?
+    private var restartAudioNeeded = false
+    private var retryScheduled = false
+    private var recoveryReadyPending = false
+    private var turnInputConfirmed = false
+    private var turnStartedAt: Double = 0
+    private var configurationTimer: Task<Void, Never>?
+    private var microphoneTimer: Task<Void, Never>?
     private var recognizer: SFSpeechRecognizer?
     private var recognitionTask: SFSpeechRecognitionTask?
     private var taskDelegate: VoiceRecognitionTaskDelegate?
@@ -49,7 +57,7 @@ import HearIAmCore
     override init() {
         super.init()
         narration.onEngineUnavailable = { [weak self] in
-            self?.recover("오디오 연결을 다시 준비하고 있어요", rebuildAudio: true)
+            self?.recover("오디오 연결을 다시 준비하고 있어요", restartAudio: true, source: "narration_engine_stopped")
         }
         let center = NotificationCenter.default
         observers.append(center.addObserver(forName: .AVAudioEngineConfigurationChange, object: nil, queue: nil) { [weak self] notification in
@@ -57,9 +65,8 @@ import HearIAmCore
             let identity = ObjectIdentifier(changed)
             // Never tear down an engine on its own notification/render thread.
             Task { @MainActor [weak self] in
-                guard let self, let engine = self.engine, ObjectIdentifier(engine) == identity,
-                      !engine.isRunning else { return }
-                self.recover("오디오 연결을 다시 준비하고 있어요", rebuildAudio: true)
+                guard let self, let engine = self.engine, ObjectIdentifier(engine) == identity else { return }
+                self.engineConfigurationChanged(engine)
             }
         })
         observers.append(center.addObserver(forName: AVAudioSession.interruptionNotification, object: nil, queue: .main) { [weak self] notification in
@@ -87,6 +94,8 @@ import HearIAmCore
     deinit {
         observers.forEach(NotificationCenter.default.removeObserver)
         restartTimer?.cancel()
+        configurationTimer?.cancel()
+        microphoneTimer?.cancel()
         taskLimitTimer?.cancel()
         speechLimitTimer?.cancel()
         endpointTimer?.cancel()
@@ -139,20 +148,46 @@ import HearIAmCore
             recovery.reset()
             beginTurn()
         } catch {
-            logger.error("Voice input session failed: \(String(describing: error), privacy: .public)")
+            trace("Voice input session failed: \(String(describing: error))", level: .error)
             failPermanently("마이크를 준비할 수 없어요. 버튼으로 진행하거나 다시 듣기를 눌러주세요.")
         }
     }
 
+    /// Voice processing is enabled once per listening session. Configuration changes restart this
+    /// same engine; destroying VPIO during recovery would itself trigger another route change.
     private func prepareEngine() throws {
-        let engine = AVAudioEngine()
-        self.engine = engine
-        try engine.inputNode.setVoiceProcessingEnabled(true)
-        // All graph connections are established before start(). Narration is converted to this
-        // fixed format rather than reconnecting the player when the first TTS buffer arrives.
-        narration.attach(to: engine)
+        let engine: AVAudioEngine
+        if let existing = self.engine {
+            engine = existing
+        } else {
+            engine = AVAudioEngine()
+            self.engine = engine
+            let identifier = UUID()
+            engineID = identifier
+            trace("voice_engine_created id=\(identifier.uuidString)")
+            try engine.inputNode.setVoiceProcessingEnabled(true)
+            narration.attach(to: engine)
+        }
+        guard engine.inputNode.isVoiceProcessingEnabled else { throw VoiceRecognitionFailure.noInput }
+        guard restartAudioNeeded || !engine.isRunning else { return }
+        engine.stop()
+        if hasInputTap { engine.inputNode.removeTap(onBus: 0); hasInputTap = false }
+        // VPIO requires matching capture/output client formats. A lazily created mixer may
+        // still expose its default 44.1 kHz stereo output even when capture is 48 kHz mono.
+        // Reconnect only while stopped, using this route's current capture format (not fixed 48k).
+        // The TTS player stays connected at 48k; the mixer performs any output conversion.
+        let hardwareInput = engine.inputNode.inputFormat(forBus: 0)
+        let hardwareOutput = engine.outputNode.outputFormat(forBus: 0)
         let format = engine.inputNode.outputFormat(forBus: 0)
-        guard format.sampleRate > 0, format.channelCount > 0 else {
+        guard hardwareInput.sampleRate.isFinite, hardwareInput.sampleRate > 0, hardwareInput.channelCount > 0,
+              hardwareOutput.sampleRate.isFinite, hardwareOutput.sampleRate > 0, hardwareOutput.channelCount > 0,
+              format.sampleRate.isFinite, format.sampleRate > 0, format.channelCount > 0 else {
+            throw VoiceRecognitionFailure.noInput
+        }
+        engine.connect(engine.mainMixerNode, to: engine.outputNode, format: format)
+        let output = engine.outputNode.inputFormat(forBus: 0)
+        trace("voice_engine_start id=\(self.engineID?.uuidString ?? "none") hardwareInput=\(hardwareInput.description) input=\(format.description) output=\(output.description) route=\(HearAudioSession.route)")
+        guard output.sampleRate == format.sampleRate, output.channelCount == format.channelCount else {
             throw VoiceRecognitionFailure.noInput
         }
         let bridge = inputBridge
@@ -162,6 +197,62 @@ import HearIAmCore
         hasInputTap = true
         engine.prepare()
         try engine.start()
+        restartAudioNeeded = false
+    }
+
+    private func engineConfigurationChanged(_ changed: AVAudioEngine) {
+        guard wantsListening else { return }
+        trace("voice_engine_configuration id=\(self.engineID?.uuidString ?? "none") running=\(changed.isRunning) route=\(HearAudioSession.route)")
+        // A notification queued while enabling VPIO can arrive after start() has succeeded.
+        // Running engines are checked by the input watchdog instead of rebuilt on notification.
+        guard !changed.isRunning else { return }
+        isListening = false
+        guard !retryScheduled, configurationTimer == nil else { return }
+        // Reject a final result queued before the device stopped, even during debounce.
+        retireTurn()
+        let session = sessionID
+        configurationTimer = Task { @MainActor [weak self, weak changed] in
+            do { try await Task.sleep(nanoseconds: 250_000_000) } catch { return }
+            guard let self else { return }
+            self.configurationTimer = nil
+            guard self.wantsListening, self.sessionID == session,
+                  let changed, self.engine === changed else { return }
+            if changed.isRunning { self.beginTurn(); return }
+            self.recover("오디오 연결을 다시 준비하고 있어요", restartAudio: true, source: "engine_configuration")
+        }
+    }
+
+    private func microphoneReady(turnID: UUID) {
+        guard wantsListening, self.turnID == turnID, !finalizing, !retryScheduled,
+              engine?.isRunning == true, inputBridge.isReady,
+              !inputBridge.isStalled(at: ProcessInfo.processInfo.systemUptime) else { return }
+        turnInputConfirmed = true
+        trace("voice_input_ready engine=\(self.engineID?.uuidString ?? "none") turn=\(turnID.uuidString) route=\(HearAudioSession.route)")
+        isRecovering = false
+        if recoveryReadyPending {
+            recoveryReadyPending = false
+            onRecoveryReady?()
+        }
+        guard wantsListening, self.turnID == turnID else { return }
+        statusMessage = "말씀하시면 들을게요"
+        // The UI and ready chime subscribe to this value. Task creation is not microphone readiness.
+        isListening = true
+    }
+
+    private func watchMicrophone(turnID: UUID) {
+        microphoneTimer?.cancel()
+        microphoneTimer = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                do { try await Task.sleep(nanoseconds: 500_000_000) } catch { return }
+                guard let self, self.wantsListening, self.turnID == turnID, !self.finalizing else { return }
+                let now = ProcessInfo.processInfo.systemUptime
+                let timedOut = !self.turnInputConfirmed && now - self.turnStartedAt >= 4
+                if timedOut || self.inputBridge.isStalled(at: now) {
+                    self.recover("마이크 입력을 다시 확인하고 있어요", restartAudio: true, source: timedOut ? "first_buffer_timeout" : "input_stalled")
+                    return
+                }
+            }
+        }
     }
 
     /// Cancels all delayed rearming as well as the current recognition task and microphone tap.
@@ -189,32 +280,33 @@ import HearIAmCore
 
     private func beginTurn() {
         guard wantsListening else { return }
-        let wasRecovering = isRecovering
-        isRecovering = false
+        retryScheduled = false
         guard let recognizer, recognizer.isAvailable else {
-            recover("음성 인식을 다시 연결하고 있어요", rebuildAudio: false)
+            recover("음성 인식을 다시 연결하고 있어요", restartAudio: false, source: "recognizer_unavailable")
             return
         }
         do {
-            if engine == nil { try prepareEngine() }
+            try prepareEngine()
             guard engine?.isRunning == true else {
-                recover("오디오 연결을 다시 준비하고 있어요", rebuildAudio: true)
+                recover("오디오 연결을 다시 준비하고 있어요", restartAudio: true, source: "engine_start_stopped")
                 return
             }
         } catch {
-            logger.error("Voice engine start failed: \(String(describing: error), privacy: .public)")
-            recover("마이크를 다시 연결하고 있어요", rebuildAudio: true)
+            trace("Voice engine start failed: \(String(describing: error))", level: .error)
+            recover("마이크를 다시 연결하고 있어요", restartAudio: true, source: "engine_start_failed")
             return
         }
-        if wasRecovering { onRecoveryReady?() }
         guard wantsListening else { return }
         retireTurn()
         let identifier = UUID()
         turnID = identifier
+        turnStartedAt = ProcessInfo.processInfo.systemUptime
+        turnInputConfirmed = false
+        isListening = false
         speechDetected = false
         finalizing = false
         transcript = ""
-        statusMessage = "말씀하시면 들을게요"
+        statusMessage = "마이크 입력을 확인하고 있어요"
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.requiresOnDeviceRecognition = true
         request.shouldReportPartialResults = true
@@ -222,9 +314,11 @@ import HearIAmCore
         request.addsPunctuation = false
         let delegate = VoiceRecognitionTaskDelegate(service: self, turnID: identifier)
         taskDelegate = delegate
-        inputBridge.replace(with: request)
         recognitionTask = recognizer.recognitionTask(with: request, delegate: delegate)
-        isListening = true
+        inputBridge.replace(with: request) { [weak self] in
+            Task { @MainActor [weak self] in self?.microphoneReady(turnID: identifier) }
+        }
+        watchMicrophone(turnID: identifier)
         // The older Speech API is not a forever-listening task. Rotate idle tasks below its one-minute
         // documented limit. Once speech starts, its own short utterance deadline takes over.
         taskLimitTimer = Task { @MainActor [weak self] in
@@ -239,7 +333,7 @@ import HearIAmCore
     }
 
     fileprivate func detectedSpeech(turnID: UUID) {
-        guard self.turnID == turnID, wantsListening, !speechDetected, !finalizing else { return }
+        guard self.turnID == turnID, wantsListening, turnInputConfirmed, engine?.isRunning == true, !speechDetected, !finalizing else { return }
         speechDetected = true
         statusMessage = "듣고 있어요"
         speechLimitTimer = Task { @MainActor [weak self] in
@@ -250,7 +344,7 @@ import HearIAmCore
     }
 
     fileprivate func receivedPartial(_ text: String, turnID: UUID) {
-        guard self.turnID == turnID, wantsListening, !finalizing else { return }
+        guard self.turnID == turnID, wantsListening, turnInputConfirmed, engine?.isRunning == true, !finalizing else { return }
         let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         // Some recognizer routes provide text before the optional detection delegate callback.
@@ -269,6 +363,7 @@ import HearIAmCore
     private func finishInput(turnID: UUID) {
         guard self.turnID == turnID, wantsListening, !finalizing else { return }
         finalizing = true
+        microphoneTimer?.cancel(); microphoneTimer = nil
         isListening = false
         statusMessage = "말씀을 확인하고 있어요"
         endpointTimer?.cancel()
@@ -288,16 +383,18 @@ import HearIAmCore
         let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if !text.isEmpty { detectedSpeech(turnID: turnID) }
         guard self.turnID == turnID, wantsListening else { return }
-        let hadSpeech = speechDetected
-        retireTurn()
-        recovery.reset()
-        transcript = text
-        isListening = false
         if text.isEmpty {
-            statusMessage = "말씀을 알아듣지 못했어요. 다시 말씀해주세요"
-            rearmAfterSilence(discardCommand: hadSpeech)
+            rearmAfterSilence(discardCommand: speechDetected)
             return
         }
+        guard turnInputConfirmed else {
+            recover("마이크 입력을 다시 확인하고 있어요", restartAudio: false, source: "result_before_input")
+            return
+        }
+        retireTurn()
+        recovery.recordFinalRecognition(text)
+        transcript = text
+        isListening = false
         statusMessage = "말씀을 확인했어요"
         // turnID is invalidated before calling application code so duplicate final callbacks and
         // a cancellation delivered afterward can never execute the command a second time.
@@ -318,21 +415,26 @@ import HearIAmCore
                 if self.speechDetected {
                     self.recognitionFailed("말씀을 끝까지 확인하지 못했어요. 다시 말씀해주세요.", turnID: turnID)
                 } else {
-                    self.retireTurn()
                     self.rearmAfterSilence()
                 }
             }
         } else if errorDomain == "kAFAssistantErrorDomain", errorCode == 1110, !speechDetected {
             // No-speech is an ordinary end of an idle ASR task, not a disconnected microphone.
-            retireTurn()
             rearmAfterSilence()
         } else {
-            logger.error("Recognition task failed: domain=\(errorDomain ?? "none", privacy: .public) code=\(errorCode ?? 0)")
+            trace("Recognition task failed: domain=\(errorDomain ?? "none") code=\(errorCode ?? 0)", level: .error)
             recognitionFailed("음성을 확인하지 못했어요. 다시 들을게요.", turnID: turnID)
         }
     }
 
     private func rearmAfterSilence(discardCommand: Bool = false) {
+        // An immediate empty/no-speech result is not proof of a healthy microphone. Bound those
+        // retries too, while allowing ordinary long idle recognition turns to rotate silently.
+        guard turnInputConfirmed, ProcessInfo.processInfo.systemUptime - turnStartedAt >= 2 else {
+            recover("음성 입력을 다시 확인하고 있어요", restartAudio: engine?.isRunning != true, source: "premature_empty_result")
+            return
+        }
+        retireTurn()
         isListening = false
         statusMessage = "말씀하시면 다시 들을게요"
         // Idle/no-speech rollover must not pause an otherwise healthy walking session.
@@ -342,26 +444,32 @@ import HearIAmCore
 
     private func recognitionFailed(_ message: String, turnID: UUID) {
         guard self.turnID == turnID, wantsListening else { return }
-        recover(message, rebuildAudio: engine?.isRunning != true)
+        recover(message, restartAudio: engine?.isRunning != true, source: "recognition_failed")
     }
 
-    private func recover(_ message: String, rebuildAudio: Bool) {
-        guard wantsListening, !isRecovering else { return }
-        guard let delay = recovery.nextDelay(at: ProcessInfo.processInfo.systemUptime) else {
-            logger.error("Voice input recovery exhausted")
+    private func recover(_ message: String, restartAudio: Bool, source: String) {
+        guard wantsListening, !retryScheduled else { return }
+        guard let delay = recovery.nextDelay() else {
+            trace("Voice input recovery exhausted", level: .error)
             failPermanently("음성 입력을 연결하지 못했어요. 버튼으로 진행하거나 다시 듣기를 눌러주세요.")
             return
         }
+        retryScheduled = true
+        recoveryReadyPending = true
         isRecovering = true
         isListening = false
+        configurationTimer?.cancel(); configurationTimer = nil
         retireTurn()
         statusMessage = message
-        logger.notice("Recovering voice input: rebuildAudio=\(rebuildAudio), delay=\(delay)")
+        trace("voice_input_recovery source=\(source) engine=\(self.engineID?.uuidString ?? "none") restartAudio=\(restartAudio) delay=\(delay) route=\(HearAudioSession.route)")
         // The owner first cancels narration and pauses movement. An input failure must never
         // silently continue walking, or turn a partial transcript into a command.
         onRecoverableError?(message)
         guard wantsListening else { return }
-        if rebuildAudio { tearDownEngine() }
+        if restartAudio {
+            restartAudioNeeded = true
+            engine?.stop()
+        }
         scheduleNextTurn(after: delay)
     }
 
@@ -376,7 +484,10 @@ import HearIAmCore
     }
 
     private func retireTurn() {
+        isListening = false
         turnID = nil
+        turnInputConfirmed = false
+        microphoneTimer?.cancel(); microphoneTimer = nil
         taskLimitTimer?.cancel(); taskLimitTimer = nil
         speechLimitTimer?.cancel(); speechLimitTimer = nil
         endpointTimer?.cancel(); endpointTimer = nil
@@ -391,6 +502,9 @@ import HearIAmCore
     private func stopCapture(restorePlayback: Bool) {
         wantsListening = false
         sessionID = nil
+        retryScheduled = false
+        recoveryReadyPending = false
+        configurationTimer?.cancel(); configurationTimer = nil
         restartTimer?.cancel(); restartTimer = nil
         retireTurn()
         tearDownEngine()
@@ -406,7 +520,8 @@ import HearIAmCore
     }
 
     private func tearDownEngine() {
-        // Keep the session lease during recovery so other sounds do not switch to playback.
+        // Called only when capture is explicitly stopped, never by automatic recovery.
+        if let engineID { trace("voice_engine_destroyed id=\(engineID.uuidString)") }
         engine?.stop()
         narration.detach()
         if let engine {
@@ -415,7 +530,21 @@ import HearIAmCore
             engine.reset()
         }
         engine = nil
+        engineID = nil
+        restartAudioNeeded = false
         hasInputTap = false
+    }
+
+    /// Device validation without LLDB can opt into the same metadata on stderr. No transcript
+    /// or microphone samples are emitted. Release builds keep only the ordinary OSLog events.
+    private func trace(_ message: String, level: OSLogType = .default) {
+        logger.log(level: level, "\(message, privacy: .public)")
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["HEAR_VOICE_DIAGNOSTICS"] == "1" {
+            let line = "[VoiceInput \(ProcessInfo.processInfo.systemUptime)] \(message)\n"
+            FileHandle.standardError.write(Data(line.utf8))
+        }
+        #endif
     }
 
     private func failPermanently(_ message: String) {
@@ -439,23 +568,47 @@ private enum VoiceRecognitionFailure: Error { case noInput }
 private final class VoiceRecognitionInputBridge: @unchecked Sendable {
     private let lock = NSLock()
     private var request: SFSpeechAudioBufferRecognitionRequest?
+    private var readiness = VoiceMicrophoneReadiness()
+    private var onReady: (@Sendable () -> Void)?
 
-    func replace(with request: SFSpeechAudioBufferRecognitionRequest) {
+    var isReady: Bool {
+        lock.lock(); defer { lock.unlock() }
+        return readiness.isReady
+    }
+    func isStalled(at time: Double) -> Bool {
+        lock.lock(); defer { lock.unlock() }
+        return readiness.isStalled(at: time)
+    }
+    func replace(with request: SFSpeechAudioBufferRecognitionRequest, onReady: @escaping @Sendable () -> Void) {
         lock.lock(); defer { lock.unlock() }
         self.request = request
+        self.onReady = onReady
+        readiness.reset()
     }
     func append(_ buffer: AVAudioPCMBuffer) {
-        lock.lock(); defer { lock.unlock() }
-        request?.append(buffer)
+        guard buffer.frameLength > 0, buffer.format.sampleRate.isFinite,
+              buffer.format.sampleRate > 0, buffer.format.channelCount > 0 else { return }
+        lock.lock()
+        guard let request else { lock.unlock(); return }
+        request.append(buffer)
+        let becameReady = readiness.ingest(frameCount: Int(buffer.frameLength), sampleRate: buffer.format.sampleRate,
+                                          channelCount: Int(buffer.format.channelCount), at: ProcessInfo.processInfo.systemUptime)
+        let callback = becameReady ? onReady : nil
+        if becameReady { onReady = nil }
+        lock.unlock()
+        callback?()
     }
     func finish() {
         lock.lock(); defer { lock.unlock() }
         request?.endAudio()
         request = nil
+        onReady = nil
     }
     func clear() {
         lock.lock(); defer { lock.unlock() }
         request = nil
+        onReady = nil
+        readiness.reset()
     }
 }
 
@@ -562,6 +715,8 @@ private final class VoiceRecognitionTaskDelegate: NSObject, SFSpeechRecognitionT
     nonisolated private static func copy(_ source: AVAudioPCMBuffer) -> AVAudioPCMBuffer? {
         guard let result=AVAudioPCMBuffer(pcmFormat:source.format,frameCapacity:max(1,source.frameLength)) else {return nil}
         result.frameLength=source.frameLength
+        // AVSpeechSynthesizer uses an empty PCM buffer as its end marker, not audio storage.
+        guard source.frameLength > 0 else { return result }
         let input=UnsafeMutableAudioBufferListPointer(UnsafeMutablePointer(mutating:source.audioBufferList))
         let output=UnsafeMutableAudioBufferListPointer(result.mutableAudioBufferList)
         for index in input.indices {

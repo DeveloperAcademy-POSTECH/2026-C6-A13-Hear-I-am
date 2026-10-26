@@ -18,6 +18,7 @@ extension GuidanceViewModel {
         if phase == .paused, let index=guide?.rehearsalReturnArrivalIndex {return "P\(index)에 도착했어요"}
         if voiceInputError != nil {return "음성 입력을 확인해주세요"}
         if !voiceListeningEnabled {return "음성 입력 꺼짐"}
+        if !voiceRecognition.isListening {return "마이크 입력 확인 중"}
         if speaking {return "안내 중에도 말씀해주세요"}
         if phase == .guiding, let index=guide?.rehearsalReturnDestinationIndex {return "P\(index)로 다시 안내 중"}
         return voiceRecognition.isListening ? "말씀하시면 들을게요" : "음성 입력 준비 중"
@@ -28,6 +29,7 @@ extension GuidanceViewModel {
         if !voiceListeningEnabled {return "항목을 선택하고 아래 버튼으로 진행할 수 있어요."}
         if phase == .paused, guide?.rehearsalReturnArrivalIndex != nil {return "‘계속’이라고 말하거나 안내 다시 시작을 눌러주세요."}
         if voiceTurnActive {return phase == .selection ? (voiceChoosingMode ? "‘연습용’, ‘실전용’ 또는 ‘취소’라고 말씀해주세요." : "장소 이름, 무대 이름 또는 목록 번호를 말씀해주세요.") : "예: ‘P2 지점으로 다시 안내해 줘’, ‘계속’, ‘멈춰’."}
+        if !voiceRecognition.isListening {return "실제 마이크 입력을 확인한 뒤 띠링으로 알려드려요. 버튼으로도 진행할 수 있어요."}
         if speaking {return "말씀하시면 읽던 안내를 멈추고 들을게요."}
         if phase == .selection {return voiceChoosingMode ? "‘연습용’ 또는 ‘실전용’을 선택해주세요. ‘취소’하면 무대를 다시 골라요." : "무대 이름이나 결과 번호를 말해주세요. 장소 이름으로 검색할 수도 있어요."}
         if phase == .guiding {return "띠링이 들리면 잠시 멈춰주세요. 지나온 내부 지점으로 돌아갈 수 있어요."}
@@ -41,7 +43,7 @@ extension GuidanceViewModel {
         voiceRecognition.onFinal={ [weak self] text in self?.handleVoiceCommand(text) }
         voiceRecognition.onRecoverableError={ [weak self] message in self?.voiceInputRecovering(message) }
         voiceRecognition.onRecoveryReady={ [weak self] in
-            // Stop any system-synthesizer fallback spoken while the engine was being rebuilt.
+            // Stop any system-synthesizer fallback spoken while the engine was being restarted.
             guard let self else {return}
             self.generation=UUID();self.voice.stop();self.instructionDone=true
             self.voiceReadyChimePending=true
