@@ -73,6 +73,11 @@ struct SoundTestView: View {
                     ActionButton(title:line,primary:false) { model.speak(line) }
                 }
             }
+            SoundTestRow(label:"의자 · 계단 도착 후 바라볼 방향 (초록색 변 방향으로 몸 돌리기)") {
+                ForEach([SignalCopy.look(toRight:true),SignalCopy.look(toRight:false)],id:\.self) { line in
+                    ActionButton(title:line,primary:false) { model.speak(line) }
+                }
+            }
         }
     }
 }
