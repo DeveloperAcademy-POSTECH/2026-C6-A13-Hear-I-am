@@ -63,7 +63,7 @@ struct SavedStagePreview: View {
                             ScrollView(.horizontal) {
                                 HStack {
                                     ForEach(route.points.indices,id:\.self) {i in
-                                        selectionButton("\(i+1) "+(i==0 ? "출발" : i==route.points.count-1 ? "도착" : "P\(i)")+(route.holdSeconds(at:i)>0 ? " · \(route.holdSeconds(at:i))초" : ""),.point(i))
+                                        selectionButton(route.pointLabel(at:i)+(route.holdSeconds(at:i)>0 ? " · \(route.holdSeconds(at:i))초" : ""),.point(i))
                                     }
                                 }
                             }
@@ -71,7 +71,7 @@ struct SavedStagePreview: View {
                                 VStack(alignment:.leading,spacing:10) {
                                     Text(model.selectionTitle).font(.headline)
                                     if model.canEditPointHold {
-                                        Text("P\(index) 도착 후 다음 지점 안내 대기").font(.subheadline.bold())
+                                        Text("\(route.pointLabel(at:index)) 도착 후 다음 지점 안내 대기").font(.subheadline.bold())
                                         HStack {
                                             TextField("초",text:$model.holdSecondsText).keyboardType(.numberPad)
                                                 .textFieldStyle(.roundedBorder).frame(width:100)

@@ -18,10 +18,11 @@ extension GuidanceViewModel {
     /// Starts from departure, or resumes from a pause, after the start announcement finishes.
     func startGuidance() {
         guard (phase == .departure && departureReady || phase == .paused && canResume), canAdvanceInstruction, active else { return }
+        let pendingStep=aligningStep
         invalidateTasks()
         phase = .starting
         let resumingHold=guide?.isHolding == true
-        read(resumingHold ? ["공연 대기를 이어갑니다."] : [started ? "안내를 다시 시작합니다." : "안내를 시작합니다.","\(targetName)으로 이동합니다."]) { [weak self] in
+        read(resumingHold ? ["공연 대기를 이어갑니다."] : [started ? "안내를 다시 시작합니다." : "안내를 시작합니다.",SignalCopy.start]) { [weak self] in
             guard let self, self.phase == .starting, var guide=self.guide else { return }
             guard let pose=self.freshPose() else { self.interrupt("현재 위치를 확인할 수 없어요. 확인점을 다시 확인해주세요.");return }
             let first = !self.started
@@ -32,8 +33,12 @@ extension GuidanceViewModel {
             }
             self.guide=guide;self.run?.begin(at:Date(),uptime:ProcessInfo.processInfo.systemUptime);self.started=true;self.phase = .guiding;self.lastPoseTime=nil
             self.resetSignals();self.performanceHoldRemaining=guide.holdRemaining
+            if let pendingStep { self.aligningStep=pendingStep;self.announceNextSide=true }
             // The start has no ding of its own here (it rang on settling), so the side comes on the first cue.
-            if first { self.announceNextSide=true }
+            if first {
+                self.announceNextSide=true
+                self.announceStepHint=guide.route.step(at:guide.targetIndex) != nil
+            }
         }
     }
     func tickDeparture(pose: (point: FloorPoint, heading: Double, time: Double), guide: RouteGuide) {

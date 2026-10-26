@@ -31,6 +31,8 @@ import HearIAmCore
     var directionTicks=DirectionTickGate(deadbandDegrees:SignalPlayer.directionDeadbandDegrees)
     /// Set on leaving the start and on reaching a point: the next direction cue speaks the side of the new target once.
     var announceNextSide=false
+    /// Set when the next target spot stands on a chair or stairs: speaks 「의자」 or 「계단」 once when aligned before distance marks (#76).
+    var announceStepHint=false
     /// A side to say on turning away that waits for the line being spoken (#57).
     var pendingTurnSide=false
     /// Ticks wait while a side word is spoken: speech starts a little late, so a tick would come first (10/21).
@@ -40,6 +42,8 @@ import HearIAmCore
     var arrivalShownAt: Double?
     /// Direction, correction and distance signals wait while the ding rings (10/19); safety signals do not.
     var quietUntil: Double?
+    /// When non-nil, the performer has just arrived at a chair or stairs and is aligning with its `facingEdge` before moving to the next point (#76).
+    var aligningStep: StageObstacle?
     var escape: EscapeState?
     var guide: RouteGuide?
     var run: GuidanceRun?
@@ -65,7 +69,7 @@ import HearIAmCore
     var targetName: String { GuidanceCopy.target(targetIndex,last:(selected?.route?.points.count ?? 2)-1) }
     var headline: GuidanceHeadline {
         if phase == .guiding, performanceHoldRemaining > 0 {
-            return GuidanceHeadline(holdingSeconds:performanceHoldRemaining,pointName:SignalCopy.point(max(1,targetIndex-1)))
+            return GuidanceHeadline(holdingSeconds:performanceHoldRemaining,pointName:guide?.route.pointLabel(at:max(1,targetIndex-1)) ?? SignalCopy.point(max(1,targetIndex-1)))
         }
         return GuidanceHeadline(phase:phase,targetName:targetName,hasStarted:started,departureReady:departureReady,
                          departureStatus:departureStatus,arrivedName:arrivedName,cue:cue,message:message)
@@ -97,6 +101,7 @@ import HearIAmCore
         guard active else { return }
         if phase == .finishing || phase == .completed { playCompletion();return }
         if phase == .guiding {
+            if let step=aligningStep { read(["\(step.name)에서 설정된 방향으로 몸을 돌려주세요."]);return }
             if let guide, guide.isHolding {
                 read(["공연 대기 중입니다. 다음 지점 안내까지 \(Int(ceil(guide.holdRemaining)))초 남았습니다."]);return
             }
@@ -120,6 +125,7 @@ import HearIAmCore
     /// Cancels pending speech callbacks; late callbacks see a new generation.
     func invalidateTasks() {
         generation=UUID();voice.stop();instructionDone=false;arrivedName=nil;arrivalShownAt=nil
+        if guide?.isHolding != true { aligningStep=nil }
         escape=nil;quietUntil=nil;signals.setWarning(nil);signals.setWarningQuiet(false)
     }
     /// A pose no older than 0.5 s from a verified session, or nil.
@@ -170,7 +176,7 @@ extension GuidanceViewModel {
         if let guide, guide.route.points.indices.contains(guide.targetIndex) {
             let target=guide.route.points[guide.targetIndex]
             context+=String(format:" target=p%d(%@) dist=%.2f bearing=%+.0f",guide.targetIndex,
-                GuidanceCopy.target(guide.targetIndex,last:guide.route.points.count-1),pose.point.distance(to:target),
+                guide.route.pointLabel(at:guide.targetIndex),pose.point.distance(to:target),
                 StageHeading.bearing(from:pose.point,to:target,headingDegrees:pose.heading))
         }
         tracking.event(name,detail:"\(detail) @ \(context) phase=\(phase)")
