@@ -31,8 +31,9 @@ extension GuidanceViewModel {
     func tickGuiding(pose: (point: FloorPoint, heading: Double, time: Double), guide current: RouteGuide) {
         var guide=current
         let previous=guide.targetIndex
+        let wasHolding=guide.isHolding
         let update=guide.observe(time:pose.time,position:pose.point,headingDegrees:pose.heading,trackingValid:true)
-        self.guide=guide;cue=guide.cue(position:pose.point,headingDegrees:pose.heading)
+        self.guide=guide;performanceHoldRemaining=guide.holdRemaining;cue=guide.cue(position:pose.point,headingDegrees:pose.heading)
         tracking.setGuidanceTarget(guide.targetIndex,completed:guide.state == .completed)
         if update.state == .completed { playCompletion();return }
         if update.state == .paused {
@@ -41,6 +42,14 @@ extension GuidanceViewModel {
         }
         if update.targetIndex != previous { captureReplay(force:true);arrived(previous,guide:guide,time:pose.time) }
         if let shown=arrivalShownAt, pose.time-shown > Self.arrivalShownSeconds { arrivedName=nil;arrivalShownAt=nil }
+        if guide.isHolding {
+            signals.stopDirection()
+            return
+        }
+        if wasHolding {
+            directionTicks.reset();distances.reset();announceNextSide=true;pendingTurnSide=false
+            logSignal("performance_hold_end","next=\(guide.targetIndex)")
+        }
         signal(pose:pose,guide:guide)
     }
 
@@ -54,9 +63,10 @@ extension GuidanceViewModel {
         ticksWaitForWord=voice.play([name])
         quietUntil=ticksWaitForWord ? nil : time+Self.arrivalQuietSeconds
         logSignal("signal_arrival","\(name) next=\(guide.targetIndex)")
+        if guide.isHolding { logSignal("performance_hold_start","point=\(previous) seconds=\(guide.holdRemaining)") }
     }
     private func signal(pose: (point: FloorPoint, heading: Double, time: Double), guide: RouteGuide) {
-        guard guide.route.points.indices.contains(guide.targetIndex) else { return }
+        guard !guide.isHolding, guide.route.points.indices.contains(guide.targetIndex) else { return }
         let target=guide.route.points[guide.targetIndex]
         let bearing=StageHeading.bearing(from:pose.point,to:target,headingDegrees:pose.heading)
         let quiet=quietUntil.map { pose.time < $0 } ?? false

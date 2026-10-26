@@ -10,7 +10,38 @@ final class SavedStagePreviewModel: ObservableObject {
     @Published var display: ReplayDisplay = .scan
     @Published var cameraMode: ReplayCamera = .overview
     @Published var cameraRevision=0
-    @Published var selection: ReplaySelection?
+    @Published var selection: ReplaySelection? { didSet { refreshHoldEditor() } }
+    @Published var holdSecondsText="0"
+    @Published var savingHold=false
+    @Published var holdNotice: String?
+    @Published var holdSaveError: String?
+    var selectedPointIndex: Int? {
+        guard case .point(let index)=selection else { return nil }
+        return index
+    }
+    var canEditPointHold: Bool {
+        guard let i=selectedPointIndex, let route=loaded?.manifest.route else { return false }
+        return i > 0 && i < route.points.count-1
+    }
+    var enteredHoldSeconds: Int? {
+        guard let seconds=Int(holdSecondsText.trimmingCharacters(in:.whitespacesAndNewlines)),
+              (0...StageRoute.maximumHoldSeconds).contains(seconds) else { return nil }
+        return seconds
+    }
+    private func refreshHoldEditor() {
+        holdSecondsText=String(selectedPointIndex.flatMap {loaded?.manifest.route?.holdSeconds(at:$0)} ?? 0)
+        holdNotice=nil; holdSaveError=nil
+    }
+    func savePointHold() async {
+        guard !savingHold, canEditPointHold, let index=selectedPointIndex, let seconds=enteredHoldSeconds, let scan=loaded else { return }
+        savingHold=true; holdNotice=nil; holdSaveError=nil
+        defer { savingHold=false }
+        do {
+            let manifest=try await store.setPointHold(record.id,index:index,seconds:seconds)
+            loaded=LoadedScan(manifest:manifest,worldMap:scan.worldMap,meshes:scan.meshes)
+            if selectedPointIndex == index { holdNotice="저장했습니다. P\(index) 도착 후 \(seconds)초 동안 다음 지점 안내를 쉬어요." }
+        } catch { holdSaveError="저장하지 못했어요: \(error.localizedDescription)" }
+    }
     @Published var showPhotoPins=true
     @Published var showCleanPhotoPins=false
     @Published var photoExpanded=false
@@ -28,7 +59,7 @@ final class SavedStagePreviewModel: ObservableObject {
                 guard let route=scan.manifest.route else {return [ReplaySurfaceMesh]()}
                 return scan.meshes.map {ReplaySurfaceMesh(mesh:$0,route:route)}
             }.value
-            loaded=scan;cameraRevision+=1
+            loaded=scan;refreshHoldEditor();cameraRevision+=1
         }
         catch {self.error=error.localizedDescription}
     }
@@ -42,6 +73,7 @@ final class SavedStagePreviewModel: ObservableObject {
         set {if display == .clean {showCleanPhotoPins=newValue} else {showPhotoPins=newValue}}
     }
     func select(_ value: ReplaySelection) {
+        guard !savingHold else { return }
         selection=value;photoCardCollapsed=display == .clean
         if case .photo=value {photoPinsVisible=true;photoCardCollapsed=false}
         // Selecting a marker updates its details without moving the user's camera.

@@ -20,7 +20,8 @@ extension GuidanceViewModel {
         guard (phase == .departure && departureReady || phase == .paused && canResume), canAdvanceInstruction, active else { return }
         invalidateTasks()
         phase = .starting
-        read([started ? "안내를 다시 시작합니다." : "안내를 시작합니다.","\(targetName)으로 이동합니다."]) { [weak self] in
+        let resumingHold=guide?.isHolding == true
+        read(resumingHold ? ["공연 대기를 이어갑니다."] : [started ? "안내를 다시 시작합니다." : "안내를 시작합니다.","\(targetName)으로 이동합니다."]) { [weak self] in
             guard let self, self.phase == .starting, var guide=self.guide else { return }
             guard let pose=self.freshPose() else { self.interrupt("현재 위치를 확인할 수 없어요. 확인점을 다시 확인해주세요.");return }
             let first = !self.started
@@ -30,7 +31,7 @@ extension GuidanceViewModel {
                 self.read(["출발 조건이 달라졌습니다. 위치와 방향을 다시 확인해주세요."]);return
             }
             self.guide=guide;self.run?.begin(at:Date(),uptime:ProcessInfo.processInfo.systemUptime);self.started=true;self.phase = .guiding;self.lastPoseTime=nil
-            self.resetSignals()
+            self.resetSignals();self.performanceHoldRemaining=guide.holdRemaining
             // The start has no ding of its own here (it rang on settling), so the side comes on the first cue.
             if first { self.announceNextSide=true }
         }
