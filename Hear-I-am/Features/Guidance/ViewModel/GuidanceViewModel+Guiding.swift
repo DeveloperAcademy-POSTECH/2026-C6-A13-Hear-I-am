@@ -134,17 +134,18 @@ extension GuidanceViewModel {
         if announceNextSide && (quiet || speaking) { return }
         let cue=directionTicks.update(time:pose.time,bearing:bearing)
         if let cue {
+            let lookWord=SignalCopy.look(toRight:cue.toRight)
             if announceNextSide {
                 announceNextSide=false
-                sayDirection(cue.word,volume:SignalVolume.nextSide,bearing:bearing,guide:guide)
+                sayDirection(lookWord,volume:SignalVolume.nextSide,bearing:bearing,guide:guide)
             } else if cue.spokenWord != nil || pendingTurnSide {
                 if speaking, !voice.speakingDirection {
-                    if !pendingTurnSide { logSignal("signal_direction_word_deferred",String(format:"%@ bearing %+.0f° reason=speaking",cue.word,bearing)) }
+                    if !pendingTurnSide { logSignal("signal_direction_word_deferred",String(format:"%@ bearing %+.0f° reason=speaking",lookWord,bearing)) }
                     pendingTurnSide=true
                 } else {
                     pendingTurnSide=false
-                    if speaking { logSignal("signal_voice_cut","\(spokenText) for=\(cue.word)") }
-                    sayDirection(cue.word,volume:SignalVolume.speech,bearing:bearing,guide:guide,interrupting:true)
+                    if speaking { logSignal("signal_voice_cut","\(spokenText) for=\(lookWord)") }
+                    sayDirection(lookWord,volume:SignalVolume.speech,bearing:bearing,guide:guide,interrupting:true)
                 }
             }
             if cue.shouldTick, !announceNextSide, !pendingTurnSide, !ticksWaitForWord {

@@ -13,6 +13,8 @@ public enum SignalCopy {
         let side=abs(bearing) <= 45 ? "앞에" : abs(bearing) > 135 ? "뒤에" : bearing > 0 ? "오른쪽에" : "왼쪽에"
         return "\(side) \(stairs ? "계단" : "의자")"
     }
+    /// Spoken orientation cue when aligning with the green `facingEdge` on a chair or stairs (#76): 「오른쪽 바라봐」 · 「왼쪽 바라봐」.
+    public static func look(toRight: Bool) -> String { "\(toRight ? right : left) 바라봐" }
     public static func escape(toRight: Bool) -> String { "멈추세요. \(toRight ? "오른쪽" : "왼쪽")으로 비켜서세요" }
     /// Sino-Korean number words used for spoken point names (#74, #76).
     public static func koreanNumber(_ index: Int) -> String {
