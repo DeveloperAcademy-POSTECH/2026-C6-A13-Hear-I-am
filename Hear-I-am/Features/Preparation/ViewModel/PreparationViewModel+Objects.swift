@@ -1,7 +1,7 @@
 import Foundation
 import HearIAmCore
 
-/// Step 3 · 장애물. An object is drafted as 3–8 floor vertices, then registered as one WorldObstacle.
+/// Step 3 · 기물. An object is drafted as 3–8 floor vertices, then registered as one WorldObstacle.
 /// From 3 vertices on, its height is read from the scan mesh and suggests platform or obstacle;
 /// the operator confirms by registering it (asked 10/17).
 extension PreparationViewModel {
@@ -15,7 +15,7 @@ extension PreparationViewModel {
             obstacleName=object.name; obstacleKind=object.kind; pendingObjectWorld=object.vertices
             entryEdges=Set(object.entryEdges ?? Array(object.vertices.indices)); exitEdges=Set(object.exitEdges ?? Array(object.vertices.indices))
             objectModel=object.appearance?.model ?? .generic; objectHeading=object.appearance?.headingDegrees ?? 0
-        } else {obstacleName="장애물"; obstacleKind = .other; pendingObjectWorld=[];objectModel = .generic;objectHeading=0}
+        } else {obstacleName="기물"; obstacleKind = .other; pendingObjectWorld=[];objectModel = .generic;objectHeading=0}
         // An existing object keeps the kind it was registered with; a new one takes the suggestion.
         kindChosen=id != nil; objectHeight=nil
         measureObject()
