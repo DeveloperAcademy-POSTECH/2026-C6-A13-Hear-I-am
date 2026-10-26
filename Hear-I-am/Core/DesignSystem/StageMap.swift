@@ -11,6 +11,7 @@ struct StageMap: View {
     var objects: [StageObstacle] = []
     var dangerZones: [StageDangerZone] = []
     var checkpoint: FloorPoint?
+    var secondCheckpoint: FloorPoint? = nil
     var cornerStates: [Bool]? = nil
     var activeCorner: Int? = nil
     var selectedObject: UUID? = nil
@@ -19,9 +20,11 @@ struct StageMap: View {
     /// Crosshair floor point while placing route points; red when it cannot be placed.
     var aim: FloorPoint? = nil
     var aimBlocked = false
+    var reference: StagePlanReference? = nil
     var onTap: ((FloorPoint) -> Void)? = nil
     private var bounds: (Double, Double, Double, Double) {
-        let x = points.map(\.x), y = points.map(\.y)
+        let allPoints=points+(reference?.points ?? [])
+        let x = allPoints.map(\.x), y = allPoints.map(\.y)
         return (min(-width*0.25, (x.min() ?? 0)-0.6), max(width*1.25, (x.max() ?? width)+0.6),
                 min(-depth*0.16, (y.min() ?? 0)-0.6), max(depth*1.16, (y.max() ?? depth)+0.6))
     }
@@ -40,6 +43,21 @@ struct StageMap: View {
                 context.stroke(Path(rect), with: .color(.gray.opacity(0.4)), lineWidth: 1.5)
                 if showsLabels { context.draw(Text("무대").font(.caption.bold()).foregroundColor(.secondary), at: CGPoint(x:rect.midX,y:rect.minY+13))
                 context.draw(Text("객석 ↓").font(.system(size:10)).foregroundColor(.secondary), at: CGPoint(x:rect.midX,y:rect.maxY+14)) }
+                if let reference {
+                    var ghost=context; ghost.opacity=0.30
+                    for object in reference.objects {
+                        var outline=Path(); outline.addLines(object.vertices.map(project)); outline.closeSubpath()
+                        ghost.stroke(outline,with:.color(.blue),style:StrokeStyle(lineWidth:1.5,dash:[4,3]))
+                    }
+                    for (i,point) in reference.points.enumerated() {
+                        let p=project(point)
+                        ghost.stroke(Path(ellipseIn:CGRect(x:p.x-5,y:p.y-5,width:10,height:10)),with:.color(.blue),lineWidth:1.5)
+                        if i>0 {
+                            var line=Path(); line.move(to:project(reference.points[i-1])); line.addLine(to:p)
+                            ghost.stroke(line,with:.color(.blue),style:StrokeStyle(lineWidth:1.5,dash:[4,3]))
+                        }
+                    }
+                }
                 for zone in dangerZones {
                     var polygon=Path()
                     polygon.addLines(zone.vertices(width:width,depth:depth).map(project)); polygon.closeSubpath()
@@ -91,10 +109,12 @@ struct StageMap: View {
                     let p=project(aim)
                     context.stroke(Path(ellipseIn:CGRect(x:p.x-6,y:p.y-6,width:12,height:12)),with:.color(aimBlocked ? .red : .hearGreen),lineWidth:2)
                 }
-                if let checkpoint {
-                    let p=project(checkpoint)
-                    context.fill(Path(ellipseIn:CGRect(x:p.x-6,y:p.y-6,width:12,height:12)),with:.color(.red))
-                    context.draw(Text("확인점").font(.system(size:10)).foregroundColor(.red),at:CGPoint(x:p.x,y:p.y-15))
+                for (index,point) in [checkpoint,secondCheckpoint].enumerated() {
+                    if let point {
+                        let p=project(point)
+                        context.fill(Path(ellipseIn:CGRect(x:p.x-6,y:p.y-6,width:12,height:12)),with:.color(.red))
+                        context.draw(Text("확인점 \(index+1)").font(.system(size:10)).foregroundColor(.red),at:CGPoint(x:p.x,y:p.y-15))
+                    }
                 }
             }
             .contentShape(Rectangle())

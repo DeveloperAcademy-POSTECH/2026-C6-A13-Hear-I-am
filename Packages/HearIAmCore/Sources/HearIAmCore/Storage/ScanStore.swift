@@ -15,7 +15,7 @@ public actor ScanStore {
     public init(root: URL) { self.root=root }
     public static func hash(_ data: Data) -> String { SHA256.hash(data: data).map { String(format:"%02x",$0) }.joined() }
     public func save(id: UUID, name: String, frame: StageFrame, checkpoint: Point3,
-                     worldMap: Data, meshes: [MeshSnapshot], device: String, appVersion: String, route: StageRoute? = nil, settings: GuideSettings = GuideSettings(), photos: [ScanPhotoSource] = []) throws -> ScanManifest {
+                     worldMap: Data, meshes: [MeshSnapshot], device: String, appVersion: String, route: StageRoute? = nil, settings: GuideSettings = GuideSettings(), photos: [ScanPhotoSource] = [], secondCheckpoint: Point3? = nil) throws -> ScanManifest {
         guard !worldMap.isEmpty, !meshes.isEmpty, Set(meshes.map(\.id)).count == meshes.count else {
             throw LabError.invalid("공간 지도 또는 메시가 없습니다.")
         }
@@ -24,7 +24,7 @@ public actor ScanStore {
         let meshData=try encoder.encode(meshes)
         let manifest=ScanManifest(id:id, name:name, frame:frame, checkpoint:checkpoint,
             worldMapHash:Self.hash(worldMap), meshHash:Self.hash(meshData), meshCount:meshes.count,
-            vertexCount:meshes.reduce(0){$0+$1.vertices.count}, device:device, appVersion:appVersion, route:route, settings:settings, photos:photos.map(\.photo))
+            vertexCount:meshes.reduce(0){$0+$1.vertices.count}, device:device, appVersion:appVersion, route:route, settings:settings, photos:photos.map(\.photo), secondCheckpoint:secondCheckpoint)
         try manifest.validate()
         let fm=FileManager.default
         try fm.createDirectory(at:root, withIntermediateDirectories:true)

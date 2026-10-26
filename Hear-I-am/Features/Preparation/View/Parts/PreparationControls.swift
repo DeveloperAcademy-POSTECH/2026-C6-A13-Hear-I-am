@@ -18,7 +18,8 @@ struct PreparationControls: View {
             if draft.area != nil {
                 ActionButton(title:"위험 구역",primary:false,enabled:!model.busy) {model.editingDangerZones=true}
                 if let plan=model.selectedPlan {
-                    ActionButton(title:"‘\(plan.name)’ 동선 적용") {model.applyPlan(plan)}
+                    if hasPlans { ActionButton(title:"참고 동선 변경",primary:false) {model.choosingPlan=true} }
+                    ActionButton(title:"‘\(plan.name)’ 참고해 입력") {model.selectReferencePlan(plan)}
                 } else {
                     if hasPlans {
                         ActionButton(title:"사전 저장 동선 불러오기",primary:false) {model.choosingPlan=true}
@@ -45,7 +46,10 @@ struct PreparationControls: View {
                 if draft.route.count>=2 {ActionButton(title:"도착점 지정",enabled:model.canPlacePoint && draft.area != nil) {model.addRoutePoint(destination:true)}}
             }
         case .checkpoint:
-            ActionButton(title:draft.checkpoint == nil ? "확인점 지정" : "다시 찍기",primary:draft.checkpoint == nil,enabled:model.canPlacePoint && draft.area != nil) {model.placeCheckpoint()}
+            ActionButton(title:draft.checkpoint == nil ? "확인점 1 지정" : "확인점 1 다시 찍기",primary:draft.checkpoint == nil,enabled:model.canPlacePoint && draft.area != nil) {model.placeCheckpoint(0)}
+            if draft.checkpoint != nil {
+                ActionButton(title:draft.secondCheckpoint == nil ? "확인점 2 지정" : "확인점 2 다시 찍기",primary:draft.secondCheckpoint == nil,enabled:model.canPlacePoint) {model.placeCheckpoint(1)}
+            }
             if draft.checkpoint != nil {ActionButton(title:"검토하기",enabled:draft.checkpointErrors.isEmpty) {model.review=true}}
         }
     }

@@ -52,8 +52,10 @@ final class ReplaySceneController: NSObject {
         scene.rootNode.addChildNode(hazards)
         buildStage()
         buildPhotos()
-        let p=scan.manifest.checkpoint
-        scanAnnotations.addChildNode(ReplayModelFactory.part(SCNSphere(radius:0.07),.init(p.x,p.y+0.06,p.z),color:.systemYellow))
+        for (index,p) in [scan.manifest.checkpoint,scan.manifest.secondCheckpoint].compactMap({$0}).enumerated() {
+            scanAnnotations.addChildNode(ReplayModelFactory.part(SCNSphere(radius:0.07),.init(p.x,p.y+0.06,p.z),color:.systemYellow))
+            scanAnnotations.addChildNode(ReplayModelFactory.caption("확인점 \(index+1)",at:.init(p.x,p.y+0.18,p.z)))
+        }
         scene.rootNode.addChildNode(scanAnnotations)
     }
     func world(_ p: FloorPoint, height: Double=0) -> SCNVector3 {

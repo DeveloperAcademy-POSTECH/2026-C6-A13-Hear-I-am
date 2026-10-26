@@ -13,7 +13,7 @@ final class PreparationViewModel: ObservableObject {
     @Published var draft=PreparationDraft()
     @Published var scanConfirmed=false
     @Published var pendingObjectWorld: [Point3] = []
-    @Published var obstacleName="장애물"
+    @Published var obstacleName="기물"
     /// Changing the kind renames an object that still carries a default name, so the name always tells
     /// the kind (field test 10/17: an object named "장애물" was saved as stairs and never warned).
     @Published var obstacleKind: ObstacleKind = .box {
@@ -33,6 +33,24 @@ final class PreparationViewModel: ObservableObject {
     @Published var showingPhotos=false
     @Published var scanName="무대 스캔"
     @Published var selectedPlan: PerformancePlan?
+    @Published private var showObjectReference=true
+    @Published private var showRouteReference=true
+    var canShowPlanReference: Bool { selectedPlan != nil && (step == .objects || step == .route) }
+    var showPlanReference: Bool {
+        get { step == .objects ? showObjectReference : showRouteReference }
+        set {
+            if step == .objects { showObjectReference=newValue } else { showRouteReference=newValue }
+            synchronizeReference()
+        }
+    }
+    var visiblePlanReference: StagePlanReference? {
+        guard canShowPlanReference, showPlanReference, let selectedPlan else { return nil }
+        return try? draft.reference(for:selectedPlan)
+    }
+    private func synchronizeReference() {
+        session.planReference=visiblePlanReference
+        session.redrawReferences()
+    }
     @Published var choosingPlan=false
     var editingObjectID: UUID?
 
@@ -116,31 +134,24 @@ final class PreparationViewModel: ObservableObject {
         switch s {
         case .scan: return scanConfirmed
         case .boundary: return draft.area != nil
-        case .objects: return (highest > .objects || draft.planApplied) && draft.objectErrors.isEmpty
+        case .objects: return highest > .objects && draft.objectErrors.isEmpty
         case .route: return draft.routeFinished && draft.routeErrors.isEmpty
         case .checkpoint: return draft.checkpoint != nil && draft.checkpointErrors.isEmpty
         }
     }
     func canSelect(_ s: PreparationStep) -> Bool { !(busy || s == .scan || s > highest || objectEditing) }
     func advance() {
-        if step == .boundary, let selectedPlan {
-            applyPlan(selectedPlan)
-            return
-        }
         highest=max(highest,step.next); changeStep(step.next)
     }
-    func applyPlan(_ plan: PerformancePlan) {
+    func selectReferencePlan(_ plan: PerformancePlan) {
+        guard !busy else { return }
         do {
-            var next=draft
-            try next.applyPlan(plan)
-            for source in session.photoSources {
-                session.linkPhoto(source.photo.id,objectID:nil,routeIndex:nil)
-            }
-            draft=next; selectedPlan=plan; choosingPlan=false
+            _ = try draft.reference(for:plan)
+            selectedPlan=plan; choosingPlan=false
+            showObjectReference=true; showRouteReference=true
             if scanName == "무대 스캔" || scanName.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty { scanName=plan.name }
-            synchronize()
-            highest = .checkpoint
-            changeStep(.checkpoint)
+            highest=max(highest,.objects)
+            changeStep(.objects)
         } catch {
             session.errorMessage=error.localizedDescription
         }
@@ -153,6 +164,7 @@ final class PreparationViewModel: ObservableObject {
         if !seen.contains(value) {seen.insert(value); intro=0} else {intro=nil}
         // Objects are outlined on top of the scanned surface (10/18), so the mesh stays on through that step.
         if changed {session.showMesh = value <= .objects}
+        synchronizeReference()
     }
     /// The boundary step shows two intro pages; every other step shows one.
     func nextIntroPage() {
@@ -161,6 +173,7 @@ final class PreparationViewModel: ObservableObject {
 
     /// Mirrors the current input into anchors and the AR overlay.
     func synchronize() {
+        session.planReference=visiblePlanReference
         let edge = (obstacleKind == .platform || obstacleKind == .stairs) ? facingEdge : nil
         session.applyPreparation(draft,pendingObject:pendingObjectWorld,pendingFacingEdge:edge)
     }

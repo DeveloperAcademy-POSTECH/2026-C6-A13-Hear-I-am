@@ -13,6 +13,7 @@ final class ARSceneRenderer {
         }
         var style: Style
         var checkpoint: Point3?
+        var secondCheckpoint: Point3? = nil
         var corners: [Point3?]
         var area: StageArea?
         var routePoints: [FloorPoint]
@@ -23,12 +24,24 @@ final class ARSceneRenderer {
         /// Route clearance around blocking objects, filled in red in both preparation and guidance (#38).
         var clearance: Double
         var dangerZones: [StageDangerZone] = []
+        var planReference: StagePlanReference? = nil
     }
 
     let meshLayer=SCNNode()
     let referenceLayer=SCNNode()
     private var meshNodes: [UUID:SCNNode]=[:]
 
+    func applyAlignment(_ alignment: CheckpointAlignment?) {
+        var transform=matrix_identity_float4x4
+        if let alignment {
+            let c=Float(cos(alignment.yaw)), s=Float(sin(alignment.yaw))
+            transform.columns.0=SIMD4(c,0,-s,0)
+            transform.columns.2=SIMD4(s,0,c,0)
+            let offset=alignment.apply(Point3(0,0,0))
+            transform.columns.3=SIMD4(Float(offset.x),0,Float(offset.z),1)
+        }
+        meshLayer.simdTransform=transform; referenceLayer.simdTransform=transform
+    }
     func attach(to scene: SCNScene) {
         scene.rootNode.addChildNode(meshLayer)
         scene.rootNode.addChildNode(referenceLayer)

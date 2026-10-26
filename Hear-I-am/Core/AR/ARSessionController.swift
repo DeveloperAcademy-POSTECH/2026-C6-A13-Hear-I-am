@@ -75,6 +75,11 @@ final class ARSessionController: ObservableObject {
     var origin: Point3?
     var front: Point3?
     var checkpoint: Point3?
+    var secondCheckpoint: Point3?
+    @Published var measuredCheckpoints: [Point3] = []
+    var checkpointStableSince: Double?
+    var alignment: CheckpointAlignment?
+    var nextCheckpointNumber: Int { min(measuredCheckpoints.count+1,2) }
     var stage: StageFrame?
     var area: StageArea?
     var routePoints: [FloorPoint] = []
@@ -83,6 +88,7 @@ final class ARSessionController: ObservableObject {
     var pendingFacingEdge: Int? = nil
     /// The preparation draft last applied; saving builds the route from it.
     var preparedDraft: PreparationDraft?
+    var planReference: StagePlanReference?
     /// Called whenever a new session replaces the previous one, so owners can clear their own input.
     var onReset: (() -> Void)?
     private var visibleGuidanceTarget: Int?
@@ -126,9 +132,10 @@ final class ARSessionController: ObservableObject {
         renderer.draw(.init(
             style:purpose == .preparation ? .preparation(routeFinished:preparedDraft?.routeFinished == true)
                                           : .guidance(target:visibleGuidanceTarget,completed:guidanceCompleted),
-            checkpoint:checkpoint,corners:corners,area:area,routePoints:routePoints,routeHeights:preparedDraft.flatMap { draft in draft.area.map { area in draft.route.map {$0.y-area.floorHeight} } } ?? manifest?.route?.pointHeights,obstacles:obstacles,pendingObject:pendingObject,pendingFacingEdge:pendingFacingEdge,
+            checkpoint:checkpoint,secondCheckpoint:secondCheckpoint,corners:corners,area:area,routePoints:routePoints,routeHeights:preparedDraft.flatMap { draft in draft.area.map { area in draft.route.map {$0.y-area.floorHeight} } } ?? manifest?.route?.pointHeights,obstacles:obstacles,pendingObject:pendingObject,pendingFacingEdge:pendingFacingEdge,
             clearance:settings.obstacleClearance,
-            dangerZones:preparedDraft?.dangerZones ?? manifest?.route?.dangerZones ?? []))
+            dangerZones:preparedDraft?.dangerZones ?? manifest?.route?.dangerZones ?? [],
+            planReference:purpose == .preparation ? planReference : nil))
     }
 
     func startSession(map: ARWorldMap?) {
@@ -156,7 +163,7 @@ final class ARSessionController: ObservableObject {
         renderer.clearAnnotations()
         cornerAnchors.removeAll()
         renderer.meshLayer.isHidden = !showMesh; renderer.referenceLayer.isHidden=false
-        manifest=nil; origin=nil; front=nil; checkpoint=nil; stage=nil; area=nil
+        clearAlignment(); planReference=nil; manifest=nil; origin=nil; front=nil; checkpoint=nil; secondCheckpoint=nil; stage=nil; area=nil
         corners=Array(repeating:nil,count:4); routePoints=[]; obstacles=[]; pendingObject=[]; pendingFacingEdge=nil
         restoreStarted=nil; updateCounts(); lastUI = -.infinity; lastPoseLog = -.infinity
     }
