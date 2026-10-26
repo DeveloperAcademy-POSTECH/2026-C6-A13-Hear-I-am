@@ -9,13 +9,28 @@ public struct StageRoute: Codable, Equatable, Sendable {
     public var points: [FloorPoint]
     public var obstacles: [StageObstacle]
     public var pointHeights: [Double]?
+    /// Seconds of silence before the next leg, indexed like points. Missing in legacy saves.
+    public var pointHoldSeconds: [Int]?
+    public static let maximumHoldSeconds = 3600
+    public func holdSeconds(at index: Int) -> Int {
+        guard index > 0, index < points.count-1, let values=pointHoldSeconds, values.indices.contains(index) else { return 0 }
+        return values[index]
+    }
+    public mutating func setHoldSeconds(_ seconds: Int, at index: Int) throws {
+        guard index > 0, index < points.count-1, (0...Self.maximumHoldSeconds).contains(seconds) else {
+            throw LabError.invalid("중간 경로점의 안내 대기 시간을 0~3600초로 입력해주세요.")
+        }
+        var values=pointHoldSeconds ?? Array(repeating:0,count:points.count)
+        guard values.count == points.count else { throw LabError.invalid("경로점 대기 시간 개수가 맞지 않습니다.") }
+        values[index]=seconds; pointHoldSeconds=values
+    }
     public var dangerZones: [StageDangerZone]
-    public init(area: StageArea, points: [FloorPoint], obstacles: [StageObstacle], allowsOutsideEndpoints: Bool = false, dangerZones: [StageDangerZone] = [], pointHeights: [Double]? = nil) throws {
+    public init(area: StageArea, points: [FloorPoint], obstacles: [StageObstacle], allowsOutsideEndpoints: Bool = false, dangerZones: [StageDangerZone] = [], pointHeights: [Double]? = nil, pointHoldSeconds: [Int]? = nil) throws {
         version=allowsOutsideEndpoints ? 2 : 1; self.area=area; self.points=points; self.obstacles=obstacles
-        self.dangerZones=dangerZones; self.pointHeights=pointHeights
+        self.dangerZones=dangerZones; self.pointHeights=pointHeights; self.pointHoldSeconds=pointHoldSeconds
         try validate()
     }
-    enum CodingKeys: String, CodingKey { case version, area, points, obstacles, dangerZones, pointHeights }
+    enum CodingKeys: String, CodingKey { case version, area, points, obstacles, dangerZones, pointHeights, pointHoldSeconds }
     public init(from decoder: Decoder) throws {
         let c=try decoder.container(keyedBy:CodingKeys.self)
         version=try c.decode(Int.self,forKey:.version)
@@ -24,10 +39,17 @@ public struct StageRoute: Codable, Equatable, Sendable {
         obstacles=try c.decode([StageObstacle].self,forKey:.obstacles)
         dangerZones=try c.decodeIfPresent([StageDangerZone].self,forKey:.dangerZones) ?? []
         pointHeights=try c.decodeIfPresent([Double].self,forKey:.pointHeights)
+        pointHoldSeconds=try c.decodeIfPresent([Int].self,forKey:.pointHoldSeconds)
         try validate()
     }
     public func validate() throws {
         try area.validate()
+        if let values=pointHoldSeconds {
+            guard values.count == points.count, values.allSatisfy({(0...Self.maximumHoldSeconds).contains($0)}),
+                  values.first == 0, values.last == 0 else {
+                throw LabError.invalid("경로점 대기 시간은 중간 지점만 0~3600초로 설정할 수 있습니다.")
+            }
+        }
         if let pointHeights {
             guard pointHeights.count == points.count, pointHeights.allSatisfy({$0.isFinite}) else {
                 throw LabError.invalid("경로 지점의 높이 정보가 올바르지 않습니다.")

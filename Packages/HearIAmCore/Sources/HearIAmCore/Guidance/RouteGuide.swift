@@ -11,6 +11,8 @@ public struct GuideUpdate: Equatable, Sendable {
 public struct RouteGuide: Sendable {
     public private(set) var state: GuideState = .idle
     public private(set) var targetIndex=1
+    public private(set) var holdRemaining: Double = 0
+    public var isHolding: Bool { holdRemaining > 0 }
     public private(set) var pauseReason: GuidePauseReason?
     public var canAutomaticallyRecover: Bool { state == .paused && (pauseReason == .outsideStage || pauseReason == .sampleGap || pauseReason == .unclearHeading) }
     public let route: StageRoute
@@ -45,7 +47,7 @@ public struct RouteGuide: Sendable {
     }
     @discardableResult public mutating func start(position: FloorPoint, headingDegrees: Double, trackingValid: Bool) -> Bool {
         guard state == .idle, ready(position:position,headingDegrees:headingDegrees,trackingValid:trackingValid) else { return false }
-        state = .guiding; targetIndex=1; arrivedSince=nil; lastTime=nil; lastSpeech = -.infinity; sector=nil; pauseReason=nil
+        state = .guiding; targetIndex=1; holdRemaining=0; arrivedSince=nil; lastTime=nil; lastSpeech = -.infinity; sector=nil; pauseReason=nil
         return true
     }
     public mutating func pause() { pause(reason:.manual) }
@@ -79,7 +81,7 @@ public struct RouteGuide: Sendable {
         return nil
     }
     public func cue(position: FloorPoint, headingDegrees: Double) -> GuidanceCue? {
-        guard route.points.indices.contains(targetIndex) else { return nil }
+        guard !isHolding, route.points.indices.contains(targetIndex) else { return nil }
         return GuidanceCue(position:position,goal:route.points[targetIndex],headingDegrees:headingDegrees,sector:sector)
     }
     /// Recoverable pauses resume after one second of fresh, verified in-bounds samples and a valid heading.
@@ -107,7 +109,16 @@ public struct RouteGuide: Sendable {
         if let issue {
             pause(reason:issue); return GuideUpdate(state:state,targetIndex:targetIndex,announcement:nil)
         }
+        let elapsed=lastTime.map {time-$0} ?? 0
         lastTime=time
+        if isHolding {
+            holdRemaining=max(0,holdRemaining-elapsed)
+            arrivedSince=nil
+            if isHolding { return GuideUpdate(state:state,targetIndex:targetIndex,announcement:nil) }
+            lastSpeech=time; sector=nil
+            // Do not count dwell or advance again on the hold-expiry frame.
+            return GuideUpdate(state:state,targetIndex:targetIndex,announcement:cue(position:position,headingDegrees:headingDegrees)?.speech)
+        }
         var goal=route.points[targetIndex], distance=position.distance(to:goal)
         var arrivedIndex: Int?
         if allowsTargetAdvance && distance <= settings.arrivalRadius {
@@ -118,10 +129,15 @@ public struct RouteGuide: Sendable {
                     return GuideUpdate(state:state,targetIndex:targetIndex,announcement:GuidanceCopy.completed)
                 }
                 arrivedIndex=targetIndex
+                holdRemaining=Double(route.holdSeconds(at:targetIndex))
                 targetIndex += 1; arrivedSince=nil; sector=nil
                 goal=route.points[targetIndex]; distance=position.distance(to:goal)
             }
         } else { arrivedSince=nil }
+        if isHolding, let arrivedIndex {
+            lastSpeech=time
+            return GuideUpdate(state:state,targetIndex:targetIndex,announcement:"\(arrivedIndex)번째 지점 도착.")
+        }
         let angle=StageHeading.bearing(from:position,to:goal,headingDegrees:headingDegrees)
         let normalized=(angle+360).truncatingRemainder(dividingBy:360)
         let candidate=StageHeading.sector(angle)

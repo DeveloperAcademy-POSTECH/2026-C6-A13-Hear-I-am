@@ -7,6 +7,11 @@ struct GuidanceHeadline {
     let title: String
     let detail: String
 
+    init(holdingSeconds: Double, pointName: String) {
+        symbol="speaker.slash"
+        title="\(pointName) · 공연 대기 중"
+        detail="다음 지점 안내까지 \(Int(ceil(holdingSeconds)))초"
+    }
     init(phase: GuidancePhase, targetName: String, hasStarted: Bool, departureReady: Bool, departureStatus: String,
          arrivedName: String?, cue: GuidanceCue?, message: String) {
         switch phase {
