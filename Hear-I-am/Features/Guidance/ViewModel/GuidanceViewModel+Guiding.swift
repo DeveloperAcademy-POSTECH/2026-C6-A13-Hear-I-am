@@ -10,7 +10,7 @@ import HearIAmCore
 /// Chairs and stairs are not obstacles: no warning, no stop, no stepping aside (#72).
 extension GuidanceViewModel {
     /// About as long as the ding rings; the distance call-out waits this long after an arrival.
-    static let arrivalShownSeconds=2.0, arrivalQuietSeconds=0.7
+    static let arrivalShownSeconds=2.0, arrivalQuietSeconds=0.7, alignedQuietSeconds=0.35
 
     var canResume: Bool {
         guard let pose=freshPose(), let guide else { return false }
@@ -25,7 +25,7 @@ extension GuidanceViewModel {
     /// Clears every signal rule; called when guidance starts or resumes.
     func resetSignals() {
         directionTicks.deadbandDegrees=SignalPlayer.directionDeadbandDegrees
-        directionTicks.reset();warnings.reset();distances.reset();arrivalShownAt=nil;quietUntil=nil;aligningStep=nil;announceNextSide=false;pendingTurnSide=false;ticksWaitForWord=false
+        directionTicks.reset();warnings.reset();distances.reset();arrivalShownAt=nil;quietUntil=nil;aligningStep=nil;announceNextSide=false;announceStepHint=false;pendingTurnSide=false;ticksWaitForWord=false
         signals.setWarning(nil);signals.stopDirection()
     }
     func tickGuiding(pose: (point: FloorPoint, heading: Double, time: Double), guide current: RouteGuide) {
@@ -54,8 +54,10 @@ extension GuidanceViewModel {
         directionTicks.reset();announceNextSide=true;pendingTurnSide=false
         if let step=guide.route.step(at:previous), step.facingEdge != nil {
             aligningStep=step
+            announceStepHint=false
         } else {
             aligningStep=nil
+            announceStepHint=guide.route.step(at:guide.targetIndex) != nil
         }
         signals.stopDirection()
         ticksWaitForWord=voice.play([name])
@@ -63,7 +65,7 @@ extension GuidanceViewModel {
         logSignal("signal_arrival","\(label)(\(name)) next=\(guide.targetIndex)\(aligningStep.map { " align=\($0.name)#\(($0.facingEdge ?? 0)+1)" } ?? "")")
     }
     private func signal(pose: (point: FloorPoint, heading: Double, time: Double), guide: RouteGuide) {
-        let quiet=quietUntil.map { pose.time < $0 } ?? false
+        var quiet=quietUntil.map { pose.time < $0 } ?? false
         if !quiet { quietUntil=nil }
         if ticksWaitForWord, !speaking { ticksWaitForWord=false }
         if let step=aligningStep, let stepBearing=step.facingBearing(headingDegrees:pose.heading) {
@@ -75,19 +77,12 @@ extension GuidanceViewModel {
         let target=guide.route.points[guide.targetIndex]
         let bearing=StageHeading.bearing(from:pose.point,to:target,headingDegrees:pose.heading)
         // Direction (#44): silent within ±n° of the target; outside it 「왼쪽」 or 「오른쪽」 once, then ticks that
-        // quicken as the body turns toward it. The word was dropped on 10/20 and restored on 10/21. The moment
-        // the ticks stop because the body faces the target, the aligned chime says so.
+        // quicken as the body turns toward it. The moment the ticks stop because the body faces the target,
+        // the aligned chime says so. Chairs and stairs use the exact same direction guidance (#76).
         let wasTicking=directionTicks.activeSide != nil
         let cue=directionTicks.update(time:pose.time,bearing:bearing)
         // The side waits for the point announcement and for any line being spoken; facing the target already needs no word.
-        if announceNextSide, !quiet, !speaking, let step=guide.route.step(at:guide.targetIndex) {
-            // Said even when already facing it: the performer needs to know a chair or stairs is there.
-            announceNextSide=false
-            let line=SignalCopy.place(bearing:bearing,stairs:step.kind == .stairs)
-            ticksWaitForWord=voice.play([line])
-            logSignal(ticksWaitForWord ? "signal_step_place" : "signal_step_place_skipped",
-                      String(format:"%@ %@ bearing %+.0f° target=%d",line,step.name,bearing,guide.targetIndex))
-        } else if announceNextSide, !quiet, !speaking {
+        if announceNextSide, !quiet, !speaking {
             announceNextSide=false
             if let cue {
                 sayDirection(cue.word,volume:SignalVolume.nextSide,bearing:bearing,guide:guide)
@@ -116,9 +111,21 @@ extension GuidanceViewModel {
                 // Replaces any tick still sounding on the direction node.
                 signals.playAligned()
                 logSignal("signal_aligned",String(format:"bearing %+.0f°",bearing))
+                if announceStepHint { quietUntil=pose.time+Self.alignedQuietSeconds;quiet=true }
             } else { signals.stopDirection() }
         }
-        // Every tick, so a mark passed while something else speaks is dropped rather than said late.
+        // Once aligned toward a chair or stairs, briefly announce 「의자」 or 「계단」 once before distance marks (#76).
+        if cue == nil, !announceNextSide, announceStepHint, !quiet, !speaking {
+            announceStepHint=false
+            if let step=guide.route.step(at:guide.targetIndex) {
+                let line=SignalCopy.stepHint(stairs:step.kind == .stairs)
+                ticksWaitForWord=voice.play([line])
+                logSignal(ticksWaitForWord ? "signal_step_hint" : "signal_step_hint_skipped",
+                          String(format:"%@ %@ bearing %+.0f° target=%d",line,step.name,bearing,guide.targetIndex))
+            }
+        }
+        // Distance marks wait until any step hint for this leg has been announced.
+        guard !announceStepHint else { return }
         let mark=distances.update(position:pose.point,target:target)
         if let mark {
             let line=SignalCopy.distance(mark)
@@ -156,7 +163,8 @@ extension GuidanceViewModel {
             logSignal("signal_step_aligned",String(format:"%@ edge=%d bearing %+.0f°",step.name,(step.facingEdge ?? 0)+1,bearing))
             aligningStep=nil
             directionTicks.reset();distances.reset()
-            announceNextSide=true;pendingTurnSide=false;ticksWaitForWord=false
+            announceNextSide=true;announceStepHint=guide.route.step(at:guide.targetIndex) != nil
+            pendingTurnSide=false;ticksWaitForWord=false
             quietUntil=pose.time+Self.arrivalQuietSeconds
         }
     }
