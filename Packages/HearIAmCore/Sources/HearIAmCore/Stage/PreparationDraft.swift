@@ -53,9 +53,6 @@ public struct PreparationDraft: Sendable {
         if let last = route.last, last.distance(to: point) < 0.05 { throw LabError.invalid("이전 점에서 조금 더 떨어진 위치를 선택해주세요.") }
         if let issue = edgeIssue(adding: point, asDestination: asDestination) { throw LabError.invalid(issue) }
         if let hit = clearanceHit(adding: point) { throw LabError.invalid(hit.message+". 빨간 영역 밖을 찍어주세요.") }
-        if let previous=route.last, let blocked=objects.compactMap({try? $0.projected(in:area)}).first(where: {
-            $0.isStep && $0.blocksTravel(from:area.floor(previous),to:area.floor(point),clearance:effectiveObstacleClearance)
-        }) { throw LabError.invalid("\(blocked.name)의 허용된 올라가는 변·내려오는 변으로 경로를 지정해주세요.") }
         if confirmHeightMismatch { confirmedHeightPoints[route.count]=point }
         route.append(point); routeFinished = asDestination; planApplied = false
     }
@@ -102,7 +99,7 @@ public struct PreparationDraft: Sendable {
         let sx = area.width / PerformancePlan.width
         let sy = area.depth / PerformancePlan.depth
         func mapped(_ p: FloorPoint) -> Point3 { area.world(FloorPoint(p.x * sx, p.y * sy)) }
-        objects = plan.objects.map { WorldObstacle(id: $0.id, name: $0.name, kind: $0.kind, vertices: $0.vertices.map(mapped), height:$0.height, entryEdges:$0.entryEdges, exitEdges:$0.exitEdges, appearance:$0.appearance) }
+        objects = plan.objects.map { WorldObstacle(id: $0.id, name: $0.name, kind: $0.kind, vertices: $0.vertices.map(mapped), height:$0.height, entryEdges:$0.entryEdges, exitEdges:$0.exitEdges, facingEdge:$0.facingEdge, appearance:$0.appearance) }
         confirmedHeightPoints=[:]
         route = plan.points.map(mapped)
         routeFinished = plan.finished

@@ -2,45 +2,59 @@ import XCTest
 @testable import HearIAmCore
 
 final class PlatformEdgesTests: XCTestCase {
-    func object(entry: [Int]? = [3], exit: [Int]? = [1]) throws -> StageObstacle {
+    func object(entry: [Int]? = [3], exit: [Int]? = [1], facingEdge: Int? = 0) throws -> StageObstacle {
         try StageObstacle(name:"단상",kind:.platform,passage:.passable,
-            vertices:[.init(2,2),.init(4,2),.init(4,4),.init(2,4)],height:0.4,entryEdges:entry,exitEdges:exit)
+            vertices:[.init(2,2),.init(4,2),.init(4,4),.init(2,4)],height:0.4,entryEdges:entry,exitEdges:exit,facingEdge:facingEdge)
     }
-    func testDirectionalCrossingsAndClosedSides() throws {
-        let o=try object()
+    func testStepAllowsUnrestrictedCrossingsFromEveryDirection() throws {
+        let o=try object(entry:[],exit:[],facingEdge:0)
         XCTAssertFalse(o.blocksTravel(from:.init(1,3),to:.init(3,3),clearance:0.1))
         XCTAssertFalse(o.blocksTravel(from:.init(3,3),to:.init(5,3),clearance:0.1))
         XCTAssertFalse(o.blocksTravel(from:.init(1,3),to:.init(5,3),clearance:0.1))
-        XCTAssertTrue(o.blocksTravel(from:.init(5,3),to:.init(1,3),clearance:0.1))
-        XCTAssertTrue(o.blocksTravel(from:.init(3,1),to:.init(3,3),clearance:0.1))
-        XCTAssertTrue(o.blocksTravel(from:.init(1,1.95),to:.init(5,1.95),clearance:0.1))
+        XCTAssertFalse(o.blocksTravel(from:.init(5,3),to:.init(1,3),clearance:0.1))
+        XCTAssertFalse(o.blocksTravel(from:.init(3,1),to:.init(3,3),clearance:0.1))
+        XCTAssertFalse(o.blocksTravel(from:.init(1,1.95),to:.init(5,1.95),clearance:0.1))
         XCTAssertFalse(o.blocksTravel(from:.init(2.5,3),to:.init(3.5,3),clearance:0.1))
     }
-    func testMultipleEdgesBidirectionalAndRoundTrip() throws {
-        let o=try object(entry:[0,1,3],exit:[1,3])
+    func testFacingEdgeRoundTripAndOutwardBearing() throws {
+        let o=try object(entry:nil,exit:nil,facingEdge:0)
         let decoded=try JSONDecoder().decode(StageObstacle.self,from:JSONEncoder().encode(o))
         XCTAssertEqual(o,decoded)
-        XCTAssertFalse(decoded.blocksTravel(from:.init(5,3),to:.init(1,3),clearance:0.1))
-        XCTAssertFalse(decoded.blocksTravel(from:.init(3,1),to:.init(3,3),clearance:0.1))
-        XCTAssertTrue(decoded.blocksTravel(from:.init(3,3),to:.init(3,1),clearance:0.1))
+        XCTAssertEqual(decoded.facingEdge,0)
+        // Edge 0 is (2,2)->(4,2), whose outward normal points toward the audience (-Y, heading 0°).
+        XCTAssertEqual(try XCTUnwrap(decoded.facingBearing(headingDegrees:0)),0,accuracy:1e-9)
+        XCTAssertEqual(try XCTUnwrap(decoded.facingBearing(headingDegrees:-90)),90,accuracy:1e-9)
+        XCTAssertEqual(try XCTUnwrap(decoded.facingBearing(headingDegrees:90)),-90,accuracy:1e-9)
+        // Edge 1 is (4,2)->(4,4), whose outward normal points toward stage left (+X, heading -90°).
+        var leftEdge=decoded; leftEdge.facingEdge=1
+        XCTAssertEqual(try XCTUnwrap(leftEdge.facingBearing(headingDegrees:0)),-90,accuracy:1e-9)
+        XCTAssertEqual(try XCTUnwrap(leftEdge.facingBearing(headingDegrees:-90)),0,accuracy:1e-9)
+        // Edge 3 is (2,4)->(2,2), whose outward normal points toward stage right (-X, heading +90°).
+        var rightEdge=decoded; rightEdge.facingEdge=3
+        XCTAssertEqual(try XCTUnwrap(rightEdge.facingBearing(headingDegrees:0)),90,accuracy:1e-9)
     }
     func testLegacyAndInvalidEdges() throws {
-        let old=try object(entry:nil,exit:nil)
+        let old=try object(entry:nil,exit:nil,facingEdge:nil)
         let decoded=try JSONDecoder().decode(StageObstacle.self,from:JSONEncoder().encode(old))
+        XCTAssertNil(decoded.facingEdge)
+        XCTAssertNil(decoded.facingBearing(headingDegrees:0))
         XCTAssertFalse(decoded.blocksTravel(from:.init(1,3),to:.init(5,3),clearance:0.1))
         XCTAssertThrowsError(try object(entry:[4]))
         XCTAssertThrowsError(try object(entry:[1,1]))
-        XCTAssertTrue(try object(entry:[],exit:[]).blocksTravel(from:.init(1,3),to:.init(5,3),clearance:0))
+        XCTAssertThrowsError(try object(facingEdge:4))
+        XCTAssertThrowsError(try object(facingEdge:-1))
     }
-    func testClockwiseOutlineAndCornerCannotBypassClosedSide() throws {
-        var o=try object()
-        o.vertices.reverse(); o.entryEdges=[3]; o.exitEdges=[1]
-        XCTAssertFalse(o.blocksTravel(from:.init(1,3),to:.init(5,3),clearance:0.1))
-        XCTAssertTrue(o.blocksTravel(from:.init(1,1),to:.init(3,3),clearance:0))
+    func testClockwiseOutlinePreservesOutwardFacingBearing() throws {
+        var o=try object(facingEdge:nil)
+        o.vertices.reverse() // [(2,4),(4,4),(4,2),(2,2)] -> edge 2 is (4,2)->(2,2), facing audience (-Y)
+        o.facingEdge=2
+        try o.validate()
+        XCTAssertEqual(try XCTUnwrap(o.facingBearing(headingDegrees:0)),0,accuracy:1e-9)
+        XCTAssertEqual(try XCTUnwrap(o.facingBearing(headingDegrees:-90)),90,accuracy:1e-9)
     }
-    /// Closed sides shape the route when it is drawn, but never warn or stop guidance (#72).
-    func testClosedSidesNeitherWarnNorStopGuidance() throws {
-        let o=try object()
+    /// Chairs and stairs never warn, stop guidance, or block route segments (#72, #76).
+    func testStepSidesNeitherWarnNorStopGuidanceNorRefuseRoutes() throws {
+        let o=try object(facingEdge:0)
         var warning=WarningGate()
         XCTAssertNil(warning.update(position:.init(3,1.8),headingDegrees:0,obstacles:[o]))
         XCTAssertNil(warning.update(position:.init(1.8,3),headingDegrees:0,obstacles:[o]))
@@ -52,27 +66,19 @@ final class PlatformEdgesTests: XCTestCase {
         XCTAssertNil(guide.positionIssue(.init(2.5,3)))
         XCTAssertNil(guide.positionIssue(.init(2.05,2.1)))
         _=guide.observe(time:0,position:.init(2.5,3),headingDegrees:0,trackingValid:true,allowsTargetAdvance:false)
-        // Leaving through the entry-only edge used to stop guidance at once.
         let result=guide.observe(time:0.1,position:.init(1.9,3),headingDegrees:0,trackingValid:true)
         XCTAssertEqual(result.state,.guiding)
         XCTAssertNil(guide.pauseReason)
-        // A route drawn through a closed side is still refused.
-        let wrong=try StageRoute(area:area,points:[.init(3,1),.init(3,3),.init(5,3)],obstacles:[o])
-        XCTAssertFalse(wrong.conflicts(boundaryMargin:0,obstacleClearance:0.1).isEmpty)
-    }
-    func testConcaveOutlineChecksEveryCrossing() throws {
-        let o=try StageObstacle(name:"오목 단상",kind:.platform,passage:.passable,
-            vertices:[.init(1,1),.init(5,1),.init(5,5),.init(4,5),.init(4,2),.init(2,2),.init(2,5),.init(1,5)],
-            entryEdges:[7],exitEdges:[1])
-        // Endpoints are inside separate arms, but the path crosses two closed inner sides.
-        XCTAssertTrue(o.blocksTravel(from:.init(1.5,4),to:.init(4.5,4),clearance:0))
+        // A route drawn through any side of a chair or stairs is now accepted (#76).
+        let otherSide=try StageRoute(area:area,points:[.init(3,1),.init(3,3),.init(5,3)],obstacles:[o])
+        XCTAssertTrue(otherSide.conflicts(boundaryMargin:0,obstacleClearance:0.1).isEmpty)
     }
     func testConfirmedHeightCanBeSavedButDoesNotBypassGeometry() throws {
         var draft=PreparationDraft()
         draft.corners=[Point3(6,0,0),Point3(0,0,0),Point3(0,0,6),Point3(6,0,6)].map(Optional.some)
         let area=try XCTUnwrap(draft.area)
         let shape=try object()
-        draft.objects=[WorldObstacle(name:"단상",kind:.platform,vertices:shape.vertices.map(area.world),height:0.3,entryEdges:[3],exitEdges:[1])]
+        draft.objects=[WorldObstacle(name:"단상",kind:.platform,vertices:shape.vertices.map(area.world),height:0.3,facingEdge:0)]
         try draft.addRoutePoint(area.world(.init(1,3)))
         var top=area.world(.init(3,3)); top.y=0.6
         XCTAssertThrowsError(try draft.addRoutePoint(top))
@@ -83,14 +89,13 @@ final class PlatformEdgesTests: XCTestCase {
         XCTAssertTrue(draft.routeErrors.isEmpty)
         let decoded=try JSONDecoder().decode(StageRoute.self,from:JSONEncoder().encode(saved))
         XCTAssertEqual(decoded.pointHeights,[0,0.6,0])
+        XCTAssertEqual(decoded.obstacles.first?.facingEdge,0)
         draft.removeLastRoutePoint(); draft.removeLastRoutePoint()
         XCTAssertThrowsError(try draft.addRoutePoint(top))
         var outside=area.world(.init(1,1)); outside.y=0.6
         XCTAssertThrowsError(try draft.addRoutePoint(outside,confirmHeightMismatch:true))
         var invalid=top; invalid.y=3
         XCTAssertThrowsError(try draft.addRoutePoint(invalid,confirmHeightMismatch:true))
-        draft.objects[0].entryEdges=[]
-        XCTAssertThrowsError(try draft.addRoutePoint(top,confirmHeightMismatch:true))
     }
     func testCheckpointAllowsBoundaryBandButNotObjectInterior() throws {
         var draft=PreparationDraft()
@@ -171,12 +176,12 @@ final class PlatformEdgesTests: XCTestCase {
         top.y = -0.5
         XCTAssertTrue(try XCTUnwrap(draft.routeSurfaceError(top,in:area)).contains("낮아요"))
     }
-    func testRaisedPointAndWrongSidePlacement() throws {
+    func testRaisedPointAndAnySidePlacement() throws {
         var draft=PreparationDraft()
         draft.corners=[Point3(6,0,0),Point3(0,0,0),Point3(0,0,6),Point3(6,0,6)].map(Optional.some)
         let a=try XCTUnwrap(draft.area)
-        let o=try object()
-        draft.objects=[WorldObstacle(name:o.name,kind:o.kind,vertices:o.vertices.map(a.world),height:0.4,entryEdges:[3],exitEdges:[1])]
+        let o=try object(facingEdge:0)
+        draft.objects=[WorldObstacle(name:o.name,kind:o.kind,vertices:o.vertices.map(a.world),height:0.4,facingEdge:0)]
         try draft.addRoutePoint(a.world(.init(1,3)))
         var top=a.world(.init(3,3)); top.y=0.4
         try draft.addRoutePoint(top)
@@ -186,9 +191,9 @@ final class PlatformEdgesTests: XCTestCase {
         let saved=try draft.stageRoute()
         let loaded=try JSONDecoder().decode(StageRoute.self,from:JSONEncoder().encode(saved))
         XCTAssertEqual(loaded.pointHeights,[0,0.4,0])
-        var wrong=draft; wrong.route=[]; wrong.routeFinished=false
-        try wrong.addRoutePoint(a.world(.init(3,1)))
-        XCTAssertThrowsError(try wrong.addRoutePoint(top))
+        var anySide=draft; anySide.route=[]; anySide.routeFinished=false
+        try anySide.addRoutePoint(a.world(.init(3,1)))
+        XCTAssertNoThrow(try anySide.addRoutePoint(top))
         var tooHigh=top; tooHigh.y=ObjectHeight.ceiling+0.1
         XCTAssertFalse(draft.acceptsRouteSurface(tooHigh,in:a))
         var outside=a.world(.init(1,1)); outside.y=0.4
