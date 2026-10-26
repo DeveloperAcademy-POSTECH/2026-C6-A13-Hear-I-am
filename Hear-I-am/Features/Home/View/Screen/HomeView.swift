@@ -38,7 +38,7 @@ struct HomeView: View {
                         } else {HomeStageList(library:library,model:model,records:library.groups.recent)}
                     }
                 }.padding(20).padding(.bottom,16)
-            }.background(Color(.systemBackground)).navigationTitle("홈").toolbar(.hidden,for:.navigationBar).toolbar(.visible,for:.tabBar)
+            }.background(Color(.systemBackground)).navigationTitle("홈").toolbar(.hidden,for:.navigationBar).toolbar(model.showingSettings ? .hidden : .visible,for:.tabBar)
                 .safeAreaInset(edge:.bottom) {
                     if model.selection.selecting {LibrarySelectionBar(count:model.selection.ids.count,busy:model.selection.deleting,cancel:{model.selection.cancel()},delete:{model.selection.confirmingDelete=true})}
                 }
