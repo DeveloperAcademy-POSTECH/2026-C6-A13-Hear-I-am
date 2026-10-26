@@ -56,7 +56,7 @@ struct PlaceEditorView: View {
                         HStack {
                             Image(systemName:"folder").accessibilityHidden(true)
                             TextField("폴더 이름",text:$folder.name).accessibilityLabel("하위 폴더 이름")
-                            Button(role:.destructive) {let id=folder.id;draft.folders.removeAll {$0.id==id}} label:{Image(systemName:"minus.circle").frame(width:44,height:44)}
+                            Button(role:.destructive) {let id=folder.id;draft.folders.removeAll {$0.id==id}} label:{Image(systemName:"minus.circle").font(.system(size:20)).frame(width:44,height:44)}
                                 .buttonStyle(.borderless).accessibilityLabel("\(folder.name) 폴더 제거")
                         }
                     }
