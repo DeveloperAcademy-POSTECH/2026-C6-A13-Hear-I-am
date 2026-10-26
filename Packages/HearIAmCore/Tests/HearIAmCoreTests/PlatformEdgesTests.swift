@@ -38,11 +38,11 @@ final class PlatformEdgesTests: XCTestCase {
         XCTAssertFalse(o.blocksTravel(from:.init(1,3),to:.init(5,3),clearance:0.1))
         XCTAssertTrue(o.blocksTravel(from:.init(1,1),to:.init(3,3),clearance:0))
     }
-    func testClosedSideWarningsAndLiveGuidance() throws {
+    /// Closed sides shape the route when it is drawn, but never warn or stop guidance (#72).
+    func testClosedSidesNeitherWarnNorStopGuidance() throws {
         let o=try object()
         var warning=WarningGate()
-        XCTAssertNotNil(warning.update(position:.init(3,1.8),headingDegrees:0,obstacles:[o]))
-        warning.reset()
+        XCTAssertNil(warning.update(position:.init(3,1.8),headingDegrees:0,obstacles:[o]))
         XCTAssertNil(warning.update(position:.init(1.8,3),headingDegrees:0,obstacles:[o]))
         let area=try StageArea(corners:[Point3(6,0,0),Point3(0,0,0),Point3(0,0,6),Point3(6,0,6)])
         let route=try StageRoute(area:area,points:[.init(1,3),.init(3,3),.init(5,3)],obstacles:[o])
@@ -50,12 +50,15 @@ final class PlatformEdgesTests: XCTestCase {
         var guide=RouteGuide(route:route,settings:settings,usesRouteCorridor:true)
         XCTAssertTrue(guide.start(position:.init(1,3),headingDegrees:0,trackingValid:true))
         XCTAssertNil(guide.positionIssue(.init(2.5,3)))
-        XCTAssertEqual(guide.positionIssue(.init(3,1.95)),.offRoute)
+        XCTAssertNil(guide.positionIssue(.init(2.05,2.1)))
         _=guide.observe(time:0,position:.init(2.5,3),headingDegrees:0,trackingValid:true,allowsTargetAdvance:false)
-        // Leaving through the entry-only edge must not be accepted even within the route corridor.
+        // Leaving through the entry-only edge used to stop guidance at once.
         let result=guide.observe(time:0.1,position:.init(1.9,3),headingDegrees:0,trackingValid:true)
-        XCTAssertEqual(result.state,.paused)
-        XCTAssertEqual(guide.pauseReason,.obstacleProximity)
+        XCTAssertEqual(result.state,.guiding)
+        XCTAssertNil(guide.pauseReason)
+        // A route drawn through a closed side is still refused.
+        let wrong=try StageRoute(area:area,points:[.init(3,1),.init(3,3),.init(5,3)],obstacles:[o])
+        XCTAssertFalse(wrong.conflicts(boundaryMargin:0,obstacleClearance:0.1).isEmpty)
     }
     func testConcaveOutlineChecksEveryCrossing() throws {
         let o=try StageObstacle(name:"오목 단상",kind:.platform,passage:.passable,

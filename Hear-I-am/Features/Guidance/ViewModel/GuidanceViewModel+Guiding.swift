@@ -4,8 +4,10 @@ import HearIAmCore
 /// Direction is the earbud tick of #44: silent while facing the next target within ±n°, 「왼쪽」 or 「오른쪽」 once
 /// when turned away, then ticks that quicken toward it (left low, right high), and a soft rising chime when they
 /// stop because the body faces it. The side of the next point is also said once after the start announcement,
-/// and at each point once the ding has rung (10/21: said over the ding it was not heard). Speech otherwise only for steps 1 m ahead and the remaining distance at a few marks (#46).
-/// The earbud also gives the obstacle warning and the arrival ding. No vibration (10/20).
+/// and at each point once the ding has rung (10/21: said over the ding it was not heard). When that point stands on
+/// a chair or stairs, where it lies is said instead (「오른쪽에 의자」, #72). Speech otherwise only for the remaining
+/// distance at a few marks (#46). The earbud also gives the obstacle warning and the arrival ding. No vibration (10/20).
+/// Chairs and stairs are not obstacles: no warning, no stop, no stepping aside (#72).
 extension GuidanceViewModel {
     /// About as long as the ding rings; the distance call-out waits this long after an arrival.
     static let arrivalShownSeconds=2.0, arrivalQuietSeconds=0.7
@@ -23,7 +25,7 @@ extension GuidanceViewModel {
     /// Clears every signal rule; called when guidance starts or resumes.
     func resetSignals() {
         directionTicks.deadbandDegrees=SignalPlayer.directionDeadbandDegrees
-        directionTicks.reset();warnings.reset();steps.reset();distances.reset();arrivalShownAt=nil;quietUntil=nil;announceNextSide=false;pendingTurnSide=false;ticksWaitForWord=false
+        directionTicks.reset();warnings.reset();distances.reset();arrivalShownAt=nil;quietUntil=nil;announceNextSide=false;pendingTurnSide=false;ticksWaitForWord=false
         signals.setWarning(nil);signals.stopDirection()
     }
     func tickGuiding(pose: (point: FloorPoint, heading: Double, time: Double), guide current: RouteGuide) {
@@ -68,7 +70,16 @@ extension GuidanceViewModel {
         let cue=directionTicks.update(time:pose.time,bearing:bearing)
         // The side waits for the ding and for any line being spoken; facing the target already needs no word.
         if ticksWaitForWord, !speaking { ticksWaitForWord=false }
-        if announceNextSide, !quiet {
+        if announceNextSide, !quiet, let step=guide.route.step(at:guide.targetIndex) {
+            // Said even when already facing it: the performer needs to know a chair or stairs is there.
+            if !speaking {
+                announceNextSide=false
+                let line=SignalCopy.place(bearing:bearing,stairs:step.kind == .stairs)
+                ticksWaitForWord=voice.play([line])
+                logSignal(ticksWaitForWord ? "signal_step_place" : "signal_step_place_skipped",
+                          String(format:"%@ %@ bearing %+.0f° target=%d",line,step.name,bearing,guide.targetIndex))
+            }
+        } else if announceNextSide, !quiet {
             if let cue, !speaking {
                 announceNextSide=false
                 sayDirection(cue.word,volume:SignalVolume.nextSide,bearing:bearing,guide:guide)
@@ -106,10 +117,7 @@ extension GuidanceViewModel {
         }
         // Every tick, so a mark passed while something else speaks is dropped rather than said late.
         let mark=distances.update(position:pose.point,target:target)
-        if let step=steps.update(position:pose.point,target:target,obstacles:guide.route.obstacles) {
-            voice.play([step.line]);logSignal("signal_step",step.detail)
-            if let mark { logSignal("signal_distance_skipped","\(SignalCopy.distance(mark)) reason=step") }
-        } else if let mark {
+        if let mark {
             // Safety signals first: no distance over an obstacle warning, another line or the ding.
             let line=SignalCopy.distance(mark)
             if quiet || signals.warning != nil || speaking {

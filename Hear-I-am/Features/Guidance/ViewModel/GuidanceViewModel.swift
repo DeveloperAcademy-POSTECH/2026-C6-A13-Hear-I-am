@@ -35,7 +35,6 @@ import HearIAmCore
     /// Ticks wait while a side word is spoken: speech starts a little late, so a tick would come first (10/21).
     var ticksWaitForWord=false
     var warnings=WarningGate()
-    var steps=StepGate()
     var distances=DistanceGate()
     var arrivalShownAt: Double?
     /// Direction, correction and distance signals wait while the ding rings (10/19); safety signals do not.
