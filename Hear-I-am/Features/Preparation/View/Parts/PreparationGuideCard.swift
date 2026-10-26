@@ -13,6 +13,10 @@ struct PreparationGuideCard: View {
                 Button {model.intro=0} label:{Image(systemName:"questionmark.circle")}.accessibilityLabel("단계 안내 다시 보기")
                 Button {model.guideCollapsed.toggle()} label:{Image(systemName:model.guideCollapsed ? "chevron.down" : "chevron.up")}.accessibilityLabel(model.guideCollapsed ? "안내 펼치기" : "안내 접기")
             }.padding(12)
+            if model.canShowPlanReference {
+                Toggle("참고 잔상 표시",isOn:$model.showPlanReference)
+                    .font(.caption).tint(.hearGreen).padding(.horizontal,12).padding(.bottom,8)
+            }
             if !model.guideCollapsed {
                 ScrollView {content}.frame(maxHeight:maxHeight)
             }
@@ -23,6 +27,10 @@ struct PreparationGuideCard: View {
         return VStack(alignment:.leading,spacing:8) {
             Text(guide.title).font(.system(size:19,weight:.bold))
             Text(guide.description).font(.system(size:12)).foregroundStyle(.secondary)
+            if model.canShowPlanReference {
+                Text("옅은 파란 표시를 참고해 실제 위치를 찍어주세요. 잔상은 등록되거나 저장되지 않아요.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             if step == .scan {
                 if model.supportsMesh {
                     Text("\(model.meshCount)개 표면 · \(model.mapping)").font(.caption).foregroundStyle(.secondary)
