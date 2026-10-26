@@ -36,8 +36,7 @@ extension GuidanceViewModel {
         tracking.setGuidanceTarget(guide.targetIndex,completed:guide.state == .completed)
         if update.state == .completed { playCompletion();return }
         if update.state == .paused {
-            if let reason=guide.pauseReason, Self.escapeReasons.contains(reason) { beginEscape(reason:reason,pose:pose,guide:guide) }
-            else { paused(guide:guide) }
+            paused(guide:guide)
             return
         }
         if update.targetIndex != previous { captureReplay(force:true);arrived(previous,guide:guide,time:pose.time) }
@@ -107,18 +106,12 @@ extension GuidanceViewModel {
                 logSignal("signal_aligned",String(format:"bearing %+.0f°",bearing))
             } else { signals.stopDirection() }
         }
-        let warning=warnings.update(position:pose.point,headingDegrees:pose.heading,obstacles:guide.route.obstacles)
-        if warning?.level != signals.warning {
-            signals.setWarning(warning?.level)
-            logSignal("signal_warning_reason",warning?.detail ?? "off")
-        }
         // Every tick, so a mark passed while something else speaks is dropped rather than said late.
         let mark=distances.update(position:pose.point,target:target)
         if let mark {
-            // Safety signals first: no distance over an obstacle warning, another line or the ding.
             let line=SignalCopy.distance(mark)
-            if quiet || signals.warning != nil || speaking {
-                logSignal("signal_distance_skipped","\(line) reason=\(quiet ? "arrival" : speaking ? "speaking" : "warning")")
+            if quiet || speaking {
+                logSignal("signal_distance_skipped","\(line) reason=\(quiet ? "arrival" : "speaking")")
             } else { voice.direction(line);logSignal("signal_distance",line) }
         }
     }
