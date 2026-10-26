@@ -61,7 +61,7 @@ final class SavedStagePreviewModel: ObservableObject {
     }
     var selectionTitle: String {
         switch selection {
-        case .point(let i): return "\(i+1)번 지점 · "+(i==0 ? "출발" : i==(loaded?.manifest.route?.points.count ?? 0)-1 ? "도착" : "이동")
+        case .point(let i): return loaded?.manifest.route?.pointLabel(at:i) ?? "\(i+1)번 지점"
         case .object: return selectedObject?.name ?? "기물"
         case .photo: return "사진 촬영 위치"
         case nil: return "지점이나 기물을 선택하세요"

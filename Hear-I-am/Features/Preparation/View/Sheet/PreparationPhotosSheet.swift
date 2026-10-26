@@ -21,7 +21,8 @@ struct PreparationPhotosSheet: View {
                         Menu {
                             Button("연결 없음") {link(selected,nil,nil)}
                             ForEach(model.draft.objects) {o in Button(o.name) {link(selected,o.id,nil)}}
-                            ForEach(model.draft.route.indices,id:\.self) {i in Button("\(i+1)번 지점") {link(selected,nil,i)}}
+                            let labels=model.draft.routePointLabels
+                            ForEach(model.draft.route.indices,id:\.self) {i in Button(labels.indices.contains(i) ? labels[i] : "\(i+1)번 지점") {link(selected,nil,i)}}
                         } label:{Label(linkTitle(selected.photo),systemImage:"link")}
                         Button("이 사진 삭제",role:.destructive) {model.session.deletePhoto(selected.photo.id);selectedID=nil}
                         ScrollView(.horizontal) {
@@ -47,7 +48,8 @@ struct PreparationPhotosSheet: View {
     func link(_ source: ScanPhotoSource,_ object: UUID?,_ point: Int?) {model.session.linkPhoto(source.photo.id,objectID:object,routeIndex:point)}
     func linkTitle(_ photo: ScanPhoto) -> String {
         if let id=photo.objectID,let o=model.draft.objects.first(where:{$0.id==id}) {return "연결: "+o.name}
-        if let index=photo.routePointIndex,model.draft.route.indices.contains(index) {return "연결: \(index+1)번 지점"}
+        let labels=model.draft.routePointLabels
+        if let index=photo.routePointIndex,model.draft.route.indices.contains(index) {return "연결: "+(labels.indices.contains(index) ? labels[index] : "\(index+1)번 지점")}
         return "기물·지점 연결"
     }
 }

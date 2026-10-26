@@ -62,15 +62,12 @@ struct StageMap: View {
                     if object.isStep {
                         for i in object.vertices.indices {
                             var edge=Path(); edge.move(to:project(object.vertices[i])); edge.addLine(to:project(object.vertices[(i+1)%object.vertices.count]))
-                            let entry=object.permitsEntry(i), exit=object.permitsExit(i)
-                            let color: Color=entry && exit ? .green : (entry ? .blue : (exit ? .orange : .red))
-                            if !entry && !exit, let clearance {
-                                context.stroke(edge,with:.color(.red.opacity(0.25)),style:StrokeStyle(lineWidth:2*clearance*scale,lineCap:.round))
-                            }
-                            context.stroke(edge,with:.color(color),lineWidth:3)
+                            let isFacing = object.facingEdge == i
+                            context.stroke(edge,with:.color(isFacing ? .green : .blue),lineWidth:isFacing ? 3.5 : 2.5)
                         }
                     }
                 }
+                let labels=StageRoute.pointLabels(points:points,obstacles:objects,finished:finished)
                 for i in points.indices {
                     let p=project(points[i])
                     if i>0 {
@@ -79,7 +76,7 @@ struct StageMap: View {
                         context.stroke(line, with:.color(.hearGreen), style: StrokeStyle(lineWidth:2, dash:entryExit ? [5,4] : []))
                     }
                     context.fill(Path(ellipseIn:CGRect(x:p.x-5,y:p.y-5,width:10,height:10)),with:.color(.hearGreen))
-                    let label=i == 0 ? "출발" : (finished && i == points.count-1 ? "도착" : "P\(i)")
+                    let label=labels.indices.contains(i) ? labels[i] : "P\(i)"
                     if showsLabels { context.draw(Text(label).font(.system(size:11,weight:.bold)).foregroundColor(.hearGreen),at:CGPoint(x:p.x,y:p.y-13)) }
                 }
                 if let states=cornerStates {
