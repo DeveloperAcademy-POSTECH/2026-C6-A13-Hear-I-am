@@ -14,14 +14,19 @@ public struct StageObstacle: Codable, Equatable, Sendable, Identifiable {
     /// nil preserves unrestricted access in older saves; an empty list closes every edge.
     public var entryEdges: [Int]?
     public var exitEdges: [Int]?
+    /// Single edge index whose outward normal is the direction to face after arriving on a chair or stairs (#76).
+    public var facingEdge: Int?
     public var appearance: ObjectAppearance?
-    public init(id: UUID = UUID(), name: String, kind: ObstacleKind, passage: PassagePolicy = .prohibited, vertices: [FloorPoint], height: Double? = nil, entryEdges: [Int]? = nil, exitEdges: [Int]? = nil, appearance: ObjectAppearance? = nil) throws {
+    public init(id: UUID = UUID(), name: String, kind: ObstacleKind, passage: PassagePolicy = .prohibited, vertices: [FloorPoint], height: Double? = nil, entryEdges: [Int]? = nil, exitEdges: [Int]? = nil, facingEdge: Int? = nil, appearance: ObjectAppearance? = nil) throws {
         self.id=id; self.name=name; self.kind=kind; self.passage=passage; self.vertices=vertices; self.height=height
-        self.entryEdges=entryEdges; self.exitEdges=exitEdges; self.appearance=appearance
+        self.entryEdges=entryEdges; self.exitEdges=exitEdges; self.facingEdge=facingEdge; self.appearance=appearance
         try validate()
     }
     public func validate() throws {
         try appearance?.validate()
+        if let facingEdge, !vertices.indices.contains(facingEdge) {
+            throw LabError.invalid("바라볼 방향의 변 번호가 올바르지 않습니다.")
+        }
         for edges in [entryEdges,exitEdges].compactMap({$0}) {
             guard Set(edges).count == edges.count, edges.allSatisfy({vertices.indices.contains($0)}) else {
                 throw LabError.invalid("승하강 변 번호가 올바르지 않습니다.")
@@ -73,23 +78,22 @@ public struct StageObstacle: Codable, Equatable, Sendable, Identifiable {
         return min(distancePointSegment(a,c,d),distancePointSegment(b,c,d),
                    distancePointSegment(c,a,b),distancePointSegment(d,a,b))
     }
-    /// Platforms and stairs are walked onto; everything else is an obstacle to keep away from.
-    public func permitsEntry(_ edge: Int) -> Bool { entryEdges?.contains(edge) ?? true }
-    public func permitsExit(_ edge: Int) -> Bool { exitEdges?.contains(edge) ?? true }
-    public func blocksTravel(from a: FloorPoint, to b: FloorPoint, clearance: Double) -> Bool {
-        if blocksPath { return overlaps(a,b,clearance:clearance) }
-        guard isStep else { return false }
+    /// Platforms and stairs can be approached and left from any side (#76); `facingEdge` defines the
+    /// direction to face after arriving on the step. Non-step obstacles still block travel.
+    public func permitsEntry(_ edge: Int) -> Bool { true }
+    public func permitsExit(_ edge: Int) -> Bool { true }
+    /// Body-relative bearing in [-180, 180] toward the outward normal of `facingEdge`, or nil when none is set (#76).
+    public func facingBearing(headingDegrees: Double) -> Double? {
+        guard isStep, let edge=facingEdge, vertices.indices.contains(edge), headingDegrees.isFinite else { return nil }
+        let a=vertices[edge], b=vertices[(edge+1)%vertices.count]
+        let dx=b.x-a.x, dy=b.y-a.y
+        guard hypot(dx,dy) > 1e-9 else { return nil }
         let winding=Self.area(vertices) >= 0 ? 1.0 : -1.0
-        for i in vertices.indices {
-            let c=vertices[i], d=vertices[(i+1)%vertices.count]
-            if !permitsEntry(i) && !permitsExit(i),
-               Self.segmentDistance(a,b,c,d) <= clearance+1e-9 { return true }
-            guard Self.intersects(a,b,c,d) else { continue }
-            let before=Self.cross(c,d,a)*winding, after=Self.cross(c,d,b)*winding
-            if after > before+1e-9 && !permitsEntry(i) { return true }
-            if after < before-1e-9 && !permitsExit(i) { return true }
-        }
-        return false
+        let outward=FloorPoint(winding*dy,-winding*dx)
+        return StageHeading.bearing(from:.init(0,0),to:outward,headingDegrees:headingDegrees)
+    }
+    public func blocksTravel(from a: FloorPoint, to b: FloorPoint, clearance: Double) -> Bool {
+        blocksPath && overlaps(a,b,clearance:clearance)
     }
     /// Nearest outline point of an object to keep away from. Chairs and stairs are walked onto, so they
     /// never give one: on 10/26 their closed sides beeped for 34.9 s of a 51 s run past a chair (#72).
