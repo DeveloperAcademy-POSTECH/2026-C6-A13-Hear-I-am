@@ -238,4 +238,34 @@ final class SignalRuleTests: XCTestCase {
         XCTAssertEqual(SignalCopy.point(20),"피이십")
         XCTAssertEqual(SignalCopy.point(21),"피21")
     }
+
+    // MARK: step facing edge alignment (#76)
+    func testStepFacingEdgeAlignmentThenNextSpotDirection() throws {
+        let chair=try StageObstacle(name:"스툴",kind:.platform,passage:.passable,
+            vertices:[.init(2,2),.init(4,2),.init(4,4),.init(2,4)],height:0.45,facingEdge:0)
+        let area=try StageArea(corners:[Point3(6,0,0),Point3(0,0,0),Point3(0,0,6),Point3(6,0,6)])
+        let route=try StageRoute(area:area,points:[.init(1,3),.init(3,3),.init(5,3)],obstacles:[chair])
+        let reachedStep=try XCTUnwrap(route.step(at:1))
+        XCTAssertEqual(reachedStep.facingEdge,0)
+
+        // 1st step: sitting on P1 (3,3) facing -80° (stage left); green edge 0 faces audience (0°), so turn right (+80°).
+        var gate=DirectionTickGate(deadbandDegrees:15)
+        let firstBearing=try XCTUnwrap(reachedStep.facingBearing(headingDegrees:-80))
+        XCTAssertEqual(firstBearing,80,accuracy:1e-9)
+        let alignCue=try XCTUnwrap(gate.update(time:1.0,bearing:firstBearing))
+        XCTAssertEqual(alignCue.spokenWord,"오른쪽")
+        XCTAssertTrue(alignCue.toRight)
+
+        // Turning to face the green edge within ±15° completes 1st alignment.
+        let alignedBearing=try XCTUnwrap(reachedStep.facingBearing(headingDegrees:-5))
+        XCTAssertNil(gate.update(time:2.0,bearing:alignedBearing))
+        XCTAssertTrue(gate.isAligned)
+
+        // 2nd step: after aligned chime, reset gate and guide from P1 (3,3) toward P2 (5,3) while facing -5°.
+        gate.reset()
+        let nextBearing=StageHeading.bearing(from:route.points[1],to:route.points[2],headingDegrees:-5)
+        let nextCue=try XCTUnwrap(gate.update(time:2.8,bearing:nextBearing))
+        XCTAssertEqual(nextCue.spokenWord,"왼쪽")
+        XCTAssertFalse(nextCue.toRight)
+    }
 }
