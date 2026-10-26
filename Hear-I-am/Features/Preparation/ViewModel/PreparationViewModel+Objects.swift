@@ -10,10 +10,10 @@ extension PreparationViewModel {
         objectEditing=true
         guard !busy else {return}
         editingObjectID=id
-        entryEdges=[]; exitEdges=[]
+        facingEdge=nil
         if let object=draft.objects.first(where:{$0.id==id}) {
             obstacleName=object.name; obstacleKind=object.kind; pendingObjectWorld=object.vertices
-            entryEdges=Set(object.entryEdges ?? Array(object.vertices.indices)); exitEdges=Set(object.exitEdges ?? Array(object.vertices.indices))
+            facingEdge=object.facingEdge
             objectModel=object.appearance?.model ?? .generic; objectHeading=object.appearance?.headingDegrees ?? 0
         } else {obstacleName="기물"; obstacleKind = .other; pendingObjectWorld=[];objectModel = .generic;objectHeading=0}
         // An existing object keeps the kind it was registered with; a new one takes the suggestion.
@@ -26,7 +26,7 @@ extension PreparationViewModel {
         do {
             let p=try session.centerFloorPoint()
             guard pendingObjectWorld.count<8, abs(p.y-area.floorHeight)<=0.10, area.contains(area.floor(p)) else {throw LabError.invalid("무대 안 바닥에서 기물의 둘레를 3~8점으로 지정해주세요.")}
-            pendingObjectWorld.append(p); entryEdges=[]; exitEdges=[]; measureObject(); synchronize()
+            pendingObjectWorld.append(p); facingEdge=nil; measureObject(); synchronize()
         } catch {session.errorMessage=error.localizedDescription}
     }
     /// One line under the kind picker telling what the height suggests; nil before 3 points.
@@ -51,16 +51,17 @@ extension PreparationViewModel {
     }
     func undoObjectVertex() {
         guard !busy, !pendingObjectWorld.isEmpty else {return}
-        pendingObjectWorld.removeLast(); entryEdges=[]; exitEdges=[]; measureObject(); synchronize()
+        pendingObjectWorld.removeLast(); facingEdge=nil; measureObject(); synchronize()
     }
     func commitObject() {
         guard !busy, let area=draft.area else {return}
         do {
-            let item=WorldObstacle(id:editingObjectID ?? UUID(),name:obstacleName.trimmingCharacters(in:.whitespacesAndNewlines),kind:obstacleKind,vertices:pendingObjectWorld,height:objectHeight?.height ?? draft.objects.first(where:{$0.id==editingObjectID})?.height, entryEdges:entryEdges.sorted(), exitEdges:exitEdges.sorted(), appearance:.init(model:objectModel,headingDegrees:objectHeading))
+            let step=obstacleKind == .platform || obstacleKind == .stairs
+            let item=WorldObstacle(id:editingObjectID ?? UUID(),name:obstacleName.trimmingCharacters(in:.whitespacesAndNewlines),kind:obstacleKind,vertices:pendingObjectWorld,height:objectHeight?.height ?? draft.objects.first(where:{$0.id==editingObjectID})?.height, facingEdge:step ? facingEdge : nil, appearance:.init(model:objectModel,headingDegrees:objectHeading))
             let projected=try item.projected(in:area)
             guard projected.vertices.allSatisfy({area.contains($0)}) else {throw LabError.invalid("기물을 무대 안에 지정해주세요.")}
             if let i=draft.objects.firstIndex(where:{$0.id==item.id}) {draft.objects[i]=item} else {draft.objects.append(item)}
-            session.event("object_saved",detail:"\(item.name) kind=\(item.kind.rawValue) passage=\(projected.passage.rawValue) vertices=\(item.vertices.count) height=\(item.height.map { String(format:"%.2f",$0) } ?? "none") suggested=\(objectHeight?.suggestedKind?.rawValue ?? "none")")
+            session.event("object_saved",detail:"\(item.name) kind=\(item.kind.rawValue) passage=\(projected.passage.rawValue) vertices=\(item.vertices.count) facingEdge=\(item.facingEdge.map(String.init) ?? "none") height=\(item.height.map { String(format:"%.2f",$0) } ?? "none") suggested=\(objectHeight?.suggestedKind?.rawValue ?? "none")")
             cancelObject()
         } catch {session.errorMessage=error.localizedDescription}
     }

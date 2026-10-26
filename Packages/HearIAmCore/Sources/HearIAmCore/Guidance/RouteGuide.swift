@@ -17,25 +17,26 @@ public struct RouteGuide: Sendable {
     public let settings: GuideSettings
     /// Opt in for the portrait guidance flow. The legacy experiment keeps its original rules.
     public let usesRouteCorridor: Bool
+    /// Whether stepping off the corridor, outside the stage or near an obstacle pauses guidance (#74).
+    public let pausesForPositionIssues: Bool
     /// How far from the active segment counts as off the route. It was 0.6 m until 10/19; in two runs
     /// that day all five off-route stops came from overshooting a point and stopped 0.60–0.87 m from the
     /// line. Stepping off the stage and coming near an object still stop at once.
     public static let corridorRadius = 1.0
     private var arrivedSince: Double?
-    private var lastPosition: FloorPoint?
     private var lastTime: Double?
     private var lastSpeech: Double = -.infinity
     private var reentrySince: Double?
     private var lastReentryTime: Double?
     private var sector: Int?
-    public init(route: StageRoute, settings: GuideSettings, usesRouteCorridor: Bool = false) {
-        self.route=route; self.settings=settings; self.usesRouteCorridor=usesRouteCorridor
+    public init(route: StageRoute, settings: GuideSettings, usesRouteCorridor: Bool = false, pausesForPositionIssues: Bool = true) {
+        self.route=route; self.settings=settings; self.usesRouteCorridor=usesRouteCorridor; self.pausesForPositionIssues=pausesForPositionIssues
     }
     public func ready(position: FloorPoint, headingDegrees: Double, trackingValid: Bool) -> Bool {
         guard route.version == 1 || usesRouteCorridor, trackingValid, position.valid, headingDegrees.isFinite,
               (try? route.validate()) != nil, !usesRouteCorridor || (try? settings.validate()) != nil,
               position.distance(to:route.points[0]) <= settings.startRadius,
-              !usesRouteCorridor || positionIssue(position) == nil else { return false }
+              !usesRouteCorridor || !pausesForPositionIssues || positionIssue(position) == nil else { return false }
         let angle=atan2(sin(headingDegrees * .pi/180),cos(headingDegrees * .pi/180))*180 / .pi
         // Portrait guidance already computes directions relative to the measured body heading.
         // Only the legacy experiment requires facing the audience before departure.
@@ -44,7 +45,6 @@ public struct RouteGuide: Sendable {
     }
     @discardableResult public mutating func start(position: FloorPoint, headingDegrees: Double, trackingValid: Bool) -> Bool {
         guard state == .idle, ready(position:position,headingDegrees:headingDegrees,trackingValid:trackingValid) else { return false }
-        lastPosition=position
         state = .guiding; targetIndex=1; arrivedSince=nil; lastTime=nil; lastSpeech = -.infinity; sector=nil; pauseReason=nil
         return true
     }
@@ -56,14 +56,13 @@ public struct RouteGuide: Sendable {
     }
     @discardableResult public mutating func resume(position: FloorPoint, trackingValid: Bool) -> Bool {
         guard canResume(position:position,trackingValid:trackingValid) else { return false }
-        lastPosition=position
         state = .guiding; pauseReason=nil; arrivedSince=nil; lastTime=nil; lastSpeech = -.infinity
         reentrySince=nil; lastReentryTime=nil; sector=nil
         return true
     }
     public func canResume(position: FloorPoint, trackingValid: Bool) -> Bool {
         state == .paused && trackingValid && position.valid &&
-        (usesRouteCorridor ? positionIssue(position) == nil : route.area.contains(position,margin:settings.boundaryMargin)) &&
+        (!pausesForPositionIssues || (usesRouteCorridor ? positionIssue(position) == nil : route.area.contains(position,margin:settings.boundaryMargin))) &&
         route.conflicts(boundaryMargin:settings.boundaryMargin,obstacleClearance:settings.obstacleClearance).isEmpty
     }
     /// Only the active entry/exit segment may extend outside the stage. This is not obstacle detection.
@@ -73,7 +72,8 @@ public struct RouteGuide: Sendable {
         if !route.area.contains(position) && !externalSegment { return .outsideStage }
         let a=route.points[targetIndex-1], b=route.points[targetIndex]
         if position.distance(toSegmentFrom:a,to:b) > Self.corridorRadius { return .offRoute }
-        if route.obstacles.contains(where: { $0.blocksTravel(from:position,to:b,clearance:settings.obstacleClearance) }) {
+        // Chairs and stairs never stop guidance (#72); their open sides still shape the route when it is drawn.
+        if route.obstacles.contains(where: { !$0.isStep && $0.blocksTravel(from:position,to:b,clearance:settings.obstacleClearance) }) {
             return .obstacleProximity
         }
         return nil
@@ -103,14 +103,7 @@ public struct RouteGuide: Sendable {
         guard lastTime.map({time > $0 && time-$0 <= 0.5}) ?? true else {
             pause(reason:.sampleGap); return GuideUpdate(state:state,targetIndex:targetIndex,announcement:nil)
         }
-        if let previous=lastPosition, route.obstacles.contains(where: {
-            $0.isStep && $0.blocksTravel(from:previous,to:position,clearance:0)
-        }) {
-            pause(reason:.obstacleProximity)
-            return GuideUpdate(state:state,targetIndex:targetIndex,announcement:nil)
-        }
-        lastPosition=position
-        let issue=usesRouteCorridor ? positionIssue(position) : (route.area.contains(position) ? nil : GuidePauseReason.outsideStage)
+        let issue = !pausesForPositionIssues ? nil : (usesRouteCorridor ? positionIssue(position) : (route.area.contains(position) ? nil : GuidePauseReason.outsideStage))
         if let issue {
             pause(reason:issue); return GuideUpdate(state:state,targetIndex:targetIndex,announcement:nil)
         }

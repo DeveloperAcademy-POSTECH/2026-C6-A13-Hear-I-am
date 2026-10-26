@@ -22,7 +22,7 @@ import HearIAmCore
     }
     static let alignedToneKey="signal.alignedTone.v1"
     static var savedAlignedTone: AlignedTone {
-        UserDefaults.standard.string(forKey:alignedToneKey).flatMap(AlignedTone.init(rawValue:)) ?? .warm
+        UserDefaults.standard.string(forKey:alignedToneKey).flatMap(AlignedTone.init(rawValue:)) ?? .fifth
     }
     static let directionModeKey="signal.directionMode"
     /// How guidance gives the direction at each 45° landmark; chosen in the sound test tab (#33).

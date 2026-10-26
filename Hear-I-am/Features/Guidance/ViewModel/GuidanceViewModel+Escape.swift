@@ -49,7 +49,7 @@ extension GuidanceViewModel {
     private func endEscape(pose: (point: FloorPoint, heading: Double, time: Double)) {
         guard let state=escape, var guide, guide.resume(position:pose.point,trackingValid:true) else { return }
         self.guide=guide;escape=nil;phase = .guiding
-        signals.setWarningQuiet(false);directionTicks.reset();steps.reset();distances.reset()
+        signals.setWarningQuiet(false);directionTicks.reset();distances.reset()
         voice.play(["다시 안내합니다"])
         logSignal("escape_end",String(format:"reason=%@ seconds=%.1f quiet=%@","\(state.reason)",pose.time-state.startedAt,state.quiet ? "yes" : "no"))
     }

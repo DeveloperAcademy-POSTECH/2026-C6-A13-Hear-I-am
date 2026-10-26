@@ -10,7 +10,7 @@ extension GuidanceViewModel {
         if !started, pose.point.distance(to:guide.route.points[0]) > guide.settings.startRadius {
             return "지정한 출발점에 더 가까이 서주세요."
         }
-        if let issue=guide.positionIssue(pose.point) {
+        if guide.pausesForPositionIssues, let issue=guide.positionIssue(pose.point) {
             return issue == .obstacleProximity ? "등록한 기물과 가까워요. 출발 위치와 동선을 확인해주세요." : "저장한 동선 위에 서주세요."
         }
         return departureReady ? "위치와 몸의 방향이 확인됐어요." : "위치와 방향을 확인 중이에요. 잠시 멈춰주세요."
@@ -20,7 +20,7 @@ extension GuidanceViewModel {
         guard (phase == .departure && departureReady || phase == .paused && canResume), canAdvanceInstruction, active else { return }
         invalidateTasks()
         phase = .starting
-        read([started ? "안내를 다시 시작합니다." : "안내를 시작합니다.","\(targetName)으로 이동합니다."]) { [weak self] in
+        read([started ? "안내를 다시 시작합니다." : "안내를 시작합니다.",SignalCopy.start]) { [weak self] in
             guard let self, self.phase == .starting, var guide=self.guide else { return }
             guard let pose=self.freshPose() else { self.interrupt("현재 위치를 확인할 수 없어요. 확인점을 다시 확인해주세요.");return }
             let first = !self.started
@@ -32,7 +32,10 @@ extension GuidanceViewModel {
             self.guide=guide;self.run?.begin(at:Date(),uptime:ProcessInfo.processInfo.systemUptime);self.started=true;self.phase = .guiding;self.lastPoseTime=nil
             self.resetSignals()
             // The start has no ding of its own here (it rang on settling), so the side comes on the first cue.
-            if first { self.announceNextSide=true }
+            if first {
+                self.announceNextSide=true
+                self.announceStepHint=guide.route.step(at:guide.targetIndex) != nil
+            }
         }
     }
     func tickDeparture(pose: (point: FloorPoint, heading: Double, time: Double), guide: RouteGuide) {

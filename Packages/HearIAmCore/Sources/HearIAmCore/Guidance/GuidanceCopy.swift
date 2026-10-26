@@ -1,7 +1,7 @@
 import Foundation
 
 public enum GuidanceCopy {
-    public static let completed="마지막 지점에 도착했습니다. 안내를 종료합니다."
+    public static let completed="마지막 지점 도착"
     /// Read before the phone goes on the belt: iOS gives apps no way to turn Do Not Disturb on (#65).
     public static let doNotDisturb="방해 금지 모드를 켜주세요. 안내 중에 알림이 오면 소리가 끊길 수 있습니다."
     public static func target(_ index: Int, last: Int) -> String {

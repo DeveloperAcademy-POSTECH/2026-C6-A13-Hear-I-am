@@ -6,7 +6,7 @@ final class ReplayMigrationTests: XCTestCase {
     private func chair(appearance: ObjectAppearance? = .init(model:.chair,headingDegrees:90)) throws -> StageObstacle {
         try StageObstacle(name:"의자",kind:.platform,passage:.passable,
             vertices:[.init(2,2),.init(4,2),.init(4,4),.init(2,4)],height:0.4,
-            entryEdges:[3],exitEdges:[1],appearance:appearance)
+            entryEdges:[3],exitEdges:[1],facingEdge:1,appearance:appearance)
     }
     private func route(appearance: ObjectAppearance? = .init(model:.chair,headingDegrees:90)) throws -> StageRoute {
         var draft=PreparationDraft()
@@ -14,7 +14,7 @@ final class ReplayMigrationTests: XCTestCase {
         let area=try XCTUnwrap(draft.area), object=try chair(appearance:appearance)
         draft.objects=[WorldObstacle(id:object.id,name:object.name,kind:object.kind,
             vertices:object.vertices.map(area.world),height:object.height,
-            entryEdges:object.entryEdges,exitEdges:object.exitEdges,appearance:object.appearance)]
+            entryEdges:object.entryEdges,exitEdges:object.exitEdges,facingEdge:object.facingEdge,appearance:object.appearance)]
         try draft.addRoutePoint(area.world(.init(1,3)))
         var top=area.world(.init(3,3)); top.y += 0.4
         try draft.addRoutePoint(top)
@@ -31,8 +31,9 @@ final class ReplayMigrationTests: XCTestCase {
     private func assertGuidanceEdges(_ object: StageObstacle, file: StaticString = #filePath, line: UInt = #line) {
         XCTAssertEqual(object.entryEdges,[3],file:file,line:line)
         XCTAssertEqual(object.exitEdges,[1],file:file,line:line)
+        XCTAssertEqual(object.facingEdge,1,file:file,line:line)
         XCTAssertFalse(object.blocksTravel(from:.init(1,3),to:.init(5,3),clearance:0.1),file:file,line:line)
-        XCTAssertTrue(object.blocksTravel(from:.init(5,3),to:.init(1,3),clearance:0.1),file:file,line:line)
+        XCTAssertFalse(object.blocksTravel(from:.init(5,3),to:.init(1,3),clearance:0.1),file:file,line:line)
     }
     func testRaisedRouteWithPhotosPreservesAppearanceAndGuidance() async throws {
         let root=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -91,9 +92,10 @@ final class ReplayMigrationTests: XCTestCase {
         XCTAssertEqual(projected.height,original.height)
         XCTAssertEqual(projected.entryEdges,original.entryEdges)
         XCTAssertEqual(projected.exitEdges,original.exitEdges)
+        XCTAssertEqual(projected.facingEdge,original.facingEdge)
         XCTAssertEqual(projected.vertices,[.init(1,1),.init(2,1),.init(2,2),.init(1,2)])
         XCTAssertFalse(projected.blocksTravel(from:.init(0.5,1.5),to:.init(2.5,1.5),clearance:0.05))
-        XCTAssertTrue(projected.blocksTravel(from:.init(2.5,1.5),to:.init(0.5,1.5),clearance:0.05))
+        XCTAssertFalse(projected.blocksTravel(from:.init(2.5,1.5),to:.init(0.5,1.5),clearance:0.05))
         XCTAssertTrue(draft.routeErrors.isEmpty)
     }
     func testAppearanceAndAccessMetadataAreValidatedIndependently() throws {
@@ -101,9 +103,9 @@ final class ReplayMigrationTests: XCTestCase {
         object.appearance = .init(model:.chair,headingDegrees:.nan)
         XCTAssertThrowsError(try object.validate())
         object.appearance = .init(model:.table,headingDegrees:180)
-        object.entryEdges=[4]
+        object.facingEdge=4
         XCTAssertThrowsError(try object.validate())
-        object.entryEdges=[3]
+        object.facingEdge=1
         XCTAssertNoThrow(try object.validate())
         assertGuidanceEdges(object)
     }
