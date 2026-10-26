@@ -2,7 +2,7 @@ import Foundation
 
 public struct ScanManifest: Codable, Sendable {
     public var version: Int
-    public let route: StageRoute?
+    public internal(set) var route: StageRoute?
     public let photos: [ScanPhoto]
     public let settings: GuideSettings
     public let id: UUID

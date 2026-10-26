@@ -63,9 +63,40 @@ struct SavedStagePreview: View {
                             ScrollView(.horizontal) {
                                 HStack {
                                     ForEach(route.points.indices,id:\.self) {i in
-                                        selectionButton(route.pointLabel(at:i),.point(i))
+                                        selectionButton(route.pointLabel(at:i)+(route.holdSeconds(at:i)>0 ? " · \(route.holdSeconds(at:i))초" : ""),.point(i))
                                     }
                                 }
+                            }
+                            if let index=model.selectedPointIndex {
+                                VStack(alignment:.leading,spacing:10) {
+                                    Text(model.selectionTitle).font(.headline)
+                                    if model.canEditPointHold {
+                                        Text("\(route.pointLabel(at:index)) 도착 후 다음 지점 안내 대기").font(.subheadline.bold())
+                                        HStack {
+                                            TextField("초",text:$model.holdSecondsText).keyboardType(.numberPad)
+                                                .textFieldStyle(.roundedBorder).frame(width:100)
+                                                .accessibilityLabel("도착 후 안내 대기 시간, 초")
+                                                .disabled(model.savingHold)
+                                                .onChange(of:model.holdSecondsText) { _,_ in model.holdNotice=nil;model.holdSaveError=nil }
+                                            Text("초")
+                                            Spacer()
+                                            Button("저장") {Task {await model.savePointHold()}}
+                                                .buttonStyle(.borderedProminent)
+                                                .disabled(model.enteredHoldSeconds == nil || model.savingHold)
+                                        }
+                                        Text("0초는 바로 안내 · 최대 3600초. 도착 이름을 알린 뒤 방향·거리 안내를 쉬고 자동 재개해요.")
+                                            .font(.caption).foregroundStyle(.secondary)
+                                        if model.enteredHoldSeconds == nil { Text("0~3600 사이의 정수를 입력해주세요.").font(.caption).foregroundStyle(.red) }
+                                        if model.savingHold {ProgressView("저장 중…")}
+                                        if let notice=model.holdNotice {Text(notice).font(.caption).foregroundStyle(Color.hearGreen)}
+                                        if let error=model.holdSaveError {Text(error).font(.caption).foregroundStyle(.red)}
+                                    } else {
+                                        Text("대기 시간은 다음 지점이 있는 중간 경로점에 설정할 수 있어요. 출발점과 마지막 도착점은 제외됩니다.")
+                                            .font(.caption).foregroundStyle(.secondary)
+                                    }
+                                }.padding(14).background(Color(.systemGray6),in:RoundedRectangle(cornerRadius:14))
+                            } else {
+                                Text("경로점을 선택하면 도착 후 안내 대기 시간을 설정할 수 있어요.").font(.caption).foregroundStyle(.secondary)
                             }
                             if !route.obstacles.isEmpty {
                                 ScrollView(.horizontal) {HStack {ForEach(route.obstacles) {o in selectionButton(o.name,.object(o.id))}}}

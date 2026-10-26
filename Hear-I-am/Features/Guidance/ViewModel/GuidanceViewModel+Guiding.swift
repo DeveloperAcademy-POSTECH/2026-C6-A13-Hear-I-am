@@ -31,8 +31,9 @@ extension GuidanceViewModel {
     func tickGuiding(pose: (point: FloorPoint, heading: Double, time: Double), guide current: RouteGuide) {
         var guide=current
         let previous=guide.targetIndex
+        let wasHolding=guide.isHolding
         let update=guide.observe(time:pose.time,position:pose.point,headingDegrees:pose.heading,trackingValid:true,allowsTargetAdvance:aligningStep == nil)
-        self.guide=guide;cue=guide.cue(position:pose.point,headingDegrees:pose.heading)
+        self.guide=guide;performanceHoldRemaining=guide.holdRemaining;cue=guide.cue(position:pose.point,headingDegrees:pose.heading)
         tracking.setGuidanceTarget(guide.targetIndex,completed:guide.state == .completed)
         if update.state == .completed { playCompletion();return }
         if update.state == .paused {
@@ -41,6 +42,15 @@ extension GuidanceViewModel {
         }
         if update.targetIndex != previous { captureReplay(force:true);arrived(previous,guide:guide,time:pose.time) }
         if let shown=arrivalShownAt, pose.time-shown > Self.arrivalShownSeconds { arrivedName=nil;arrivalShownAt=nil }
+        if guide.isHolding {
+            // The reached step's facing instruction is separate from the muted next-leg guidance.
+            signal(pose:pose,guide:guide)
+            return
+        }
+        if wasHolding && aligningStep == nil {
+            directionTicks.reset();distances.reset();announceNextSide=true;pendingTurnSide=false
+        }
+        if wasHolding { logSignal("performance_hold_end","next=\(guide.targetIndex)") }
         signal(pose:pose,guide:guide)
     }
 
@@ -63,6 +73,7 @@ extension GuidanceViewModel {
         ticksWaitForWord=voice.play([name])
         quietUntil=ticksWaitForWord ? nil : time+Self.arrivalQuietSeconds
         logSignal("signal_arrival","\(label)(\(name)) next=\(guide.targetIndex)\(aligningStep.map { " align=\($0.name)#\(($0.facingEdge ?? 0)+1)" } ?? "")")
+        if guide.isHolding { logSignal("performance_hold_start","point=\(previous) seconds=\(guide.holdRemaining)") }
     }
     private func signal(pose: (point: FloorPoint, heading: Double, time: Double), guide: RouteGuide) {
         var quiet=quietUntil.map { pose.time < $0 } ?? false
@@ -73,7 +84,7 @@ extension GuidanceViewModel {
             return
         }
         aligningStep=nil
-        guard guide.route.points.indices.contains(guide.targetIndex) else { return }
+        guard !guide.isHolding, guide.route.points.indices.contains(guide.targetIndex) else { return }
         let target=guide.route.points[guide.targetIndex]
         let bearing=StageHeading.bearing(from:pose.point,to:target,headingDegrees:pose.heading)
         // Direction (#44): silent within ±n° of the target; outside it 「왼쪽」 or 「오른쪽」 once, then ticks that
