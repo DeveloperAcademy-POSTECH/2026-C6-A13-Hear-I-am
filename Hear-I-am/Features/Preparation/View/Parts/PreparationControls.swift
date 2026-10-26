@@ -18,7 +18,8 @@ struct PreparationControls: View {
             if draft.area != nil {
                 ActionButton(title:"위험 구역",primary:false,enabled:!model.busy) {model.editingDangerZones=true}
                 if let plan=model.selectedPlan {
-                    ActionButton(title:"‘\(plan.name)’ 동선 적용") {model.applyPlan(plan)}
+                    if hasPlans { ActionButton(title:"참고 동선 변경",primary:false) {model.choosingPlan=true} }
+                    ActionButton(title:"‘\(plan.name)’ 참고해 입력") {model.selectReferencePlan(plan)}
                 } else {
                     if hasPlans {
                         ActionButton(title:"사전 저장 동선 불러오기",primary:false) {model.choosingPlan=true}
