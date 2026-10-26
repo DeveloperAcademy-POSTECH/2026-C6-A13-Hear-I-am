@@ -40,12 +40,17 @@ struct PlaceEditorView: View {
                 Section("필수 정보") {
                     PhotosPicker(selection:$photoItem,matching:.images,photoLibrary:.shared()) {
                         VStack(alignment:.leading,spacing:10) {
-                            HStack {Text("장소 사진");Spacer();Label(preview == nil ? "사진 선택" : "사진 변경",systemImage:"photo")}.font(.subheadline)
-                            if let preview {PlacePhoto(image:preview).frame(height:150)}
-                            else {Label("장소를 알아볼 수 있는 사진을 선택해주세요",systemImage:"photo.badge.plus").font(.subheadline).frame(maxWidth:.infinity,minHeight:100)}
+                            if let preview {
+                                HStack {Text("장소 사진");Spacer();Label("사진 변경",systemImage:"photo")}.font(.subheadline)
+                                PlacePhoto(image:preview).frame(height:150)
+                            } else {
+                                photoPlaceholder
+                            }
                             if photoLoading {ProgressView("사진 준비 중")}
                         }.foregroundStyle(Color.hearInk)
                     }.disabled(saving)
+                        .accessibilityLabel(preview == nil ? "장소 사진 추가, 필수" : "장소 사진 변경")
+                        .accessibilityHint("사진 보관함을 엽니다")
                     if let photoError {Text(photoError).font(.caption).foregroundStyle(.red)}
                     LabeledContent("이름") {TextField("장소 이름",text:$draft.name).multilineTextAlignment(.trailing).accessibilityLabel("장소 이름, 필수")}
                     LabeledContent("위치") {TextField("주소 또는 위치",text:$draft.address,axis:.vertical).multilineTextAlignment(.trailing).accessibilityLabel("장소 위치, 필수")}
@@ -76,6 +81,20 @@ struct PlaceEditorView: View {
                 } message:{Text("삭제한 폴더의 공연 \(releasedCount)개는 장소 미지정으로 이동합니다. 스캔과 동선은 삭제되지 않습니다.")}
                 .alert("저장하지 못했어요",isPresented:Binding(get:{failure != nil},set:{if !$0 {failure=nil}})) {Button("확인",role:.cancel) {failure=nil}} message:{Text(failure ?? "")}
         }.tint(.hearInk)
+    }
+    private var photoPlaceholder: some View {
+        VStack(spacing:12) {
+            Image(systemName:"plus").font(.system(size:30,weight:.light)).accessibilityHidden(true)
+            Text("사진 추가 · 필수").font(.subheadline.weight(.semibold))
+            Text("장소를 알아볼 수 있는 사진을 추가해주세요")
+                .font(.caption).foregroundStyle(.secondary)
+                .multilineTextAlignment(.center).fixedSize(horizontal:false,vertical:true)
+        }
+        .padding(.horizontal,16).padding(.vertical,24)
+        .frame(maxWidth:.infinity,minHeight:170)
+        .background(Color(.systemGray6).opacity(0.65),in:RoundedRectangle(cornerRadius:14))
+        .overlay(RoundedRectangle(cornerRadius:14).stroke(Color.secondary.opacity(0.35),style:StrokeStyle(lineWidth:1,dash:[5,5])))
+        .contentShape(RoundedRectangle(cornerRadius:14))
     }
     private func save() {
         saving=true
