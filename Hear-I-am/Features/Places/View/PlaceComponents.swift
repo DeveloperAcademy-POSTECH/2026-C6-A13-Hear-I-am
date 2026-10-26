@@ -55,6 +55,8 @@ struct PlacePerformanceCard: View {
             HStack(alignment:.top,spacing:8) {
                 NavigationLink {
                     SavedStagePreview(record:record,store:library.scans)
+                        .toolbar(.visible,for:.navigationBar)
+                        .task {if let destination=model.index.destination(for:record.id) {await model.visit(destination.placeID)}}
                 } label: {
                     HStack(alignment:.top,spacing:12) {
                         if !typeSize.isAccessibilitySize {
@@ -91,7 +93,7 @@ struct PlacePerformanceCard: View {
 }
 extension View {
     func placeCardStyle() -> some View {
-        background(Color(.systemBackground),in:RoundedRectangle(cornerRadius:20))
-            .overlay(RoundedRectangle(cornerRadius:20).stroke(Color(.systemGray5)))
+        background(Color(.systemBackground),in:RoundedRectangle(cornerRadius:16))
+            .overlay(RoundedRectangle(cornerRadius:16).stroke(Color(.systemGray5)))
     }
 }

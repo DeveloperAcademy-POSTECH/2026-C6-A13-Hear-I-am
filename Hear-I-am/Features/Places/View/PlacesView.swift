@@ -16,7 +16,13 @@ struct PlacesView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment:.leading,spacing:20) {
+                VStack(alignment:.leading,spacing:16) {
+                    HStack {
+                        Text("장소").font(.largeTitle.bold()).accessibilityAddTraits(.isHeader)
+                        Spacer()
+                        Button {searchFocused=false;model.present(.edit(nil))} label:{Image(systemName:"plus").font(.title3).frame(width:44,height:44).background(Color(.systemGray6),in:Circle())}
+                            .accessibilityLabel("장소 등록").disabled(!model.ready || model.busy || model.loading)
+                    }
                     searchField
                     if !model.ready {
                         if model.loading {ProgressView("장소 불러오는 중").frame(maxWidth:.infinity)}
@@ -25,11 +31,7 @@ struct PlacesView: View {
                     else {placeList}
                 }.padding(.horizontal,20).padding(.top,8).padding(.bottom,12)
             }.background(Color(.systemBackground)).scrollDismissesKeyboard(.interactively)
-                .navigationTitle("장소").navigationBarTitleDisplayMode(.large)
-                .toolbar {ToolbarItem(placement:.topBarTrailing) {
-                    Button {searchFocused=false;model.present(.edit(nil))} label:{Image(systemName:"plus").font(.title3).frame(width:40,height:40).background(Color(.systemGray6),in:Circle())}
-                        .accessibilityLabel("장소 등록").disabled(!model.ready || model.busy || model.loading)
-                }}
+                .toolbar(.hidden,for:.navigationBar)
                 .safeAreaInset(edge:.bottom,alignment:.trailing) {
                     if !searchFocused {
                         HStack {Spacer();Button {Task {await model.beginScan(at:nil,library:library)}} label:{Label("새 스캔",systemImage:"viewfinder").font(.subheadline.weight(.semibold)).padding(.horizontal,20).frame(minHeight:50).foregroundStyle(.white).background(Color.hearInk,in:Capsule()).shadow(color:.black.opacity(0.16),radius:8,y:3)}.accessibilityHint("장소를 지정하지 않고 새 스캔을 시작합니다").disabled(!model.ready || model.busy || model.loading)}
@@ -79,7 +81,7 @@ struct PlacesView: View {
                                 HStack {Text(option.title);if sort==option {Image(systemName:"checkmark")}}
                             }
                         }
-                    } label:{Label(sort.title,systemImage:"chevron.down").font(.caption).frame(minHeight:44)}
+                    } label:{HStack(spacing:6) {Text(sort.title);Image(systemName:"chevron.down")}.font(.caption).frame(minHeight:44)}
                 }
                 HStack(spacing:10) {
                     Picker("장소 유형",selection:$kind) {Text("전체").tag(nil as PlaceKind?);ForEach(PlaceKind.allCases,id:\.self) {Text($0.title).tag(Optional($0))}}.pickerStyle(.segmented)

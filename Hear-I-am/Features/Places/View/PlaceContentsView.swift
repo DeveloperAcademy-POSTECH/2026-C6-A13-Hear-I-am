@@ -53,7 +53,7 @@ struct PlaceContentsView: View {
                         Menu {
                             Button {nameOrder=false} label:{Label("최근 저장순",systemImage:nameOrder ? "" : "checkmark")}
                             Button {nameOrder=true} label:{Label("이름순",systemImage:nameOrder ? "checkmark" : "")}
-                        } label:{Label(nameOrder ? "이름순" : "최근 저장순",systemImage:"chevron.down").font(.caption).frame(minHeight:44)}
+                        } label:{HStack(spacing:6) {Text(nameOrder ? "이름순" : "최근 저장순");Image(systemName:"chevron.down")}.font(.caption).frame(minHeight:44)}
                     }
                     if records.isEmpty {
                         ContentUnavailableView("아직 저장한 공연이 없어요",systemImage:"square.stack",description:Text(destination == nil ? "새 스캔을 저장하면 여기에서 볼 수 있어요." : "새 공연을 준비하거나 장소 미지정에서 공연을 옮겨보세요."))
@@ -73,6 +73,7 @@ struct PlaceContentsView: View {
                 }.padding(.horizontal,20).padding(.top,12).padding(.bottom,20)
             }
         }.background(Color(.systemBackground)).navigationTitle(title).navigationBarTitleDisplayMode(.inline)
+            .toolbar(.visible,for:.navigationBar)
             .toolbar {
                 ToolbarItem(placement:.topBarTrailing) {
                     if selecting {Button("완료") {selecting=false;selected=[]}}
