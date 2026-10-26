@@ -1,4 +1,5 @@
 import AVFoundation
+import Accelerate
 import Combine
 import Speech
 import UIKit
@@ -22,6 +23,9 @@ import HearIAmCore
     var onRecoverableError: ((String) -> Void)?
     var onRecoveryReady: (() -> Void)?
     var onError: ((String) -> Void)?
+
+    // Meter updates go directly to the waveform, not through the AR view model's objectWillChange.
+    let inputVisualization = VoiceInputVisualization()
 
     private var engine: AVAudioEngine?
     private var hasInputTap = false
@@ -206,6 +210,7 @@ import HearIAmCore
         // A notification queued while enabling VPIO can arrive after start() has succeeded.
         // Running engines are checked by the input watchdog instead of rebuilt on notification.
         guard !changed.isRunning else { return }
+        inputVisualization.reset()
         isListening = false
         guard !retryScheduled, configurationTimer == nil else { return }
         // Reject a final result queued before the device stopped, even during debounce.
@@ -315,9 +320,15 @@ import HearIAmCore
         let delegate = VoiceRecognitionTaskDelegate(service: self, turnID: identifier)
         taskDelegate = delegate
         recognitionTask = recognizer.recognitionTask(with: request, delegate: delegate)
-        inputBridge.replace(with: request) { [weak self] in
+        inputBridge.replace(with: request, onReady: { [weak self] in
             Task { @MainActor [weak self] in self?.microphoneReady(turnID: identifier) }
-        }
+        }, onLevel: { [weak self] level in
+            Task { @MainActor [weak self] in
+                guard let self, self.wantsListening, self.turnID == identifier,
+                      self.isListening, !self.finalizing, self.engine?.isRunning == true else { return }
+                self.inputVisualization.update(level)
+            }
+        })
         watchMicrophone(turnID: identifier)
         // The older Speech API is not a forever-listening task. Rotate idle tasks below its one-minute
         // documented limit. Once speech starts, its own short utterance deadline takes over.
@@ -363,6 +374,7 @@ import HearIAmCore
     private func finishInput(turnID: UUID) {
         guard self.turnID == turnID, wantsListening, !finalizing else { return }
         finalizing = true
+        inputVisualization.reset()
         microphoneTimer?.cancel(); microphoneTimer = nil
         isListening = false
         statusMessage = "말씀을 확인하고 있어요"
@@ -484,6 +496,7 @@ import HearIAmCore
     }
 
     private func retireTurn() {
+        inputVisualization.reset()
         isListening = false
         turnID = nil
         turnInputConfirmed = false
@@ -561,6 +574,13 @@ import HearIAmCore
     }
 }
 
+/// Separate observable state keeps microphone metering local to the decorative waveform.
+@MainActor final class VoiceInputVisualization: ObservableObject {
+    @Published private(set) var level: Double = 0
+    func update(_ value: Double) { level = min(1, max(0, value.isFinite ? value : 0)) }
+    func reset() { if level != 0 { level = 0 } }
+}
+
 private enum VoiceRecognitionFailure: Error { case noInput }
 
 /// AVAudioEngine's tap runs off the main actor. Append directly while the tap's buffer is valid;
@@ -570,6 +590,8 @@ private final class VoiceRecognitionInputBridge: @unchecked Sendable {
     private var request: SFSpeechAudioBufferRecognitionRequest?
     private var readiness = VoiceMicrophoneReadiness()
     private var onReady: (@Sendable () -> Void)?
+    private var onLevel: (@Sendable (Double) -> Void)?
+    private var levelMeter = VoiceInputLevelMeter()
 
     var isReady: Bool {
         lock.lock(); defer { lock.unlock() }
@@ -579,11 +601,14 @@ private final class VoiceRecognitionInputBridge: @unchecked Sendable {
         lock.lock(); defer { lock.unlock() }
         return readiness.isStalled(at: time)
     }
-    func replace(with request: SFSpeechAudioBufferRecognitionRequest, onReady: @escaping @Sendable () -> Void) {
+    func replace(with request: SFSpeechAudioBufferRecognitionRequest,
+                 onReady: @escaping @Sendable () -> Void, onLevel: @escaping @Sendable (Double) -> Void) {
         lock.lock(); defer { lock.unlock() }
         self.request = request
         self.onReady = onReady
+        self.onLevel = onLevel
         readiness.reset()
+        levelMeter.reset()
     }
     func append(_ buffer: AVAudioPCMBuffer) {
         guard buffer.frameLength > 0, buffer.format.sampleRate.isFinite,
@@ -591,23 +616,45 @@ private final class VoiceRecognitionInputBridge: @unchecked Sendable {
         lock.lock()
         guard let request else { lock.unlock(); return }
         request.append(buffer)
+        // Read the already captured, echo-processed PCM. No second engine or tap is installed.
+        let rms = Self.rootMeanSquare(buffer)
+        let visualLevel = levelMeter.ingest(rms: rms, at: ProcessInfo.processInfo.systemUptime)
+        let levelCallback = onLevel
         let becameReady = readiness.ingest(frameCount: Int(buffer.frameLength), sampleRate: buffer.format.sampleRate,
                                           channelCount: Int(buffer.format.channelCount), at: ProcessInfo.processInfo.systemUptime)
         let callback = becameReady ? onReady : nil
         if becameReady { onReady = nil }
         lock.unlock()
         callback?()
+        if let visualLevel { levelCallback?(visualLevel) }
+    }
+    private static func rootMeanSquare(_ buffer: AVAudioPCMBuffer) -> Double {
+        guard buffer.format.commonFormat == .pcmFormatFloat32, let channels = buffer.floatChannelData else { return 0 }
+        let channelCount = Int(buffer.format.channelCount)
+        let interleaved = buffer.format.isInterleaved
+        var power: Double = 0
+        for channel in 0..<channelCount {
+            let samples = interleaved ? channels[0].advanced(by: channel) : channels[channel]
+            var rms: Float = 0
+            vDSP_rmsqv(samples, vDSP_Stride(interleaved ? channelCount : 1), &rms, vDSP_Length(buffer.frameLength))
+            power += Double(rms) * Double(rms)
+        }
+        return sqrt(power / Double(channelCount))
     }
     func finish() {
         lock.lock(); defer { lock.unlock() }
         request?.endAudio()
         request = nil
         onReady = nil
+        onLevel = nil
+        levelMeter.reset()
     }
     func clear() {
         lock.lock(); defer { lock.unlock() }
         request = nil
         onReady = nil
+        onLevel = nil
+        levelMeter.reset()
         readiness.reset()
     }
 }

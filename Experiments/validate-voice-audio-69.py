@@ -7,6 +7,9 @@ import os, subprocess, tempfile
 root=Path(__file__).resolve().parents[1]
 source=(root/'Hear-I-am/Features/VoiceRehearsal/Service/VoiceRecognitionService.swift').read_text()
 converter=source[source.index('final class VoiceNarrationPCMConverter {'):]
+meter_start=source.index('    private static func rootMeanSquare(')
+meter_end=source.index('    func finish()',meter_start)
+meter=source[meter_start:meter_end].replace('private static func rootMeanSquare','func rootMeanSquare')
 test=r'''
 func input(_ rate: Double, channels: AVAudioChannelCount, interleaved: Bool, start: Int, count: Int) -> AVAudioPCMBuffer {
     let format = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: rate, channels: channels, interleaved: interleaved)!
@@ -62,12 +65,30 @@ do {
     fatalError("mid-utterance format change was accepted")
 } catch {print("PASS empty utterance and mid-utterance format rejection")}
 '''
+test += r'''
+// Meter the same PCM layouts supplied by built-in microphones and Bluetooth HFP. Reading the
+// existing input buffer must not alter audio forwarded to the recognizer.
+for (rate, channels, interleaved) in [(16000.0,1,false),(48000,1,false),(48000,2,false),(48000,2,true)] {
+    let buffer=input(rate,channels:AVAudioChannelCount(channels),interleaved:interleaved,start:0,count:1024)
+    let data=buffer.floatChannelData!
+    for frame in 0..<1024 {
+        for channel in 0..<channels {
+            if interleaved {data[0][frame*channels+channel]=Float(channel+1)*0.2}
+            else {data[channel][frame]=Float(channel+1)*0.2}
+        }
+    }
+    let expected=sqrt((1...channels).map {pow(Double($0)*0.2,2)}.reduce(0,+)/Double(channels))
+    precondition(abs(rootMeanSquare(buffer)-expected)<0.00001)
+    precondition(data[0][0] == Float(0.2), "meter mutated microphone PCM")
+    print("PASS microphone RMS \(rate) Hz / \(channels) channels / interleaved=\(interleaved)")
+}
+'''
 # Swift preconditions do not accept throwing expressions.
 test=test.replace('precondition(try empty.convert(input(24000,channels:1,interleaved:false,start:0,count:0)).isEmpty)','let emptyOutput = try empty.convert(input(24000,channels:1,interleaved:false,start:0,count:0))\nprecondition(emptyOutput.isEmpty)')
 env={**os.environ,'DEVELOPER_DIR':os.environ.get('DEVELOPER_DIR','/Applications/Xcode.app/Contents/Developer')}
 with tempfile.TemporaryDirectory(prefix='voice69-audio-') as tmp:
     path=Path(tmp)/'main.swift'
-    path.write_text('import AVFoundation\n'+converter+'\n'+test)
+    path.write_text('import AVFoundation\nimport Accelerate\n'+converter+'\n'+meter+'\n'+test)
     binary=str(Path(tmp)/'validate')
     subprocess.run(['xcrun','swiftc',str(path),'-o',binary],env=env,check=True)
     subprocess.run([binary],env=env,check=True)
