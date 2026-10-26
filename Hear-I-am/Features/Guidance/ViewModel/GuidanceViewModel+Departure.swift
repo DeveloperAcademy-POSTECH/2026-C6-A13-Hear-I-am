@@ -10,7 +10,7 @@ extension GuidanceViewModel {
         if !started, pose.point.distance(to:guide.route.points[0]) > guide.settings.startRadius {
             return "지정한 출발점에 더 가까이 서주세요."
         }
-        if let issue=guide.positionIssue(pose.point) {
+        if guide.pausesForPositionIssues, let issue=guide.positionIssue(pose.point) {
             return issue == .obstacleProximity ? "등록한 기물과 가까워요. 출발 위치와 동선을 확인해주세요." : "저장한 동선 위에 서주세요."
         }
         return departureReady ? "위치와 몸의 방향이 확인됐어요." : "위치와 방향을 확인 중이에요. 잠시 멈춰주세요."

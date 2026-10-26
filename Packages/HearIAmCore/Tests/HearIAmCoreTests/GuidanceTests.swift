@@ -155,6 +155,20 @@ final class GuidanceTests: XCTestCase {
         _=edge.observe(time:2.2,position:.init(6.1,2),headingDegrees:0,trackingValid:true)
         XCTAssertEqual(edge.pauseReason,.outsideStage)
     }
+    func testPortraitGuidanceIgnoresPositionIssuesAndSpeaksFinalArrival() throws {
+        XCTAssertEqual(GuidanceCopy.completed,"마지막 지점 도착")
+        let obstacle=try StageObstacle(name:"상자",kind:.box,vertices:[.init(2,2.5),.init(4,2.5),.init(4,3.5),.init(2,3.5)])
+        let r=try route(obstacles:[obstacle])
+        var g=RouteGuide(route:r,settings:GuideSettings(),usesRouteCorridor:true,pausesForPositionIssues:false)
+        XCTAssertTrue(g.start(position:r.points[0],headingDegrees:0,trackingValid:true))
+        // Off-route, outside stage, and near obstacle all keep guiding toward the next target (#74).
+        XCTAssertEqual(g.observe(time:0.2,position:.init(-1,4.5),headingDegrees:0,trackingValid:true).state,.guiding)
+        _=arrive(&g,at:r.points[1],from:0.4)
+        XCTAssertEqual(g.targetIndex,2)
+        XCTAssertEqual(g.observe(time:1.6,position:.init(3,2.4),headingDegrees:0,trackingValid:true).state,.guiding)
+        XCTAssertEqual(g.observe(time:1.8,position:.init(6.2,2),headingDegrees:0,trackingValid:true).state,.guiding)
+        XCTAssertNil(g.pauseReason)
+    }
 }
 
 private extension RouteGuide {
