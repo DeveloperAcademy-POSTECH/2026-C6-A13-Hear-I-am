@@ -10,19 +10,19 @@ struct PreparationGuideCard: View {
             HStack {
                 Text("STEP \(model.step.rawValue+1)").font(.caption.bold()).foregroundStyle(.secondary)
                 Spacer()
-                Button {model.intro=0} label:{Image(systemName:"questionmark.circle")}.accessibilityLabel("단계 안내 다시 보기")
-                Button {model.guideCollapsed.toggle()} label:{Image(systemName:model.guideCollapsed ? "chevron.down" : "chevron.up")}.accessibilityLabel(model.guideCollapsed ? "안내 펼치기" : "안내 접기")
-            }.padding(12)
+                Button {model.intro=0} label:{Image(systemName:"questionmark.circle")}.frame(minWidth:44,minHeight:44).accessibilityLabel("단계 안내 다시 보기")
+                Button {model.guideCollapsed.toggle()} label:{Image(systemName:model.guideCollapsed ? "chevron.down" : "chevron.up")}.frame(minWidth:44,minHeight:44).accessibilityLabel(model.guideCollapsed ? "안내 펼치기" : "안내 접기")
+            }.padding(.horizontal,12)
             if !model.guideCollapsed {
-                ScrollView {content}.frame(maxHeight:maxHeight)
+                ScrollView {content}.scrollBounceBehavior(.basedOnSize).frame(maxHeight:maxHeight)
             }
         }
     }
     private var content: some View {
         let draft=model.draft, step=model.step, guide=model.guide
         return VStack(alignment:.leading,spacing:8) {
-            Text(guide.title).font(.system(size:19,weight:.bold))
-            Text(guide.description).font(.system(size:12)).foregroundStyle(.secondary)
+            Text(guide.title).font(.headline)
+            Text(guide.description).font(.subheadline).foregroundStyle(.secondary)
             if step == .scan {
                 if model.supportsMesh {
                     Text("\(model.meshCount)개 표면 · \(model.mapping)").font(.caption).foregroundStyle(.secondary)
@@ -34,8 +34,8 @@ struct PreparationGuideCard: View {
                 Toggle("스캔 범위 표시",isOn:$model.showMesh).font(.caption).tint(.hearGreen)
             }
             if step == .boundary {
-                HStack(spacing:5) {ForEach(PreparationDraft.captureOrder,id:\.self) {i in
-                    Button(PreparationStep.cornerNames[i]) {model.selectedCorner=i}.font(.system(size:10)).buttonStyle(.bordered).tint(model.selectedCorner == i ? .hearGreen : .gray)
+                WrappingControlsLayout {ForEach(PreparationDraft.captureOrder,id:\.self) {i in
+                    Button {model.selectedCorner=i} label: {Text(PreparationStep.cornerNames[i]).font(.caption).frame(minHeight:44)}.buttonStyle(.bordered).tint(model.selectedCorner == i ? .hearGreen : .gray)
                 }}
                 if draft.area != nil {
                     Text("‘위험 구역’에서 변과 거리(0.5m/1m)를 선택할 수 있어요.").font(.caption)

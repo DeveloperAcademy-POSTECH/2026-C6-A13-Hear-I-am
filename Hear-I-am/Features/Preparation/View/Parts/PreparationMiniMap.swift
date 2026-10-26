@@ -16,5 +16,6 @@ struct PreparationMiniMap: View {
                  activeCorner:boundary ? model.nextCorner : nil,
                  clearance:model.step >= .objects ? draft.effectiveObstacleClearance : nil,
                  aim:placing ? area.flatMap {a in model.session.aimPoint.map(a.floor)} : nil,aimBlocked:model.aimBlocked)
+            .dynamicTypeSize(...DynamicTypeSize.large)
     }
 }

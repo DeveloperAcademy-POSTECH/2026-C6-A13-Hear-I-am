@@ -7,7 +7,7 @@ struct ActionButton: View {
     let action: () -> Void
     var body: some View {
         Button(action: action) {
-            Text(title).font(.system(size: 15, weight: .semibold)).frame(minHeight: 44).padding(.horizontal, 18)
+            Text(title).font(.subheadline.weight(.semibold)).multilineTextAlignment(.center).fixedSize(horizontal:false,vertical:true).frame(minHeight: 44).padding(.horizontal, 18)
                 .foregroundStyle(primary ? .white : Color.hearInk)
                 .background(primary ? Color.hearInk : .white.opacity(0.92), in: RoundedRectangle(cornerRadius: 13))
                 .overlay(RoundedRectangle(cornerRadius: 13).stroke(.gray.opacity(primary ? 0 : 0.3)))

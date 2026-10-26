@@ -50,3 +50,31 @@ struct PreparationControls: View {
         }
     }
 }
+
+/// Wrap controls at their intrinsic width; long labels receive the available row width.
+struct WrappingControlsLayout: Layout {
+    var spacing: CGFloat = 8
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        arrangement(width:proposal.width ?? 600,subviews:subviews).size
+    }
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let result=arrangement(width:bounds.width,subviews:subviews)
+        for (index,item) in result.items.enumerated() {
+            subviews[index].place(at:CGPoint(x:bounds.minX+item.origin.x,y:bounds.minY+item.origin.y),anchor:.topLeading,
+                                  proposal:ProposedViewSize(item.size))
+        }
+    }
+    private func arrangement(width: CGFloat, subviews: Subviews) -> (size: CGSize, items: [CGRect]) {
+        let width=max(1,width)
+        var x: CGFloat=0, y: CGFloat=0, rowHeight: CGFloat=0
+        var items: [CGRect]=[]
+        for view in subviews {
+            let ideal=view.sizeThatFits(.unspecified)
+            let size=view.sizeThatFits(ProposedViewSize(width:min(width,ideal.width),height:nil))
+            if x>0 && x+size.width>width {x=0;y+=rowHeight+spacing;rowHeight=0}
+            items.append(CGRect(origin:CGPoint(x:x,y:y),size:size))
+            x+=size.width+spacing;rowHeight=max(rowHeight,size.height)
+        }
+        return (CGSize(width:width,height:y+rowHeight),items)
+    }
+}

@@ -7,11 +7,15 @@ struct PreparationIntro: View {
     let next: () -> Void
     private let example=[FloorPoint(-2,2),FloorPoint(2,2),FloorPoint(5,6),FloorPoint(8,2),FloorPoint(10,6),FloorPoint(14,2)]
     var body: some View {
-        HStack(spacing:28) {
+        GeometryReader { geometry in
+            let wide=geometry.size.width >= 600
+            ScrollView {
+                let layout=wide ? AnyLayout(HStackLayout(spacing:24)) : AnyLayout(VStackLayout(spacing:16))
+                layout {
             Group {
                 if step == 0 {
                     VStack(spacing:12) {
-                        HStack(spacing:8) {Image(systemName:"hand.raised"); Image(systemName:"iphone.gen3.landscape"); Image(systemName:"hand.raised").scaleEffect(x:-1,y:1)}.font(.system(size:50,weight:.light))
+                        HStack(spacing:8) {Image(systemName:"hand.raised"); Image(systemName:wide ? "iphone.gen3.landscape" : "iphone.gen3"); Image(systemName:"hand.raised").scaleEffect(x:-1,y:1)}.font(.system(size:50,weight:.light)).accessibilityHidden(true)
                         Text("천천히, 양손으로").font(.caption).foregroundStyle(.secondary)
                     }
                 } else {
@@ -19,13 +23,18 @@ struct PreparationIntro: View {
                              cornerStates:step == 1 && page == 1 ? [false,false,false,false] : nil,
                              activeCorner:step == 1 && page == 1 ? 1 : nil)
                 }
-            }.frame(width:260,height:175)
+            }.frame(width:wide ? 260 : min(260,geometry.size.width-48),height:wide ? 175 : 140)
             VStack(alignment:.leading,spacing:12) {
                 Text(title).font(.title3.bold())
-                Text(detail).font(.system(size:14)).foregroundStyle(.secondary).fixedSize(horizontal:false,vertical:true)
+                Text(detail).font(.body).foregroundStyle(.secondary).fixedSize(horizontal:false,vertical:true)
                 ActionButton(title:step == 1 && page == 0 ? "다음" : "시작하기",action:next)
-            }.frame(maxWidth:330,alignment:.leading)
-        }.padding(26).background(.white,in:RoundedRectangle(cornerRadius:24)).frame(maxWidth:720)
+            }.frame(maxWidth:wide ? 330 : .infinity,alignment:.leading)
+                }.padding(24)
+            }.scrollBounceBehavior(.basedOnSize)
+                .frame(maxWidth:720,maxHeight:geometry.size.height).fixedSize(horizontal:false,vertical:true)
+                .background(.white,in:RoundedRectangle(cornerRadius:24))
+                .frame(maxWidth:.infinity,maxHeight:.infinity)
+        }
     }
     private var title:String {
         switch step {

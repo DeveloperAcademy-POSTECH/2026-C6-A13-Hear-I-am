@@ -8,8 +8,12 @@ struct PreparationReviewCard: View {
         let draft=model.draft
         ZStack {
             Color.black.opacity(0.35)
-            HStack(spacing:24) {
-                PreparationMiniMap(model:model).frame(width:260)
+            GeometryReader { geometry in
+                let wide=geometry.size.width >= 650
+                ScrollView {
+                    let layout=wide ? AnyLayout(HStackLayout(spacing:24)) : AnyLayout(VStackLayout(spacing:16))
+                    layout {
+                PreparationMiniMap(model:model).frame(width:wide ? 260 : nil,height:160)
                 VStack(alignment:.leading,spacing:12) {
                     Text("무대 정보를 확인해주세요").font(.title3.bold())
                     TextField("무대 이름",text:$model.scanName).textFieldStyle(.roundedBorder)
@@ -18,12 +22,17 @@ struct PreparationReviewCard: View {
                     Text(StageDangerZone.summary(draft.dangerZones)).font(.caption).foregroundStyle(.orange)
                     if draft.errors.isEmpty {Text(model.saveRecoveryMessage ?? "저장 준비가 끝났어요.").font(.caption).foregroundStyle(.secondary)}
                     else {ScrollView {Text(Array(Set(draft.errors)).sorted().joined(separator:"\n")).font(.caption).foregroundStyle(.red)}.frame(maxHeight:70)}
-                    HStack {
+                    WrappingControlsLayout {
                         ActionButton(title:model.saveRecoveryMessage != nil && !model.session.canSave ? "주변 비추기" : "돌아가기",primary:false,enabled:!model.busy) {model.review=false}
                         ActionButton(title:model.session.saveRecoveryPending ? "다시 저장하기" : "저장하기",enabled:model.canSave) {model.save()}
                     }
-                }.frame(maxWidth:350)
-            }.padding(24).frame(maxWidth:720,maxHeight:320).background(.regularMaterial,in:RoundedRectangle(cornerRadius:24)).padding(16)
+                }.frame(maxWidth:wide ? 350 : .infinity)
+                    }.padding(24)
+                }.scrollBounceBehavior(.basedOnSize)
+                    .frame(maxWidth:720,maxHeight:geometry.size.height).fixedSize(horizontal:false,vertical:true)
+                    .background(.regularMaterial,in:RoundedRectangle(cornerRadius:24))
+                    .frame(maxWidth:.infinity,maxHeight:.infinity)
+            }.padding(16)
         }
     }
 }
