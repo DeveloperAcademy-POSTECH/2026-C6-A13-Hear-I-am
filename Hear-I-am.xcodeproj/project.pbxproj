@@ -1104,7 +1104,6 @@
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "무대 스캔, 현장 사진 촬영과 착용 위치 추적을 위해 카메라를 사용합니다.";
-				INFOPLIST_KEY_NSMotionUsageDescription = "에어팟으로 고개 방향을 재기 위해 움직임 정보를 사용합니다.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIFileSharingEnabled = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -1181,7 +1180,6 @@
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "무대 스캔, 현장 사진 촬영과 착용 위치 추적을 위해 카메라를 사용합니다.";
-				INFOPLIST_KEY_NSMotionUsageDescription = "에어팟으로 고개 방향을 재기 위해 움직임 정보를 사용합니다.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIFileSharingEnabled = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

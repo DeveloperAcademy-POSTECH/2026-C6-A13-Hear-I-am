@@ -23,8 +23,7 @@ final class PreparationViewModel: ObservableObject {
         }
     }
     /// Height read from the scan mesh inside the drafted outline; nil until 3 points or when too little mesh.
-    @Published var entryEdges: Set<Int> = []
-    @Published var exitEdges: Set<Int> = []
+    @Published var facingEdge: Int? = nil
     @Published var objectHeight: ObjectHeight?
     /// Once the operator picks a kind, the height no longer changes it.
     var kindChosen=false
@@ -161,7 +160,10 @@ final class PreparationViewModel: ObservableObject {
     }
 
     /// Mirrors the current input into anchors and the AR overlay.
-    func synchronize() { session.applyPreparation(draft,pendingObject:pendingObjectWorld) }
+    func synchronize() {
+        let edge = (obstacleKind == .platform || obstacleKind == .stairs) ? facingEdge : nil
+        session.applyPreparation(draft,pendingObject:pendingObjectWorld,pendingFacingEdge:edge)
+    }
     func place(_ update: (inout PreparationDraft, Point3) throws -> Void) {
         guard canPlacePoint else {return}
         do {var next=draft; try update(&next,session.centerFloorPoint()); draft=next; synchronize()}

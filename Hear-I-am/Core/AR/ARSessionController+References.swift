@@ -30,8 +30,8 @@ extension ARSessionController {
         }
     }
     /// Mirrors the preparation draft into anchors and the overlay. World coordinates stay authoritative.
-    func applyPreparation(_ draft: PreparationDraft, pendingObject world: [Point3]) {
-        preparedDraft=draft
+    func applyPreparation(_ draft: PreparationDraft, pendingObject world: [Point3], pendingFacingEdge: Int? = nil) {
+        preparedDraft=draft; self.pendingFacingEdge=pendingFacingEdge
         corners=draft.corners; checkpoint=draft.checkpoint; secondCheckpoint=draft.secondCheckpoint; area=draft.area
         removeReferenceAnchors(); addCornerAnchors()
         if let area {

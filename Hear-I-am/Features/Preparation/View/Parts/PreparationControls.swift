@@ -41,7 +41,7 @@ struct PreparationControls: View {
             if draft.routeFinished {
                 ActionButton(title:"다음 단계",enabled:draft.routeErrors.isEmpty) {model.advance()}
             } else {
-                if draft.route.count<StageRoute.maxPointCount-1 {ActionButton(title:draft.route.isEmpty ? "출발점 지정" : "P\(draft.route.count) 지정",enabled:model.canPlacePoint && draft.area != nil) {model.addRoutePoint()}}
+                if draft.route.count<StageRoute.maxPointCount-1 {ActionButton(title:"\(draft.nextRoutePointLabel(at:model.session.aimPoint)) 지정",enabled:model.canPlacePoint && draft.area != nil) {model.addRoutePoint()}}
                 if draft.route.count>=2 {ActionButton(title:"도착점 지정",enabled:model.canPlacePoint && draft.area != nil) {model.addRoutePoint(destination:true)}}
             }
         case .checkpoint:
