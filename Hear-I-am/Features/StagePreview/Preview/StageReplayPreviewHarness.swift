@@ -375,7 +375,7 @@ struct StageReplayPreviewHarness: View {
         for heights: [Double]? in [Array(repeating:0,count:route.points.count),nil] {
             route.pointHeights=heights
             let saved=try await store.save(id:UUID(),name:"높이 호환 검증",frame:manifest.frame,checkpoint:manifest.checkpoint,
-                worldMap:original.worldMap,meshes:original.meshes,device:"Simulator fixture",appVersion:"QA",route:route)
+                worldMap:original.worldMap,meshes:original.meshes,device:"Simulator fixture",appVersion:"QA",route:route,secondCheckpoint:manifest.secondCheckpoint)
             let loaded=try await store.load(saved.id)
             let scene=ReplaySceneController(scan:loaded,cleanSurfaces:[])
             scene.movePerson(to:route.points.count-1)

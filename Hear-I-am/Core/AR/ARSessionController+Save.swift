@@ -10,7 +10,7 @@ extension ARSessionController {
         event("save_recovery",detail:detail)
     }
     func save(name rawName: String) {
-        guard canSave, !busy, !photoCapturing, let session, let stage, let checkpoint, let area else { return }
+        guard canSave, !busy, !photoCapturing, let session, let stage, let checkpoint, let secondCheckpoint, let area else { return }
         let route: StageRoute
         do { route = try preparedDraft?.stageRoute() ?? StageRoute(area:area,points:routePoints,obstacles:obstacles) }
         catch { errorMessage=error.localizedDescription; return }
@@ -35,7 +35,7 @@ extension ARSessionController {
                 let parts=self.meshes.isEmpty ? Self.fallbackFloorMesh(area:area) : Array(self.meshes.values)
                 let id=self.scanID, name=rawName.trimmingCharacters(in:.whitespacesAndNewlines)
                 guard !name.isEmpty else {self.busy=false; self.errorMessage="스캔 이름을 입력하세요."; return}
-                guard [".origin",".front",".check"].allSatisfy({suffix in map.anchors.contains {$0.name==self.referencePrefix+suffix}}) else {
+                guard [".origin",".front",".check",".check2"].allSatisfy({suffix in map.anchors.contains {$0.name==self.referencePrefix+suffix}}) else {
                     self.awaitSaveRecovery("reference anchors missing"); return
                 }
                 guard self.photoSources.allSatisfy({source in
@@ -54,11 +54,11 @@ extension ARSessionController {
                     let result=try await self.store.save(id:id,name:name,frame:stage,checkpoint:checkpoint,
                         worldMap:data,meshes:parts,device:UIDevice.current.model+" / "+UIDevice.current.systemVersion,
                         appVersion:Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown",
-                        route:route,settings:self.settings,photos:photos)
+                        route:route,settings:self.settings,photos:photos,secondCheckpoint:secondCheckpoint)
                     withExtendedLifetime(photoOwner) {}
                     guard self.token==operation else { return }
                     self.saveRecoveryPending=false
-                    self.mode = .saved; self.savedID=result.id; self.manifest=result; self.status="저장 완료 · 앱 재실행 후 저장 공간을 불러와 C를 검증하세요"
+                    self.mode = .saved; self.savedID=result.id; self.manifest=result; self.status="저장 완료 · 앱 재실행 후 저장 공간을 불러와 확인점 1·2를 확인하세요"
                     self.event("scan_saved",detail:result.id.uuidString); self.stopLog()
                 } catch {
                     guard self.token==operation else { return }
