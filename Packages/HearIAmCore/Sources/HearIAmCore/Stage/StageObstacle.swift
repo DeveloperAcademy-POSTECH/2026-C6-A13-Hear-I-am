@@ -91,17 +91,9 @@ public struct StageObstacle: Codable, Equatable, Sendable, Identifiable {
         }
         return false
     }
-    /// Nearest side forbidden from the current side of the object; open edges stay quiet.
-    public func blockingPoint(from p: FloorPoint) -> FloorPoint? {
-        if !isStep { return blocksPath ? closestPoint(to:p) : nil }
-        let inside=contains(p)
-        return vertices.indices.filter { inside ? !permitsExit($0) : !permitsEntry($0) }.map { i in
-            let a=vertices[i], b=vertices[(i+1)%vertices.count]
-            let dx=b.x-a.x, dy=b.y-a.y, length=dx*dx+dy*dy
-            let t=length > 0 ? max(0,min(1,((p.x-a.x)*dx+(p.y-a.y)*dy)/length)) : 0
-            return FloorPoint(a.x+t*dx,a.y+t*dy)
-        }.min { p.distance(to:$0) < p.distance(to:$1) }
-    }
+    /// Nearest outline point of an object to keep away from. Chairs and stairs are walked onto, so they
+    /// never give one: on 10/26 their closed sides beeped for 34.9 s of a 51 s run past a chair (#72).
+    public func blockingPoint(from p: FloorPoint) -> FloorPoint? { blocksPath ? closestPoint(to:p) : nil }
     public var isStep: Bool { kind == .platform || kind == .stairs }
     /// Routes must keep clear of this outline. Platforms and stairs never block, even when an older
     /// save still marks them prohibited, because the performer walks onto them (decided 10/17).

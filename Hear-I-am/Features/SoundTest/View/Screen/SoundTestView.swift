@@ -68,8 +68,8 @@ struct SoundTestView: View {
                 }
             }
             SoundTestRow(label:"의자 · 계단") {
-                ForEach([SignalCopy.stepUp(stairs:false),SignalCopy.stepUp(stairs:true),SignalCopy.stepOver(stairs:false),
-                         SignalCopy.stepOver(stairs:true),SignalCopy.stepDown],id:\.self) { line in
+                ForEach([SignalCopy.place(bearing:0,stairs:false),SignalCopy.place(bearing:90,stairs:false),
+                         SignalCopy.place(bearing:-90,stairs:true),SignalCopy.place(bearing:180,stairs:true)],id:\.self) { line in
                     ActionButton(title:line,primary:false) { model.speak(line) }
                 }
             }
