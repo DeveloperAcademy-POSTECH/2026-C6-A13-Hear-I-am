@@ -18,7 +18,7 @@ extension ARSessionController {
             beginLog(source:"new-scan")
             guard logger.isOpen else {mode = .idle; return}
             startSession(map:nil)
-            status="네 꼭짓점, 경로, 장애물, 확인점 1·2를 선택하세요"
+            status="네 꼭짓점, 경로, 기물, 확인점 1·2를 선택하세요"
         }
     }
     func restore(_ item: ScanManifest) {
