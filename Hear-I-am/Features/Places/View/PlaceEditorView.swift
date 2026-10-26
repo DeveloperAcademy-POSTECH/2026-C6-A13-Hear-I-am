@@ -22,6 +22,10 @@ struct PlaceEditorView: View {
     }
     private var preview: UIImage? {photoData.flatMap {UIImage(data:$0)} ?? original.flatMap {model.photos[$0.photoID]}}
     private var valid: Bool {(try? draft.validate()) != nil && preview != nil && !photoLoading}
+    private var validationMessage: String? {
+        guard !draft.name.isEmpty, !draft.address.isEmpty else {return nil}
+        do {try draft.validate();return nil} catch {return error.localizedDescription}
+    }
     private var releasedCount: Int {
         guard let original else {return 0}
         let removed=Set(original.folders.map(\.id)).subtracting(draft.folders.map(\.id))
@@ -52,12 +56,13 @@ struct PlaceEditorView: View {
                         HStack {
                             Image(systemName:"folder").accessibilityHidden(true)
                             TextField("폴더 이름",text:$folder.name).accessibilityLabel("하위 폴더 이름")
-                            Button(role:.destructive) {draft.folders.removeAll {$0.id==folder.id}} label:{Image(systemName:"minus.circle").frame(width:44,height:44)}
+                            Button(role:.destructive) {let id=folder.id;draft.folders.removeAll {$0.id==id}} label:{Image(systemName:"minus.circle").frame(width:44,height:44)}
                                 .buttonStyle(.borderless).accessibilityLabel("\(folder.name) 폴더 제거")
                         }
                     }
                     Button {draft.folders.append(.init(name:""))} label:{Label("폴더 추가",systemImage:"plus")}
                 } header:{Text("하위 폴더 · 선택")} footer:{Text("대연습실·소연습실처럼 나눌 수 있어요. 폴더는 공연을 분류하는 용도로만 사용합니다.")}
+                if let validationMessage {Section {Text(validationMessage).font(.subheadline).foregroundStyle(.red)}}
             }.disabled(saving).navigationTitle(original == nil ? "장소 등록" : "장소 수정").navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement:.cancellationAction) {Button("취소") {dismiss()}.disabled(saving)}
