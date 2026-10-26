@@ -17,6 +17,7 @@ public struct PreparationDraft: Sendable {
     public var routeFinished = false
     public var objects: [WorldObstacle] = []
     public var checkpoint: Point3?
+    public var secondCheckpoint: Point3?
     public var planApplied = false
     public var dangerZones: [StageDangerZone] = []
     public init() {}
@@ -186,7 +187,16 @@ public struct PreparationDraft: Sendable {
         catch { return [error.localizedDescription] }
     }
     public var checkpointErrors: [String] {
-        guard let area, let checkpoint else { return ["무대의 확인점 한 개를 지정해주세요."] }
+        guard let checkpoint, let secondCheckpoint else { return ["무대의 확인점 1번과 2번을 지정해주세요."] }
+        let errors=checkpointPointErrors(checkpoint)+checkpointPointErrors(secondCheckpoint)
+        guard errors.isEmpty else { return errors }
+        guard hypot(checkpoint.x-secondCheckpoint.x,checkpoint.z-secondCheckpoint.z) >= CheckpointAlignment.minimumSeparation else {
+            return ["두 확인점은 수평으로 1m 이상 떨어져야 합니다."]
+        }
+        return []
+    }
+    public func checkpointPointErrors(_ checkpoint: Point3) -> [String] {
+        guard let area, checkpoint.valid else { return ["무대 바닥의 확인점을 지정해주세요."] }
         guard area.contains(area.floor(checkpoint)), abs(checkpoint.y-area.floorHeight) <= 0.10,
               area.corners.allSatisfy({ $0.distance(to: checkpoint) >= 0.5 }),
               checkpoint.distance(to: area.world(FloorPoint(0,-1))) >= 0.5 else {

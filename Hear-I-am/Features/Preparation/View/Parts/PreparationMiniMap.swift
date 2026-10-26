@@ -12,9 +12,11 @@ struct PreparationMiniMap: View {
                  objects:area.map {a in draft.objects.compactMap {try? $0.projected(in:a)}} ?? [],
                  dangerZones:area == nil ? [] : draft.dangerZones,
                  checkpoint:area.flatMap {a in draft.checkpoint.map(a.floor)},
+                 secondCheckpoint:area.flatMap {a in draft.secondCheckpoint.map(a.floor)},
                  cornerStates:boundary ? draft.corners.map {$0 != nil} : nil,
                  activeCorner:boundary ? model.nextCorner : nil,
                  clearance:model.step >= .objects ? draft.effectiveObstacleClearance : nil,
-                 aim:placing ? area.flatMap {a in model.session.aimPoint.map(a.floor)} : nil,aimBlocked:model.aimBlocked)
+                 aim:placing ? area.flatMap {a in model.session.aimPoint.map(a.floor)} : nil,aimBlocked:model.aimBlocked,
+                 reference:model.visiblePlanReference)
     }
 }
