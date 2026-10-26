@@ -226,4 +226,15 @@ final class SignalRuleTests: XCTestCase {
         gate.reset()
         XCTAssertNil(gate.update(position:.init(0,1.55),target:.init(0,2.5)))
     }
+
+    // MARK: point names (#74)
+    func testPointNamesInKoreanPhonetics() {
+        XCTAssertEqual(SignalCopy.point(1),"피원")
+        XCTAssertEqual(SignalCopy.point(2),"피투")
+        XCTAssertEqual(SignalCopy.point(3),"피쓰리")
+        XCTAssertEqual(SignalCopy.point(4),"피포")
+        XCTAssertEqual(SignalCopy.point(5),"피파이브")
+        XCTAssertEqual(SignalCopy.point(20),"피트웬티")
+        XCTAssertEqual(SignalCopy.point(21),"피21")
+    }
 }

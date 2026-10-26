@@ -45,16 +45,15 @@ extension GuidanceViewModel {
         signal(pose:pose,guide:guide)
     }
 
-    /// Ding once; the new target becomes 0° so the direction tick gate immediately guides toward the next spot.
-    /// Once the ding has rung the side of that spot is said (10/21: dropped with the other words on 10/20 by mistake).
-    /// The obstacle warning keeps playing: it used to stop for 1.5 s so the ding was not masked, but a
-    /// masked ding is better than a missing warning (10/19). Only the distance call-out waits for the ding.
+    /// Speaks the reached point name (「피원」 · 「피투」 · 「피쓰리」, #74) instead of the arrival ding.
+    /// Once the point name is spoken, the side of the next target spot is announced.
     private func arrived(_ previous: Int, guide: RouteGuide, time: Double) {
-        let name=GuidanceCopy.target(previous,last:guide.route.points.count-1)
+        let name=SignalCopy.point(previous)
         arrivedName=name;arrivalShownAt=time
-        directionTicks.reset();quietUntil=time+Self.arrivalQuietSeconds;announceNextSide=true;pendingTurnSide=false
+        directionTicks.reset();announceNextSide=true;pendingTurnSide=false
         signals.stopDirection()
-        signals.play(.arrival)
+        ticksWaitForWord=voice.play([name])
+        quietUntil=ticksWaitForWord ? nil : time+Self.arrivalQuietSeconds
         logSignal("signal_arrival","\(name) next=\(guide.targetIndex)")
     }
     private func signal(pose: (point: FloorPoint, heading: Double, time: Double), guide: RouteGuide) {
@@ -68,22 +67,20 @@ extension GuidanceViewModel {
         // the ticks stop because the body faces the target, the aligned chime says so.
         let wasTicking=directionTicks.activeSide != nil
         let cue=directionTicks.update(time:pose.time,bearing:bearing)
-        // The side waits for the ding and for any line being spoken; facing the target already needs no word.
+        // The side waits for the point announcement and for any line being spoken; facing the target already needs no word.
         if ticksWaitForWord, !speaking { ticksWaitForWord=false }
-        if announceNextSide, !quiet, let step=guide.route.step(at:guide.targetIndex) {
+        if announceNextSide, !quiet, !speaking, let step=guide.route.step(at:guide.targetIndex) {
             // Said even when already facing it: the performer needs to know a chair or stairs is there.
-            if !speaking {
-                announceNextSide=false
-                let line=SignalCopy.place(bearing:bearing,stairs:step.kind == .stairs)
-                ticksWaitForWord=voice.play([line])
-                logSignal(ticksWaitForWord ? "signal_step_place" : "signal_step_place_skipped",
-                          String(format:"%@ %@ bearing %+.0f° target=%d",line,step.name,bearing,guide.targetIndex))
-            }
-        } else if announceNextSide, !quiet {
-            if let cue, !speaking {
-                announceNextSide=false
+            announceNextSide=false
+            let line=SignalCopy.place(bearing:bearing,stairs:step.kind == .stairs)
+            ticksWaitForWord=voice.play([line])
+            logSignal(ticksWaitForWord ? "signal_step_place" : "signal_step_place_skipped",
+                      String(format:"%@ %@ bearing %+.0f° target=%d",line,step.name,bearing,guide.targetIndex))
+        } else if announceNextSide, !quiet, !speaking {
+            announceNextSide=false
+            if let cue {
                 sayDirection(cue.word,volume:SignalVolume.nextSide,bearing:bearing,guide:guide)
-            } else if cue == nil { announceNextSide=false }
+            }
         } else if !announceNextSide, let cue, cue.spokenWord != nil || pendingTurnSide {
             // Turned away from the target, or over to its other side. Not while the next side waits to be said.
             // A line still being spoken used to drop the word, and it comes only once (#57: lost twice after
