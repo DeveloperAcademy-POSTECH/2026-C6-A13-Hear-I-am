@@ -42,9 +42,8 @@ struct SoundTestView: View {
 
     private var speech: some View {
         VStack(alignment:.leading,spacing:16) {
-            SoundTestRow(label:"중간 목표 지점 도착 (P1, P2, P3... 지점 이름을 말해요)") {
-                ForEach([1,2,3,4],id:\.self) { index in
-                    let line=SignalCopy.point(index)
+            SoundTestRow(label:"중간 목표 지점 도착 (P1, 의자1, 계단1... 지점 이름을 말해요)") {
+                ForEach([SignalCopy.point(1),SignalCopy.point(2),SignalCopy.stepPoint(stairs:false,number:1),SignalCopy.stepPoint(stairs:true,number:1)],id:\.self) { line in
                     ActionButton(title:line,primary:false) { model.speak(line) }
                 }
             }

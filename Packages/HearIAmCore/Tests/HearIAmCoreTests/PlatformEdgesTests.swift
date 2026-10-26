@@ -191,9 +191,14 @@ final class PlatformEdgesTests: XCTestCase {
         let saved=try draft.stageRoute()
         let loaded=try JSONDecoder().decode(StageRoute.self,from:JSONEncoder().encode(saved))
         XCTAssertEqual(loaded.pointHeights,[0,0.4,0])
+        XCTAssertEqual(loaded.pointNames,["출발","의자1","도착"])
         var anySide=draft; anySide.route=[]; anySide.routeFinished=false
+        XCTAssertEqual(anySide.nextRoutePointLabel(),"출발점")
         try anySide.addRoutePoint(a.world(.init(3,1)))
+        XCTAssertEqual(anySide.nextRoutePointLabel(at:a.world(.init(1,3))),"P1")
+        XCTAssertEqual(anySide.nextRoutePointLabel(at:top),"의자1")
         XCTAssertNoThrow(try anySide.addRoutePoint(top))
+        XCTAssertEqual(anySide.nextRoutePointLabel(at:a.world(.init(1,3))),"P1")
         var tooHigh=top; tooHigh.y=ObjectHeight.ceiling+0.1
         XCTAssertFalse(draft.acceptsRouteSurface(tooHigh,in:a))
         var outside=a.world(.init(1,1)); outside.y=0.4

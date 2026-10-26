@@ -52,9 +52,10 @@ extension ARSceneRenderer {
             if let heights=content.routeHeights, heights.indices.contains(index) { p.y += heights[index] }
             return p
         }
+        let labels=StageRoute.pointLabels(points:routePoints,obstacles:content.obstacles,finished:!preparing || routeFinished)
         for i in routePoints.indices {
             let active = !preparing && !completed && i == target
-            let label=i == 0 ? "출발" : ((!preparing || routeFinished) && i == routePoints.count-1 ? "도착" : "P\(i)")
+            let label=labels.indices.contains(i) ? labels[i] : "P\(i)"
             let color: UIColor=active ? .systemOrange : .systemGreen
             marker(routeWorld(i),label:label+(active ? " · 현재 목표" : ""),color:color)
             if active {

@@ -9,13 +9,15 @@ public struct StageRoute: Codable, Equatable, Sendable {
     public var points: [FloorPoint]
     public var obstacles: [StageObstacle]
     public var pointHeights: [Double]?
+    public var pointNames: [String]
     public var dangerZones: [StageDangerZone]
-    public init(area: StageArea, points: [FloorPoint], obstacles: [StageObstacle], allowsOutsideEndpoints: Bool = false, dangerZones: [StageDangerZone] = [], pointHeights: [Double]? = nil) throws {
+    public init(area: StageArea, points: [FloorPoint], obstacles: [StageObstacle], allowsOutsideEndpoints: Bool = false, dangerZones: [StageDangerZone] = [], pointHeights: [Double]? = nil, pointNames: [String]? = nil) throws {
         version=allowsOutsideEndpoints ? 2 : 1; self.area=area; self.points=points; self.obstacles=obstacles
         self.dangerZones=dangerZones; self.pointHeights=pointHeights
+        self.pointNames=pointNames ?? Self.pointLabels(points:points,obstacles:obstacles,finished:true)
         try validate()
     }
-    enum CodingKeys: String, CodingKey { case version, area, points, obstacles, dangerZones, pointHeights }
+    enum CodingKeys: String, CodingKey { case version, area, points, obstacles, dangerZones, pointHeights, pointNames }
     public init(from decoder: Decoder) throws {
         let c=try decoder.container(keyedBy:CodingKeys.self)
         version=try c.decode(Int.self,forKey:.version)
@@ -24,6 +26,7 @@ public struct StageRoute: Codable, Equatable, Sendable {
         obstacles=try c.decode([StageObstacle].self,forKey:.obstacles)
         dangerZones=try c.decodeIfPresent([StageDangerZone].self,forKey:.dangerZones) ?? []
         pointHeights=try c.decodeIfPresent([Double].self,forKey:.pointHeights)
+        pointNames=try c.decodeIfPresent([String].self,forKey:.pointNames) ?? Self.pointLabels(points:points,obstacles:obstacles,finished:true)
         try validate()
     }
     public func validate() throws {
@@ -39,6 +42,44 @@ public struct StageRoute: Codable, Equatable, Sendable {
         guard [1,2].contains(version), ((version == 2 ? 3 : 2)...Self.maxPointCount).contains(points.count), points.allSatisfy(\.valid),
               Set(obstacles.map(\.id)).count == obstacles.count else { throw LabError.invalid("경로 버전, 순서 또는 점 개수가 유효하지 않습니다.") }
         for o in obstacles { try o.validate(); guard o.vertices.allSatisfy({area.contains($0)}) else { throw LabError.invalid("장애물이 무대 밖에 있습니다.") } }
+    }
+    /// Display labels per route point (#76): start is 「출발」, finished last point is 「도착」,
+    /// points inside a chair/stairs boundary count per kind (「의자1」, 「계단1」), and floor points count as 「P1」, 「P2」.
+    public static func pointLabels(points: [FloorPoint], obstacles: [StageObstacle], finished: Bool = true) -> [String] {
+        var floorCount=0, chairCount=0, stairsCount=0
+        return points.indices.map { i in
+            if i == 0 { return "출발" }
+            if finished && i == points.count-1 { return "도착" }
+            if let step=obstacles.first(where: { $0.isStep && $0.contains(points[i]) }) {
+                if step.kind == .stairs { stairsCount += 1; return "계단\(stairsCount)" }
+                chairCount += 1; return "의자\(chairCount)"
+            }
+            floorCount += 1; return "P\(floorCount)"
+        }
+    }
+    /// Spoken arrival names per route point (#76): 「피일」 · 「의자일」 · 「계단일」.
+    public static func spokenPointNames(points: [FloorPoint], obstacles: [StageObstacle], finished: Bool = true) -> [String] {
+        var floorCount=0, chairCount=0, stairsCount=0
+        return points.indices.map { i in
+            if i == 0 { return SignalCopy.point(0) }
+            if finished && i == points.count-1 { return GuidanceCopy.completed }
+            if let step=obstacles.first(where: { $0.isStep && $0.contains(points[i]) }) {
+                if step.kind == .stairs { stairsCount += 1; return SignalCopy.stepPoint(stairs:true,number:stairsCount) }
+                chairCount += 1; return SignalCopy.stepPoint(stairs:false,number:chairCount)
+            }
+            floorCount += 1; return SignalCopy.point(floorCount)
+        }
+    }
+    /// Display label for `index` (e.g. 「출발」, 「P1」, 「의자1」, 「계단1」, 「도착」).
+    public func pointLabel(at index: Int) -> String {
+        if pointNames.indices.contains(index), pointNames.count == points.count { return pointNames[index] }
+        let labels=Self.pointLabels(points:points,obstacles:obstacles,finished:true)
+        return labels.indices.contains(index) ? labels[index] : "P\(index)"
+    }
+    /// Spoken arrival line for `index` (e.g. 「피일」, 「의자일」, 「계단일」).
+    public func spokenPointName(at index: Int) -> String {
+        let names=Self.spokenPointNames(points:points,obstacles:obstacles,finished:true)
+        return names.indices.contains(index) ? names[index] : SignalCopy.point(index)
     }
     /// The chair or stairs point `index` stands on, if any.
     public func step(at index: Int) -> StageObstacle? {
