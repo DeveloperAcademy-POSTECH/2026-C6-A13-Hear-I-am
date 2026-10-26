@@ -43,6 +43,7 @@ import HearIAmCore
     var voiceInputTask: Task<Void,Never>?
     var voiceRecognitionRequested=false
     var voiceReadyChimePending=false
+    @Published var voiceListeningPulse=0
     var voicePausedNavigation=false
     var voiceStages: [ScanManifest]=[]
     let tracking=ARSessionController(purpose:.guidance)

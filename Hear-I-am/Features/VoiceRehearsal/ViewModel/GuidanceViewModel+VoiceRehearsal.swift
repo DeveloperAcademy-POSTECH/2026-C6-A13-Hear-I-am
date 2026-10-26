@@ -53,6 +53,7 @@ extension GuidanceViewModel {
         voiceRecognition.$isListening.dropFirst().sink { [weak self] listening in
             guard let self, listening, self.voiceReadyChimePending, self.voiceShouldListen else {return}
             self.voiceReadyChimePending=false
+            self.voiceListeningPulse += 1
             self.listeningChime.play()
             if self.voiceInitialPromptPending {
                 self.voiceInitialPromptPending=false
@@ -199,6 +200,7 @@ extension GuidanceViewModel {
             message="말씀을 듣고 있어요. 잠시 멈춰주세요."
             captureReplay(force:true)
         }
+        voiceListeningPulse += 1
         listeningChime.play()
         logSignal("voice_listening","speech_detected")
     }

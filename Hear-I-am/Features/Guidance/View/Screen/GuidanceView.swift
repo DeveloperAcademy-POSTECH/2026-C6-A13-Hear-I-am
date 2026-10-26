@@ -45,7 +45,15 @@ struct GuidanceView: View {
                 VStack(spacing:0) {
                     if model.voiceExperiment {VoiceRehearsalPanel(model:model)}
                     GuidanceControls(library:library,model:model,close:close,saveAndClose:saveAndClose)
-                }.background(Color(.systemBackground))
+                }.background {
+                    ZStack(alignment: .bottom) {
+                        Color(.systemBackground)
+                        if model.voiceExperiment {
+                            VoiceBottomGlow(active: model.voiceShouldListen && model.voiceRecognition.isListening)
+                                .ignoresSafeArea(edges: .bottom)
+                        }
+                    }
+                }
             }
             .background(Color(.systemBackground))
             .tint(model.voiceExperiment ? .primary : .hearGreen)
