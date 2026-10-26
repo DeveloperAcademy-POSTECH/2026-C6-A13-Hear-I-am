@@ -18,7 +18,7 @@ extension ARSessionController {
             beginLog(source:"new-scan")
             guard logger.isOpen else {mode = .idle; return}
             startSession(map:nil)
-            status="네 꼭짓점, 경로, 장애물, 독립 확인점 C를 선택하세요"
+            status="네 꼭짓점, 경로, 기물, 확인점 1·2를 선택하세요"
         }
     }
     func restore(_ item: ScanManifest) {
@@ -36,14 +36,17 @@ extension ARSessionController {
                 guard let map=try NSKeyedUnarchiver.unarchivedObject(ofClass:ARWorldMap.self,from:loaded.worldMap) else {
                     throw LabError.invalid("공간 지도를 해제할 수 없습니다.")
                 }
+                guard loaded.manifest.supportsAlignment else {
+                    throw LabError.invalid("확인점이 하나인 이전 무대는 열람만 가능합니다. 무대를 다시 준비해 확인점 두 개를 저장해주세요.")
+                }
                 let prefix=loaded.manifest.anchorName
-                guard [".origin",".front",".check"].allSatisfy({suffix in map.anchors.contains {$0.name==prefix+suffix}}) else {
+                guard [".origin",".front",".check",".check2"].allSatisfy({suffix in map.anchors.contains {$0.name==prefix+suffix}}) else {
                     throw LabError.invalid("공간 지도에 기준 앵커가 없습니다.")
                 }
                 busy=false
                 reset()
                 manifest=loaded.manifest; scanID=item.id; stage=loaded.manifest.frame
-                origin=loaded.manifest.frame.origin; front=loaded.manifest.frame.front; checkpoint=loaded.manifest.checkpoint
+                origin=loaded.manifest.frame.origin; front=loaded.manifest.frame.front; checkpoint=loaded.manifest.checkpoint; secondCheckpoint=loaded.manifest.secondCheckpoint
                 if let route=loaded.manifest.route {
                     area=route.area; corners=route.area.corners.map { Optional($0) }
                     routePoints=route.points; obstacles=route.obstacles; settings=loaded.manifest.settings
@@ -103,17 +106,18 @@ extension ARSessionController {
         }
     }
     func audioInterrupted() {
-        gate.invalidate(); invalidateWear("오디오 중단 · C 재검증 필요")
+        gate.invalidate(); invalidateWear("오디오 중단 · 두 확인점 재확인 필요")
         event("audio_interrupted")
     }
     /// Revokes checkpoint verification; the wearer must verify the checkpoint again.
     func invalidateWear(_ message: String) {
-        ready=false; position=nil; heading=nil; guidancePoseTime=nil; status=message
+        clearAlignment(); ready=false; position=nil; heading=nil; guidancePoseTime=nil; status=message
         if purpose == .guidance {renderer.referenceLayer.isHidden=true}
     }
     func tick() {
         let was=gate.verified; gate.expire(now:now)
-        if was && !gate.verified { invalidateWear("센서 표본 만료 · C 재검증 필요"); event("sample_expired") }
+        if !measuredCheckpoints.isEmpty && checkpointStableSince != gate.normalSince { clearAlignment() }
+        if was && !gate.verified { invalidateWear("센서 표본 만료 · 두 확인점 재확인 필요"); event("sample_expired") }
         canVerify=gate.canVerify(now:now); ready=gate.isReady(now:now)
         if let latest, now-latest.time>0.5 { canSave=false }
         if purpose == .preparation { updateAim() }

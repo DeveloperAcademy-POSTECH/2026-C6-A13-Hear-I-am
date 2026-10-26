@@ -10,6 +10,8 @@ public struct ScanManifest: Codable, Sendable {
     public let date: Date
     public let frame: StageFrame
     public let checkpoint: Point3
+    public let secondCheckpoint: Point3?
+    public var supportsAlignment: Bool { version == 3 && secondCheckpoint != nil }
     public let worldMapHash: String
     public let meshHash: String
     public let meshCount: Int
@@ -18,13 +20,13 @@ public struct ScanManifest: Codable, Sendable {
     public let appVersion: String
     public init(id: UUID, name: String, frame: StageFrame, checkpoint: Point3,
                 worldMapHash: String, meshHash: String, meshCount: Int, vertexCount: Int,
-                device: String, appVersion: String, route: StageRoute? = nil, settings: GuideSettings = GuideSettings(), photos: [ScanPhoto] = []) {
-        version=route == nil ? 1 : 2; self.route=route; self.settings=settings; self.photos=photos
+                device: String, appVersion: String, route: StageRoute? = nil, settings: GuideSettings = GuideSettings(), photos: [ScanPhoto] = [], secondCheckpoint: Point3? = nil) {
+        version=secondCheckpoint == nil ? (route == nil ? 1 : 2) : 3; self.secondCheckpoint=secondCheckpoint; self.route=route; self.settings=settings; self.photos=photos
         self.id=id; self.name=name; date=Date(); self.frame=frame; self.checkpoint=checkpoint
         self.worldMapHash=worldMapHash; self.meshHash=meshHash; self.meshCount=meshCount
         self.vertexCount=vertexCount; self.device=device; self.appVersion=appVersion
     }
-    enum CodingKeys: String, CodingKey { case version, route, photos, settings, id, name, date, frame, checkpoint, worldMapHash, meshHash, meshCount, vertexCount, device, appVersion }
+    enum CodingKeys: String, CodingKey { case secondCheckpoint, version, route, photos, settings, id, name, date, frame, checkpoint, worldMapHash, meshHash, meshCount, vertexCount, device, appVersion }
     public init(from decoder: Decoder) throws {
         let c=try decoder.container(keyedBy:CodingKeys.self)
         version=try c.decode(Int.self,forKey:.version)
@@ -37,6 +39,7 @@ public struct ScanManifest: Codable, Sendable {
         id=try c.decode(UUID.self,forKey:.id); name=try c.decode(String.self,forKey:.name)
         date=try c.decode(Date.self,forKey:.date); frame=try c.decode(StageFrame.self,forKey:.frame)
         checkpoint=try c.decode(Point3.self,forKey:.checkpoint)
+        secondCheckpoint=try c.decodeIfPresent(Point3.self,forKey:.secondCheckpoint)
         worldMapHash=try c.decode(String.self,forKey:.worldMapHash); meshHash=try c.decode(String.self,forKey:.meshHash)
         meshCount=try c.decode(Int.self,forKey:.meshCount); vertexCount=try c.decode(Int.self,forKey:.vertexCount)
         device=try c.decode(String.self,forKey:.device); appVersion=try c.decode(String.self,forKey:.appVersion)
@@ -57,7 +60,7 @@ public struct ScanManifest: Codable, Sendable {
                 throw LabError.invalid("사진에 연결된 동선 지점이 없습니다.")
             }
         }
-        if version == 2 {
+        if version >= 2 {
             guard let route else { throw LabError.invalid("저장된 경로가 없습니다.") }
             try route.validate()
             guard route.area.corners.allSatisfy({checkpoint.distance(to:$0) >= 0.5}) else {
@@ -68,7 +71,20 @@ public struct ScanManifest: Codable, Sendable {
                 throw LabError.invalid("저장된 무대 정면이 E와 일치하지 않습니다.")
             }
         }
-        guard [1,2].contains(version), !name.isEmpty, checkpoint.valid, meshCount>0, vertexCount>0,
+        if version == 3 {
+            guard let secondCheckpoint, let route else { throw LabError.invalid("두 확인점이 저장되지 않았습니다.") }
+            var draft=PreparationDraft()
+            draft.corners=route.area.corners.map { Optional($0) }
+            draft.checkpoint=checkpoint; draft.secondCheckpoint=secondCheckpoint
+            guard draft.checkpointErrors.isEmpty else { throw LabError.invalid(draft.checkpointErrors.joined(separator:"\n")) }
+            for p in [checkpoint,secondCheckpoint] {
+                let floor=route.area.floor(p)
+                guard route.obstacles.allSatisfy({ !$0.contains(floor) || $0.boundaryDistance(to:floor) <= PreparationDraft.checkpointEdgeTolerance+1e-9 }) else {
+                    throw LabError.invalid("확인점은 기물 내부가 아닌 바닥 또는 바닥 경계에 있어야 합니다.")
+                }
+            }
+        } else if secondCheckpoint != nil { throw LabError.invalid("확인점 저장 버전이 맞지 않습니다.") }
+        guard [1,2,3].contains(version), !name.isEmpty, checkpoint.valid, meshCount>0, vertexCount>0,
               checkpoint.distance(to: frame.origin)>=0.5,
               checkpoint.distance(to: frame.front)>=0.5,
               abs(checkpoint.y-frame.origin.y)<=0.15 else {
