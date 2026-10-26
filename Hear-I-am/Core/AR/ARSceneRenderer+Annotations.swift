@@ -43,6 +43,7 @@ extension ARSceneRenderer {
             }
         }
         guard let area=content.area else { return }
+        if let reference=content.planReference { drawPlanReference(reference,in:area) }
         let edge=[FloorPoint(0,0),FloorPoint(area.width,0),FloorPoint(area.width,area.depth),FloorPoint(0,area.depth)]
         for i in 0..<4 { line(area.world(edge[i]),area.world(edge[(i+1)%4]),color:.systemCyan) }
         for zone in content.dangerZones {
@@ -93,6 +94,45 @@ extension ARSceneRenderer {
             } else {
                 dashedGuide(area.world(last),area.world(first))
             }
+        }
+    }
+
+    private func drawPlanReference(_ reference: StagePlanReference,in area: StageArea) {
+        let ghost=SCNNode(); ghost.name="plan-reference"; ghost.opacity=0.30
+        referenceLayer.addChildNode(ghost)
+        func material(_ geometry: SCNGeometry) {
+            let m=SCNMaterial(); m.diffuse.contents=UIColor.systemBlue; m.lightingModel = .constant
+            m.writesToDepthBuffer=false; m.readsFromDepthBuffer=false
+            geometry.materials=[m]
+        }
+        func world(_ p: FloorPoint, height: Double = 0.03) -> SIMD3<Float> {
+            let w=area.world(p)
+            return SIMD3(Float(w.x),Float(w.y+height),Float(w.z))
+        }
+        func line(_ a: FloorPoint,_ b: FloorPoint) {
+            let u=world(a), v=world(b), d=v-u
+            guard simd_length(d)>0.001 else { return }
+            let geometry=SCNCylinder(radius:0.008,height:CGFloat(simd_length(d))); material(geometry)
+            let node=SCNNode(geometry:geometry); node.simdPosition=(u+v)/2
+            node.simdOrientation=simd_quatf(from:SIMD3<Float>(0,1,0),to:simd_normalize(d))
+            ghost.addChildNode(node)
+        }
+        func label(_ text: String,at point: FloorPoint) {
+            let geometry=SCNText(string:text,extrusionDepth:0); geometry.font = .boldSystemFont(ofSize:Self.annotationFontSize)
+            material(geometry)
+            let node=SCNNode(geometry:geometry); node.scale=Self.annotationScale
+            node.simdPosition=world(point,height:0.13); node.constraints=[SCNBillboardConstraint()]
+            ghost.addChildNode(node)
+        }
+        for (i,p) in reference.points.enumerated() {
+            let ring=SCNTorus(ringRadius:0.07,pipeRadius:0.008); material(ring)
+            let node=SCNNode(geometry:ring); node.simdPosition=world(p); ghost.addChildNode(node)
+            label(i == 0 ? "참고 출발" : (i == reference.points.count-1 ? "참고 도착" : "참고 P\(i)"),at:p)
+            if i>0 { line(reference.points[i-1],p) }
+        }
+        for object in reference.objects {
+            for i in object.vertices.indices { line(object.vertices[i],object.vertices[(i+1)%object.vertices.count]) }
+            if let first=object.vertices.first { label("참고 · \(object.name)",at:first) }
         }
     }
 

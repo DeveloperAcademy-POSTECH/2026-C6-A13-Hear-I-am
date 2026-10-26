@@ -88,6 +88,7 @@ final class ARSessionController: ObservableObject {
     var pendingFacingEdge: Int? = nil
     /// The preparation draft last applied; saving builds the route from it.
     var preparedDraft: PreparationDraft?
+    var planReference: StagePlanReference?
     /// Called whenever a new session replaces the previous one, so owners can clear their own input.
     var onReset: (() -> Void)?
     private var visibleGuidanceTarget: Int?
@@ -133,7 +134,8 @@ final class ARSessionController: ObservableObject {
                                           : .guidance(target:visibleGuidanceTarget,completed:guidanceCompleted),
             checkpoint:checkpoint,secondCheckpoint:secondCheckpoint,corners:corners,area:area,routePoints:routePoints,routeHeights:preparedDraft.flatMap { draft in draft.area.map { area in draft.route.map {$0.y-area.floorHeight} } } ?? manifest?.route?.pointHeights,obstacles:obstacles,pendingObject:pendingObject,pendingFacingEdge:pendingFacingEdge,
             clearance:settings.obstacleClearance,
-            dangerZones:preparedDraft?.dangerZones ?? manifest?.route?.dangerZones ?? []))
+            dangerZones:preparedDraft?.dangerZones ?? manifest?.route?.dangerZones ?? [],
+            planReference:purpose == .preparation ? planReference : nil))
     }
 
     func startSession(map: ARWorldMap?) {
@@ -161,7 +163,7 @@ final class ARSessionController: ObservableObject {
         renderer.clearAnnotations()
         cornerAnchors.removeAll()
         renderer.meshLayer.isHidden = !showMesh; renderer.referenceLayer.isHidden=false
-        clearAlignment(); manifest=nil; origin=nil; front=nil; checkpoint=nil; secondCheckpoint=nil; stage=nil; area=nil
+        clearAlignment(); planReference=nil; manifest=nil; origin=nil; front=nil; checkpoint=nil; secondCheckpoint=nil; stage=nil; area=nil
         corners=Array(repeating:nil,count:4); routePoints=[]; obstacles=[]; pendingObject=[]; pendingFacingEdge=nil
         restoreStarted=nil; updateCounts(); lastUI = -.infinity; lastPoseLog = -.infinity
     }

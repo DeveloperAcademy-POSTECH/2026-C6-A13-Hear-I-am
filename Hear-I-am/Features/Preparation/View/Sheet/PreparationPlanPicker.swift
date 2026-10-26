@@ -1,7 +1,7 @@
 import SwiftUI
 import HearIAmCore
 
-/// Overlay picker to select and apply a saved PerformancePlan onto the captured stage area.
+/// Select a saved plan as a display-only reference for manual stage preparation.
 struct PreparationPlanPicker: View {
     let plans: [PerformancePlan]
     @State private var selectedID: UUID?
@@ -23,11 +23,11 @@ struct PreparationPlanPicker: View {
                 HStack {
                     VStack(alignment:.leading,spacing:2) {
                         Text("사전 저장한 공연 동선 불러오기").font(.title3.bold())
-                        Text("적용할 동선을 선택한 뒤 ‘다음’을 눌러주세요.").font(.caption).foregroundStyle(.secondary)
+                        Text("실제 무대의 가로·세로에 맞춰 옅은 잔상으로 보여줘요. 기물과 경로는 직접 찍어 등록하세요.").font(.caption).foregroundStyle(.secondary)
                     }
                     Spacer()
                     ActionButton(title:"취소",primary:false,action:onCancel)
-                    ActionButton(title:"다음",enabled:selectedPlan != nil) {
+                    ActionButton(title:"참고 잔상 불러오기",enabled:selectedPlan != nil) {
                         if let plan = selectedPlan { onConfirm(plan) }
                     }
                 }
