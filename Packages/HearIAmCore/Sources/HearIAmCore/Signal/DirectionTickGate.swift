@@ -15,11 +15,16 @@ public struct DirectionTickGate: Sendable {
         public var word: String { toRight ? SignalCopy.right : SignalCopy.left }
     }
 
-    public static let defaultDeadbandDegrees = 12.0
+    public static let minConfigurableDeadbandDegrees = 15
+    public static let maxConfigurableDeadbandDegrees = 90
+    public static let deadbandPresets: [Int] = [15, 20, 25, 30, 45]
+    public static let defaultDeadbandDegrees = 15.0
     public static let minInterval = 0.14
     public static let maxInterval = 0.70
 
-    public var deadbandDegrees: Double
+    public var deadbandDegrees: Double {
+        didSet { deadbandDegrees = Self.clampDeadband(deadbandDegrees) }
+    }
     /// Hysteresis margin so slight sway right at the deadband edge does not re-trigger speech immediately.
     public var releaseMarginDegrees: Double
     private(set) public var activeSide: Bool?
@@ -27,8 +32,12 @@ public struct DirectionTickGate: Sendable {
     private(set) public var isAligned=false
     private var lastTickTime: Double?
 
+    public static func clampDeadband(_ degrees: Double) -> Double {
+        max(3, min(Double(maxConfigurableDeadbandDegrees), degrees))
+    }
+
     public init(deadbandDegrees: Double = Self.defaultDeadbandDegrees, releaseMarginDegrees: Double = 3.0) {
-        self.deadbandDegrees = max(3, min(45, deadbandDegrees))
+        self.deadbandDegrees = Self.clampDeadband(deadbandDegrees)
         self.releaseMarginDegrees = max(0, min(15, releaseMarginDegrees))
     }
 

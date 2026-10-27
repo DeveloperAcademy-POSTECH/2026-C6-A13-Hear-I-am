@@ -76,6 +76,7 @@ extension GuidanceViewModel {
         if guide.isHolding { logSignal("performance_hold_start","point=\(previous) seconds=\(guide.holdRemaining)") }
     }
     private func signal(pose: (point: FloorPoint, heading: Double, time: Double), guide: RouteGuide) {
+        directionTicks.deadbandDegrees=SignalPlayer.directionDeadbandDegrees
         var quiet=quietUntil.map { pose.time < $0 } ?? false
         if !quiet { quietUntil=nil }
         if ticksWaitForWord, !speaking { ticksWaitForWord=false }
