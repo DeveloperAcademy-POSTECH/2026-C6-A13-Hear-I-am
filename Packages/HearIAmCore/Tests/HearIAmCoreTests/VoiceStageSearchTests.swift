@@ -38,4 +38,11 @@ final class VoiceStageSearchTests: XCTestCase {
         XCTAssertEqual(VoiceStageSearch.resolve("대연습실 무대 찾아줘",names:names,contexts:contexts),.results(query:"대연습실",indices:[1]))
     }
 
+    func testKeywordSearchIsNotHandedToTheModel() {
+        XCTAssertTrue(VoiceStageSearch.isKeywordSearch("강당 관련 무대 찾아줘"))
+        XCTAssertTrue(VoiceStageSearch.isKeywordSearch("강당 검색해 줘"))
+        XCTAssertFalse(VoiceStageSearch.isKeywordSearch("저장된 무대 다 불러와 줘"))
+        XCTAssertFalse(VoiceStageSearch.isKeywordSearch("무대 목록 다 보여줘"))
+        XCTAssertFalse(VoiceStageSearch.isKeywordSearch("오늘 날씨 어때"))
+    }
 }

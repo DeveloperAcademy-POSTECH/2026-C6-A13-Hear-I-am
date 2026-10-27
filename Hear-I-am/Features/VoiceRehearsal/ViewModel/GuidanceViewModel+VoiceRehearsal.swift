@@ -5,6 +5,16 @@ import HearIAmCore
 /// Opt-in #69 experiment. Commands use the same guards as the existing touch controls.
 extension GuidanceViewModel {
     func voicePointName(_ index:Int) -> String {guide?.route.pointLabel(at:index) ?? "지점"}
+    /// What the current screen can do, offered to the Apple Intelligence model (#87).
+    var voiceScreen: VoiceScreen {
+        switch phase {
+        case .selection: return voiceChoosingMode ? .modeChoice : .stageList(stageCount:visibleVoiceStages.count)
+        case .starting,.guiding,.paused:
+            return .guidance(pointCount:voiceMode == .practice && started ? max(0,(guide?.route.points.count ?? 0)-1) : 0)
+        case .failed,.interrupted: return .recovery
+        default: return .preparation
+        }
+    }
 
     var voiceCanOfferInput: Bool {
         guard voiceExperiment, active, !showExit, !savingRecord, escape == nil, audioIssue == nil else {return false}
@@ -242,12 +252,55 @@ extension GuidanceViewModel {
         guard voiceShouldListen else {return}
         voiceTurnActive=false;voiceTranscript=text
         logSignal("voice_command",text)
+        if let pending=pendingVoiceIntent {
+            pendingVoiceIntent=nil
+            switch VoiceIntentCopy.answer(text) {
+            case true?: logSignal("voice_intent_confirmed","\(pending)");performVoiceCommand(pending);return
+            case false?: logSignal("voice_intent_declined","\(pending)");read([VoiceIntentCopy.declined]);return
+            case nil: break
+            }
+        }
         let parsed=VoiceCommandParser.parse(text)
         if parsed == .cancel, !started {voiceSelectionControlsVisible=false;cancelVoiceSelection();return}
         if phase == .selection, !voiceChoosingMode, parsed != .practice, parsed != .performance,
            parsed != .repeatInstruction, parsed != .pause, parsed != .next, parsed != .start, parsed != .continueGuidance,
            selectStageWithVoice(text) {return}
-        if let command=VoiceCommandParser.parse(text) {
+        if let command=parsed {
+            logSignal("voice_intent","exact \(command)")
+            performVoiceCommand(command)
+        } else if !resolveVoiceIntent(text) {
+            readVoiceCommandNotUnderstood()
+        }
+    }
+    /// Phrases that differ from the list are given to the on-device Apple Intelligence model (#87).
+    /// It may only pick what the current screen offers; a guess is asked back before acting.
+    private func resolveVoiceIntent(_ text:String) -> Bool {
+        #if canImport(FoundationModels)
+        guard #available(iOS 26.0, *), AppleIntelligenceVoiceIntentResolver.isAvailable else {return false}
+        let screen=voiceScreen, began=ProcessInfo.processInfo.systemUptime
+        Task { [weak self] in
+            let decision=await AppleIntelligenceVoiceIntentResolver().resolve(text,screen:screen)
+            guard let self, self.voiceShouldListen, self.voiceTranscript == text, self.voiceScreen == screen else {return}
+            let seconds=String(format:"%.2fs",ProcessInfo.processInfo.systemUptime-began)
+            switch decision {
+            case .command(let command):
+                self.logSignal("voice_intent","model \(command) \(seconds)");self.performVoiceCommand(command)
+            case .confirm(let command):
+                self.logSignal("voice_intent","ask \(command) \(seconds)")
+                self.pendingVoiceIntent=command;self.read([VoiceIntentCopy.question(command)])
+            case .none:
+                self.logSignal("voice_intent","none \(seconds)");self.readVoiceCommandNotUnderstood()
+            }
+        }
+        return true
+        #else
+        return false
+        #endif
+    }
+    private func readVoiceCommandNotUnderstood() {
+        read(["요청을 확실히 이해하지 못했어요. \(phase == .selection ? "무대 선택 화면에서는 장소나 무대 이름을, 사용 방식 화면에서는 연습용 또는 실전용을 말씀해주세요." : "계속, 멈춰, 또는 P2로 다시 안내해 줘처럼 한 가지 요청을 말씀해주세요.")"])
+    }
+    private func performVoiceCommand(_ command:VoiceCommand) {
             switch command {
             case .practice,.performance:
                 if phase == .selection, voiceChoosingMode {selectVoiceMode(command == .practice ? .practice : .performance)}
@@ -262,8 +315,15 @@ extension GuidanceViewModel {
             case .repeatInstruction: replay()
             case .cancel:
                 read([started ? "요청을 취소했어요. 안내는 멈춘 상태예요. 계속이라고 말씀하면 다시 안내해요." : "요청을 취소했어요. 사용할 무대나 사용 방식을 말씀해주세요."])
+            case .showAllStages:
+                guard phase == .selection, !voiceChoosingMode else {read(["저장된 무대 목록은 무대 선택 화면에서 들을 수 있어요."]);return}
+                guard !voiceStages.isEmpty else {selectionDescription(empty:true);return}
+                showVoiceStageResults(query:nil,ids:nil)
+            case .chooseStage(let number):
+                let items=visibleVoiceStages
+                guard phase == .selection, !voiceChoosingMode, number > 0, number <= items.count else {read(["화면에 있는 무대 번호를 말씀해주세요."]);return}
+                select(items[number-1])
             }
-        } else {read(["요청을 확실히 이해하지 못했어요. \(phase == .selection ? "무대 선택 화면에서는 장소나 무대 이름을, 사용 방식 화면에서는 연습용 또는 실전용을 말씀해주세요." : "계속, 멈춰, 또는 P2로 다시 안내해 줘처럼 한 가지 요청을 말씀해주세요.")"])}
     }
     private func selectStageWithVoice(_ text:String) -> Bool {
         if let ordinal=VoiceStageSearch.ordinal(text) {
@@ -276,13 +336,20 @@ extension GuidanceViewModel {
         switch VoiceStageSearch.resolve(text,names:voiceStages.map(\.name),contexts:voiceStages.map {voiceStagePaths[$0.id] ?? []}) {
         case .selected(let index): select(voiceStages[index]);return true
         case .results(let query,let indices):
-            voiceSelectionControlsVisible=false
-            voiceRecognition.discardPendingSpeech()
-            selected=nil;guide=nil;run=nil;pendingRecord=nil
-            voiceSearchQuery=query;voiceSearchIDs=indices.map {voiceStages[$0].id}
-            announceVoiceStageResults();return true
+            let ids=indices.map {voiceStages[$0].id}
+            // A request such as 「저장된 무대 다 불러와 줘」 matches no name; let the model read it first.
+            // A keyword search that found nothing still says so.
+            if ids.isEmpty, !VoiceStageSearch.isKeywordSearch(text), resolveVoiceIntent(text) {return true}
+            showVoiceStageResults(query:query,ids:ids);return true
         case .none: return false
         }
+    }
+    private func showVoiceStageResults(query:String?,ids:[UUID]?) {
+        voiceSelectionControlsVisible=false
+        voiceRecognition.discardPendingSpeech()
+        selected=nil;guide=nil;run=nil;pendingRecord=nil
+        voiceSearchQuery=query;voiceSearchIDs=ids
+        announceVoiceStageResults()
     }
     func advanceWithVoice() {
         guard voiceExperiment, active else {return}

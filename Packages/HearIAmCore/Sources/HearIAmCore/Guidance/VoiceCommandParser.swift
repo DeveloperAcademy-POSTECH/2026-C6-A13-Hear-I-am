@@ -5,6 +5,9 @@ import Foundation
 public enum VoiceCommand: Equatable, Sendable {
     case returnToPoint(Int)
     case continueGuidance, pause, repeatInstruction, next, start, practice, performance, cancel
+    /// Reached only through the Apple Intelligence model (#87); exact stage phrases stay in VoiceStageSearch.
+    case showAllStages
+    case chooseStage(Int)
 }
 
 public enum VoiceCommandParser {
