@@ -38,6 +38,8 @@ import HearIAmCore
     @Published var voiceListeningEnabled=true
     @Published var voiceTurnActive=false
     @Published var voiceTranscript=""
+    /// A command the Apple Intelligence model only guessed; it waits for 「응」 or 「아니」 (#87).
+    var pendingVoiceIntent: VoiceCommand?
     @Published var voiceInputError: String?
     let voiceRecognition=VoiceRecognitionService()
     let listeningChime=VoiceListeningChime()

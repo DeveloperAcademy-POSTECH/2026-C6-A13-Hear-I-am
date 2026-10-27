@@ -49,6 +49,13 @@ public enum VoiceStageSearch {
         return .results(query: keyword, indices: indices)
     }
 
+    /// A keyword search such as 「강당 관련 무대 찾아줘」. When it finds nothing, the answer is that nothing
+    /// matched; it is not handed to the Apple Intelligence model, which might pick a stage anyway (#87).
+    public static func isKeywordSearch(_ text: String) -> Bool {
+        let request=normalized(text)
+        return ["관련", "검색", "찾아"].contains { request.contains($0) }
+    }
+
     /// One-based ordinals always refer to the currently visible result list.
     public static func ordinal(_ text: String) -> Int? {
         let request=normalized(text)
