@@ -6,6 +6,10 @@ final class VoiceUITests: XCTestCase {
         let app=XCUIApplication(bundleIdentifier:"org.heariam.voice86.qa")
         app.launchArguments=["-AppleLanguages","(ko)","-AppleLocale","ko_KR"]
         app.launch()
+        // Home listens for 「히얼아이엠」 at once (#90). Refusing the microphone leaves the one button way in.
+        let springboard=XCUIApplication(bundleIdentifier:"com.apple.springboard")
+        let deny=springboard.buttons.matching(NSPredicate(format:"label IN %@",["Don’t Allow","Don't Allow","허용 안 함"])).firstMatch
+        if deny.waitForExistence(timeout:20) {deny.tap()}
         let start=app.buttons["home.voice.start"]
         XCTAssertTrue(start.waitForExistence(timeout:15))
         start.tap()
