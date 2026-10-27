@@ -24,9 +24,11 @@ public enum SignalCopy {
                    "십일","십이","십삼","십사","십오","십육","십칠","십팔","십구","이십"]
         return words.indices.contains(index) ? words[index] : "\(index)"
     }
-    /// Spoken point name on reaching a floor target spot (#74): 「피일」 · 「피이」 · 「피삼」.
+    /// Spoken point name on reaching a floor target spot (#74, #88): 「피원」 · 「피투」 · 「피쓰리」.
     public static func point(_ index: Int) -> String {
-        "피\(koreanNumber(index))"
+        let words=["피제로","피원","피투","피쓰리","피포","피파이브","피식스","피세븐","피에잇","피나인","피텐",
+                   "피일레븐","피트웰브","피써틴","피포틴","피피프틴","피식스틴","피세븐틴","피에이틴","피나인틴","피트웬티"]
+        return words.indices.contains(index) ? words[index] : "피\(index)"
     }
     /// Spoken point name on reaching a chair or stairs target spot (#76): 「의자일」 · 「계단일」.
     public static func stepPoint(stairs: Bool, number: Int) -> String {
