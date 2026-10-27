@@ -23,6 +23,16 @@ final class VoiceCommandParserTests: XCTestCase {
         }
         XCTAssertEqual(VoiceCommandParser.parse("비투로 돌아가"),.returnToPoint(2))
     }
+    func testNumbersWrittenAsEverydayWords() {
+        // 「2번」 sounds like 「이번」, 「4번」 like 「사번」.
+        let cases:[(String,Int)]=[("이번 지점으로 돌아가",2),("이번으로 돌아가 줘",2),("사번 지점으로 다시 안내해 줘",4),("일번으로 가",1)]
+        for (text,index) in cases { XCTAssertEqual(VoiceCommandParser.parse(text),.returnToPoint(index),text) }
+        for text in ["이번엔 계속 가자", "이번에 멈춰", "이번 거 좋다"] { XCTAssertNil(VoiceCommandParser.parse(text),text) }
+        XCTAssertEqual(VoiceStageSearch.ordinal("이번"),2)
+        XCTAssertEqual(VoiceStageSearch.ordinal("이번 무대"),2)
+        XCTAssertEqual(VoiceStageSearch.ordinal("삼번 선택해 줘"),3)
+        XCTAssertNil(VoiceStageSearch.ordinal("이번에"))
+    }
     func testLeadingYesBeforeACommand() {
         let cases:[(String,VoiceCommand)]=[("네 시작",.start),("응 계속",.continueGuidance),("자, 다음",.next),("어 멈춰",.pause),("네 P2로 돌아가",.returnToPoint(2))]
         for (text,command) in cases { XCTAssertEqual(VoiceCommandParser.parse(text),command,text) }

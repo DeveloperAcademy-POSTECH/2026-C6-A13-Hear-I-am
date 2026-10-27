@@ -201,7 +201,7 @@ extension GuidanceViewModel {
         guard !voiceRecognitionRequested else {return}
         voiceRecognitionRequested=true
         // Point names go early: the recognizer keeps only the first 100 hints, and P1 was heard as 「비 일」 (10/28).
-        let points=["P1","P2","P3","P4","P5","피원","피투","피쓰리","피포","피파이브","1번 지점으로 돌아가 줘"]
+        let points=["P1","P2","P3","P4","P5","피원","피투","피쓰리","피포","피파이브","1번","2번","3번","1번 지점으로 돌아가 줘"]
         let hints=VoiceWakeWord.hints+points+voiceStages.map(\.name)+voiceStagePaths.values.flatMap {$0}+["연습용","실전용","취소","관련된 무대 열어줘","다음","계속","멈춰","P2 지점으로 다시 안내해 줘","피투","2번 지점"]
         voiceInputTask=Task { @MainActor [weak self] in
             guard let self, !Task.isCancelled, self.voiceShouldListen else {return}

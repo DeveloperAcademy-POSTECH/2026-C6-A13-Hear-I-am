@@ -39,12 +39,15 @@ public enum VoiceCommandParser {
     ]
 
     private struct PointToken { let range: NSRange; let index: Int }
+    static let sinoKorean=["일":1,"이":2,"삼":3,"사":4,"오":5,"육":6,"칠":7,"팔":8,"구":9,"십":10]
     private static func pointCommand(_ text: String) -> VoiceCommand? {
         var tokens:[PointToken]=[]
         collect(#"(?<![a-z0-9-])(?:p|point)\s*([0-9]{1,3})(?![0-9])"#,in:text,into:&tokens) { Int($0) }
         // Dictation also hears P as 비 (field test 10/28: 「비 일로 돌아가」).
         collect(#"[피비]\s*([0-9]{1,3})(?![0-9])"#,in:text,into:&tokens) { Int($0) }
         collect(#"(?<![0-9-])([0-9]{1,3})\s*(?:번(?:째)?|지점|포인트)"#,in:text,into:&tokens) { Int($0) }
+        // 「2번」 and 「이번」 sound the same; dictation writes the everyday word (field test 10/28).
+        collect(#"(?<![가-힣])(일|이|삼|사|오|육|칠|팔|구|십)\s*번(?!째)"#,in:text,into:&tokens) { sinoKorean[$0] }
         let spokenNumbers:[String:Int]=[
             "제로":0,"영":0,"일":1,"원":1,"이":2,"투":2,"삼":3,"쓰리":3,"사":4,"포":4,
             "오":5,"파이브":5,"육":6,"식스":6,"칠":7,"세븐":7,"팔":8,"에잇":8,"구":9,"나인":9,
