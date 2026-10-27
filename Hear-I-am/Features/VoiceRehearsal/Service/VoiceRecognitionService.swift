@@ -433,6 +433,10 @@ import HearIAmCore
         } else if errorDomain == "kAFAssistantErrorDomain", errorCode == 1110, !speechDetected {
             // No-speech is an ordinary end of an idle ASR task, not a disconnected microphone.
             rearmAfterSilence()
+        } else if errorDomain == "kLSRErrorDomain", errorCode == 201 {
+            // Siri and Dictation are off: on-device recognition fails at once on every retry (16 Pro Max, 10/27).
+            trace("Recognition unavailable: Siri and Dictation disabled (kLSRErrorDomain 201)", level: .error)
+            failPermanently("받아쓰기가 꺼져 있어 음성을 들을 수 없어요. 설정 > 일반 > 키보드에서 받아쓰기를 켠 뒤 다시 듣기를 눌러주세요.")
         } else {
             trace("Recognition task failed: domain=\(errorDomain ?? "none") code=\(errorCode ?? 0)", level: .error)
             recognitionFailed("음성을 확인하지 못했어요. 다시 들을게요.", turnID: turnID)
