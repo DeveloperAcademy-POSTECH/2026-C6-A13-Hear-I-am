@@ -5,29 +5,28 @@ import HearIAmCore
 struct GuidanceView: View {
     @ObservedObject var library: StageLibrary
     @StateObject private var model: GuidanceViewModel
-    init(library:StageLibrary,voiceExperiment:Bool = false) {
+    /// `request` is what the user already asked the voice agent on Home; it is handled first (#90).
+    init(library:StageLibrary,voiceExperiment:Bool = false,request:String? = nil) {
         self.library=library
-        _model=StateObject(wrappedValue:GuidanceViewModel(voiceExperiment:voiceExperiment))
+        let model=GuidanceViewModel(voiceExperiment:voiceExperiment)
+        model.voiceInitialRequest=request
+        _model=StateObject(wrappedValue:model)
     }
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
 
-    private var showsVoiceListeningOverlay: Bool {
-        model.voiceExperiment && model.phase == .paused &&
-        (model.voiceTurnActive || model.guide?.rehearsalReturnArrivalIndex != nil)
-    }
     var body: some View {
         NavigationStack {
             VStack(alignment:.leading,spacing:12) {
-                if !showsVoiceListeningOverlay && (!model.voiceExperiment || model.phase != .selection) {
+                if !model.voiceExperiment || model.phase != .selection {
                     Text(model.phase.stepLabel(targetName:model.targetName)).font(.subheadline.weight(.semibold)).foregroundStyle(model.voiceExperiment ? Color.primary : Color.hearGreen).padding(.horizontal,24)
                 }
-                if model.phase.showsRouteCamera && !showsVoiceListeningOverlay { GuidanceRouteHeader(model:model) }
+                if model.phase.showsRouteCamera { GuidanceRouteHeader(model:model) }
                 ZStack {
                     // Keep one AR view attached throughout the flow, including when the screen shows instructions.
                     CameraView(model:model.tracking).frame(maxWidth:.infinity,maxHeight:.infinity).accessibilityHidden(true)
-                    if showsVoiceListeningOverlay {VoiceListeningOverlay(model:model)}
-                    else if model.phase.showsRouteCamera { GuidanceRouteOverlay(model:model) }
+                    // Listening while paused keeps the route camera in view; the slim voice card shows it (#90).
+                    if model.phase.showsRouteCamera { GuidanceRouteOverlay(model:model) }
                     else if model.phase.isCameraStep { GuidanceCameraPrompt(model:model) }
                     else if model.phase == .selection {
                         Color(.systemBackground)
@@ -52,15 +51,7 @@ struct GuidanceView: View {
                     if !model.voiceExperiment || model.phase != .selection || model.voiceSelectionControlsVisible || model.audioIssue != nil {
                         GuidanceControls(library:library,model:model,close:close,saveAndClose:saveAndClose)
                     }
-                }.background {
-                    ZStack(alignment: .bottom) {
-                        Color(.systemBackground)
-                        if model.voiceExperiment {
-                            VoiceBottomGlow(active: model.voiceShouldListen && model.voiceRecognition.isListening)
-                                .ignoresSafeArea(edges: .bottom)
-                        }
-                    }
-                }
+                }.background(Color(.systemBackground))
             }
             .background(Color(.systemBackground))
             .tint(model.voiceExperiment ? .primary : .hearGreen)
@@ -68,6 +59,11 @@ struct GuidanceView: View {
                 Button("안내 끝내기",role:.destructive) { close() }
                 Button("계속 사용하기",role:.cancel) { model.cancelExit() }
             } message: { Text("중간에 종료하면 도착 완료로 처리되지 않아요. 저장한 무대와 동선은 유지돼요.") }
+        }
+        .overlay {
+            if model.voiceExperiment {
+                VoiceEdgeGlow(visualization:model.voiceRecognition.inputVisualization,active:model.voiceShowsListening)
+            }
         }
         .interactiveDismissDisabled()
         .onAppear {ScreenOrientation.set(.portrait)}

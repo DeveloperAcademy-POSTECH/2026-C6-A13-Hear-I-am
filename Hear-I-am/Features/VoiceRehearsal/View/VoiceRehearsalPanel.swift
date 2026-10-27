@@ -38,22 +38,25 @@ struct VoiceRehearsalPanel: View {
     @ObservedObject var model: GuidanceViewModel
     var body: some View {
         VoiceGlassCard(visualization: model.voiceRecognition.inputVisualization,
-                       listening: model.voiceShouldListen && model.voiceRecognition.isListening,
+                       listening: model.voiceShowsListening,
                        processing: model.voiceProcessingCommand,
                        recovering: model.voiceRecognition.isRecovering,
                        speaking: model.voiceTurnActive,
                        title: model.voiceStatusTitle,
                        detail: model.voiceInputError ?? model.voiceStatusDetail,
                        transcript: model.voiceTranscript,
-                       pulse: model.voiceListeningPulse) {
+                       pulse: model.voiceListeningPulse,
+                       compact: model.voiceCompactPanel,
+                       compactActions: model.phase == .selection) {
             if model.voiceCanOfferInput || model.phase == .selection {
                 ViewThatFits(in: .horizontal) {
                     HStack(spacing: 16) { inputActions }
                     VStack(alignment: .leading, spacing: 0) { inputActions }
                 }
             }
-        }.padding(.horizontal, 24).padding(.top, 10).padding(.bottom, 4)
+        }.padding(.horizontal, 24).padding(.top, compact ? 6 : 10).padding(.bottom, 4)
     }
+    private var compact: Bool {model.voiceCompactPanel}
     @ViewBuilder private var inputActions: some View {
         if model.voiceCanOfferInput {
             Button {model.retryVoiceListening()} label: {
@@ -71,26 +74,6 @@ struct VoiceRehearsalPanel: View {
             }.font(.subheadline).frame(minHeight:44).buttonStyle(.plain)
                 .accessibilityHint(model.voiceSelectionControlsVisible ? "선택은 유지하고 하단 진행 버튼을 숨깁니다" : "설명 다시 듣기와 다음 버튼을 표시합니다")
         }
-    }
-}
-
-struct VoiceListeningOverlay: View {
-    @ObservedObject var model: GuidanceViewModel
-    var body: some View {
-        ScrollView {
-            VStack(spacing:16) {
-                VoiceGlassOrb(active: model.voiceRecognition.isListening,
-                              symbol: model.voiceProcessingCommand ? "ellipsis" : model.voiceTurnActive ? "waveform" : "checkmark")
-                    .frame(width:64,height:64)
-                Text(model.voiceProcessingCommand ? "요청을 확인하고 있어요" : model.voiceTurnActive ? "듣고 있어요" : "\(model.voicePointName(model.guide?.rehearsalReturnArrivalIndex ?? 0))에 도착했어요")
-                    .font(.title2.bold()).multilineTextAlignment(.center)
-                    .fixedSize(horizontal:false,vertical:true)
-                Text(model.voiceTurnActive ? "잠시 멈춰주세요. 말씀을 마치면 요청을 확인해요." : "‘계속’이라고 말하면 다음 지점으로 안내해요.")
-                    .font(.body).foregroundStyle(.secondary).multilineTextAlignment(.center)
-                    .fixedSize(horizontal:false,vertical:true)
-            }.padding(20).frame(maxWidth:.infinity)
-        }.frame(maxWidth:.infinity,maxHeight:.infinity)
-            .background(Color(.systemBackground))
     }
 }
 
@@ -196,7 +179,39 @@ struct VoiceBottomGlow: View {
     }
 }
 
-private struct VoiceGlassOrb: View {
+/// Siri-style light around the screen edge while the app takes requests (#90). It never covers what is
+/// on screen, and it swells and wavers with the speaker's voice.
+struct VoiceEdgeGlow: View {
+    @ObservedObject var visualization: VoiceInputVisualization
+    let active: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    private static let colors = [VoiceGlassPalette.cyan, VoiceGlassPalette.blue, VoiceGlassPalette.violet,
+                                 Color(red: 0.96, green: 0.42, blue: 0.62), Color(red: 1.0, green: 0.62, blue: 0.30), VoiceGlassPalette.cyan]
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !active || reduceMotion)) { timeline in
+            let time = timeline.date.timeIntervalSinceReferenceDate
+            let level = active ? visualization.level : 0
+            let waver = reduceMotion ? 0 : (sin(time * 7.3) + sin(time * 11.9)) * 0.5 * level
+            let width = 4 + level * 10 + waver * 4
+            let turn = reduceMotion ? 0 : (time * 45).truncatingRemainder(dividingBy: 360)
+            let gradient = AngularGradient(gradient: Gradient(colors: Self.colors), center: .center,
+                                           startAngle: .degrees(turn), endAngle: .degrees(turn + 360))
+            let shape = RoundedRectangle(cornerRadius: 56, style: .continuous)
+            ZStack {
+                shape.strokeBorder(gradient, lineWidth: width * 2.2).blur(radius: 20 + level * 16).opacity(0.75)
+                shape.strokeBorder(gradient, lineWidth: width).blur(radius: 6)
+                shape.strokeBorder(gradient, lineWidth: 2.5)
+            }
+        }
+        .ignoresSafeArea()
+        .opacity(active ? 1 : 0)
+        .animation(.easeInOut(duration: reduceMotion ? 0.1 : 0.35), value: active)
+        .allowsHitTesting(false).accessibilityHidden(true)
+    }
+}
+
+struct VoiceGlassOrb: View {
     let active: Bool
     var symbol = "waveform"
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
@@ -259,7 +274,7 @@ private struct VoiceAudioWaveform: View {
     }
 }
 
-private struct VoiceGlassCard<Actions: View>: View {
+struct VoiceGlassCard<Actions: View>: View {
     let visualization: VoiceInputVisualization
     let listening: Bool
     let processing: Bool
@@ -269,12 +284,31 @@ private struct VoiceGlassCard<Actions: View>: View {
     let detail: String
     let transcript: String
     let pulse: Int
+    /// One slim row for screens whose camera view must stay visible (#90).
+    var compact = false
+    var compactActions = false
     @ViewBuilder let actions: () -> Actions
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @State private var lifted = false
 
-    var body: some View {
+    private var compactContent: some View {
+        HStack(spacing: 10) {
+            VoiceGlassOrb(active: listening, symbol: processing ? "ellipsis" : listening ? "waveform" : "mic.slash")
+                .frame(width: 32, height: 32)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(.subheadline.weight(.semibold)).lineLimit(1)
+                    .accessibilityIdentifier("voice-feedback-status")
+                if !transcript.isEmpty {
+                    Text(transcript).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                }
+            }
+            Spacer(minLength: 0)
+            if recovering || processing { ProgressView().controlSize(.small).accessibilityLabel(processing ? "요청 확인 중" : "연결 중") }
+        }
+    }
+
+    @ViewBuilder private var fullContent: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 12) {
                 VoiceGlassOrb(active: listening, symbol: processing ? "ellipsis" : listening ? "waveform" : "mic.slash")
@@ -303,7 +337,14 @@ private struct VoiceGlassCard<Actions: View>: View {
                 .accessibilityElement(children: .combine)
             Text(detail).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             actions()
-        }.padding(18)
+        }
+    }
+
+    var body: some View {
+        Group {
+            if compact { VStack(alignment: .leading, spacing: 4) { compactContent; if compactActions { actions() } }.padding(12) }
+            else { fullContent.padding(18) }
+        }
             .background {
                 let shape = RoundedRectangle(cornerRadius: 26, style: .continuous)
                 if reduceTransparency { shape.fill(Color(.secondarySystemBackground)) }
@@ -317,6 +358,7 @@ private struct VoiceGlassCard<Actions: View>: View {
                     .stroke(LinearGradient(colors: [.white.opacity(0.95), listening ? VoiceGlassPalette.cyan.opacity(0.35) : Color.primary.opacity(0.08), listening ? VoiceGlassPalette.violet.opacity(0.28) : Color.primary.opacity(0.06)], startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 1)
                     .allowsHitTesting(false)
             }
+            .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
             .shadow(color: Color.black.opacity(0.045), radius: 18, y: 7)
             .shadow(color: VoiceGlassPalette.blue.opacity(listening ? 0.10 : 0), radius: 20, y: 2)
             .scaleEffect(lifted ? 1.018 : 1, anchor: .bottom)
