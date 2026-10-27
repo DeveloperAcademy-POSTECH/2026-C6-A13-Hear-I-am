@@ -22,11 +22,21 @@ extension GuidanceViewModel {
         invalidateTasks()
         phase = .starting
         let resumingHold=guide?.isHolding == true
-        read(resumingHold ? ["공연 대기를 이어갑니다."] : [started ? "안내를 다시 시작합니다." : "안내를 시작합니다.",SignalCopy.start]) { [weak self] in
+        let returnIndex=guide?.isReturningForRehearsal == true ? guide?.rehearsalReturnDestinationIndex : nil
+        let lines: [String]
+        if resumingHold {lines=["공연 대기를 이어갑니다."]}
+        else if let returnIndex {lines=["\(voicePointName(returnIndex))로 다시 안내합니다. 저장된 동선을 따라 이동합니다."]}
+        else if let arrived=guide?.rehearsalReturnArrivalIndex {lines=["안내를 다시 시작합니다.","\(guide?.route.pointLabel(at:arrived+1) ?? targetName)으로 이동합니다."]}
+        else {lines=[started ? "안내를 다시 시작합니다." : "안내를 시작합니다.",SignalCopy.start]}
+        read(lines) { [weak self] in
             guard let self, self.phase == .starting, var guide=self.guide else { return }
             guard let pose=self.freshPose() else { self.interrupt("현재 위치를 확인할 수 없어요. 확인점을 다시 확인해주세요.");return }
             let first = !self.started
-            let success=self.started ? guide.resume(position:pose.point,trackingValid:true) : guide.start(position:pose.point,headingDegrees:pose.heading,trackingValid:true)
+            let success: Bool
+            if guide.rehearsalReturnArrivalIndex != nil {
+                success=guide.resumeForwardAfterRehearsalReturn(position:pose.point,trackingValid:true)
+                if success {self.logSignal("rehearsal_forward_resumed","target=P\(guide.targetIndex)")}
+            } else {success=self.started ? guide.resume(position:pose.point,trackingValid:true) : guide.start(position:pose.point,headingDegrees:pose.heading,trackingValid:true)}
             guard success else {
                 self.phase = .departure;self.departureReady=false;self.departureGate.reset();self.readyAnnounced=false
                 self.read(["출발 조건이 달라졌습니다. 위치와 방향을 다시 확인해주세요."]);return
@@ -42,7 +52,7 @@ extension GuidanceViewModel {
         }
     }
     func tickDeparture(pose: (point: FloorPoint, heading: Double, time: Double), guide: RouteGuide) {
-        let eligible=started ? guide.canResume(position:pose.point,trackingValid:true) : guide.ready(position:pose.point,headingDegrees:pose.heading,trackingValid:true)
+        let eligible=started ? (guide.rehearsalReturnArrivalIndex != nil ? guide.canResumeForwardAfterRehearsalReturn(position:pose.point,trackingValid:true) : guide.canResume(position:pose.point,trackingValid:true)) : guide.ready(position:pose.point,headingDegrees:pose.heading,trackingValid:true)
         let wasReady=departureReady
         departureReady=departureGate.observe(time:pose.time,eligible:eligible)
         // The start is a point too: ding once the wearer has settled on it (10/19).
@@ -50,10 +60,10 @@ extension GuidanceViewModel {
             signals.play(.arrival);logSignal("signal_arrival","\(GuidanceCopy.target(0,last:guide.route.points.count-1)) ready")
         }
         if !eligible {
-            if readyAnnounced {read(["출발 위치 또는 방향이 달라졌습니다. 다시 확인해주세요."])}
+            if readyAnnounced && !voiceTurnActive {read(["출발 위치 또는 방향이 달라졌습니다. 다시 확인해주세요."])}
             readyAnnounced=false
         }
-        if departureReady, !readyAnnounced, instructionDone, !speaking {
+        if departureReady, !readyAnnounced, instructionDone, !speaking, !voiceTurnActive {
             readyAnnounced=true
             read([started ? "재개 준비가 완료됐습니다. 안내 다시 시작 버튼을 눌러주세요." : "출발 준비가 완료됐습니다. 안내 시작 버튼을 누르면 첫 번째 지점으로 안내합니다."])
         }
