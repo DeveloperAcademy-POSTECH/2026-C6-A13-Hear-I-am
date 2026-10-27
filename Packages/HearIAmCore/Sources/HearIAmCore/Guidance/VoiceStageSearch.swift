@@ -61,6 +61,10 @@ public enum VoiceStageSearch {
         let request=normalized(text)
         let words=["첫번째", "두번째", "세번째", "네번째", "다섯번째", "여섯번째", "일곱번째", "여덟번째", "아홉번째", "열번째"]
         if let i=words.firstIndex(where: { request == $0 || request == $0+"무대" || request == $0+"선택" || request == $0+"선택해줘" }) { return i+1 }
+        // 「2번」 is often written 「이번」: the sounds are the same (field test 10/28).
+        if request.range(of: #"^(?:일|이|삼|사|오|육|칠|팔|구|십)번(?:무대|선택|선택해줘)?$"#, options: .regularExpression) != nil {
+            return VoiceCommandParser.sinoKorean[String(request.prefix(1))]
+        }
         guard request.range(of: #"^[0-9]+번(?:무대|선택|선택해줘)?$"#, options: .regularExpression) != nil else { return nil }
         return Int(request.prefix(while: { $0.isNumber }))
     }
