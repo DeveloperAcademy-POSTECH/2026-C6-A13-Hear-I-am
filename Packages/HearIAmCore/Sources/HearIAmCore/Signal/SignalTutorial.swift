@@ -68,7 +68,7 @@ public enum SignalTutorialStep: Int, CaseIterable, Identifiable, Sendable {
         case .preparation: return "연결된 이어폰이 있으면 이어폰으로, 없으면 iPhone 스피커로 들려요. 함께 듣고 싶다면 소리 출력에서 스피커를 선택하세요. 음량은 iPhone의 음량 버튼으로 조절해요."
         case .direction: return "낮은 톡 소리는 왼쪽, 높은 톡 소리는 오른쪽으로 몸을 돌리라는 뜻이에요. 목표 방향에 가까워질수록 톡 소리가 빨라지고, 방향이 맞으면 멈춰요."
         case .alignment: return "방향이 맞으면 확인 소리가 들려요. 이후 남은 거리를 듣고 이동해요. 방향 맞음은 지점에 도착했다는 뜻과 달라요."
-        case .arrival: return "출발할 때는 출발, 중간 지점에 도착하면 피일이나 피이처럼 지점 이름을 말해요. 마지막에는 띵 소리 뒤에 마지막 지점 도착이라고 알려줘요."
+        case .arrival: return "출발할 때는 출발, 중간 지점에 도착하면 피원이나 피투처럼 지점 이름을 말해요. 마지막에는 띵 소리 뒤에 마지막 지점 도착이라고 알려줘요."
         case .objects: return "의자나 계단으로 갈 때 기물 이름을 미리 알려줘요. 도착하면 의자일이나 계단일이라고 말하고, 바라볼 방향이 정해져 있으면 오른쪽 봐 또는 왼쪽 봐로 안내해요. 그 방향을 맞춘 뒤 다음 지점 안내가 이어져요."
         }
     }
