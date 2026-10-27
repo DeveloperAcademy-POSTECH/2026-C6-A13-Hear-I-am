@@ -12,6 +12,13 @@ public enum VoiceCommand: Equatable, Sendable {
 
 public enum VoiceCommandParser {
     public static func parse(_ text: String) -> VoiceCommand? {
+        if let command=parseExact(text) { return command }
+        // 「네 시작」: a yes or filler said before an otherwise exact command (field test 10/28).
+        guard let match=text.range(of:#"^\s*(?:네|예|응|어|음|자|그럼|좋아|오케이|ok|okay)[\s,.!~]+"#,options:[.regularExpression,.caseInsensitive]) else { return nil }
+        return parseExact(String(text[match.upperBound...]))
+    }
+
+    private static func parseExact(_ text: String) -> VoiceCommand? {
         let normalized=text.folding(options:[.caseInsensitive,.diacriticInsensitive],locale:Locale(identifier:"ko_KR"))
             .trimmingCharacters(in:.whitespacesAndNewlines)
         guard !normalized.isEmpty, normalized.count <= 240 else { return nil }
@@ -35,7 +42,8 @@ public enum VoiceCommandParser {
     private static func pointCommand(_ text: String) -> VoiceCommand? {
         var tokens:[PointToken]=[]
         collect(#"(?<![a-z0-9-])(?:p|point)\s*([0-9]{1,3})(?![0-9])"#,in:text,into:&tokens) { Int($0) }
-        collect(#"피\s*([0-9]{1,3})(?![0-9])"#,in:text,into:&tokens) { Int($0) }
+        // Dictation also hears P as 비 (field test 10/28: 「비 일로 돌아가」).
+        collect(#"[피비]\s*([0-9]{1,3})(?![0-9])"#,in:text,into:&tokens) { Int($0) }
         collect(#"(?<![0-9-])([0-9]{1,3})\s*(?:번(?:째)?|지점|포인트)"#,in:text,into:&tokens) { Int($0) }
         let spokenNumbers:[String:Int]=[
             "제로":0,"영":0,"일":1,"원":1,"이":2,"투":2,"삼":3,"쓰리":3,"사":4,"포":4,
@@ -43,7 +51,10 @@ public enum VoiceCommandParser {
             "십":10,"텐":10,"십일":11,"십이":12,"십삼":13,"십사":14,"십오":15,"십육":16,
             "십칠":17,"십팔":18,"십구":19,"이십":20]
         let words=spokenNumbers.keys.sorted {$0.count > $1.count}.joined(separator:"|")
-        collect("피\\s*(\(words))(?=\\s|$|번|지점|포인트|로|으로|에|까지|부터|말고|아니)",in:text,into:&tokens) { spokenNumbers[$0] }
+        let pointEnd="(?=\\s|$|번|지점|포인트|로|으로|에|까지|부터|말고|아니)"
+        collect("[피비]\\s*(\(words))"+pointEnd,in:text,into:&tokens) { spokenNumbers[$0] }
+        // Whole-word mishearings of P1 seen in the field: 비일 runs together as 비닐, 피원 as 피엘.
+        collect("(?<![가-힣])(비닐|피닐|피엘)"+pointEnd,in:text,into:&tokens) { _ in 1 }
         let englishNumbers=["zero":0,"one":1,"two":2,"three":3,"four":4,"five":5,"six":6,"seven":7,"eight":8,"nine":9,"ten":10]
         let englishWords=englishNumbers.keys.sorted().joined(separator:"|")
         collect("\\b(?:p|point)\\s+(\(englishWords))\\b",in:text,into:&tokens) { englishNumbers[$0] }
@@ -55,7 +66,7 @@ public enum VoiceCommandParser {
         var request=text
         request.replaceSubrange(range,with:"§")
         let compact=request.replacingOccurrences(of:#"[\s.!?。！？,]"#,with:"",options:.regularExpression)
-        let korean = #"^(?:다시)?§(?:번)?(?:지점|포인트)?(?:으로|로|에|까지)?(?:다시)?(?:안내(?:해줘|해주세요|해줄래|해줄래요)?|돌아가(?:줘|주세요)?|이동(?:해줘|해주세요)?|데려다(?:줘|주세요))?$"#
+        let korean = #"^(?:다시)?§(?:번)?(?:지점|포인트)?(?:으로|로|에|까지)?(?:다시)?(?:안내(?:해줘|해주세요|해줄래|해줄래요)?|돌아가(?:줘|주세요|자)?|들어가(?:줘|주세요)?|가(?:줘|주세요|자)?|이동(?:해줘|해주세요)?|데려다(?:줘|주세요))?$"#
         let english = #"^(?:(?:please)?(?:takemebackto|takemeto|gobackto|goto|returnto))?§(?:please)?$"#
         guard compact.range(of:korean,options:.regularExpression) != nil || compact.range(of:english,options:.regularExpression) != nil else { return nil }
         return .returnToPoint(token.index)
