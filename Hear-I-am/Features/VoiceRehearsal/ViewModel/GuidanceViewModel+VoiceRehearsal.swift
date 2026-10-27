@@ -321,8 +321,11 @@ extension GuidanceViewModel {
         #if canImport(FoundationModels)
         guard #available(iOS 26.0, *), AppleIntelligenceVoiceIntentResolver.isAvailable else {return false}
         let screen=voiceScreen, began=ProcessInfo.processInfo.systemUptime
+        // 「삐원으로 가」 reaches the model as 「P1으로 가」; the model reads numbers from sound poorly.
+        let request=VoicePointSpelling.normalized(text)
+        if request != text {logSignal("voice_point_spelling","\(text) -> \(request)")}
         Task { [weak self] in
-            let decision=await AppleIntelligenceVoiceIntentResolver().resolve(text,screen:screen)
+            let decision=await AppleIntelligenceVoiceIntentResolver().resolve(request,screen:screen)
             guard let self, self.voiceShouldListen, self.voiceTranscript == text, self.voiceScreen == screen else {return}
             let seconds=String(format:"%.2fs",ProcessInfo.processInfo.systemUptime-began)
             switch decision {

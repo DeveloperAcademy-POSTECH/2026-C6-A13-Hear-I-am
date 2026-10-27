@@ -48,7 +48,7 @@ public enum VoiceIntentAction: String, CaseIterable, Sendable {
         case .practice: return "연습용으로 하겠다는 말"
         case .performance: return "실전용이나 공연용으로 하겠다는 말"
         case .cancel: return "방금 요청을 취소하거나 아니라는 말"
-        case .returnToPoint: return "몇 번 지점(P1, 피삼, 세 번째 자리 등)으로 다시 가자는 말. number에 지점 번호를 넣는다"
+        case .returnToPoint: return "몇 번 지점(P1, 피원, 세 번째 자리 등)으로 다시 가자는 말. number에 지점 번호를 넣는다. 받아쓰기가 P를 피 · 비 · 삐 · 키로, 숫자를 원 · 윈 · 일 · 엘(1), 투 · 이(2), 쓰리 · 삼(3), 포 · 사(4), 파이브 · 오(5)처럼 적을 수 있다. 예: 키원 = 1, 비투 = 2. 번호가 분명하지 않으면 sure는 false다"
         case .showAllStages: return "저장된 무대를 전부 보여 주거나 읽어 달라는 말(다 불러와 줘, 무대 뭐 있어 등)"
         case .chooseStage: return "목록의 몇 번째 무대를 고르겠다는 말. number에 목록 번호를 넣는다"
         }
@@ -84,6 +84,9 @@ public enum VoiceIntentDecision: Equatable, Sendable {
             guard case .stageList(let count) = screen, number >= 1, number <= count else { return .none }
             command = .chooseStage(number)
         }
+        // A guessed point or stage moves the user somewhere, and a misheard number can look certain
+        // to the model (「키원」 came back as P3 on 10/28), so those are always asked back.
+        if action == .returnToPoint || action == .chooseStage { return .confirm(command) }
         return sure ? .command(command) : .confirm(command)
     }
 
