@@ -79,7 +79,7 @@ public struct StageRoute: Codable, Equatable, Sendable {
             floorCount += 1; return "P\(floorCount)"
         }
     }
-    /// Spoken arrival names per route point (#76): 「피일」 · 「의자일」 · 「계단일」.
+    /// Spoken arrival names per route point (#76, #88): 「피원」 · 「의자일」 · 「계단일」.
     public static func spokenPointNames(points: [FloorPoint], obstacles: [StageObstacle], finished: Bool = true) -> [String] {
         var floorCount=0, chairCount=0, stairsCount=0
         return points.indices.map { i in
@@ -98,7 +98,7 @@ public struct StageRoute: Codable, Equatable, Sendable {
         let labels=Self.pointLabels(points:points,obstacles:obstacles,finished:true)
         return labels.indices.contains(index) ? labels[index] : "P\(index)"
     }
-    /// Spoken arrival line for `index` (e.g. 「피일」, 「의자일」, 「계단일」).
+    /// Spoken arrival line for `index` (e.g. 「피원」, 「의자일」, 「계단일」).
     public func spokenPointName(at index: Int) -> String {
         let names=Self.spokenPointNames(points:points,obstacles:obstacles,finished:true)
         return names.indices.contains(index) ? names[index] : SignalCopy.point(index)

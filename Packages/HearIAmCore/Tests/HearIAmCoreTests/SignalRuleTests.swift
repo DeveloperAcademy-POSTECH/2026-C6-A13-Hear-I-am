@@ -227,15 +227,15 @@ final class SignalRuleTests: XCTestCase {
         XCTAssertNil(gate.update(position:.init(0,1.55),target:.init(0,2.5)))
     }
 
-    // MARK: point names (#74)
+    // MARK: point names (#74, #88)
     func testPointNamesInKoreanPhonetics() {
-        XCTAssertEqual(SignalCopy.point(1),"피일")
-        XCTAssertEqual(SignalCopy.point(2),"피이")
-        XCTAssertEqual(SignalCopy.point(3),"피삼")
-        XCTAssertEqual(SignalCopy.point(4),"피사")
-        XCTAssertEqual(SignalCopy.point(5),"피오")
-        XCTAssertEqual(SignalCopy.point(19),"피십구")
-        XCTAssertEqual(SignalCopy.point(20),"피이십")
+        XCTAssertEqual(SignalCopy.point(1),"피원")
+        XCTAssertEqual(SignalCopy.point(2),"피투")
+        XCTAssertEqual(SignalCopy.point(3),"피쓰리")
+        XCTAssertEqual(SignalCopy.point(4),"피포")
+        XCTAssertEqual(SignalCopy.point(5),"피파이브")
+        XCTAssertEqual(SignalCopy.point(19),"피나인틴")
+        XCTAssertEqual(SignalCopy.point(20),"피트웬티")
         XCTAssertEqual(SignalCopy.point(21),"피21")
     }
 
@@ -291,6 +291,6 @@ final class SignalRuleTests: XCTestCase {
         XCTAssertEqual(route.pointNames,["출발","P1","의자1","P2","계단1","의자2","도착"])
         XCTAssertEqual((0..<points.count).map(route.pointLabel(at:)),["출발","P1","의자1","P2","계단1","의자2","도착"])
         XCTAssertEqual((0..<points.count).map(route.spokenPointName(at:)),
-                       ["피영","피일","의자일","피이","계단일","의자이",GuidanceCopy.completed])
+                       ["피제로","피원","의자일","피투","계단일","의자이",GuidanceCopy.completed])
     }
 }
