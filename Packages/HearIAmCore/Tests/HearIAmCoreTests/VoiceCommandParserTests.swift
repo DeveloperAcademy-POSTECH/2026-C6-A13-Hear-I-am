@@ -16,6 +16,19 @@ final class VoiceCommandParserTests: XCTestCase {
             XCTAssertEqual(VoiceCommandParser.parse(text),.returnToPoint(index),text)
         }
     }
+    func testFieldMishearingsOfPointOne() {
+        // Transcripts from the 10/28 device test where P1 was said.
+        for text in ["비 일로 돌아가", "피엘로 돌아가", "비닐로 들어가", "피원으로 가 줘", "비원으로 돌아가자"] {
+            XCTAssertEqual(VoiceCommandParser.parse(text),.returnToPoint(1),text)
+        }
+        XCTAssertEqual(VoiceCommandParser.parse("비투로 돌아가"),.returnToPoint(2))
+    }
+    func testLeadingYesBeforeACommand() {
+        let cases:[(String,VoiceCommand)]=[("네 시작",.start),("응 계속",.continueGuidance),("자, 다음",.next),("어 멈춰",.pause),("네 P2로 돌아가",.returnToPoint(2))]
+        for (text,command) in cases { XCTAssertEqual(VoiceCommandParser.parse(text),command,text) }
+        XCTAssertEqual(VoiceCommandParser.parse("네 번째 지점으로"),.returnToPoint(4))
+        for text in ["네", "네 그거", "응 계속하지 마", "비닐 봉지", "피엘이 뭐야"] { XCTAssertNil(VoiceCommandParser.parse(text),text) }
+    }
     func testLimitedCommands() {
         let cases:[(String,VoiceCommand)]=[
             ("계속",.continueGuidance),("계속 진행해줘",.continueGuidance),("Resume",.continueGuidance),
