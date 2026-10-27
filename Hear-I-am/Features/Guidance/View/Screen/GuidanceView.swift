@@ -12,17 +12,21 @@ struct GuidanceView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
 
+    private var showsVoiceListeningOverlay: Bool {
+        model.voiceExperiment && model.phase == .paused &&
+        (model.voiceTurnActive || model.guide?.rehearsalReturnArrivalIndex != nil)
+    }
     var body: some View {
         NavigationStack {
             VStack(alignment:.leading,spacing:12) {
-                if !model.voiceExperiment || model.phase != .selection {
+                if !showsVoiceListeningOverlay && (!model.voiceExperiment || model.phase != .selection) {
                     Text(model.phase.stepLabel(targetName:model.targetName)).font(.subheadline.weight(.semibold)).foregroundStyle(model.voiceExperiment ? Color.primary : Color.hearGreen).padding(.horizontal,24)
                 }
-                if model.phase.showsRouteCamera { GuidanceRouteHeader(model:model) }
+                if model.phase.showsRouteCamera && !showsVoiceListeningOverlay { GuidanceRouteHeader(model:model) }
                 ZStack {
                     // Keep one AR view attached throughout the flow, including when the screen shows instructions.
                     CameraView(model:model.tracking).frame(maxWidth:.infinity,maxHeight:.infinity).accessibilityHidden(true)
-                    if model.voiceExperiment && model.phase == .paused && (model.voiceTurnActive || model.guide?.rehearsalReturnArrivalIndex != nil) {VoiceListeningOverlay(model:model)}
+                    if showsVoiceListeningOverlay {VoiceListeningOverlay(model:model)}
                     else if model.phase.showsRouteCamera { GuidanceRouteOverlay(model:model) }
                     else if model.phase.isCameraStep { GuidanceCameraPrompt(model:model) }
                     else if model.phase == .selection {

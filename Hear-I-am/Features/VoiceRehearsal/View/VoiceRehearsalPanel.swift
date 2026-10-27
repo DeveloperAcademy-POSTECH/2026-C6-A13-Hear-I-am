@@ -77,16 +77,19 @@ struct VoiceRehearsalPanel: View {
 struct VoiceListeningOverlay: View {
     @ObservedObject var model: GuidanceViewModel
     var body: some View {
-        VStack(spacing:20) {
-            VoiceGlassOrb(active: model.voiceRecognition.isListening,
-                          symbol: model.voiceProcessingCommand ? "ellipsis" : model.voiceTurnActive ? "waveform" : "checkmark")
-                .frame(width: 88, height: 88).padding(.top, 8)
-            Text(model.voiceProcessingCommand ? "요청을 확인하고 있어요" : model.voiceTurnActive ? "듣고 있어요" : "\(model.voicePointName(model.guide?.rehearsalReturnArrivalIndex ?? 0))에 도착했어요")
-                .font(.largeTitle.bold()).multilineTextAlignment(.center)
-            Text(model.voiceTurnActive ? "잠시 멈춰주세요. 말씀을 마치면 요청을 확인해요." : "‘계속’이라고 말하면 다음 지점으로 안내해요.")
-                .font(.title3).foregroundStyle(.secondary).multilineTextAlignment(.center)
-            Spacer(minLength:0)
-        }.padding(24).padding(.top,24).frame(maxWidth:.infinity,maxHeight:.infinity)
+        ScrollView {
+            VStack(spacing:16) {
+                VoiceGlassOrb(active: model.voiceRecognition.isListening,
+                              symbol: model.voiceProcessingCommand ? "ellipsis" : model.voiceTurnActive ? "waveform" : "checkmark")
+                    .frame(width:64,height:64)
+                Text(model.voiceProcessingCommand ? "요청을 확인하고 있어요" : model.voiceTurnActive ? "듣고 있어요" : "\(model.voicePointName(model.guide?.rehearsalReturnArrivalIndex ?? 0))에 도착했어요")
+                    .font(.title2.bold()).multilineTextAlignment(.center)
+                    .fixedSize(horizontal:false,vertical:true)
+                Text(model.voiceTurnActive ? "잠시 멈춰주세요. 말씀을 마치면 요청을 확인해요." : "‘계속’이라고 말하면 다음 지점으로 안내해요.")
+                    .font(.body).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                    .fixedSize(horizontal:false,vertical:true)
+            }.padding(20).frame(maxWidth:.infinity)
+        }.frame(maxWidth:.infinity,maxHeight:.infinity)
             .background(Color(.systemBackground))
     }
 }
