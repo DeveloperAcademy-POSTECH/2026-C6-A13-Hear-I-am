@@ -40,6 +40,11 @@ import HearIAmCore
     @Published var voiceTranscript=""
     /// A command the Apple Intelligence model only guessed; it waits for 「응」 or 「아니」 (#87).
     var pendingVoiceIntent: VoiceCommand?
+    /// The request the user already made to the voice agent on Home (#90).
+    var voiceInitialRequest: String?
+    /// Guidance acts on speech only after 「히얼아이엠」 and while that conversation goes on (#90).
+    var voiceConversationDeadline: Double?
+    var voiceConversationTimer: Task<Void,Never>?
     @Published var voiceInputError: String?
     let voiceRecognition=VoiceRecognitionService()
     let listeningChime=VoiceListeningChime()
@@ -164,11 +169,16 @@ import HearIAmCore
             // A tracking/audio interruption must not apply an old command to a new recovery step.
             voiceRecognition.discardPendingSpeech();voiceTurnActive=false
         }
+        // A reply or question keeps the voice conversation open until it has been heard (#90).
+        let answering=voiceExperiment && voiceAwake && phase != .guiding && phase != .starting
+        if answering {keepVoiceConversation(120)}
         audioIssue=nil;instructionDone=false;currentInstruction=texts
         let operation=generation
         voice.play(texts) { [weak self] finished in
             guard let self, finished, self.generation == operation, self.active else { return }
-            self.instructionDone=true;after?()
+            self.instructionDone=true
+            if answering, self.voiceAwake {self.keepVoiceConversation()}
+            after?()
         }
     }
     /// Cancels pending speech callbacks; late callbacks see a new generation.
