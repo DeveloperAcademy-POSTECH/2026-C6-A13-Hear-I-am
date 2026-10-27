@@ -10,7 +10,7 @@ final class VoiceIntentTests: XCTestCase {
         XCTAssertEqual(VoiceIntentDecision.from(action:"pause",number:0,sure:false,screen:guidance),.confirm(.pause))
     }
     func testPointMustBeOnTheRoute() {
-        XCTAssertEqual(VoiceIntentDecision.from(action:"returnToPoint",number:3,sure:true,screen:guidance),.command(.returnToPoint(3)))
+        XCTAssertEqual(VoiceIntentDecision.from(action:"returnToPoint",number:3,sure:true,screen:guidance),.confirm(.returnToPoint(3)))
         XCTAssertEqual(VoiceIntentDecision.from(action:"returnToPoint",number:0,sure:true,screen:guidance),.none)
         XCTAssertEqual(VoiceIntentDecision.from(action:"returnToPoint",number:6,sure:true,screen:guidance),.none)
         XCTAssertEqual(VoiceIntentDecision.from(action:"returnToPoint",number:2,sure:true,screen:.guidance(pointCount:0)),.none)
@@ -32,7 +32,7 @@ final class VoiceIntentTests: XCTestCase {
     func testStageListCanReadAllOrChooseByNumber() {
         let list=VoiceScreen.stageList(stageCount:3)
         XCTAssertEqual(VoiceIntentDecision.from(action:"showAllStages",number:0,sure:true,screen:list),.command(.showAllStages))
-        XCTAssertEqual(VoiceIntentDecision.from(action:"chooseStage",number:2,sure:false,screen:list),.confirm(.chooseStage(2)))
+        XCTAssertEqual(VoiceIntentDecision.from(action:"chooseStage",number:2,sure:true,screen:list),.confirm(.chooseStage(2)))
         XCTAssertEqual(VoiceIntentDecision.from(action:"chooseStage",number:4,sure:true,screen:list),.none)
         XCTAssertEqual(VoiceIntentDecision.from(action:"chooseStage",number:1,sure:true,screen:.stageList(stageCount:0)),.none)
         XCTAssertEqual(VoiceIntentDecision.from(action:"showAllStages",number:0,sure:true,screen:.stageList(stageCount:0)),.command(.showAllStages))
