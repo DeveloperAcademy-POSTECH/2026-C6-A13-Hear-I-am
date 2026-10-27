@@ -16,6 +16,19 @@ import HearIAmCore
         XCTAssertTrue(m.voicePerformanceInputClosed);XCTAssertFalse(m.voiceShouldListen)
         for p:GuidancePhase in [.guiding,.paused,.interrupted,.failed] {m.phase=p;XCTAssertFalse(m.voiceShouldListen)}
     }
+    func testCompletionDoesNotClaimThatMicrophoneIsConnecting() {
+        for mode:VoiceUsageMode in [.practice,.performance] {
+            let m=model();defer {m.finish()}
+            m.voiceMode=mode
+            if mode == .performance {m.phase = .starting}
+            for phase:GuidancePhase in [.finishing,.completed] {
+                m.phase=phase
+                XCTAssertFalse(m.voiceShouldListen)
+                XCTAssertEqual(m.voiceStatusTitle,"안내 완료 · 음성 인식 꺼짐")
+                XCTAssertTrue(m.voiceStatusDetail.contains("기록 저장"))
+            }
+        }
+    }
     func testNewSelectionReopensMicrophoneAfterPerformance() {
         let m=model();defer {m.finish()}
         m.voiceMode = .performance;m.phase = .starting;m.phase = .completed

@@ -14,6 +14,7 @@ extension GuidanceViewModel {
     var voiceShouldListen: Bool { voiceCanOfferInput && voiceListeningEnabled }
     var voiceProcessingCommand: Bool {voiceTurnActive && !voiceRecognition.isListening}
     var voiceStatusTitle: String {
+        if phase == .finishing || phase == .completed {return "안내 완료 · 음성 인식 꺼짐"}
         if voiceMode == .performance && voicePerformanceInputClosed {return "실전 안내 중 · 음성 인식 꺼짐"}
         if voiceRecognition.isRecovering {return "음성 입력 다시 연결 중"}
         if voiceTurnActive {return voiceProcessingCommand ? "말씀을 확인하고 있어요" : started ? "듣고 있어요 · 이동 안내 일시정지" : "듣고 있어요"}
@@ -26,6 +27,7 @@ extension GuidanceViewModel {
         return voiceRecognition.isListening ? "말씀하시면 들을게요" : "음성 입력 준비 중"
     }
     var voiceStatusDetail: String {
+        if phase == .finishing || phase == .completed {return "종료하고 기록 저장을 눌러 이번 안내를 저장해주세요."}
         if voiceMode == .performance && voicePerformanceInputClosed {return "마이크를 끈 상태로 저장된 동선을 안내해요."}
         if voiceRecognition.isRecovering {return "잠시만 기다리거나 버튼으로 진행해주세요."}
         if !voiceListeningEnabled {return "항목을 선택하고 아래 버튼으로 진행할 수 있어요."}
