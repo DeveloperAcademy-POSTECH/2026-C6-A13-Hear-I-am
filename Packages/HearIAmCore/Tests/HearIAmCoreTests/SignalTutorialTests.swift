@@ -6,7 +6,7 @@ final class SignalTutorialTests: XCTestCase {
         // Frozen inventory from develop 7e7aa64, including louder next-side speech and both completion previews.
         let expected: [String:SignalTutorialPlayback] = [
             "ready-ding":.arrival, "tick-left":.directionTick(toRight:false), "tick-right":.directionTick(toRight:true),
-            "aligned":.aligned, "start":.speech("출발"), "point-1":.speech("피일"), "point-2":.speech("피이"),
+            "aligned":.aligned, "start":.speech("출발"), "point-1":.speech("피원"), "point-2":.speech("피투"),
             "point-chair":.speech("의자일"), "point-stairs":.speech("계단일"),
             "completion":.completion, "completed-voice":.speech("마지막 지점 도착"),
             "next-left":.nextSide("왼쪽"), "next-right":.nextSide("오른쪽"),
