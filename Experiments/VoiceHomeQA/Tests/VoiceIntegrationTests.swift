@@ -6,6 +6,8 @@ import HearIAmCore
         let m=GuidanceViewModel(voiceExperiment:true)
         m.timer?.invalidate();m.voiceRecognitionRequested=true
         m.voice.bufferedOutput={_,_ in true}
+        // Guidance opens with the conversation already open, as after 「히얼아이엠」 (#90).
+        m.keepVoiceConversation()
         return m
     }
     func testPerformanceClosesInputThroughPauseAndInterruption() {
@@ -44,6 +46,18 @@ import HearIAmCore
         XCTAssertEqual(m.phase,.paused);XCTAssertTrue(m.voiceTurnActive)
         XCTAssertNotEqual(old,m.generation);XCTAssertTrue(m.instructionDone)
         XCTAssertFalse(m.voicePerformanceInputClosed)
+    }
+    func testSpeechBeforeTheCallIsIgnored() throws {
+        let m=model();defer {m.finish()}
+        m.voiceMode = .practice;m.phase = .guiding;m.started=true
+        m.voiceConversationDeadline=nil
+        let old=m.generation
+        m.voiceSpeechDetected()
+        XCTAssertEqual(m.phase,.guiding);XCTAssertFalse(m.voiceTurnActive);XCTAssertEqual(old,m.generation)
+        m.phase = .selection;m.started=false
+        let scan=try QAFixtures.manifest();m.voiceStages=[scan]
+        m.handleVoiceCommand("1번");XCTAssertNil(m.selected)
+        m.handleVoiceCommand("히얼아이엠 1번");XCTAssertEqual(m.selected?.id,scan.id)
     }
     func testTouchSelectionAndCancellationKeepSeparateSteps() throws {
         let m=model();defer {m.finish()}
