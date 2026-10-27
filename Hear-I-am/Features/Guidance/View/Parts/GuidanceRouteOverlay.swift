@@ -15,9 +15,9 @@ struct GuidanceRouteOverlay: View {
                     .font(.caption).padding(12).frame(maxWidth:.infinity).background(.regularMaterial)
             } else {
                 HStack(spacing:12) {
-                    Label("저장 지점",systemImage:"circle.fill").foregroundStyle(Color.hearGreen)
+                    Label("저장 지점",systemImage:"circle.fill").foregroundStyle(model.voiceExperiment ? Color.primary : Color.hearGreen)
                     if model.phase != .finishing && model.phase != .completed {
-                        Label("현재 목표",systemImage:"scope").foregroundStyle(.orange)
+                        Label("현재 목표",systemImage:"scope").foregroundStyle(model.voiceExperiment ? Color.primary : Color.orange)
                     }
                     Spacer(minLength:0)
                 }.font(.caption.bold()).padding(12).background(.regularMaterial)

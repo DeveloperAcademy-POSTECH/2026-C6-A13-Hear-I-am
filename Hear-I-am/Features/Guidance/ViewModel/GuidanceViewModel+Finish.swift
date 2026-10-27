@@ -56,7 +56,7 @@ extension GuidanceViewModel {
     }
     /// Stops the session, timers and audio. Called once when the screen closes.
     func finish() {
-        active=false;invalidateTasks();timer?.invalidate();timer=nil
+        active=false;stopVoiceExperiment();invalidateTasks();timer?.invalidate();timer=nil
         observations.forEach {NotificationCenter.default.removeObserver($0)};observations=[]
         tracking.endSession();signals.shutdown();voice.deactivate()
     }

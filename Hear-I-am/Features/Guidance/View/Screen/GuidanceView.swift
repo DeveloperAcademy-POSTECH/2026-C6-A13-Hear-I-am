@@ -4,34 +4,62 @@ import HearIAmCore
 /// Portrait guidance. One AR view stays attached for the whole flow.
 struct GuidanceView: View {
     @ObservedObject var library: StageLibrary
-    @StateObject private var model=GuidanceViewModel()
+    @StateObject private var model: GuidanceViewModel
+    init(library:StageLibrary,voiceExperiment:Bool = false) {
+        self.library=library
+        _model=StateObject(wrappedValue:GuidanceViewModel(voiceExperiment:voiceExperiment))
+    }
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         NavigationStack {
             VStack(alignment:.leading,spacing:12) {
-                Text(model.phase.stepLabel(targetName:model.targetName)).font(.subheadline.weight(.semibold)).foregroundStyle(Color.hearGreen).padding(.horizontal,24)
+                if !model.voiceExperiment || model.phase != .selection {
+                    Text(model.phase.stepLabel(targetName:model.targetName)).font(.subheadline.weight(.semibold)).foregroundStyle(model.voiceExperiment ? Color.primary : Color.hearGreen).padding(.horizontal,24)
+                }
                 if model.phase.showsRouteCamera { GuidanceRouteHeader(model:model) }
                 ZStack {
                     // Keep one AR view attached throughout the flow, including when the screen shows instructions.
                     CameraView(model:model.tracking).frame(maxWidth:.infinity,maxHeight:.infinity).accessibilityHidden(true)
-                    if model.phase.showsRouteCamera { GuidanceRouteOverlay(model:model) }
+                    if model.voiceExperiment && model.phase == .paused && (model.voiceTurnActive || model.guide?.rehearsalReturnArrivalIndex != nil) {VoiceListeningOverlay(model:model)}
+                    else if model.phase.showsRouteCamera { GuidanceRouteOverlay(model:model) }
                     else if model.phase.isCameraStep { GuidanceCameraPrompt(model:model) }
-                    else if model.phase == .selection { Color(.systemBackground); GuidanceStageList(library:library,model:model) }
+                    else if model.phase == .selection {
+                        Color(.systemBackground)
+                        if model.voiceExperiment {VoiceStagePicker(library:library,model:model)}
+                        else {GuidanceStageList(library:library,model:model)}
+                    }
                     else { Color(.systemBackground).opacity(model.phase.showsCameraBehindInstruction ? 0.7 : 1); GuidanceInstruction(model:model) }
                 }.clipShape(RoundedRectangle(cornerRadius:model.phase.showsRouteCamera ? 18 : 0))
                     .padding(.horizontal,model.phase.showsRouteCamera ? 20 : 0)
             }
-            .navigationTitle("안내 사용하기").navigationBarTitleDisplayMode(.inline)
+            .navigationTitle(model.voiceExperiment ? "말로 안내 시작" : "안내 사용하기").navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement:.topBarTrailing) {
                     Button("나가기",systemImage:"xmark") { exit() }.labelStyle(.iconOnly)
                         .disabled(model.phase == .finishing || model.savingRecord || (model.phase == .completed && model.speaking))
                 }
             }
-            .safeAreaInset(edge:.bottom,spacing:0) { GuidanceControls(library:library,model:model,close:close,saveAndClose:saveAndClose) }
+            .safeAreaInset(edge:.bottom,spacing:0) {
+                VStack(spacing:0) {
+                    if model.voiceExperiment {VoiceRehearsalPanel(model:model)}
+                    // Selection starts voice-first; navigation and recovery controls stay available.
+                    if !model.voiceExperiment || model.phase != .selection || model.voiceSelectionControlsVisible || model.audioIssue != nil {
+                        GuidanceControls(library:library,model:model,close:close,saveAndClose:saveAndClose)
+                    }
+                }.background {
+                    ZStack(alignment: .bottom) {
+                        Color(.systemBackground)
+                        if model.voiceExperiment {
+                            VoiceBottomGlow(active: model.voiceShouldListen && model.voiceRecognition.isListening)
+                                .ignoresSafeArea(edges: .bottom)
+                        }
+                    }
+                }
+            }
             .background(Color(.systemBackground))
+            .tint(model.voiceExperiment ? .primary : .hearGreen)
             .alert("안내를 끝낼까요?",isPresented:$model.showExit) {
                 Button("안내 끝내기",role:.destructive) { close() }
                 Button("계속 사용하기",role:.cancel) { model.cancelExit() }
@@ -39,7 +67,15 @@ struct GuidanceView: View {
         }
         .interactiveDismissDisabled()
         .onAppear {ScreenOrientation.set(.portrait)}
-        .task {await library.refresh();model.selectionDescription(empty:library.records.isEmpty)}
+        .task {
+            await library.refresh()
+            if model.voiceExperiment {
+                let root=FileManager.default.urls(for:.documentDirectory,in:.userDomainMask)[0].appendingPathComponent("PlaceFolders",isDirectory:true)
+                let places=(try? await PlaceFolderStore(root:root).load()) ?? PlaceFolderIndex()
+                model.prepareVoiceExperiment(records:library.groups.pinned+library.groups.recent,places:places)
+            }
+            else {model.selectionDescription(empty:library.records.isEmpty)}
+        }
         .onDisappear {model.finish();ScreenOrientation.set(.portrait)}
         .onChange(of:scenePhase) { _, value in
             // Camera permission sheets may make the scene inactive during restoration.
