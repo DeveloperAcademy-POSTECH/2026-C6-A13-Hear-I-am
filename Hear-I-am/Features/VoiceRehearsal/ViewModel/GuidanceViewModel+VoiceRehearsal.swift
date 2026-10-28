@@ -95,7 +95,13 @@ extension GuidanceViewModel {
                     try? await Task.sleep(nanoseconds:250_000_000)
                     guard let self, self.generation == operation, self.voiceShouldListen,
                           self.phase == .selection, !self.voiceChoosingMode, !self.voiceTurnActive else {return}
-                    if let request=self.voiceInitialRequest {self.voiceInitialRequest=nil;self.handleVoiceCommand(request)}
+                    if let id=self.voiceInitialStageID, let item=self.voiceStages.first(where:{$0.id == id}) {
+                        self.voiceInitialStageID=nil
+                        self.select(item)
+                        if let mode=self.voiceInitialMode, self.selected?.id == id {self.selectVoiceMode(mode)}
+                        self.voiceInitialMode=nil
+                    }
+                    else if let request=self.voiceInitialRequest {self.voiceInitialRequest=nil;self.handleVoiceCommand(request)}
                     else {self.selectionDescription(empty:self.voiceStages.isEmpty)}
                 }
             }
