@@ -179,6 +179,19 @@ struct VoiceBottomGlow: View {
     }
 }
 
+/// Covers the screen while the voice agent listens; a tap (or the VoiceOver action) closes it (#92).
+struct VoiceDismissLayer: View {
+    let dismiss: () -> Void
+    var body: some View {
+        Color.clear.contentShape(Rectangle()).ignoresSafeArea()
+            .onTapGesture(perform: dismiss)
+            .accessibilityElement()
+            .accessibilityLabel("음성 비서 닫기")
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction { dismiss() }
+    }
+}
+
 /// Siri-style light around the screen edge while the app takes requests (#90). It never covers what is
 /// on screen, and it swells and wavers with the speaker's voice.
 struct VoiceEdgeGlow: View {

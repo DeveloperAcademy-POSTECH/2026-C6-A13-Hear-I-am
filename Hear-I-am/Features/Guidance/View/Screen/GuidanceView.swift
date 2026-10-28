@@ -65,6 +65,7 @@ struct GuidanceView: View {
         .overlay {
             if model.voiceExperiment {
                 VoiceEdgeGlow(visualization:model.voiceRecognition.inputVisualization,active:model.voiceShowsListening)
+                if model.voiceAwake || model.voiceTurnActive {VoiceDismissLayer {model.dismissVoiceConversation()}}
             }
         }
         .interactiveDismissDisabled()

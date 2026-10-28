@@ -78,6 +78,8 @@ struct HomeView: View {
         }
         // The agent shows as light around the screen edge; a step screen opens only once there is a request.
         .overlay {VoiceEdgeGlow(visualization:wake.visualization,active:wake.awake)}
+        // Like Siri, a tap anywhere while the agent is listening closes it.
+        .overlay {if wake.awake {VoiceDismissLayer {wake.dismiss()}}}
         .onAppear {
             visible=true
             wake.onRequest={ text in
@@ -130,7 +132,6 @@ struct HomeView: View {
     private var startTask: Task<Void,Never>?
     private var sleepTask: Task<Void,Never>?
     private var active=false
-    private var englishCallAt: Double?
 
     init() {
         // Speak through the recognizer's engine so its echo cancellation hears the user over the greeting.
@@ -141,7 +142,6 @@ struct HomeView: View {
         speech.onSpeaking={ [weak self] value in self?.speaking=value }
         recognition.onTranscript={ [weak self] text in self?.heardPartial(text) }
         recognition.onFinal={ [weak self] text in self?.heardFinal(text) }
-        recognition.onWakeWord={ [weak self] in self?.heardEnglishCall() }
         // A permission or dictation failure shows a fallback button; the next visit to Home tries again.
         recognition.onError={ [weak self] message in self?.active=false;self?.failure=message;self?.sleep() }
         recognition.$isListening.receive(on:RunLoop.main).assign(to:&$listening)
@@ -153,6 +153,8 @@ struct HomeView: View {
         startTask=Task { [weak self] in
             guard let self, self.active else {return}
             await self.recognition.start(contextualStrings:VoiceWakeWord.hints,vocabulary:VoiceVocabulary.phrases(),listensForWakeWord:true)
+            // Asleep, Home listens in English for 「Hear I am」 only (#92).
+            if self.active, !self.awake {self.recognition.listenInEnglish(true)}
         }
     }
 
@@ -166,10 +168,9 @@ struct HomeView: View {
 
     private func heardPartial(_ text:String) {
         guard active else {return}
-        if !awake {
-            guard VoiceWakeWord.matches(text) else {return}
-            wake()
-        }
+        guard !awake, VoiceWakeWord.matches(text) else {return}
+        // Switching to Korean ends this English turn, so the greeting cannot wait for its final text.
+        wake();greet()
     }
 
     private func heardFinal(_ text:String) {
@@ -177,30 +178,18 @@ struct HomeView: View {
         // The call may sit in a lower recognition candidate (#92).
         let call=([text]+recognition.lastAlternatives).lazy.compactMap(VoiceWakeWord.request(in:)).first
         if let request=call {
-            englishCallAt=nil
             if !awake {wake()}
-            if request.isEmpty {greet()} else {hand(request)}
+            if request.isEmpty {if !speaking {greet()}} else {hand(request)}
             return
         }
-        guard awake else {return}
-        // The English detector heard the call; a short Korean text without a command is that call misheard.
-        if let at=englishCallAt, ProcessInfo.processInfo.systemUptime-at < 8 {
-            englishCallAt=nil
-            if VoiceStageSearch.normalized(text).count <= 8, VoiceCommandParser.parse(text) == nil {greet();return}
-        }
+        guard awake, !recognition.listensInEnglish else {return}
         hand(text)
-    }
-
-    /// 「Hear I am」 heard by the English recognizer (#92).
-    private func heardEnglishCall() {
-        guard active else {return}
-        englishCallAt=ProcessInfo.processInfo.systemUptime
-        if !awake {wake()}
     }
 
     private func wake() {
         awake=true
         speech.stop()
+        recognition.listenInEnglish(false)
         chime.play()
         stayAwake(8)
     }
@@ -213,6 +202,12 @@ struct HomeView: View {
     private func hand(_ request:String) {
         stop()
         onRequest?(request)
+    }
+
+    /// A tap closes the agent and goes back to waiting for 「Hear I am」.
+    func dismiss() {
+        guard awake else {return}
+        sleep()
     }
 
     private func stayAwake(_ seconds:Double) {
@@ -228,5 +223,6 @@ struct HomeView: View {
         sleepTask?.cancel();sleepTask=nil
         if speaking {speech.stop()}
         awake=false
+        if active {recognition.listenInEnglish(true)}
     }
 }

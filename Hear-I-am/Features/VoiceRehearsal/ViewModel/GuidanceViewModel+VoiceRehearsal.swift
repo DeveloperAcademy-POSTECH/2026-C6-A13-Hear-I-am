@@ -31,11 +31,30 @@ extension GuidanceViewModel {
     var voiceShowsListening: Bool { voiceShouldListen && voiceRecognition.isListening && (voiceAwake || voiceTurnActive) }
     func keepVoiceConversation(_ seconds:Double = 8) {
         voiceConversationDeadline=ProcessInfo.processInfo.systemUptime+seconds
+        voiceRecognition.listenInEnglish(false)
+        scheduleVoiceSleep(after:seconds)
+    }
+    /// A tap while listening ends the conversation at once, as with Siri: speech and any guess are dropped.
+    func dismissVoiceConversation() {
+        guard voiceExperiment else {return}
+        voiceConversationTimer?.cancel();voiceConversationDeadline=nil
+        voiceRecognition.discardPendingSpeech();voiceTurnActive=false
+        generation=UUID();voice.stop();instructionDone=true
+        pendingVoiceIntent=nil;voicePendingRequest=nil
+        voiceRecognition.listenInEnglish(true)
+        objectWillChange.send()
+        logSignal("voice_dismissed","tap")
+    }
+    /// When the conversation goes quiet, listen in English for the call again; never mid-sentence.
+    private func scheduleVoiceSleep(after seconds:Double) {
         voiceConversationTimer?.cancel()
         voiceConversationTimer=Task { @MainActor [weak self] in
             try? await Task.sleep(nanoseconds:UInt64(seconds*1_000_000_000)+50_000_000)
-            guard !Task.isCancelled else {return}
-            self?.objectWillChange.send()
+            guard !Task.isCancelled, let self else {return}
+            self.objectWillChange.send()
+            guard !self.voiceAwake else {return}
+            if self.voiceTurnActive {self.scheduleVoiceSleep(after:2);return}
+            self.voiceRecognition.listenInEnglish(true)
         }
     }
     var voiceProcessingCommand: Bool {voiceTurnActive && !voiceRecognition.isListening}
@@ -73,7 +92,6 @@ extension GuidanceViewModel {
         voiceRecognition.onSpeechDetected={ [weak self] in self?.voiceSpeechDetected() }
         voiceRecognition.onTranscript={ [weak self] text in self?.voicePartial(text) }
         voiceRecognition.onFinal={ [weak self] text in self?.handleVoiceCommand(text) }
-        voiceRecognition.onWakeWord={ [weak self] in self?.voiceWakeHeard() }
         voiceRecognition.onRecoverableError={ [weak self] message in self?.voiceInputRecovering(message) }
         voiceRecognition.onRecoveryReady={ [weak self] in
             // Stop any system-synthesizer fallback spoken while the engine was being restarted.
@@ -245,17 +263,25 @@ extension GuidanceViewModel {
         guard voiceShouldListen else {return}
         if !voiceTurnActive {
             guard VoiceWakeWord.matches(text) else {return}
+            if voiceRecognition.listensInEnglish {voiceWoken();return}
             keepVoiceConversation()
             voiceSpeechDetected()
         }
         // Live text is not shown; only an understood request reaches voiceTranscript (#92).
     }
-    /// The English detector heard the app's name: open the conversation as if the call had been read.
-    func voiceWakeHeard() {
-        guard voiceShouldListen else {return}
-        voiceEnglishWakeAt=ProcessInfo.processInfo.systemUptime
+    /// 「Hear I am」 heard in English: chime, pause any movement and take the next words in Korean.
+    func voiceWoken() {
         keepVoiceConversation()
-        if !voiceTurnActive {voiceSpeechDetected()}
+        generation=UUID();voice.stop();instructionDone=true
+        if phase == .guiding || phase == .starting {
+            guide?.pause();phase = started ? .paused : .departure;voicePausedNavigation=true
+            signals.stopDirection();quietUntil=nil
+            message="말씀을 듣고 있어요. 잠시 멈춰주세요."
+            captureReplay(force:true)
+        }
+        voiceListeningPulse += 1
+        listeningChime.play()
+        logSignal("voice_wake","english")
     }
     func voiceSpeechDetected() {
         guard voiceShouldListen, !voiceTurnActive, voiceAwake else {return}
@@ -307,19 +333,11 @@ extension GuidanceViewModel {
             logSignal("voice_alternative","\(text) -> \(called)");text=called
         }
         if let request=VoiceWakeWord.request(in:text) {
-            voiceEnglishWakeAt=nil
             keepVoiceConversation()
             if request.isEmpty {logSignal("voice_wake",text);read(["네, 말씀하세요."]);return}
             text=request
         } else if !accepted {
             logSignal("voice_ignored","not called");return
-        } else if let heardAt=voiceEnglishWakeAt, ProcessInfo.processInfo.systemUptime-heardAt < 8 {
-            // The English detector heard 「Hear I am」 and the Korean text is that call misheard
-            // (「헤어 라이엠」). A short text with no command is the call alone.
-            voiceEnglishWakeAt=nil
-            if VoiceStageSearch.normalized(text).count <= 8, ([text]+alternatives).allSatisfy({VoiceCommandParser.parse($0) == nil}) {
-                keepVoiceConversation();logSignal("voice_wake","english \(text)");read(["네, 말씀하세요."]);return
-            }
         }
         if VoiceCommandParser.parse(text) == nil,
            let better=alternatives.map({VoiceWakeWord.request(in:$0) ?? $0}).first(where:{VoiceCommandParser.parse($0) != nil}) {
