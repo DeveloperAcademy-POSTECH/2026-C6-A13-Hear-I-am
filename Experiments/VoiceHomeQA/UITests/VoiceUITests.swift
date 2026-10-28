@@ -13,7 +13,8 @@ final class VoiceUITests: XCTestCase {
         let start=app.buttons["home.voice.start"]
         XCTAssertTrue(start.waitForExistence(timeout:15))
         start.tap()
-        let transcript=app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "말씀하신 내용이 여기에 표시돼요")).firstMatch
+        // The voice card shows no placeholder text any more (#92); its status line marks the screen.
+        let transcript=app.staticTexts["voice-feedback-status"]
         XCTAssertTrue(transcript.waitForExistence(timeout:15))
         snapshot("stage-initial")
         let next=app.buttons["다음 · 사용 방식"]

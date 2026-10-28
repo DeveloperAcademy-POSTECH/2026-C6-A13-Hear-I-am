@@ -59,6 +59,14 @@ import HearIAmCore
         m.handleVoiceCommand("1번");XCTAssertNil(m.selected)
         m.handleVoiceCommand("히얼아이엠 1번");XCTAssertEqual(m.selected?.id,scan.id)
     }
+    func testOnlyAnUnderstoodRequestIsShown() throws {
+        let m=model();defer {m.finish()}
+        let scan=try QAFixtures.manifest();m.voiceStages=[scan]
+        m.voiceSpeechDetected();m.voicePartial("1번")
+        XCTAssertEqual(m.voiceTranscript,"")
+        m.handleVoiceCommand("1번")
+        XCTAssertEqual(m.selected?.id,scan.id);XCTAssertEqual(m.voiceTranscript,"1번")
+    }
     func testTouchSelectionAndCancellationKeepSeparateSteps() throws {
         let m=model();defer {m.finish()}
         let scan=try QAFixtures.manifest();m.voiceStages=[scan]
