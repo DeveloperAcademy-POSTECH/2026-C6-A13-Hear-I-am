@@ -10,6 +10,8 @@ struct HomeView: View {
     @State private var request: String?
     @State private var visible=false
     @StateObject private var wake=HomeWakeWordListener()
+    @ObservedObject private var launch=VoiceLaunch.shared
+    @State private var siriRequest: VoiceLaunch.Request?
     @Environment(\.scenePhase) private var scenePhase
     @ScaledMetric(relativeTo:.largeTitle) private var headingSize: CGFloat=44
 
@@ -70,7 +72,8 @@ struct HomeView: View {
             .toolbar(showingSettings ? .hidden : .visible,for:.tabBar)
             .navigationDestination(isPresented:$showingSettings) {HomeSettingsView()}
             .fullScreenCover(isPresented:$showingVoiceGuidance,onDismiss:syncWake) {
-                GuidanceView(library:library,voiceExperiment:true,request:request)
+                GuidanceView(library:library,voiceExperiment:true,request:request,
+                             stageID:siriRequest?.stageID,mode:siriRequest?.mode)
             }
         }
         // The agent shows as light around the screen edge; a step screen opens only once there is a request.
@@ -78,12 +81,20 @@ struct HomeView: View {
         .onAppear {
             visible=true
             wake.onRequest={ text in
+                siriRequest=nil
                 request=text
                 showingVoiceGuidance=true
             }
             syncWake()
         }
         .onDisappear {visible=false;wake.stop()}
+        .onChange(of:launch.pending) { _, value in
+            guard let value, !showingVoiceGuidance else {return}
+            launch.pending=nil
+            wake.stop()
+            request=nil;siriRequest=value
+            showingVoiceGuidance=true
+        }
         .onChange(of:scenePhase) {syncWake()}
         .onChange(of:showingSettings) {syncWake()}
     }

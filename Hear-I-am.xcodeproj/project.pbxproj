@@ -132,6 +132,7 @@
 		5AF55DD911718E79397B2FF9 /* VoiceRecognitionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F6B001212C7FAC426FA88E1 /* VoiceRecognitionService.swift */; };
 		1F32E414FBEAB93DE0650247 /* VoiceRehearsalPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CCDD1B4D4845912209F7AE9 /* VoiceRehearsalPanel.swift */; };
 		09588E9CD51BFF368A2FFB97 /* GuidanceViewModel+VoiceRehearsal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A9984F195ECC33D4E06F459 /* GuidanceViewModel+VoiceRehearsal.swift */; };
+		9A04B3BE74BB776D91D90F68 /* HearSiriIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECFEF84B528B216C84395DC2 /* HearSiriIntents.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -261,6 +262,7 @@
 		9F6B001212C7FAC426FA88E1 /* VoiceRecognitionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Hear-I-am/Features/VoiceRehearsal/Service/VoiceRecognitionService.swift"; sourceTree = SOURCE_ROOT; };
 		2CCDD1B4D4845912209F7AE9 /* VoiceRehearsalPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Hear-I-am/Features/VoiceRehearsal/View/VoiceRehearsalPanel.swift"; sourceTree = SOURCE_ROOT; };
 		1A9984F195ECC33D4E06F459 /* GuidanceViewModel+VoiceRehearsal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Hear-I-am/Features/VoiceRehearsal/ViewModel/GuidanceViewModel+VoiceRehearsal.swift"; sourceTree = SOURCE_ROOT; };
+		ECFEF84B528B216C84395DC2 /* HearSiriIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Hear-I-am/Features/Siri/HearSiriIntents.swift"; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -466,6 +468,7 @@
 				93804605A383D36621768212 /* Records */,
 				D68D3833E51BBBB75875D1FA /* SoundTest */,
 				CD7F24D5B9C54756988252F5 /* StagePreview */,
+				518D05E904C7DD4176BCC82F /* Siri */,
 			);
 			path = Features;
 			sourceTree = "<group>";
@@ -911,6 +914,14 @@
 			name = VoiceRehearsal;
 			sourceTree = "<group>";
 		};
+		518D05E904C7DD4176BCC82F /* Siri */ = {
+			isa = PBXGroup;
+			children = (
+				ECFEF84B528B216C84395DC2 /* HearSiriIntents.swift */,
+			);
+			path = Siri;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -989,6 +1000,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				590208009E83056A89A481D8 /* VoiceUsageMode.swift in Sources */,
+				9A04B3BE74BB776D91D90F68 /* HearSiriIntents.swift in Sources */,
 				8BB84ABDD7447BA90C48FE27 /* VoiceListeningChime.swift in Sources */,
 				5AF55DD911718E79397B2FF9 /* VoiceRecognitionService.swift in Sources */,
 				1F32E414FBEAB93DE0650247 /* VoiceRehearsalPanel.swift in Sources */,

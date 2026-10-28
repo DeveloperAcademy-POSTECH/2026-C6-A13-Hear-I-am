@@ -42,6 +42,9 @@ import HearIAmCore
     var pendingVoiceIntent: VoiceCommand?
     /// The request the user already made to the voice agent on Home (#90).
     var voiceInitialRequest: String?
+    /// Stage and mode Siri already named (#91).
+    var voiceInitialStageID: UUID?
+    var voiceInitialMode: VoiceUsageMode?
     /// The request the Apple Intelligence model is reading; a newer request makes its answer stale (#92).
     var voicePendingRequest: String?
     /// When the English detector last heard 「Hear I am」 (#92).

@@ -6,10 +6,12 @@ struct GuidanceView: View {
     @ObservedObject var library: StageLibrary
     @StateObject private var model: GuidanceViewModel
     /// `request` is what the user already asked the voice agent on Home; it is handled first (#90).
-    init(library:StageLibrary,voiceExperiment:Bool = false,request:String? = nil) {
+    /// `stageID` and `mode` come from Siri (#91): the stage is chosen and the mode applied first.
+    init(library:StageLibrary,voiceExperiment:Bool = false,request:String? = nil,stageID:UUID? = nil,mode:VoiceUsageMode? = nil) {
         self.library=library
         let model=GuidanceViewModel(voiceExperiment:voiceExperiment)
         model.voiceInitialRequest=request
+        model.voiceInitialStageID=stageID;model.voiceInitialMode=mode
         _model=StateObject(wrappedValue:model)
     }
     @Environment(\.dismiss) private var dismiss
