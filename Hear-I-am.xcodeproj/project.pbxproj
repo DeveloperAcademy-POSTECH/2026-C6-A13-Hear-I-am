@@ -133,6 +133,7 @@
 		1F32E414FBEAB93DE0650247 /* VoiceRehearsalPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CCDD1B4D4845912209F7AE9 /* VoiceRehearsalPanel.swift */; };
 		09588E9CD51BFF368A2FFB97 /* GuidanceViewModel+VoiceRehearsal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A9984F195ECC33D4E06F459 /* GuidanceViewModel+VoiceRehearsal.swift */; };
 		9A04B3BE74BB776D91D90F68 /* HearSiriIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECFEF84B528B216C84395DC2 /* HearSiriIntents.swift */; };
+		8F40D1C8A65D0733A98D1981 /* AppShortcuts.strings in Resources */ = {isa = PBXBuildFile; fileRef = 9AEAB7E2E56E0E21AFBB462A /* AppShortcuts.strings */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -263,6 +264,8 @@
 		2CCDD1B4D4845912209F7AE9 /* VoiceRehearsalPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Hear-I-am/Features/VoiceRehearsal/View/VoiceRehearsalPanel.swift"; sourceTree = SOURCE_ROOT; };
 		1A9984F195ECC33D4E06F459 /* GuidanceViewModel+VoiceRehearsal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Hear-I-am/Features/VoiceRehearsal/ViewModel/GuidanceViewModel+VoiceRehearsal.swift"; sourceTree = SOURCE_ROOT; };
 		ECFEF84B528B216C84395DC2 /* HearSiriIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Hear-I-am/Features/Siri/HearSiriIntents.swift"; sourceTree = SOURCE_ROOT; };
+		D24CD3352517A80985F40132 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = "Hear-I-am/en.lproj/AppShortcuts.strings"; sourceTree = SOURCE_ROOT; };
+		FD9DCF93CC13C6AD65803A0E /* ko */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ko; path = "Hear-I-am/ko.lproj/AppShortcuts.strings"; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -727,6 +730,7 @@
 			isa = PBXGroup;
 			children = (
 				CEF3295A562F96FC1DE68889 /* Assets.xcassets */,
+				9AEAB7E2E56E0E21AFBB462A /* AppShortcuts.strings */,
 				75897F93E4C7DD266125D339 /* PrivacyInfo.xcprivacy */,
 				D44F4CE6A8C292BF30224E80 /* ReplayModels.scnassets */,
 			);
@@ -965,6 +969,7 @@
 			knownRegions = (
 				Base,
 				en,
+				ko,
 			);
 			mainGroup = 34E01B0599779537139D9A99;
 			minimizedProjectReferenceProxies = 1;
@@ -989,6 +994,7 @@
 				AD17F75881AD0B8688842F58 /* Assets.xcassets in Resources */,
 				2B503DC11A185EB1A3A06AF6 /* PrivacyInfo.xcprivacy in Resources */,
 				0A253829E02E693820910F8B /* ReplayModels.scnassets in Resources */,
+				8F40D1C8A65D0733A98D1981 /* AppShortcuts.strings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1125,6 +1131,18 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXVariantGroup section */
+		9AEAB7E2E56E0E21AFBB462A /* AppShortcuts.strings */ = {
+			isa = PBXVariantGroup;
+			children = (
+				D24CD3352517A80985F40132 /* en */,
+				FD9DCF93CC13C6AD65803A0E /* ko */,
+			);
+			name = AppShortcuts.strings;
+			sourceTree = "<group>";
+		};
+/* End PBXVariantGroup section */
 
 /* Begin XCBuildConfiguration section */
 		3240825326124A0116438AD1 /* Debug */ = {
