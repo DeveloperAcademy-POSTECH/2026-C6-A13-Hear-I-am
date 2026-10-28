@@ -23,6 +23,8 @@ import HearIAmCore
     var onRecoverableError: ((String) -> Void)?
     var onRecoveryReady: (() -> Void)?
     var onError: ((String) -> Void)?
+    /// The English recognizer heard 「Hear I am」 (#92). Commands are still read by the Korean one.
+    var onWakeWord: (() -> Void)?
 
     // Meter updates go directly to the waveform, not through the AR view model's objectWillChange.
     let inputVisualization = VoiceInputVisualization()
@@ -49,6 +51,16 @@ import HearIAmCore
     private var speechDetected = false
     private var finalizing = false
     private var contextualStrings: [String] = []
+    /// Every candidate the recognizer gave for the last final result after the best one (#92).
+    private(set) var lastAlternatives: [String] = []
+    /// The app's own sentences taught to the recognizer once prepared; nil until then (#92).
+    private var languageModel: SFSpeechLanguageModel.Configuration?
+    private var languageModelKey: String?
+    /// Settings switch for trying the iOS 26 SpeechAnalyzer engine instead of SFSpeechRecognizer (#92).
+    static let analyzerKey = "voice.engine.speechAnalyzer"
+    private var analyzerFormat: AVAudioFormat?
+    private var analyzerTurn: VoiceAnalyzerCancelling?
+    private var wakeDetector: VoiceWakeDetector?
     private var recovery = VoiceInputRecoveryPolicy()
     private let logger = Logger(subsystem: "org.heariam.poc4.scanlab", category: "VoiceInput")
     private var observers: [NSObjectProtocol] = []
@@ -114,7 +126,7 @@ import HearIAmCore
 
     /// This PoC never silently falls back to server recognition.
     /// Permission/availability failures leave microphone capture off and explain the reason.
-    func start(contextualStrings: [String] = []) async {
+    func start(contextualStrings: [String] = [], vocabulary: [VoiceVocabulary.Phrase] = [], listensForWakeWord: Bool = false) async {
         stop()
         let identifier = UUID()
         sessionID = identifier
@@ -145,6 +157,20 @@ import HearIAmCore
         }
         self.recognizer = recognizer
         self.contextualStrings = Array(contextualStrings.filter { !$0.isEmpty }.prefix(100))
+        prepareLanguageModel(vocabulary)
+        analyzerFormat = nil
+        if UserDefaults.standard.bool(forKey: Self.analyzerKey), #available(iOS 26.0, *) {
+            // Falls back to SFSpeechRecognizer when the Korean model cannot be installed.
+            analyzerFormat = await VoiceAnalyzerTurn.prepare(locale: recognizer.locale)
+            guard sessionID == identifier else { return }
+            trace("voice_engine_analyzer ready=\(self.analyzerFormat != nil)")
+        }
+        if listensForWakeWord, let detector = VoiceWakeDetector() {
+            detector.onWake = { [weak self] in Task { @MainActor [weak self] in self?.onWakeWord?() } }
+            wakeDetector = detector
+            inputBridge.setSecondary(detector)
+            detector.begin()
+        }
         do {
             inputLease = try HearAudioSession.acquireVoiceInput()
             wantsListening = true
@@ -312,15 +338,25 @@ import HearIAmCore
         finalizing = false
         transcript = ""
         statusMessage = "마이크 입력을 확인하고 있어요"
-        let request = SFSpeechAudioBufferRecognitionRequest()
-        request.requiresOnDeviceRecognition = true
-        request.shouldReportPartialResults = true
-        request.contextualStrings = contextualStrings
-        request.addsPunctuation = false
-        let delegate = VoiceRecognitionTaskDelegate(service: self, turnID: identifier)
-        taskDelegate = delegate
-        recognitionTask = recognizer.recognitionTask(with: request, delegate: delegate)
-        inputBridge.replace(with: request, onReady: { [weak self] in
+        let sink: VoiceAudioSink
+        if #available(iOS 26.0, *), let format = analyzerFormat {
+            let turn = VoiceAnalyzerTurn(locale: recognizer.locale, format: format, contextualStrings: contextualStrings,
+                                         service: self, turnID: identifier)
+            analyzerTurn = turn
+            sink = turn
+        } else {
+            let request = SFSpeechAudioBufferRecognitionRequest()
+            request.requiresOnDeviceRecognition = true
+            request.shouldReportPartialResults = true
+            request.contextualStrings = contextualStrings
+            request.addsPunctuation = false
+            if let languageModel { request.customizedLanguageModel = languageModel }
+            let delegate = VoiceRecognitionTaskDelegate(service: self, turnID: identifier)
+            taskDelegate = delegate
+            recognitionTask = recognizer.recognitionTask(with: request, delegate: delegate)
+            sink = request
+        }
+        inputBridge.replace(with: sink, onReady: { [weak self] in
             Task { @MainActor [weak self] in self?.microphoneReady(turnID: identifier) }
         }, onLevel: { [weak self] level in
             Task { @MainActor [weak self] in
@@ -390,7 +426,7 @@ import HearIAmCore
         }
     }
 
-    fileprivate func receivedFinal(_ text: String, turnID: UUID) {
+    fileprivate func receivedFinal(_ text: String, alternatives: [String] = [], turnID: UUID) {
         guard self.turnID == turnID, wantsListening else { return }
         let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if !text.isEmpty { detectedSpeech(turnID: turnID) }
@@ -405,6 +441,8 @@ import HearIAmCore
         }
         retireTurn()
         recovery.recordFinalRecognition(text)
+        var seen: Set<String> = [text]
+        lastAlternatives = alternatives.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty && seen.insert($0).inserted }
         transcript = text
         isListening = false
         statusMessage = "말씀을 확인했어요"
@@ -511,6 +549,7 @@ import HearIAmCore
         finalResultTimer?.cancel(); finalResultTimer = nil
         inputBridge.clear()
         recognitionTask?.cancel(); recognitionTask = nil
+        analyzerTurn?.cancel(); analyzerTurn = nil
         taskDelegate = nil
         speechDetected = false
         finalizing = false
@@ -518,6 +557,8 @@ import HearIAmCore
 
     private func stopCapture(restorePlayback: Bool) {
         wantsListening = false
+        inputBridge.setSecondary(nil)
+        wakeDetector?.stop(); wakeDetector = nil
         sessionID = nil
         retryScheduled = false
         recoveryReadyPending = false
@@ -587,11 +628,251 @@ import HearIAmCore
 
 private enum VoiceRecognitionFailure: Error { case noInput }
 
+/// Listens in English for the app's name alone, beside the Korean command recognizer (#92). On 10/28
+/// an English recognizer wrote 「Hear I am」 correctly for every test voice, the Korean one for half.
+private final class VoiceWakeDetector: VoiceAudioSink, @unchecked Sendable {
+    private let recognizer: SFSpeechRecognizer
+    private let lock = NSLock()
+    private var request: SFSpeechAudioBufferRecognitionRequest?
+    private var task: SFSpeechRecognitionTask?
+    private var heard = 0
+    private var generation = 0
+    private var rotation: Task<Void, Never>?
+    var onWake: (() -> Void)?
+
+    init?() {
+        guard let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US")),
+              recognizer.isAvailable, recognizer.supportsOnDeviceRecognition else { return nil }
+        self.recognizer = recognizer
+    }
+
+    /// Starts a fresh English task. Tasks are rotated before the recognizer's one-minute limit.
+    func begin() {
+        let request = SFSpeechAudioBufferRecognitionRequest()
+        request.requiresOnDeviceRecognition = true
+        request.shouldReportPartialResults = true
+        request.contextualStrings = ["Hear I am", "Here I am"]
+        request.addsPunctuation = false
+        lock.lock()
+        self.request?.endAudio(); task?.cancel()
+        generation += 1; heard = 0
+        let current = generation
+        self.request = request
+        lock.unlock()
+        let task = recognizer.recognitionTask(with: request) { [weak self] result, error in
+            guard let self else { return }
+            if let result { self.received(result.bestTranscription.formattedString, generation: current) }
+            if error != nil || result?.isFinal == true { self.restart(after: 0.3, generation: current) }
+        }
+        lock.lock(); if generation == current { self.task = task } else { task.cancel() }; lock.unlock()
+        rotation?.cancel()
+        rotation = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 50_000_000_000)
+            guard !Task.isCancelled else { return }
+            self?.restart(after: 0, generation: current)
+        }
+    }
+    func stop() {
+        rotation?.cancel()
+        lock.lock(); generation += 1; request?.endAudio(); request = nil; task?.cancel(); task = nil; lock.unlock()
+    }
+    func append(_ buffer: AVAudioPCMBuffer) {
+        lock.lock(); let request = request; lock.unlock()
+        request?.append(buffer)
+    }
+    func endAudio() {}
+
+    private func restart(after delay: Double, generation expected: Int) {
+        lock.lock(); let current = generation == expected; lock.unlock()
+        guard current else { return }
+        Task { [weak self] in
+            if delay > 0 { try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000)) }
+            guard let self else { return }
+            self.lock.lock(); let still = self.generation == expected; self.lock.unlock()
+            if still { self.begin() }
+        }
+    }
+    /// A task's text grows through the whole minute, so only a new occurrence of the name fires.
+    private func received(_ text: String, generation expected: Int) {
+        let count = VoiceWakeWord.occurrences(in: text)
+        lock.lock()
+        guard generation == expected, count > heard else { lock.unlock(); return }
+        heard = count
+        lock.unlock()
+        onWake?()
+    }
+}
+
+/// Where captured microphone PCM goes for one turn: an SFSpeech request or a SpeechAnalyzer turn.
+private protocol VoiceAudioSink: AnyObject {
+    func append(_ buffer: AVAudioPCMBuffer)
+    func endAudio()
+}
+extension SFSpeechAudioBufferRecognitionRequest: VoiceAudioSink {}
+private protocol VoiceAnalyzerCancelling: AnyObject { func cancel() }
+
+extension VoiceRecognitionService {
+    /// Builds the app's own sentences into a custom language model in the background and keeps it for
+    /// later turns (#92). The first turns use the plain model; a failure leaves the plain model in use.
+    fileprivate func prepareLanguageModel(_ phrases: [VoiceVocabulary.Phrase]) {
+        guard !phrases.isEmpty, let recognizer else { return }
+        let key = VoiceLanguageModelBuilder.key(phrases)
+        guard key != languageModelKey else { return }
+        languageModelKey = key; languageModel = nil
+        let locale = recognizer.locale
+        Task.detached(priority: .utility) { [weak self] in
+            let configuration = await VoiceLanguageModelBuilder.prepare(phrases, key: key, locale: locale)
+            await MainActor.run {
+                guard let self, self.languageModelKey == key else { return }
+                self.languageModel = configuration
+                self.trace("voice_language_model ready=\(configuration != nil) phrases=\(phrases.count)")
+            }
+        }
+    }
+    fileprivate func analyzerPartial(_ text: String, turnID: UUID) { receivedPartial(text, turnID: turnID) }
+    fileprivate func analyzerFinal(_ text: String, alternatives: [String], turnID: UUID) {
+        receivedFinal(text, alternatives: alternatives, turnID: turnID)
+    }
+    fileprivate func analyzerFailed(_ error: Error, turnID: UUID) {
+        let error = error as NSError
+        taskFinished(successfully: false, errorCode: error.code, errorDomain: error.domain, turnID: turnID)
+    }
+}
+
+private enum VoiceLanguageModelBuilder {
+    /// Stable across launches, unlike Hasher: FNV-1a over every phrase and weight.
+    static func key(_ phrases: [VoiceVocabulary.Phrase]) -> String {
+        var hash: UInt64 = 0xcbf29ce484222325
+        for byte in (VoiceVocabulary.version + phrases.map { "\($0.text)\u{1F}\($0.count)" }.joined(separator: "\u{1E}")).utf8 {
+            hash = (hash ^ UInt64(byte)) &* 0x100000001b3
+        }
+        return String(hash, radix: 16)
+    }
+    static func prepare(_ phrases: [VoiceVocabulary.Phrase], key: String, locale: Locale) async -> SFSpeechLanguageModel.Configuration? {
+        let folder = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("VoiceLanguageModel/\(key)", isDirectory: true)
+        let configuration = SFSpeechLanguageModel.Configuration(languageModel: folder.appendingPathComponent("model"),
+                                                                vocabulary: folder.appendingPathComponent("vocabulary"))
+        do {
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            let asset = folder.appendingPathComponent("data.bin")
+            if !FileManager.default.fileExists(atPath: asset.path) {
+                let data = SFCustomLanguageModelData(locale: locale, identifier: "org.heariam.voice", version: VoiceVocabulary.version) {}
+                for phrase in phrases { data.insert(phraseCount: SFCustomLanguageModelData.PhraseCount(phrase: phrase.text, count: phrase.count)) }
+                try await data.export(to: asset)
+            }
+            try await SFSpeechLanguageModel.prepareCustomLanguageModel(for: asset, configuration: configuration)
+            return configuration
+        } catch {
+            try? FileManager.default.removeItem(at: folder)
+            return nil
+        }
+    }
+}
+
+/// One listening turn on the iOS 26 SpeechAnalyzer engine (#92), shaped like an SFSpeech task: partial
+/// text while speaking, one final text with alternatives after endAudio(), or an error.
+@available(iOS 26.0, *)
+private final class VoiceAnalyzerTurn: VoiceAudioSink, VoiceAnalyzerCancelling, @unchecked Sendable {
+    private static let reporting: Set<SpeechTranscriber.ReportingOption> = [.volatileResults, .alternativeTranscriptions]
+    private let lock = NSLock()
+    private let analyzer: SpeechAnalyzer
+    private let continuation: AsyncStream<AnalyzerInput>.Continuation
+    private let format: AVAudioFormat
+    private var converter: AVAudioConverter?
+    private var task: Task<Void, Never>?
+    private var ended = false
+
+    /// Installs the Korean model if needed and returns the audio format it reads; nil when unavailable.
+    static func prepare(locale: Locale) async -> AVAudioFormat? {
+        let transcriber = SpeechTranscriber(locale: locale, transcriptionOptions: [], reportingOptions: reporting, attributeOptions: [])
+        do {
+            if let request = try await AssetInventory.assetInstallationRequest(supporting: [transcriber]) {
+                try await request.downloadAndInstall()
+            }
+        } catch { return nil }
+        return await SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith: [transcriber])
+    }
+
+    init(locale: Locale, format: AVAudioFormat, contextualStrings: [String], service: VoiceRecognitionService, turnID: UUID) {
+        let transcriber = SpeechTranscriber(locale: locale, transcriptionOptions: [], reportingOptions: Self.reporting, attributeOptions: [])
+        analyzer = SpeechAnalyzer(modules: [transcriber])
+        self.format = format
+        let (stream, continuation) = AsyncStream<AnalyzerInput>.makeStream()
+        self.continuation = continuation
+        let analyzer = analyzer
+        task = Task { [weak service] in
+            do {
+                let context = AnalysisContext()
+                context.contextualStrings[.general] = contextualStrings
+                try await analyzer.setContext(context)
+                try await analyzer.start(inputSequence: stream)
+                var finalized = "", alternatives: [String] = []
+                for try await result in transcriber.results {
+                    let text = String(result.text.characters)
+                    if result.isFinal {
+                        finalized += text
+                        alternatives = result.alternatives.map { finalized.dropLast(text.count) + String($0.characters) }
+                    }
+                    let shown = result.isFinal ? finalized : finalized + text
+                    if !shown.trimmingCharacters(in: .whitespaces).isEmpty {
+                        await MainActor.run { service?.analyzerPartial(shown, turnID: turnID) }
+                    }
+                }
+                let heard = finalized, others = alternatives
+                await MainActor.run { service?.analyzerFinal(heard, alternatives: others, turnID: turnID) }
+            } catch {
+                guard !Task.isCancelled else { return }
+                await MainActor.run { service?.analyzerFailed(error, turnID: turnID) }
+            }
+        }
+    }
+
+    func append(_ buffer: AVAudioPCMBuffer) {
+        lock.lock(); defer { lock.unlock() }
+        guard !ended, let converted = convert(buffer) else { return }
+        continuation.yield(AnalyzerInput(buffer: converted))
+    }
+    func endAudio() {
+        lock.lock()
+        guard !ended else { lock.unlock(); return }
+        ended = true
+        lock.unlock()
+        continuation.finish()
+        let analyzer = analyzer
+        Task { try? await analyzer.finalizeAndFinishThroughEndOfInput() }
+    }
+    func cancel() {
+        lock.lock(); ended = true; lock.unlock()
+        continuation.finish()
+        task?.cancel()
+        let analyzer = analyzer
+        Task { await analyzer.cancelAndFinishNow() }
+    }
+
+    private func convert(_ buffer: AVAudioPCMBuffer) -> AVAudioPCMBuffer? {
+        if buffer.format == format { return buffer }
+        if converter == nil || converter?.inputFormat != buffer.format { converter = AVAudioConverter(from: buffer.format, to: format) }
+        guard let converter else { return nil }
+        let capacity = AVAudioFrameCount(Double(buffer.frameLength) * format.sampleRate / buffer.format.sampleRate) + 32
+        guard let output = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: capacity) else { return nil }
+        var supplied = false
+        var error: NSError?
+        converter.convert(to: output, error: &error) { _, status in
+            if supplied { status.pointee = .noDataNow; return nil }
+            supplied = true; status.pointee = .haveData; return buffer
+        }
+        return error == nil && output.frameLength > 0 ? output : nil
+    }
+}
+
 /// AVAudioEngine's tap runs off the main actor. Append directly while the tap's buffer is valid;
 /// this small lock also keeps endAudio/cancel from racing an in-flight append.
 private final class VoiceRecognitionInputBridge: @unchecked Sendable {
     private let lock = NSLock()
-    private var request: SFSpeechAudioBufferRecognitionRequest?
+    private var request: VoiceAudioSink?
+    /// Also fed every buffer, between turns too: the English wake-word detector (#92).
+    private var secondary: VoiceAudioSink?
     private var readiness = VoiceMicrophoneReadiness()
     private var onReady: (@Sendable () -> Void)?
     private var onLevel: (@Sendable (Double) -> Void)?
@@ -605,7 +886,7 @@ private final class VoiceRecognitionInputBridge: @unchecked Sendable {
         lock.lock(); defer { lock.unlock() }
         return readiness.isStalled(at: time)
     }
-    func replace(with request: SFSpeechAudioBufferRecognitionRequest,
+    func replace(with request: VoiceAudioSink,
                  onReady: @escaping @Sendable () -> Void, onLevel: @escaping @Sendable (Double) -> Void) {
         lock.lock(); defer { lock.unlock() }
         self.request = request
@@ -614,10 +895,15 @@ private final class VoiceRecognitionInputBridge: @unchecked Sendable {
         readiness.reset()
         levelMeter.reset()
     }
+    func setSecondary(_ sink: VoiceAudioSink?) {
+        lock.lock(); defer { lock.unlock() }
+        secondary = sink
+    }
     func append(_ buffer: AVAudioPCMBuffer) {
         guard buffer.frameLength > 0, buffer.format.sampleRate.isFinite,
               buffer.format.sampleRate > 0, buffer.format.channelCount > 0 else { return }
         lock.lock()
+        secondary?.append(buffer)
         guard let request else { lock.unlock(); return }
         request.append(buffer)
         // Read the already captured, echo-processed PCM. No second engine or tap is installed.
@@ -681,7 +967,8 @@ private final class VoiceRecognitionTaskDelegate: NSObject, SFSpeechRecognitionT
     }
     func speechRecognitionTask(_ task: SFSpeechRecognitionTask, didFinishRecognition recognitionResult: SFSpeechRecognitionResult) {
         let text = recognitionResult.bestTranscription.formattedString
-        Task { @MainActor [weak service, turnID] in service?.receivedFinal(text, turnID: turnID) }
+        let alternatives = recognitionResult.transcriptions.dropFirst().map(\.formattedString)
+        Task { @MainActor [weak service, turnID] in service?.receivedFinal(text, alternatives: alternatives, turnID: turnID) }
     }
     func speechRecognitionTask(_ task: SFSpeechRecognitionTask, didFinishSuccessfully successfully: Bool) {
         let error = task.error as NSError?

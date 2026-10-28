@@ -73,6 +73,7 @@ extension GuidanceViewModel {
         voiceRecognition.onSpeechDetected={ [weak self] in self?.voiceSpeechDetected() }
         voiceRecognition.onTranscript={ [weak self] text in self?.voicePartial(text) }
         voiceRecognition.onFinal={ [weak self] text in self?.handleVoiceCommand(text) }
+        voiceRecognition.onWakeWord={ [weak self] in self?.voiceWakeHeard() }
         voiceRecognition.onRecoverableError={ [weak self] message in self?.voiceInputRecovering(message) }
         voiceRecognition.onRecoveryReady={ [weak self] in
             // Stop any system-synthesizer fallback spoken while the engine was being restarted.
@@ -205,7 +206,8 @@ extension GuidanceViewModel {
         let hints=VoiceWakeWord.hints+points+voiceStages.map(\.name)+voiceStagePaths.values.flatMap {$0}+["연습용","실전용","취소","관련된 무대 열어줘","다음","계속","멈춰","P2 지점으로 다시 안내해 줘","피투","2번 지점"]
         voiceInputTask=Task { @MainActor [weak self] in
             guard let self, !Task.isCancelled, self.voiceShouldListen else {return}
-            await self.voiceRecognition.start(contextualStrings:hints)
+            let vocabulary=VoiceVocabulary.phrases(stageNames:self.voiceStages.map(\.name),places:Array(Set(self.voiceStagePaths.values.flatMap {$0})))
+            await self.voiceRecognition.start(contextualStrings:hints,vocabulary:vocabulary,listensForWakeWord:true)
         }
     }
     func stopVoiceExperiment() {
@@ -240,7 +242,14 @@ extension GuidanceViewModel {
             keepVoiceConversation()
             voiceSpeechDetected()
         }
-        voiceTranscript=text
+        // Live text is not shown; only an understood request reaches voiceTranscript (#92).
+    }
+    /// The English detector heard the app's name: open the conversation as if the call had been read.
+    func voiceWakeHeard() {
+        guard voiceShouldListen else {return}
+        voiceEnglishWakeAt=ProcessInfo.processInfo.systemUptime
+        keepVoiceConversation()
+        if !voiceTurnActive {voiceSpeechDetected()}
     }
     func voiceSpeechDetected() {
         guard voiceShouldListen, !voiceTurnActive, voiceAwake else {return}
@@ -285,30 +294,51 @@ extension GuidanceViewModel {
         let accepted=voiceTurnActive || voiceAwake
         voiceTurnActive=false
         var text=text
+        voiceTranscript="";voicePendingRequest=nil
+        // A lower recognition candidate may hold the call or an exact command the best one missed (#92).
+        let alternatives=voiceRecognition.lastAlternatives
+        if VoiceWakeWord.request(in:text) == nil, let called=alternatives.first(where:{VoiceWakeWord.request(in:$0) != nil}) {
+            logSignal("voice_alternative","\(text) -> \(called)");text=called
+        }
         if let request=VoiceWakeWord.request(in:text) {
+            voiceEnglishWakeAt=nil
             keepVoiceConversation()
-            if request.isEmpty {voiceTranscript=text;logSignal("voice_wake",text);read(["네, 말씀하세요."]);return}
+            if request.isEmpty {logSignal("voice_wake",text);read(["네, 말씀하세요."]);return}
             text=request
         } else if !accepted {
             logSignal("voice_ignored","not called");return
+        } else if let heardAt=voiceEnglishWakeAt, ProcessInfo.processInfo.systemUptime-heardAt < 8 {
+            // The English detector heard 「Hear I am」 and the Korean text is that call misheard
+            // (「헤어 라이엠」). A short text with no command is the call alone.
+            voiceEnglishWakeAt=nil
+            if VoiceStageSearch.normalized(text).count <= 8, ([text]+alternatives).allSatisfy({VoiceCommandParser.parse($0) == nil}) {
+                keepVoiceConversation();logSignal("voice_wake","english \(text)");read(["네, 말씀하세요."]);return
+            }
+        }
+        if VoiceCommandParser.parse(text) == nil,
+           let better=alternatives.map({VoiceWakeWord.request(in:$0) ?? $0}).first(where:{VoiceCommandParser.parse($0) != nil}) {
+            logSignal("voice_alternative","\(text) -> \(better)");text=better
         }
         keepVoiceConversation()
-        voiceTranscript=text
         logSignal("voice_command",text)
         if let pending=pendingVoiceIntent {
             pendingVoiceIntent=nil
             switch VoiceIntentCopy.answer(text) {
-            case true?: logSignal("voice_intent_confirmed","\(pending)");performVoiceCommand(pending);return
-            case false?: logSignal("voice_intent_declined","\(pending)");read([VoiceIntentCopy.declined]);return
+            case true?: voiceTranscript=text;logSignal("voice_intent_confirmed","\(pending)");performVoiceCommand(pending);return
+            case false?: voiceTranscript=text;logSignal("voice_intent_declined","\(pending)");read([VoiceIntentCopy.declined]);return
             case nil: break
             }
         }
         let parsed=VoiceCommandParser.parse(text)
-        if parsed == .cancel, !started {voiceSelectionControlsVisible=false;cancelVoiceSelection();return}
+        if parsed == .cancel, !started {voiceTranscript=text;voiceSelectionControlsVisible=false;cancelVoiceSelection();return}
         if phase == .selection, !voiceChoosingMode, parsed != .practice, parsed != .performance,
            parsed != .repeatInstruction, parsed != .pause, parsed != .next, parsed != .start, parsed != .continueGuidance,
-           selectStageWithVoice(text) {return}
+           selectStageWithVoice(text) {
+            if voicePendingRequest == nil {voiceTranscript=text}
+            return
+        }
         if let command=parsed {
+            voiceTranscript=text
             logSignal("voice_intent","exact \(command)")
             performVoiceCommand(command)
         } else if !resolveVoiceIntent(text) {
@@ -324,14 +354,18 @@ extension GuidanceViewModel {
         // 「삐원으로 가」 reaches the model as 「P1으로 가」; the model reads numbers from sound poorly.
         let request=VoicePointSpelling.normalized(text)
         if request != text {logSignal("voice_point_spelling","\(text) -> \(request)")}
+        voicePendingRequest=text
         Task { [weak self] in
             let decision=await AppleIntelligenceVoiceIntentResolver().resolve(request,screen:screen)
-            guard let self, self.voiceShouldListen, self.voiceTranscript == text, self.voiceScreen == screen else {return}
+            guard let self, self.voiceShouldListen, self.voicePendingRequest == text, self.voiceScreen == screen else {return}
+            self.voicePendingRequest=nil
             let seconds=String(format:"%.2fs",ProcessInfo.processInfo.systemUptime-began)
             switch decision {
             case .command(let command):
+                self.voiceTranscript=text
                 self.logSignal("voice_intent","model \(command) \(seconds)");self.performVoiceCommand(command)
             case .confirm(let command):
+                self.voiceTranscript=text
                 self.logSignal("voice_intent","ask \(command) \(seconds)")
                 self.pendingVoiceIntent=command;self.read([VoiceIntentCopy.question(command)])
             case .none:

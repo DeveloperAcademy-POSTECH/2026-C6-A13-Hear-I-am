@@ -42,6 +42,10 @@ import HearIAmCore
     var pendingVoiceIntent: VoiceCommand?
     /// The request the user already made to the voice agent on Home (#90).
     var voiceInitialRequest: String?
+    /// The request the Apple Intelligence model is reading; a newer request makes its answer stale (#92).
+    var voicePendingRequest: String?
+    /// When the English detector last heard 「Hear I am」 (#92).
+    var voiceEnglishWakeAt: Double?
     /// Guidance acts on speech only after 「히얼아이엠」 and while that conversation goes on (#90).
     var voiceConversationDeadline: Double?
     var voiceConversationTimer: Task<Void,Never>?

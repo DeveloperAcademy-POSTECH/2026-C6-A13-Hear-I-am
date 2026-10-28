@@ -19,7 +19,7 @@ struct HomeView: View {
                 ScrollView {
                     VStack(alignment:.leading,spacing:0) {
                         HStack {
-                            Text("Hear I am").font(.largeTitle.bold())
+                            Text(VoiceWakeWord.phrase).font(.largeTitle.bold())
                             Spacer()
                             Button {showingSettings=true} label: {
                                 Image(systemName:"gearshape").font(.title2)
@@ -38,14 +38,14 @@ struct HomeView: View {
                                     .minimumScaleFactor(0.6).lineLimit(1)
                                 // While awake the agent's state and what it heard take this line; nothing covers Home.
                                 Text(agentLine)
-                                    .font(.body).foregroundStyle(wake.awake && !wake.transcript.isEmpty ? .primary : .secondary)
+                                    .font(.body).foregroundStyle(.secondary)
                                     .multilineTextAlignment(.center)
                                     .fixedSize(horizontal:false,vertical:true)
                                     .padding(.top,4)
                             }
                         }.frame(maxWidth:.infinity)
                             .accessibilityElement(children:.ignore)
-                            .accessibilityLabel("\(VoiceWakeWord.phrase)이라고 부르면 안내를 시작해요. 무대 고르기부터 출발까지 말로 이어서 진행해요.")
+                            .accessibilityLabel("Hear I am이라고 부르면 안내를 시작해요. 무대 고르기부터 출발까지 말로 이어서 진행해요.")
                             .accessibilityAddTraits(.isHeader)
                         if let failure=wake.failure {
                             // Without a microphone or dictation the call cannot be heard; keep one way in.
@@ -90,7 +90,6 @@ struct HomeView: View {
 
     private var agentLine: String {
         guard wake.awake else {return "무대 고르기부터 출발까지\n말로 이어서 진행해요"}
-        if !wake.transcript.isEmpty {return wake.transcript}
         return wake.speaking ? HomeWakeWordListener.greeting : "듣고 있어요"
     }
 
@@ -108,7 +107,6 @@ struct HomeView: View {
     @Published private(set) var listening=false
     @Published private(set) var awake=false
     @Published private(set) var speaking=false
-    @Published private(set) var transcript=""
     /// Why the call cannot be heard (no permission, dictation off); nil while listening works.
     @Published private(set) var failure: String?
     var onRequest: ((String) -> Void)?
@@ -121,6 +119,7 @@ struct HomeView: View {
     private var startTask: Task<Void,Never>?
     private var sleepTask: Task<Void,Never>?
     private var active=false
+    private var englishCallAt: Double?
 
     init() {
         // Speak through the recognizer's engine so its echo cancellation hears the user over the greeting.
@@ -131,6 +130,7 @@ struct HomeView: View {
         speech.onSpeaking={ [weak self] value in self?.speaking=value }
         recognition.onTranscript={ [weak self] text in self?.heardPartial(text) }
         recognition.onFinal={ [weak self] text in self?.heardFinal(text) }
+        recognition.onWakeWord={ [weak self] in self?.heardEnglishCall() }
         // A permission or dictation failure shows a fallback button; the next visit to Home tries again.
         recognition.onError={ [weak self] message in self?.active=false;self?.failure=message;self?.sleep() }
         recognition.$isListening.receive(on:RunLoop.main).assign(to:&$listening)
@@ -141,7 +141,7 @@ struct HomeView: View {
         active=true;failure=nil
         startTask=Task { [weak self] in
             guard let self, self.active else {return}
-            await self.recognition.start(contextualStrings:VoiceWakeWord.hints)
+            await self.recognition.start(contextualStrings:VoiceWakeWord.hints,vocabulary:VoiceVocabulary.phrases(),listensForWakeWord:true)
         }
     }
 
@@ -159,29 +159,42 @@ struct HomeView: View {
             guard VoiceWakeWord.matches(text) else {return}
             wake()
         }
-        transcript=VoiceWakeWord.request(in:text) ?? text
     }
 
     private func heardFinal(_ text:String) {
         guard active else {return}
-        if let request=VoiceWakeWord.request(in:text) {
+        // The call may sit in a lower recognition candidate (#92).
+        let call=([text]+recognition.lastAlternatives).lazy.compactMap(VoiceWakeWord.request(in:)).first
+        if let request=call {
+            englishCallAt=nil
             if !awake {wake()}
             if request.isEmpty {greet()} else {hand(request)}
             return
         }
         guard awake else {return}
+        // The English detector heard the call; a short Korean text without a command is that call misheard.
+        if let at=englishCallAt, ProcessInfo.processInfo.systemUptime-at < 8 {
+            englishCallAt=nil
+            if VoiceStageSearch.normalized(text).count <= 8, VoiceCommandParser.parse(text) == nil {greet();return}
+        }
         hand(text)
     }
 
+    /// 「Hear I am」 heard by the English recognizer (#92).
+    private func heardEnglishCall() {
+        guard active else {return}
+        englishCallAt=ProcessInfo.processInfo.systemUptime
+        if !awake {wake()}
+    }
+
     private func wake() {
-        awake=true;transcript=""
+        awake=true
         speech.stop()
         chime.play()
         stayAwake(8)
     }
 
     private func greet() {
-        transcript=""
         stayAwake(60)
         speech.play([Self.greeting]) { [weak self] _ in self?.stayAwake(8) }
     }
@@ -203,6 +216,6 @@ struct HomeView: View {
     private func sleep() {
         sleepTask?.cancel();sleepTask=nil
         if speaking {speech.stop()}
-        awake=false;transcript=""
+        awake=false
     }
 }

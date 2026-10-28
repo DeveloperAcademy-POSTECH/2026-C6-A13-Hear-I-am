@@ -5,6 +5,7 @@ import HearIAmCore
 /// Pushed from Home. Settings and its children share Home's navigation stack.
 struct HomeSettingsView: View {
     @StateObject private var output=SoundOutputStatus()
+    @AppStorage(VoiceRecognitionService.analyzerKey) private var speechAnalyzer=false
     var body: some View {
         List {
             Section {
@@ -31,6 +32,14 @@ struct HomeSettingsView: View {
                     .padding(.vertical,4)
                 }.accessibilityIdentifier("settings.output")
             }
+            Section {
+                Toggle(isOn:$speechAnalyzer) {
+                    VStack(alignment:.leading,spacing:4) {
+                        Text("새 받아쓰기 엔진 (시험)")
+                        Text("iOS 26의 새 음성 인식을 써요. 다음에 음성 입력을 시작할 때부터 적용돼요.").font(.subheadline).foregroundStyle(.secondary)
+                    }
+                }.accessibilityIdentifier("settings.speechAnalyzer")
+            } header: {Text("음성 인식")}
             Section("사용 도움말") {
                 SettingsPendingRow(title:"착용과 안내 준비",symbol:"person")
                 SettingsPendingRow(title:"소리가 들리지 않을 때",symbol:"questionmark.circle")

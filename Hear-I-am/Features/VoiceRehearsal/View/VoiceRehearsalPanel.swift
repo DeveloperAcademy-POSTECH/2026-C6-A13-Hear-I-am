@@ -326,15 +326,18 @@ struct VoiceGlassCard<Actions: View>: View {
                 VoiceAudioWaveform(visualization: visualization, active: listening)
                     .transition(.opacity)
             }
-            VStack(alignment: .leading, spacing: 4) {
-                Text(speaking ? "인식 중인 말" : "입력된 말").font(.caption2.weight(.medium)).foregroundStyle(.secondary)
-                Text(transcript.isEmpty ? "말씀하신 내용이 여기에 표시돼요" : transcript)
-                    .font(.subheadline).foregroundStyle(transcript.isEmpty ? .secondary : .primary)
-                    .lineLimit(3).fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }.padding(12)
-                .background(Color(.systemBackground).opacity(reduceTransparency ? 1 : 0.58), in: RoundedRectangle(cornerRadius: 14))
-                .accessibilityElement(children: .combine)
+            // Only a request the app understood is shown; nothing appears while someone is speaking (#92).
+            if !transcript.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("알아들은 말").font(.caption2.weight(.medium)).foregroundStyle(.secondary)
+                    Text(transcript)
+                        .font(.subheadline)
+                        .lineLimit(3).fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }.padding(12)
+                    .background(Color(.systemBackground).opacity(reduceTransparency ? 1 : 0.58), in: RoundedRectangle(cornerRadius: 14))
+                    .accessibilityElement(children: .combine)
+            }
             Text(detail).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             actions()
         }
