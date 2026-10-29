@@ -21,7 +21,7 @@ final class StartApproachTests: XCTestCase {
         XCTAssertEqual(guide.state,.completed)
         var performance=RouteGuide(route:saved,settings:settings,usesRouteCorridor:true)
         XCTAssertTrue(performance.start(position:saved.points[0],headingDegrees:0,trackingValid:true))
-        XCTAssertEqual(performance.targetIndex,1);XCTAssertEqual(performance.facingPointIndex,0)
+        XCTAssertEqual(performance.targetIndex,1);XCTAssertNil(performance.facingPointIndex)
     }
     func testOutsideTooNearInvalidAndBlockedApproachesRejected() throws {
         var saved=try saved();let settings=GuideSettings()

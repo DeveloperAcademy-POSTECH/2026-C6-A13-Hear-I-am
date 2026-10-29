@@ -18,9 +18,13 @@ extension GuidanceViewModel {
     }
     func pause() {
         guard phase == .guiding || phase == .starting || phase == .approaching else { return }
+        if !started {
+            startPreparationPaused=true;startAlignmentCompleted=false
+            approachNotice="출발 준비를 멈췄어요. 출발점까지 안내를 다시 누르면 정렬과 대기를 새로 시작해요."
+        }
         invalidateTasks();guide?.pause();phase = started ? .paused : .departure
         message="현재 목표는 \(targetName)이에요."
-        read(["안내를 일시정지했습니다. 다시 시작 버튼을 누르면 이어서 안내합니다."])
+        read([started ? "안내를 일시정지했습니다. 다시 시작 버튼을 누르면 이어서 안내합니다." : (approachNotice ?? "출발 준비를 멈췄습니다.")])
     }
     /// Clears every signal rule; called when guidance starts or resumes.
     func resetSignals() {
@@ -83,8 +87,7 @@ extension GuidanceViewModel {
             announceStepHint=guide.route.step(at:guide.targetIndex) != nil
         }
         signals.stopDirection()
-        let facingLine=guide.route.facing(at:previous).map { "그 자리에서 \($0.label) 방향을 바라봐주세요." }
-        ticksWaitForWord=voice.play([previous == guide.route.points.count-1 ? "도착점에 도착했습니다." : name] + (facingLine.map {[$0]} ?? []))
+        ticksWaitForWord=voice.play([previous == guide.route.points.count-1 ? "도착점 도착" : name])
         quietUntil=ticksWaitForWord ? nil : time+Self.arrivalQuietSeconds
         logSignal("signal_arrival","\(label)(\(name)) next=\(guide.targetIndex)\(aligningStep.map { " align=\($0.name)#\(($0.facingEdge ?? 0)+1)" } ?? "")")
         if guide.isHolding { logSignal("performance_hold_start","point=\(previous) seconds=\(guide.holdRemaining)") }
@@ -182,6 +185,12 @@ extension GuidanceViewModel {
     /// 1st orientation after arriving on a chair or stairs (#76): guides the performer's heading toward
     /// the green `facingEdge` outward normal, plays the aligned chime when aligned, and then resumes
     /// route guidance toward the next spot.
+    /// Shared short left/right instruction for a point facing or p0→p1 start alignment.
+    func signalStartFacing(pose: (point: FloorPoint, heading: Double, time: Double), bearing: Double, guide: RouteGuide) {
+        directionTicks.deadbandDegrees=RouteGuide.facingToleranceDegrees;directionTicks.releaseMarginDegrees=0
+        if ticksWaitForWord, !speaking { ticksWaitForWord=false }
+        signalStepAlignment(pose:pose,step:nil,bearing:bearing,quiet:false,guide:guide)
+    }
     private func signalStepAlignment(pose: (point: FloorPoint, heading: Double, time: Double), step: StageObstacle?, bearing: Double, quiet: Bool, guide: RouteGuide) {
         if announceNextSide && (quiet || speaking) { return }
         let cue=directionTicks.update(time:pose.time,bearing:bearing)

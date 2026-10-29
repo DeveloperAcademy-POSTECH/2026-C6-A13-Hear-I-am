@@ -26,7 +26,10 @@ extension GuidanceViewModel {
     }
     func requestExit() {
         guard phase != .finishing else { return }
-        if phase == .guiding || phase == .starting || phase == .approaching { guide?.pause();phase = started ? .paused : .departure }
+        if !started { startPreparationPaused=true;startAlignmentCompleted=false;departureReady=false }
+        if phase == .guiding || phase == .starting || phase == .approaching {
+            guide?.pause();phase = started ? .paused : .departure
+        }
         invalidateTasks();showExit=true
         read(["안내를 끝낼까요? 계속 사용하려면 계속 사용하기를 눌러주세요."])
     }

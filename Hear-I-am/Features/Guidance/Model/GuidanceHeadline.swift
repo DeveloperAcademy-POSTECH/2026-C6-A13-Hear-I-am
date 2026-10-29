@@ -7,6 +7,11 @@ struct GuidanceHeadline {
     let title: String
     let detail: String
 
+    init(startAlignment: StartAlignment) {
+        symbol=startAlignment.state == .waiting ? "timer" : "location.north"
+        title=startAlignment.state == .waiting ? "출발점 · 자동 시작 대기" : "출발점 · 첫 경로점 방향 맞추기"
+        detail=startAlignment.state == .waiting ? "\(Int(ceil(startAlignment.remaining)))초 후 안내 시작" : "그 자리에서 좌우 안내에 따라 몸을 돌려주세요."
+    }
     init(facing: StageFacing, pointName: String) {
         symbol="arrow.triangle.turn.up.right.circle"
         title="\(pointName) · 바라볼 방향 맞추기"

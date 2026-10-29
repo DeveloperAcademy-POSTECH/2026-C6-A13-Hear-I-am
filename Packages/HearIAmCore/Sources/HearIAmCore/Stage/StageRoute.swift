@@ -11,7 +11,10 @@ public struct StageRoute: Codable, Equatable, Sendable {
     public var pointHeights: [Double]?
     /// Seconds of silence before the next leg, indexed like points. Missing in legacy saves.
     public var pointHoldSeconds: [Int]?
+    /// Index 0 may exist in older saves; departure now always aligns with the first route segment.
     public var pointFacings: [StageFacing?]?
+    /// nil = manual start, 0 = start immediately after p0→p1 alignment; otherwise wait this many seconds.
+    public var startDelaySeconds: Int?
     public func facing(at index: Int) -> StageFacing? {
         guard points.indices.contains(index), let values=pointFacings, values.indices.contains(index) else { return nil }
         return values[index]
@@ -37,13 +40,13 @@ public struct StageRoute: Codable, Equatable, Sendable {
     }
     public var pointNames: [String]
     public var dangerZones: [StageDangerZone]
-    public init(area: StageArea, points: [FloorPoint], obstacles: [StageObstacle], allowsOutsideEndpoints: Bool = false, dangerZones: [StageDangerZone] = [], pointHeights: [Double]? = nil, pointHoldSeconds: [Int]? = nil, pointNames: [String]? = nil, pointFacings: [StageFacing?]? = nil) throws {
+    public init(area: StageArea, points: [FloorPoint], obstacles: [StageObstacle], allowsOutsideEndpoints: Bool = false, dangerZones: [StageDangerZone] = [], pointHeights: [Double]? = nil, pointHoldSeconds: [Int]? = nil, pointNames: [String]? = nil, pointFacings: [StageFacing?]? = nil, startDelaySeconds: Int? = nil) throws {
         version=allowsOutsideEndpoints ? 2 : 1; self.area=area; self.points=points; self.obstacles=obstacles
-        self.dangerZones=dangerZones; self.pointHeights=pointHeights; self.pointHoldSeconds=pointHoldSeconds;self.pointFacings=pointFacings
+        self.dangerZones=dangerZones; self.pointHeights=pointHeights; self.pointHoldSeconds=pointHoldSeconds;self.pointFacings=pointFacings;self.startDelaySeconds=startDelaySeconds
         self.pointNames=pointNames ?? Self.pointLabels(points:points,obstacles:obstacles,finished:true)
         try validate()
     }
-    enum CodingKeys: String, CodingKey { case version, area, points, obstacles, dangerZones, pointHeights, pointHoldSeconds, pointNames, pointFacings }
+    enum CodingKeys: String, CodingKey { case version, area, points, obstacles, dangerZones, pointHeights, pointHoldSeconds, pointNames, pointFacings, startDelaySeconds }
     public init(from decoder: Decoder) throws {
         let c=try decoder.container(keyedBy:CodingKeys.self)
         version=try c.decode(Int.self,forKey:.version)
@@ -52,6 +55,7 @@ public struct StageRoute: Codable, Equatable, Sendable {
         obstacles=try c.decode([StageObstacle].self,forKey:.obstacles)
         dangerZones=try c.decodeIfPresent([StageDangerZone].self,forKey:.dangerZones) ?? []
         pointHeights=try c.decodeIfPresent([Double].self,forKey:.pointHeights)
+        startDelaySeconds=try c.decodeIfPresent(Int.self,forKey:.startDelaySeconds)
         pointFacings=try c.decodeIfPresent([StageFacing?].self,forKey:.pointFacings)
         pointHoldSeconds=try c.decodeIfPresent([Int].self,forKey:.pointHoldSeconds)
         pointNames=try c.decodeIfPresent([String].self,forKey:.pointNames) ?? Self.pointLabels(points:points,obstacles:obstacles,finished:true)
@@ -59,6 +63,9 @@ public struct StageRoute: Codable, Equatable, Sendable {
     }
     public func validate() throws {
         try area.validate()
+        if let seconds=startDelaySeconds, !(0...Self.maximumHoldSeconds).contains(seconds) {
+            throw LabError.invalid("출발점 자동 시작 대기 시간은 0~3600초로 입력해주세요.")
+        }
         if let values=pointFacings, values.count != points.count { throw LabError.invalid("경로점 방향 개수가 맞지 않습니다.") }
         if let values=pointHoldSeconds {
             guard values.count == points.count, values.allSatisfy({(0...Self.maximumHoldSeconds).contains($0)}),

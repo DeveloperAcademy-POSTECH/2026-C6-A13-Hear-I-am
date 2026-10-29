@@ -17,22 +17,26 @@ extension GuidanceViewModel {
         return departureReady ? "위치와 몸의 방향이 확인됐어요." : "위치와 방향을 확인 중이에요. 잠시 멈춰주세요."
     }
     /// Starts from departure, or resumes from a pause, after the start announcement finishes.
-    func startGuidance() {
+    func startGuidance(automatically: Bool = false) {
         guard (phase == .departure && departureReady || phase == .paused && canResume), canAdvanceInstruction, active else { return }
+        if !started {
+            guard startAlignmentCompleted, let pose=freshPose(), matchesStart(pose) else {
+                departureReady=false;startAlignmentCompleted=false;return
+            }
+        }
         let pendingStep=aligningStep
-        invalidateTasks()
-        phase = .starting
+        let resumingFacing=guide?.facingPointIndex != nil
         let resumingHold=guide?.isHolding == true
-        let pendingFacing=guide?.facingPointIndex
-        let lines: [String]
-        if pendingFacing != nil { lines=["바라볼 방향 안내를 이어갑니다."] }
-        else if !started, guide?.route.facing(at:0) != nil { lines=["안내를 시작합니다. 출발점에서 바라볼 방향을 먼저 맞춥니다."] }
-        else if resumingHold { lines=["공연 대기를 이어갑니다."] }
-        else { lines=[started ? "안내를 다시 시작합니다." : "안내를 시작합니다.",SignalCopy.start] }
-        read(lines) { [weak self] in
+        let lines=resumingHold ? ["공연 대기를 이어갑니다."] : [started ? "안내를 다시 시작합니다." : "안내를 시작합니다.",SignalCopy.start]
+        invalidateTasks();phase = .starting
+        let begin: () -> Void = { [weak self] in
             guard let self, self.phase == .starting, var guide=self.guide else { return }
             guard let pose=self.freshPose() else { self.interrupt("현재 위치를 확인할 수 없어요. 확인점을 다시 확인해주세요.");return }
             let first = !self.started
+            if first && !self.matchesStart(pose) {
+                self.phase = .departure;self.departureReady=false;self.startAlignmentCompleted=false
+                self.departureGate.reset();self.readyAnnounced=false;return
+            }
             let success=self.started ? guide.resume(position:pose.point,trackingValid:true) : guide.start(position:pose.point,headingDegrees:pose.heading,trackingValid:true)
             guard success else {
                 self.phase = .departure;self.departureReady=false;self.departureGate.reset();self.readyAnnounced=false
@@ -41,24 +45,33 @@ extension GuidanceViewModel {
             self.guide=guide;self.run?.begin(at:Date(),uptime:ProcessInfo.processInfo.systemUptime);self.started=true;self.phase = .guiding;self.lastPoseTime=nil
             self.resetSignals();self.performanceHoldRemaining=guide.holdRemaining
             if let pendingStep { self.aligningStep=pendingStep;self.announceNextSide=true }
-            // The start has no ding of its own here (it rang on settling), so the side comes on the first cue.
-            if let index=guide.facingPointIndex, let facing=guide.route.facing(at:index) {
-                self.read(["그 자리에서 \(facing.label) 방향을 바라봐주세요."])
-            }
+            if resumingFacing { self.announceNextSide=true }
             if first {
                 self.announceNextSide=true
                 self.announceStepHint=guide.route.step(at:guide.targetIndex) != nil
+                if automatically { self.read([SignalCopy.start]) }
             }
         }
+        if automatically || resumingFacing { begin() } else { read(lines,after:begin) }
+    }
+    private func matchesStart(_ pose: (point: FloorPoint, heading: Double, time: Double)) -> Bool {
+        guard let guide, let alignment=try? StartAlignment(route:guide.route,settings:guide.settings) else { return false }
+        return alignment.matches(position:pose.point,headingDegrees:pose.heading)
     }
     func tickDeparture(pose: (point: FloorPoint, heading: Double, time: Double), guide: RouteGuide) {
-        let eligible=started ? guide.canResume(position:pose.point,trackingValid:true) : guide.ready(position:pose.point,headingDegrees:pose.heading,trackingValid:true)
-        let wasReady=departureReady
-        departureReady=departureGate.observe(time:pose.time,eligible:eligible)
-        // The start is a point too: ding once the wearer has settled on it (10/19).
-        if departureReady, !wasReady, !started {
-            signals.play(.arrival);logSignal("signal_arrival","\(GuidanceCopy.target(0,last:guide.route.points.count-1)) ready")
+        if !started {
+            if !matchesStart(pose) { startAlignmentCompleted=false }
+            if !startAlignmentCompleted {
+                departureReady=false;departureGate.reset();readyAnnounced=false
+                if !startPreparationPaused, pose.point.distance(to:guide.route.points[0]) <= guide.settings.startRadius { beginStartAlignment() }
+                return
+            }
+            departureReady=guide.ready(position:pose.point,headingDegrees:pose.heading,trackingValid:true)
+            return
         }
+        let eligible=started ? guide.canResume(position:pose.point,trackingValid:true) : guide.ready(position:pose.point,headingDegrees:pose.heading,trackingValid:true)
+        departureReady=departureGate.observe(time:pose.time,eligible:eligible)
+
         if !eligible {
             if readyAnnounced {read(["출발 위치 또는 방향이 달라졌습니다. 다시 확인해주세요."])}
             readyAnnounced=false
@@ -79,6 +92,8 @@ extension GuidanceViewModel {
             explainApproachIssue("현재 위치와 몸의 방향을 확인 중이에요. 휴대폰을 허리 앞쪽에 세우고 잠시 후 다시 눌러주세요.")
             return
         }
+        startPreparationPaused=false;startAlignmentCompleted=false
+        if pose.point.distance(to:saved.route.points[0]) <= saved.settings.startRadius { beginStartAlignment();return }
         guard let footprint=tracking.scannedFootprint else {
             explainApproachIssue("저장된 LiDAR 스캔에서 접근 범위를 확인할 수 없어요. 출발점 주변 바닥까지 스캔했는지 확인해주세요.")
             return
@@ -100,19 +115,54 @@ extension GuidanceViewModel {
         approachNotice=text;logSignal("start_approach_unavailable",text);read([text])
     }
     func tickApproach(pose: (point: FloorPoint, heading: Double, time: Double)) {
+        if startAlignment != nil { tickStartAlignment(pose:pose);return }
         guard var approach=approachGuide else { return }
         let result=approach.observe(time:pose.time,position:pose.point,headingDegrees:pose.heading,trackingValid:true)
         approachGuide=approach
         cue=approach.cue(position:pose.point,headingDegrees:pose.heading)
         if result.state == .completed {
-            stopApproach("출발점에 도착했습니다. 잠시 멈춘 뒤 안내 시작 버튼을 눌러주세요.")
+            beginStartAlignment()
         } else if result.state == .paused {
             stopApproach("잠시 멈춰주세요. LiDAR 스캔 범위나 접근 경로를 벗어났거나 위치 확인이 중단됐어요. 현재 위치와 기물을 확인한 뒤 다시 시작해주세요.")
         } else { signal(pose:pose,guide:approach) }
     }
     func stopApproach(_ text: String) {
+        startPreparationPaused=true;startAlignmentCompleted=false;approachNotice=text
         invalidateTasks();resetSignals();cue=nil;phase = .departure
         departureReady=false;departureGate.reset();readyAnnounced=false;lastPoseTime=nil
         read([text])
     }
+    private func beginStartAlignment() {
+        guard !started, let guide else { return }
+        do {
+            let alignment=try StartAlignment(route:guide.route,settings:guide.settings)
+            invalidateTasks();resetSignals();cue=nil;approachNotice=nil
+            startPreparationPaused=false;startAlignmentCompleted=false;departureReady=false
+            startAlignment=alignment;phase = .approaching;tracking.setGuidanceTarget(0)
+            announceNextSide=true;lastPoseTime=nil
+            read(["출발점 도착"])
+        } catch { stopApproach(error.localizedDescription) }
+    }
+    private func tickStartAlignment(pose: (point: FloorPoint, heading: Double, time: Double)) {
+        guard var alignment=startAlignment, let guide else { return }
+        let previous=alignment.state
+        alignment.observe(time:pose.time,position:pose.point,headingDegrees:pose.heading,trackingValid:true,allowsAdvance:!speaking && audioIssue == nil)
+        startAlignment=alignment
+        switch alignment.state {
+        case .paused:
+            stopApproach("잠시 멈춰주세요. 출발 위치와 방향을 다시 확인한 뒤 출발점 안내를 눌러주세요.")
+        case .aligning:
+            if previous == .waiting { directionTicks.reset();announceNextSide=true }
+            signalStartFacing(pose:pose,bearing:alignment.bearing(headingDegrees:pose.heading),guide:guide)
+        case .waiting:
+            if previous == .aligning { signals.playAligned();directionTicks.reset() }
+        case .ready:
+            startAlignment=nil;approachGuide=nil;startAlignmentCompleted=true
+            phase = .departure;departureReady=true;readyAnnounced=true;departureGate.reset();lastPoseTime=nil
+            if alignment.automaticallyStarts { startGuidance(automatically:true) }
+            else { read(["안내 시작 버튼을 눌러주세요."]) }
+            if previous == .aligning, audioIssue == nil, phase == .guiding || phase == .departure { signals.playAligned() }
+        }
+    }
+
 }
