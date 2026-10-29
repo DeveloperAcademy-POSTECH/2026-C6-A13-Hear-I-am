@@ -11,6 +11,17 @@ public struct StageRoute: Codable, Equatable, Sendable {
     public var pointHeights: [Double]?
     /// Seconds of silence before the next leg, indexed like points. Missing in legacy saves.
     public var pointHoldSeconds: [Int]?
+    public var pointFacings: [StageFacing?]?
+    public func facing(at index: Int) -> StageFacing? {
+        guard points.indices.contains(index), let values=pointFacings, values.indices.contains(index) else { return nil }
+        return values[index]
+    }
+    public mutating func setFacing(_ facing: StageFacing?, at index: Int) throws {
+        guard points.indices.contains(index) else { throw LabError.invalid("경로점을 찾을 수 없습니다.") }
+        var values=pointFacings ?? Array(repeating:nil,count:points.count)
+        guard values.count == points.count else { throw LabError.invalid("경로점 방향 개수가 맞지 않습니다.") }
+        values[index]=facing;pointFacings=values
+    }
     public static let maximumHoldSeconds = 3600
     public func holdSeconds(at index: Int) -> Int {
         guard index > 0, index < points.count-1, let values=pointHoldSeconds, values.indices.contains(index) else { return 0 }
@@ -26,13 +37,13 @@ public struct StageRoute: Codable, Equatable, Sendable {
     }
     public var pointNames: [String]
     public var dangerZones: [StageDangerZone]
-    public init(area: StageArea, points: [FloorPoint], obstacles: [StageObstacle], allowsOutsideEndpoints: Bool = false, dangerZones: [StageDangerZone] = [], pointHeights: [Double]? = nil, pointHoldSeconds: [Int]? = nil, pointNames: [String]? = nil) throws {
+    public init(area: StageArea, points: [FloorPoint], obstacles: [StageObstacle], allowsOutsideEndpoints: Bool = false, dangerZones: [StageDangerZone] = [], pointHeights: [Double]? = nil, pointHoldSeconds: [Int]? = nil, pointNames: [String]? = nil, pointFacings: [StageFacing?]? = nil) throws {
         version=allowsOutsideEndpoints ? 2 : 1; self.area=area; self.points=points; self.obstacles=obstacles
-        self.dangerZones=dangerZones; self.pointHeights=pointHeights; self.pointHoldSeconds=pointHoldSeconds
+        self.dangerZones=dangerZones; self.pointHeights=pointHeights; self.pointHoldSeconds=pointHoldSeconds;self.pointFacings=pointFacings
         self.pointNames=pointNames ?? Self.pointLabels(points:points,obstacles:obstacles,finished:true)
         try validate()
     }
-    enum CodingKeys: String, CodingKey { case version, area, points, obstacles, dangerZones, pointHeights, pointHoldSeconds, pointNames }
+    enum CodingKeys: String, CodingKey { case version, area, points, obstacles, dangerZones, pointHeights, pointHoldSeconds, pointNames, pointFacings }
     public init(from decoder: Decoder) throws {
         let c=try decoder.container(keyedBy:CodingKeys.self)
         version=try c.decode(Int.self,forKey:.version)
@@ -41,12 +52,14 @@ public struct StageRoute: Codable, Equatable, Sendable {
         obstacles=try c.decode([StageObstacle].self,forKey:.obstacles)
         dangerZones=try c.decodeIfPresent([StageDangerZone].self,forKey:.dangerZones) ?? []
         pointHeights=try c.decodeIfPresent([Double].self,forKey:.pointHeights)
+        pointFacings=try c.decodeIfPresent([StageFacing?].self,forKey:.pointFacings)
         pointHoldSeconds=try c.decodeIfPresent([Int].self,forKey:.pointHoldSeconds)
         pointNames=try c.decodeIfPresent([String].self,forKey:.pointNames) ?? Self.pointLabels(points:points,obstacles:obstacles,finished:true)
         try validate()
     }
     public func validate() throws {
         try area.validate()
+        if let values=pointFacings, values.count != points.count { throw LabError.invalid("경로점 방향 개수가 맞지 않습니다.") }
         if let values=pointHoldSeconds {
             guard values.count == points.count, values.allSatisfy({(0...Self.maximumHoldSeconds).contains($0)}),
                   values.first == 0, values.last == 0 else {
@@ -114,6 +127,12 @@ public struct StageRoute: Codable, Equatable, Sendable {
         for i in points.indices where !(version == 2 && (i == 0 || i == points.count-1)) && !area.contains(points[i],margin:boundaryMargin) {
             result.append("p\(i)가 무대 경계 여유 밖입니다")
         }
+        return result + travelConflicts(obstacleClearance:obstacleClearance)
+    }
+    /// Segment checks independent of the stage rectangle, also used by temporary LiDAR-bound approaches.
+    public func travelConflicts(obstacleClearance: Double) -> [String] {
+        guard obstacleClearance.isFinite, obstacleClearance >= 0 else { return ["여유 거리 설정 오류"] }
+        var result=[String]()
         if points.count > 1 {
             for i in 0..<(points.count-1) {
                 let a=points[i], b=points[i+1]

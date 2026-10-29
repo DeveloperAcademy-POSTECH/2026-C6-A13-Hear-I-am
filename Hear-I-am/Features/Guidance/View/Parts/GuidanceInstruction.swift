@@ -15,7 +15,7 @@ struct GuidanceInstruction: View {
                     Label(model.tracking.ready ? "확인점 검증 완료" : "위치 확인 중",systemImage:model.tracking.ready ? "checkmark.circle.fill" : "circle")
                     Label(model.tracking.heading != nil ? "몸의 방향 확인 완료" : "카메라를 몸 바깥쪽으로 향해주세요",systemImage:"location.north")
                     if let distance=model.startDistance, !model.hasStarted { Text("출발점까지 \(distance,format:.number.precision(.fractionLength(1))) m").font(.headline.monospacedDigit()) }
-                    Text(model.hasStarted ? "안내를 중단했던 동선 위에서 재개할 수 있어요." : "출발점까지의 별도 길 안내는 제공하지 않아요. 출발점에서 잠시 멈춰주세요. 어느 방향을 바라봐도 몸의 방향에 맞춰 안내해요.")
+                    Text(model.hasStarted ? "안내를 중단했던 동선 위에서 재개할 수 있어요." : "무대 안팎의 스캔한 공간에서 ‘출발점까지 안내’를 누르면 현재 위치에서 출발점까지 안내해요. 출발점에 도착한 뒤 ‘안내 시작’을 눌러 공연 동선을 시작하세요.")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
                 if model.phase == .failed {

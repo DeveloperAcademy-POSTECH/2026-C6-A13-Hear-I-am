@@ -70,6 +70,14 @@ struct SavedStagePreview: View {
                             if let index=model.selectedPointIndex {
                                 VStack(alignment:.leading,spacing:10) {
                                     Text(model.selectionTitle).font(.headline)
+                                    Picker("도착 후 바라볼 방향",selection:$model.pointFacing) {
+                                        Text("지정 안 함 · 기존 안내").tag(StageFacing?.none)
+                                        ForEach(StageFacing.allCases,id:\.self) { direction in
+                                            Text(direction.label).tag(Optional(direction))
+                                        }
+                                    }.disabled(model.savingHold)
+                                    Text("무대 앞을 북쪽으로, 앞을 바라봤을 때 오른쪽을 동쪽으로 정해요. 실제 나침반 방향과는 달라요. 지정한 방향은 의자·계단의 기존 방향보다 우선해요.")
+                                        .font(.caption).foregroundStyle(.secondary)
                                     if model.canEditPointHold {
                                         Text("\(route.pointLabel(at:index)) 도착 후 다음 지점 안내 대기").font(.subheadline.bold())
                                         HStack {
@@ -80,11 +88,9 @@ struct SavedStagePreview: View {
                                                 .onChange(of:model.holdSecondsText) { _,_ in model.holdNotice=nil;model.holdSaveError=nil }
                                             Text("초")
                                             Spacer()
-                                            Button("저장") {Task {await model.savePointHold()}}
-                                                .buttonStyle(.borderedProminent)
-                                                .disabled(model.enteredHoldSeconds == nil || model.savingHold)
+
                                         }
-                                        Text("0초는 바로 안내 · 최대 3600초. 도착 이름을 알린 뒤 방향·거리 안내를 쉬고 자동 재개해요.")
+                                        Text("0초는 바로 안내 · 최대 3600초. 바라볼 방향을 맞춘 뒤 대기하고 다음 지점 안내를 재개해요.")
                                             .font(.caption).foregroundStyle(.secondary)
                                         if model.enteredHoldSeconds == nil { Text("0~3600 사이의 정수를 입력해주세요.").font(.caption).foregroundStyle(.red) }
                                         if model.savingHold {ProgressView("저장 중…")}
@@ -94,9 +100,17 @@ struct SavedStagePreview: View {
                                         Text("대기 시간은 다음 지점이 있는 중간 경로점에 설정할 수 있어요. 출발점과 마지막 도착점은 제외됩니다.")
                                             .font(.caption).foregroundStyle(.secondary)
                                     }
+                                    Button("경로점 설정 저장") {Task {await model.savePointSettings()}}
+                                        .buttonStyle(.borderedProminent)
+                                        .disabled(model.enteredHoldSeconds == nil || model.savingHold)
+                                    if !model.canEditPointHold {
+                                        if model.savingHold { ProgressView("저장 중…") }
+                                        if let notice=model.holdNotice { Text(notice).font(.caption).foregroundStyle(Color.hearGreen) }
+                                        if let error=model.holdSaveError { Text(error).font(.caption).foregroundStyle(.red) }
+                                    }
                                 }.padding(14).background(Color(.systemGray6),in:RoundedRectangle(cornerRadius:14))
                             } else {
-                                Text("경로점을 선택하면 도착 후 안내 대기 시간을 설정할 수 있어요.").font(.caption).foregroundStyle(.secondary)
+                                Text("경로점을 선택하면 바라볼 방향과 안내 대기 시간을 설정할 수 있어요.").font(.caption).foregroundStyle(.secondary)
                             }
                             if !route.obstacles.isEmpty {
                                 ScrollView(.horizontal) {HStack {ForEach(route.obstacles) {o in selectionButton(o.name,.object(o.id))}}}
