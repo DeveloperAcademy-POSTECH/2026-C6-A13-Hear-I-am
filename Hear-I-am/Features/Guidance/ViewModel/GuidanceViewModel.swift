@@ -64,7 +64,9 @@ import HearIAmCore
 
     /// Next-step buttons work while an instruction is still being read; pressing one stops it (10/21).
     /// Position and checkpoint checks still apply.
-    var canAdvanceInstruction: Bool { audioIssue == nil }
+    // Speech (including a previous playback error) never locks a next-step button.
+    // Each action stops the old narration and retries audio; its own tracking/position guards still apply.
+    var canAdvanceInstruction: Bool { active && !savingRecord }
     var hasStarted: Bool { started }
     var targetIndex: Int { phase == .approaching ? 0 : guide?.facingPointIndex ?? guide?.targetIndex ?? 1 }
     var targetName: String { GuidanceCopy.target(targetIndex,last:(selected?.route?.points.count ?? 2)-1) }

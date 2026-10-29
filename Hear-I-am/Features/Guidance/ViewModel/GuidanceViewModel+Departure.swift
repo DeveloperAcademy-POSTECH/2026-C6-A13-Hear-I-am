@@ -73,22 +73,28 @@ extension GuidanceViewModel {
         do { _=try StartApproach.route(from:pose.point,to:guide.route,settings:guide.settings);return nil }
         catch { return error.localizedDescription }
     }
-    var canApproachStart: Bool { !started && phase == .departure && approachIssue == nil }
+    /// Availability is separate from route eligibility: a tap must be able to explain why guidance cannot start.
+    var canApproachStart: Bool { !started && phase == .departure && guide != nil && active }
     func startApproach() {
-        guard canApproachStart, canAdvanceInstruction, active else { return }
-        invalidateTasks();resetSignals();phase = .approaching;cue=nil
-        tracking.setGuidanceTarget(0)
-        read(["출발점까지 안내합니다. 방향과 거리를 듣고 이동해주세요."]) { [weak self] in
-            guard let self, self.phase == .approaching else { return }
-            guard let pose=self.freshPose(), let saved=self.guide else {
-                self.interrupt("현재 위치를 확인할 수 없어요. 확인점을 다시 확인해주세요.");return
+        guard canApproachStart, canAdvanceInstruction else { return }
+        // Stop the wear/departure explanation immediately, even when the pose is not usable yet.
+        invalidateTasks();resetSignals();cue=nil
+        guard let pose=freshPose(), let saved=guide else {
+            read(["현재 위치와 몸의 방향을 확인 중이에요. 휴대폰을 허리 앞쪽에 세우고 잠시 후 다시 눌러주세요."])
+            return
+        }
+        do {
+            let route=try StartApproach.route(from:pose.point,to:saved.route,settings:saved.settings)
+            var approach=RouteGuide(route:route,settings:saved.settings,usesRouteCorridor:true)
+            guard approach.start(position:pose.point,headingDegrees:pose.heading,trackingValid:true) else {
+                throw LabError.invalid("출발 위치를 다시 확인해주세요.")
             }
-            do {
-                let route=try StartApproach.route(from:pose.point,to:saved.route,settings:saved.settings)
-                var approach=RouteGuide(route:route,settings:saved.settings,usesRouteCorridor:true)
-                guard approach.start(position:pose.point,headingDegrees:pose.heading,trackingValid:true) else { throw LabError.invalid("출발 위치를 다시 확인해주세요.") }
-                self.approachGuide=approach;self.announceNextSide=true;self.lastPoseTime=nil
-            } catch { self.stopApproach(error.localizedDescription) }
+            approachGuide=approach;announceNextSide=true;lastPoseTime=nil
+            phase = .approaching;tracking.setGuidanceTarget(0)
+            read(["출발점까지 안내합니다."])
+        } catch {
+            logSignal("start_approach_unavailable",error.localizedDescription)
+            read([error.localizedDescription])
         }
     }
     func tickApproach(pose: (point: FloorPoint, heading: Double, time: Double)) {
