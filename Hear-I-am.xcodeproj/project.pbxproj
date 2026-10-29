@@ -35,6 +35,7 @@
 		3A854B2A1760B393C4DD1BA1 /* EscapeState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 762A0C379B38BA796CA6B531 /* EscapeState.swift */; };
 		3A9C443951F302635D9488DE /* GuidanceViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 030CDDD2A61339C05266B734 /* GuidanceViewModel.swift */; };
 		3C78D4DE73CA2E1CA3C75EBD /* HearRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DE973F4CB37BC17C43B684D /* HearRootView.swift */; };
+		D4A8641FFAA429F82885BD3B /* HearSplashView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB9464088FD240F62181D85B /* HearSplashView.swift */; };
 		3E8F05B4CB93029E6189D535 /* SavedMeshView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8AE4B38D0E603747BD5F10EA /* SavedMeshView.swift */; };
 		422D1B4FD7D59FCFBC55C91C /* GuidanceRecordsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B362518768849AEF2F09E2AB /* GuidanceRecordsView.swift */; };
 		42BEB49F3784E96653838089 /* ReplaySurfaceFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82E4D4763B0EC54A3B3CAD63 /* ReplaySurfaceFactory.swift */; };
@@ -184,6 +185,7 @@
 		59994988530CF4EAB584EE3F /* PlanEditorViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanEditorViewModel.swift; sourceTree = "<group>"; };
 		5D05FD1427F1D8C0A3545E6F /* StageRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StageRow.swift; sourceTree = "<group>"; };
 		5DE973F4CB37BC17C43B684D /* HearRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HearRootView.swift; sourceTree = "<group>"; };
+		FB9464088FD240F62181D85B /* HearSplashView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HearSplashView.swift; sourceTree = "<group>"; };
 		5EA8335C58461D5FB4640BA3 /* PreparationViewModel+Scan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PreparationViewModel+Scan.swift"; sourceTree = "<group>"; };
 		5F6BE97480FA1127BFA3448F /* PreparationControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreparationControls.swift; sourceTree = "<group>"; };
 		60A41F6BB4695818DC5DFBDC /* GuidanceViewModel+Escape.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GuidanceViewModel+Escape.swift"; sourceTree = "<group>"; };
@@ -405,6 +407,7 @@
 				A01D241B9116A6B417F28C02 /* HearAppDelegate.swift */,
 				48B5C59AD079DE644F8F9E4F /* HearIAmApp.swift */,
 				5DE973F4CB37BC17C43B684D /* HearRootView.swift */,
+				FB9464088FD240F62181D85B /* HearSplashView.swift */,
 			);
 			path = Source;
 			sourceTree = "<group>";
@@ -1113,6 +1116,7 @@
 				6D3F26F42C09E75387311322 /* HearAudioSession.swift in Sources */,
 				C9ACA4BE60866FA5E8965725 /* HearIAmApp.swift in Sources */,
 				3C78D4DE73CA2E1CA3C75EBD /* HearRootView.swift in Sources */,
+				D4A8641FFAA429F82885BD3B /* HearSplashView.swift in Sources */,
 				34954D50303FCB804701535D /* HomeActionCard.swift in Sources */,
 				FF831C64D02C6732D6831BF4 /* HomeSettingsView.swift in Sources */,
 				BC1F1AE3EA5B843B67EC9124 /* HomeStageList.swift in Sources */,
