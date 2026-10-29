@@ -43,8 +43,15 @@ extension ARSessionController {
                 guard [".origin",".front",".check",".check2"].allSatisfy({suffix in map.anchors.contains {$0.name==prefix+suffix}}) else {
                     throw LabError.invalid("공간 지도에 기준 앵커가 없습니다.")
                 }
+                // Derive once from saved mesh coordinates; session alignment already maps live poses back to these coordinates.
+                let footprint=await Task.detached(priority:.userInitiated) {
+                    guard let route=loaded.manifest.route else { return Optional<ScannedFootprint>.none }
+                    return try? ScannedFootprint(meshes:loaded.meshes,area:route.area)
+                }.value
+                guard token==operation, active else { return }
                 busy=false
                 reset()
+                scannedFootprint=footprint
                 manifest=loaded.manifest; scanID=item.id; stage=loaded.manifest.frame
                 origin=loaded.manifest.frame.origin; front=loaded.manifest.frame.front; checkpoint=loaded.manifest.checkpoint; secondCheckpoint=loaded.manifest.secondCheckpoint
                 if let route=loaded.manifest.route {

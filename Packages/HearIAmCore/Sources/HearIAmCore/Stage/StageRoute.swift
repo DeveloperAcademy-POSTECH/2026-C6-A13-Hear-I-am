@@ -127,6 +127,12 @@ public struct StageRoute: Codable, Equatable, Sendable {
         for i in points.indices where !(version == 2 && (i == 0 || i == points.count-1)) && !area.contains(points[i],margin:boundaryMargin) {
             result.append("p\(i)가 무대 경계 여유 밖입니다")
         }
+        return result + travelConflicts(obstacleClearance:obstacleClearance)
+    }
+    /// Segment checks independent of the stage rectangle, also used by temporary LiDAR-bound approaches.
+    public func travelConflicts(obstacleClearance: Double) -> [String] {
+        guard obstacleClearance.isFinite, obstacleClearance >= 0 else { return ["여유 거리 설정 오류"] }
+        var result=[String]()
         if points.count > 1 {
             for i in 0..<(points.count-1) {
                 let a=points[i], b=points[i+1]

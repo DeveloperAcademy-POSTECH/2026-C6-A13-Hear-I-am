@@ -4,11 +4,12 @@ import HearIAmCore
 /// 4 / 4 · 출발 준비: the wearer must hold a valid start (or resume) pose for one second.
 extension GuidanceViewModel {
     var departureStatus: String {
+        if !started, let approachNotice { return approachNotice }
         guard let pose=freshPose(), let guide else {
             return tracking.heading == nil ? "카메라가 바닥이나 천장을 향하지 않도록 허리 앞쪽에 세워주세요." : "현재 위치를 다시 확인하고 있어요."
         }
         if !started, pose.point.distance(to:guide.route.points[0]) > guide.settings.startRadius {
-            return approachIssue ?? "출발점까지 안내 버튼을 눌러 이동해주세요."
+            return "출발점까지 안내 버튼을 눌러 이동해주세요. 무대 안팎의 스캔한 공간에서 접근할 수 있어요."
         }
         if guide.pausesForPositionIssues, let issue=guide.positionIssue(pose.point) {
             return issue == .obstacleProximity ? "등록한 기물과 가까워요. 출발 위치와 동선을 확인해주세요." : "저장한 동선 위에 서주세요."
@@ -68,24 +69,23 @@ extension GuidanceViewModel {
         }
     }
 
-    var approachIssue: String? {
-        guard !started, let pose=freshPose(), let guide else { return "현재 위치와 몸의 방향을 확인해주세요." }
-        do { _=try StartApproach.route(from:pose.point,to:guide.route,settings:guide.settings);return nil }
-        catch { return error.localizedDescription }
-    }
     /// Availability is separate from route eligibility: a tap must be able to explain why guidance cannot start.
     var canApproachStart: Bool { !started && phase == .departure && guide != nil && active }
     func startApproach() {
         guard canApproachStart, canAdvanceInstruction else { return }
         // Stop the wear/departure explanation immediately, even when the pose is not usable yet.
-        invalidateTasks();resetSignals();cue=nil
+        invalidateTasks();resetSignals();cue=nil;approachNotice=nil
         guard let pose=freshPose(), let saved=guide else {
-            read(["현재 위치와 몸의 방향을 확인 중이에요. 휴대폰을 허리 앞쪽에 세우고 잠시 후 다시 눌러주세요."])
+            explainApproachIssue("현재 위치와 몸의 방향을 확인 중이에요. 휴대폰을 허리 앞쪽에 세우고 잠시 후 다시 눌러주세요.")
+            return
+        }
+        guard let footprint=tracking.scannedFootprint else {
+            explainApproachIssue("저장된 LiDAR 스캔에서 접근 범위를 확인할 수 없어요. 출발점 주변 바닥까지 스캔했는지 확인해주세요.")
             return
         }
         do {
-            let route=try StartApproach.route(from:pose.point,to:saved.route,settings:saved.settings)
-            var approach=RouteGuide(route:route,settings:saved.settings,usesRouteCorridor:true)
+            let route=try StartApproach.route(from:pose.point,to:saved.route,settings:saved.settings,footprint:footprint)
+            var approach=RouteGuide(route:route,settings:saved.settings,usesRouteCorridor:true,approachFootprint:footprint)
             guard approach.start(position:pose.point,headingDegrees:pose.heading,trackingValid:true) else {
                 throw LabError.invalid("출발 위치를 다시 확인해주세요.")
             }
@@ -93,9 +93,11 @@ extension GuidanceViewModel {
             phase = .approaching;tracking.setGuidanceTarget(0)
             read(["출발점까지 안내합니다."])
         } catch {
-            logSignal("start_approach_unavailable",error.localizedDescription)
-            read([error.localizedDescription])
+            explainApproachIssue(error.localizedDescription)
         }
+    }
+    private func explainApproachIssue(_ text: String) {
+        approachNotice=text;logSignal("start_approach_unavailable",text);read([text])
     }
     func tickApproach(pose: (point: FloorPoint, heading: Double, time: Double)) {
         guard var approach=approachGuide else { return }
@@ -105,7 +107,7 @@ extension GuidanceViewModel {
         if result.state == .completed {
             stopApproach("출발점에 도착했습니다. 잠시 멈춘 뒤 안내 시작 버튼을 눌러주세요.")
         } else if result.state == .paused {
-            stopApproach("잠시 멈춰주세요. 출발점 접근 경로를 벗어났거나 위치 확인이 중단됐어요. 현재 위치와 기물을 확인한 뒤 다시 시작해주세요.")
+            stopApproach("잠시 멈춰주세요. LiDAR 스캔 범위나 접근 경로를 벗어났거나 위치 확인이 중단됐어요. 현재 위치와 기물을 확인한 뒤 다시 시작해주세요.")
         } else { signal(pose:pose,guide:approach) }
     }
     func stopApproach(_ text: String) {
