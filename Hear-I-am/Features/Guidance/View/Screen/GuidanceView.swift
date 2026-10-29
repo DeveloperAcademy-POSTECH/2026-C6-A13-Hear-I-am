@@ -11,7 +11,7 @@ struct GuidanceView: View {
     var body: some View {
         NavigationStack {
             VStack(alignment:.leading,spacing:12) {
-                Text(model.phase.stepLabel(targetName:model.targetName)).font(.subheadline.weight(.semibold)).foregroundStyle(Color.hearGreen).padding(.horizontal,24)
+                Text(model.startAlignment != nil ? "출발점 방향 정렬 · 시작 대기" : model.phase.stepLabel(targetName:model.targetName)).font(.subheadline.weight(.semibold)).foregroundStyle(Color.hearGreen).padding(.horizontal,24)
                 if model.phase.showsRouteCamera { GuidanceRouteHeader(model:model) }
                 ZStack {
                     // Keep one AR view attached throughout the flow, including when the screen shows instructions.

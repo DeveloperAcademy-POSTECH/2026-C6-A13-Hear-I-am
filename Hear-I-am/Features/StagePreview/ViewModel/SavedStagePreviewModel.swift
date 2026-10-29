@@ -13,6 +13,13 @@ final class SavedStagePreviewModel: ObservableObject {
     @Published var selection: ReplaySelection? { didSet { refreshHoldEditor() } }
     @Published var holdSecondsText="0"
     @Published var pointFacing: StageFacing?
+    @Published var automaticStart=false
+    @Published var startDelayText="0"
+    var enteredStartDelay: Int? {
+        guard let value=Int(startDelayText.trimmingCharacters(in:.whitespacesAndNewlines)), (0...StageRoute.maximumHoldSeconds).contains(value) else { return nil }
+        return value
+    }
+    var canSavePointSettings: Bool { enteredHoldSeconds != nil && (selectedPointIndex != 0 || !automaticStart || enteredStartDelay != nil) && !savingHold }
     @Published var savingHold=false
     @Published var holdNotice: String?
     @Published var holdSaveError: String?
@@ -30,17 +37,20 @@ final class SavedStagePreviewModel: ObservableObject {
         return seconds
     }
     private func refreshHoldEditor() {
+        automaticStart=loaded?.manifest.route?.startDelaySeconds != nil
+        startDelayText=String(loaded?.manifest.route?.startDelaySeconds ?? 0)
         pointFacing=selectedPointIndex.flatMap {loaded?.manifest.route?.facing(at:$0)}
         holdSecondsText=String(selectedPointIndex.flatMap {loaded?.manifest.route?.holdSeconds(at:$0)} ?? 0)
         holdNotice=nil; holdSaveError=nil
     }
     func savePointSettings() async {
-        guard !savingHold, let index=selectedPointIndex, let seconds=enteredHoldSeconds, let scan=loaded else { return }
+        guard canSavePointSettings, let index=selectedPointIndex, let seconds=enteredHoldSeconds, let scan=loaded else { return }
         let facing=pointFacing
+        let startDelay=automaticStart ? enteredStartDelay : nil
         savingHold=true; holdNotice=nil; holdSaveError=nil
         defer { savingHold=false }
         do {
-            let manifest=try await store.setPointPerformance(record.id,index:index,facing:facing,seconds:canEditPointHold ? seconds : 0)
+            let manifest=try await store.setPointPerformance(record.id,index:index,facing:facing,seconds:canEditPointHold ? seconds : 0,startDelaySeconds:startDelay)
             loaded=LoadedScan(manifest:manifest,worldMap:scan.worldMap,meshes:scan.meshes)
             if selectedPointIndex == index { holdNotice="\(manifest.route?.pointLabel(at:index) ?? "선택 지점") 설정을 저장했습니다." }
         } catch { holdSaveError="저장하지 못했어요: \(error.localizedDescription)" }

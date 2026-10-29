@@ -60,7 +60,7 @@ public struct RouteGuide: Sendable {
     }
     @discardableResult public mutating func start(position: FloorPoint, headingDegrees: Double, trackingValid: Bool) -> Bool {
         guard state == .idle, ready(position:position,headingDegrees:headingDegrees,trackingValid:trackingValid) else { return false }
-        state = .guiding; targetIndex=1; facingPointIndex=route.facing(at:0) == nil ? nil : 0; facingGate.reset(); holdRemaining=0; arrivedSince=nil; lastTime=nil; lastSpeech = -.infinity; sector=nil; pauseReason=nil
+        state = .guiding; targetIndex=1; facingPointIndex=nil; facingGate.reset(); holdRemaining=0; arrivedSince=nil; lastTime=nil; lastSpeech = -.infinity; sector=nil; pauseReason=nil
         return true
     }
     public mutating func pause() { pause(reason:.manual) }

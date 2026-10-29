@@ -111,12 +111,13 @@ public actor ScanStore {
         return manifest
     }
     /// Update direction and hold together, preserving the latest manifest and immutable scan assets.
-    public func setPointPerformance(_ id: UUID, index: Int, facing: StageFacing?, seconds: Int) throws -> ScanManifest {
+    public func setPointPerformance(_ id: UUID, index: Int, facing: StageFacing?, seconds: Int, startDelaySeconds: Int? = nil) throws -> ScanManifest {
         let url=root.appendingPathComponent(id.uuidString,isDirectory:true).appendingPathComponent("manifest.json")
         var manifest=try JSONDecoder().decode(ScanManifest.self,from:Data(contentsOf:url))
         guard manifest.id == id, var route=manifest.route else { throw LabError.invalid("저장된 무대 경로를 찾을 수 없습니다.") }
         try manifest.validate()
-        try route.setFacing(facing,at:index)
+        try route.setFacing(index == 0 ? nil : facing,at:index)
+        if index == 0 { route.startDelaySeconds=startDelaySeconds }
         if index > 0 && index < route.points.count-1 { try route.setHoldSeconds(seconds,at:index) }
         else if seconds != 0 { throw LabError.invalid("출발점과 도착점에는 대기 시간을 설정할 수 없습니다.") }
         manifest.route=route;try manifest.validate()

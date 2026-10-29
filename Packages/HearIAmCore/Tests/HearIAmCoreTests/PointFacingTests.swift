@@ -74,10 +74,10 @@ final class PointFacingTests: XCTestCase {
         XCTAssertNil(g.facingPointIndex);XCTAssertEqual(g.holdRemaining,0)
         XCTAssertNotNil(g.cue(position:g.route.points[1],headingDegrees:90))
     }
-    func testStartAndFinalFacingsDelayFirstLegAndCompletion() throws {
+    func testLegacyStartFacingIsNotRepeatedAndFinalFacingStillDelaysCompletion() throws {
         var g=try guide(start:.north,middle:nil,final:.west,hold:0)
-        XCTAssertEqual(g.facingPointIndex,0)
-        XCTAssertNil(g.cue(position:g.route.points[0],headingDegrees:0))
+        XCTAssertNil(g.facingPointIndex)
+        XCTAssertNotNil(g.cue(position:g.route.points[0],headingDegrees:0))
         for n in 0...4 {observe(&g,Double(n)/4,0,0)}
         XCTAssertNil(g.facingPointIndex);XCTAssertEqual(g.targetIndex,1)
         observe(&g,1.25);observe(&g,1.5)
@@ -97,15 +97,16 @@ final class PointFacingTests: XCTestCase {
         let store=ScanStore(root:root), id=UUID(), r=try route(), map=Data([1,2,3])
         let mesh=MeshSnapshot(id:UUID(),transform:[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1],vertices:[.init(0,0,0),.init(1,0,0),.init(0,0,1)],indices:[0,1,2])
         let original=try await store.save(id:id,name:"방향 테스트",frame:StageFrame(origin:r.area.world(.init(0,0)),front:r.area.world(.init(0,-1))),checkpoint:r.area.world(.init(1,1)),worldMap:map,meshes:[mesh],device:"test",appVersion:"test",route:r,secondCheckpoint:r.area.world(.init(3,1)))
-        _=try await store.setPointPerformance(id,index:0,facing:.north,seconds:0)
+        _=try await store.setPointPerformance(id,index:0,facing:.north,seconds:0,startDelaySeconds:30)
         _=try await store.setPointPerformance(id,index:1,facing:.east,seconds:10)
         _=try await store.setPointPerformance(id,index:2,facing:.south,seconds:0)
         _=try await store.rename(id,to:"새 이름")
         _=try await store.setPointPerformance(id,index:1,facing:.northWest,seconds:20)
         let loaded=try await store.load(id)
         XCTAssertEqual(loaded.manifest.name,"새 이름")
-        XCTAssertEqual(loaded.manifest.route?.pointFacings,[.north,.northWest,.south])
+        XCTAssertEqual(loaded.manifest.route?.pointFacings,[nil,.northWest,.south])
         XCTAssertEqual(loaded.manifest.route?.holdSeconds(at:1),20)
+        XCTAssertEqual(loaded.manifest.route?.startDelaySeconds,30)
         XCTAssertEqual(loaded.manifest.secondCheckpoint,original.secondCheckpoint)
         XCTAssertEqual(loaded.manifest.route?.points,r.points);XCTAssertEqual(loaded.worldMap,map)
         XCTAssertEqual(loaded.manifest.worldMapHash,original.worldMapHash);XCTAssertEqual(loaded.manifest.meshHash,original.meshHash)
@@ -113,5 +114,10 @@ final class PointFacingTests: XCTestCase {
         let before=try Data(contentsOf:url)
         do {_=try await store.setPointPerformance(id,index:0,facing:.west,seconds:10);XCTFail("Endpoint hold rejected")} catch {}
         XCTAssertEqual(try Data(contentsOf:url),before)
+        do {_=try await store.setPointPerformance(id,index:0,facing:nil,seconds:0,startDelaySeconds:-1);XCTFail("Invalid start delay rejected")} catch {}
+        XCTAssertEqual(try Data(contentsOf:url),before)
+        let manual=try await store.setPointPerformance(id,index:0,facing:nil,seconds:0,startDelaySeconds:nil)
+        XCTAssertNil(manual.route?.startDelaySeconds)
+        XCTAssertEqual(manual.route?.holdSeconds(at:1),20)
     }
 }
