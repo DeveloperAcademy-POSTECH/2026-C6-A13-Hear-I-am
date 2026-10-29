@@ -18,7 +18,8 @@ extension GuidanceViewModel {
         default: status = .recovering
         }
         let pose=freshPose()
-        run?.capture(position:pose?.point,heading:pose?.heading,targetIndex:targetIndex,
+        // Replay stores the active route leg (1...), while the camera may highlight a reached facing point (including 0).
+        run?.capture(position:pose?.point,heading:pose?.heading,targetIndex:guide?.targetIndex ?? 1,
             status:pose == nil ? .untracked : status,uptime:ProcessInfo.processInfo.systemUptime,force:force)
     }
 }

@@ -46,6 +46,7 @@ import HearIAmCore
     var aligningStep: StageObstacle?
     var escape: EscapeState?
     var guide: RouteGuide?
+    var approachGuide: RouteGuide?
     var run: GuidanceRun?
     var pendingRecord: GuidanceRecord?
     var departureGate=DepartureGate()
@@ -65,9 +66,12 @@ import HearIAmCore
     /// Position and checkpoint checks still apply.
     var canAdvanceInstruction: Bool { audioIssue == nil }
     var hasStarted: Bool { started }
-    var targetIndex: Int { guide?.targetIndex ?? 1 }
+    var targetIndex: Int { phase == .approaching ? 0 : guide?.facingPointIndex ?? guide?.targetIndex ?? 1 }
     var targetName: String { GuidanceCopy.target(targetIndex,last:(selected?.route?.points.count ?? 2)-1) }
     var headline: GuidanceHeadline {
+        if phase == .guiding, let index=guide?.facingPointIndex, let route=guide?.route, let facing=route.facing(at:index) {
+            return GuidanceHeadline(facing:facing,pointName:route.pointLabel(at:index))
+        }
         if phase == .guiding, performanceHoldRemaining > 0 {
             return GuidanceHeadline(holdingSeconds:performanceHoldRemaining,pointName:guide?.route.pointLabel(at:max(1,targetIndex-1)) ?? SignalCopy.point(max(1,targetIndex-1)))
         }
@@ -84,8 +88,8 @@ import HearIAmCore
         voice.onError={ [weak self] text in
             guard let self else { return }
             self.audioIssue=text;self.instructionDone=false
-            if self.phase == .guiding || self.phase == .starting {
-                self.guide?.pause();self.phase = self.started ? .paused : .departure;self.message="음성 재생을 확인한 후 다시 시작해주세요."
+            if self.phase == .guiding || self.phase == .starting || self.phase == .approaching {
+                self.approachGuide=nil;self.signals.stopDirection();self.guide?.pause();self.phase = self.started ? .paused : .departure;self.message="음성 재생을 확인한 후 다시 시작해주세요."
             }
         }
         observeAudioSession()
@@ -100,7 +104,12 @@ import HearIAmCore
     func replay() {
         guard active else { return }
         if phase == .finishing || phase == .completed { playCompletion();return }
+        if phase == .approaching {
+            if let pose=freshPose(), let cue=approachGuide?.cue(position:pose.point,headingDegrees:pose.heading) { read(["출발점으로 이동합니다. \(cue.speech)"]) }
+            return
+        }
         if phase == .guiding {
+            if let index=guide?.facingPointIndex, let facing=guide?.route.facing(at:index) { read(["그 자리에서 \(facing.label) 방향을 바라봐주세요."]);return }
             if let step=aligningStep { read(["\(step.name)에서 설정된 방향으로 몸을 돌려주세요."]);return }
             if let guide, guide.isHolding {
                 read(["공연 대기 중입니다. 다음 지점 안내까지 \(Int(ceil(guide.holdRemaining)))초 남았습니다."]);return
@@ -125,7 +134,8 @@ import HearIAmCore
     /// Cancels pending speech callbacks; late callbacks see a new generation.
     func invalidateTasks() {
         generation=UUID();voice.stop();instructionDone=false;arrivedName=nil;arrivalShownAt=nil
-        if guide?.isHolding != true { aligningStep=nil }
+        signals.stopDirection()
+        approachGuide=nil
         escape=nil;quietUntil=nil;signals.setWarning(nil);signals.setWarningQuiet(false)
     }
     /// A pose no older than 0.5 s from a verified session, or nil.
@@ -141,7 +151,7 @@ import HearIAmCore
         guard !showExit else { return }
         if phase == .restoring { tickRestoring();return }
         if phase == .checkpoint { tickCheckpoint();return }
-        if [.wear,.departure,.starting,.guiding,.paused].contains(phase), !tracking.ready {
+        if [.wear,.departure,.starting,.guiding,.paused,.approaching].contains(phase), !tracking.ready {
             interrupt("위치 추적이 끊겼어요. 확인점을 다시 확인해주세요.");return
         }
         if let p=tracking.position, let time=tracking.guidancePoseTime,
@@ -150,6 +160,7 @@ import HearIAmCore
             startDistance=FloorPoint(p.x,p.y).distance(to:first)
         } else { startDistance=nil }
         guard let pose=freshPose() else {
+            if phase == .approaching { interrupt("현재 위치와 방향을 확인할 수 없어요. 확인점을 다시 확인해주세요.");return }
             if phase == .departure { departureReady=false;departureGate.reset();readyAnnounced=false }
             if phase == .guiding || phase == .starting { if tracking.heading == nil { interrupt("몸이 향한 방향을 확인할 수 없어요. 착용 방향을 다시 확인해주세요.") } }
             return
@@ -157,6 +168,7 @@ import HearIAmCore
         guard pose.time != lastPoseTime else { return }
         lastPoseTime=pose.time;signalPose=pose
         if let first=selected?.route?.points.first { startDistance=pose.point.distance(to:first) }
+        if phase == .approaching { tickApproach(pose:pose);return }
         if phase == .departure, let guide { tickDeparture(pose:pose,guide:guide);return }
         if phase == .paused, escape != nil, let guide { tickEscape(pose:pose,guide:guide);return }
         guard phase == .guiding, let guide else { return }
