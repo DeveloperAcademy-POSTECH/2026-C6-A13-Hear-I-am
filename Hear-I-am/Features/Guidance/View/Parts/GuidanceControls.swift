@@ -36,8 +36,12 @@ struct GuidanceControls: View {
         case .restoring: GuidanceButton(title:"공간 확인 중…",enabled:false) {}
         case .checkpoint: GuidanceButton(title:"확인점 \(model.tracking.nextCheckpointNumber) 확인하기",enabled:model.canVerify) {model.verifyCheckpoint()}
         case .wear: GuidanceButton(title:"착용 완료",enabled:model.canAdvanceInstruction && model.tracking.ready) {model.finishWear()}
-        case .departure: GuidanceButton(title:model.hasStarted ? "안내 다시 시작" : "안내 시작",enabled:model.departureReady && model.canAdvanceInstruction) {model.startGuidance()}
-        case .starting,.guiding: GuidanceButton(title:"일시정지") {model.pause()}
+        case .departure:
+            if !model.hasStarted && !model.departureReady {
+                GuidanceButton(title:"출발점까지 안내",enabled:model.canApproachStart && model.canAdvanceInstruction) {model.startApproach()}
+            }
+            GuidanceButton(title:model.hasStarted ? "안내 다시 시작" : "안내 시작",enabled:model.departureReady && model.canAdvanceInstruction) {model.startGuidance()}
+        case .approaching,.starting,.guiding: GuidanceButton(title:"일시정지") {model.pause()}
         case .paused:
             GuidanceButton(title:"확인점 다시 확인",secondary:true) {model.restore()}
             GuidanceButton(title:"안내 다시 시작",enabled:model.canResume && model.canAdvanceInstruction) {model.startGuidance()}

@@ -5,7 +5,7 @@ import HearIAmCore
 extension GuidanceViewModel {
     func finishWear() {
         guard phase == .wear, canAdvanceInstruction, tracking.ready, active else { return }
-        invalidateTasks();phase = .departure;departureGate.reset();readyAnnounced=false
-        read([started ? "착용 상태를 확인하고 있습니다. 안내를 중단한 동선 위에서 준비해주세요." : "착용 상태를 확인하고 있습니다. 지정한 출발점에서 잠시 멈춰주세요. 몸이 향한 방향을 기준으로 안내합니다."])
+        invalidateTasks();approachNotice=nil;phase = .departure;departureGate.reset();readyAnnounced=false
+        read([started ? "착용 상태를 확인하고 있습니다. 안내를 중단한 동선 위에서 준비해주세요." : "착용 상태를 확인하고 있습니다. 스캔한 공간에서 출발점까지 안내 버튼을 누르면 출발점으로 안내합니다. 몸이 향한 방향을 기준으로 안내합니다."])
     }
 }

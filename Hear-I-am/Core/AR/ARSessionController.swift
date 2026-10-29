@@ -68,6 +68,7 @@ final class ARSessionController: ObservableObject {
     var archiveWriteInProgress=false
     var manifest: ScanManifest?
     var meshes: [UUID:MeshSnapshot]=[:]
+    var scannedFootprint: ScannedFootprint?
 
     // Stage geometry in AR world (corners, checkpoint) and stage floor metres (route, obstacles).
     var cornerAnchors: [Int: ARAnchor] = [:]
@@ -159,7 +160,7 @@ final class ARSessionController: ObservableObject {
         clearPhotos()
         if purpose == .preparation { preparedDraft=PreparationDraft(); savedID=nil; onReset?() }
         position=nil; heading=nil; guidancePoseTime=nil; ready=false; canVerify=false; canSave=false
-        meshes=[:]; renderer.clearMeshes()
+        meshes=[:]; scannedFootprint=nil; renderer.clearMeshes()
         renderer.clearAnnotations()
         cornerAnchors.removeAll()
         renderer.meshLayer.isHidden = !showMesh; renderer.referenceLayer.isHidden=false
