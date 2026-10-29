@@ -44,6 +44,12 @@ public enum VoiceStageSearch {
         let action=#"(?:을|를)?(?:검색해줘|검색해주세요|검색|찾아줘|찾아주세요|보여줘|보여주세요|열어줘|열어주세요|불러줘|불러주세요)$"#
         keyword=keyword.replacingOccurrences(of: action, with: "", options: .regularExpression)
         keyword=keyword.replacingOccurrences(of: #"(?:의)?(?:무대리스트|무대목록|공연목록|공연리스트|무대|공연|목록|리스트)$"#, with: "", options: .regularExpression)
+        // 「효자아트홀에 저장된 공연 리스트 찾아줘」 is the new Home's example (IA 10/29); 「저장된 공연」 alone means all.
+        let saved=#"(?:에|에서)?(?:저장된|저장한|저장해둔|저장되어있는|있는)$"#
+        if keyword.range(of: saved, options: .regularExpression) != nil {
+            keyword=keyword.replacingOccurrences(of: saved, with: "", options: .regularExpression)
+            if keyword.isEmpty { return .results(query: "전체", indices: Array(names.indices)) }
+        }
         guard !keyword.isEmpty else { return .none }
         let indices=names.indices.filter { index in (aliases[index]+paths[index]).contains {$0.contains(keyword)} }
         return .results(query: keyword, indices: indices)

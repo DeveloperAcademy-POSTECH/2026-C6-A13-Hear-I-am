@@ -16,6 +16,10 @@ final class VoiceCommandParserTests: XCTestCase {
             XCTAssertEqual(VoiceCommandParser.parse(text),.returnToPoint(index),text)
         }
     }
+    /// The new 출발 준비 screen asks for 「출발」 (IA 10/29).
+    func testDepartureWordStartsGuidance() {
+        for text in ["출발", "출발할게요", "네 출발"] { XCTAssertEqual(VoiceCommandParser.parse(text), .start, text) }
+    }
     func testBackAndChooseStageAgain() {
         for text in ["이전","이전으로","이전 단계로 돌아가 줘","전 단계로","뒤로 가기"] {
             XCTAssertEqual(VoiceCommandParser.parse(text),.back,text)

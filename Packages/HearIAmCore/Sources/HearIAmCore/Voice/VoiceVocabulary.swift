@@ -23,7 +23,7 @@ public enum VoiceVocabulary {
                         "다시 말해 줘", "연습용", "연습용으로 할게", "실전용", "실전용으로 할게", "취소", "응", "아니",
                         "저장된 무대 다 불러와 줘", "무대 목록 보여 줘", "이전으로", "이전 단계로 돌아가 줘",
                         "무대 다시 선택", "다른 무대로 할래", "사전 저장된 공연 보여 줘",
-                        "새 스캔", "새 무대 스캔할래"]
+                        "새 스캔", "새 무대 스캔할래", "출발", "저장된 공연 리스트 찾아 줘"]
         for command in commands { add(command, 1000) }
 
         let spoken = ["원", "투", "쓰리", "포", "파이브", "식스", "세븐", "에잇", "나인"]
@@ -44,6 +44,7 @@ public enum VoiceVocabulary {
         }
         for place in Set(places.filter { !$0.isEmpty }) {
             add("\(place) 관련 무대 찾아 줘", 300)
+            add("\(place)에 저장된 공연 리스트 찾아 줘", 300)
         }
         return result
     }

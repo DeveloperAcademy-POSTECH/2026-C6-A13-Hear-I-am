@@ -36,6 +36,9 @@ final class VoiceStageSearchTests: XCTestCase {
         XCTAssertEqual(VoiceStageSearch.resolve("대연습실 Look at me 선택해줘",names:names,contexts:contexts),.selected(1))
         XCTAssertEqual(VoiceStageSearch.resolve("효자아트홀과 관련된 무대 열어줘",names:names,contexts:contexts),.results(query:"효자아트홀",indices:[0,2]))
         XCTAssertEqual(VoiceStageSearch.resolve("대연습실 무대 찾아줘",names:names,contexts:contexts),.results(query:"대연습실",indices:[1]))
+        // The new Home's example sentence (IA 10/29).
+        XCTAssertEqual(VoiceStageSearch.resolve("효자아트홀에 저장된 공연 리스트 찾아줘",names:names,contexts:contexts),.results(query:"효자아트홀",indices:[0,2]))
+        XCTAssertEqual(VoiceStageSearch.resolve("저장된 공연 리스트 보여줘",names:names,contexts:contexts),.results(query:"전체",indices:[0,1,2]))
     }
 
     func testKeywordSearchIsNotHandedToTheModel() {
