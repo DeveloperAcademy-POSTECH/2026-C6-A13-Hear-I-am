@@ -18,6 +18,7 @@ import HearIAmCore
     @Published var message=""
     @Published var departureReady=false
     @Published var startDistance: Double?
+    @Published var approachNotice: String?
     @Published var cue: GuidanceCue?
     @Published var arrivedName: String?
     @Published var performanceHoldRemaining: Double = 0
