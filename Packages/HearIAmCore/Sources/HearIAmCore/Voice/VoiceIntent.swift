@@ -17,10 +17,10 @@ public enum VoiceScreen: Equatable, Sendable {
     public var actions: [VoiceIntentAction] {
         switch self {
         case .stageList(let count): return (count > 0 ? [.chooseStage] : []) + [.showAllStages, .repeatInstruction, .cancel]
-        case .modeChoice: return [.practice, .performance, .repeatInstruction, .cancel]
-        case .preparation: return [.next, .pause, .repeatInstruction, .cancel]
-        case .guidance(let count): return [.continueGuidance, .pause, .repeatInstruction] + (count > 0 ? [.returnToPoint] : []) + [.cancel]
-        case .recovery: return [.continueGuidance, .repeatInstruction, .cancel]
+        case .modeChoice: return [.practice, .performance, .repeatInstruction, .back, .cancel]
+        case .preparation: return [.next, .pause, .repeatInstruction, .back, .chooseStageAgain, .cancel]
+        case .guidance(let count): return [.continueGuidance, .pause, .repeatInstruction] + (count > 0 ? [.returnToPoint] : []) + [.chooseStageAgain, .cancel]
+        case .recovery: return [.continueGuidance, .repeatInstruction, .chooseStageAgain, .cancel]
         }
     }
 
@@ -37,7 +37,7 @@ public enum VoiceScreen: Equatable, Sendable {
 
 /// Everything the model may pick. Each screen offers a subset; the rest are rejected (#87).
 public enum VoiceIntentAction: String, CaseIterable, Sendable {
-    case continueGuidance, pause, repeatInstruction, next, practice, performance, cancel, returnToPoint, showAllStages, chooseStage
+    case continueGuidance, pause, repeatInstruction, next, practice, performance, cancel, returnToPoint, showAllStages, chooseStage, back, chooseStageAgain
 
     var meaning: String {
         switch self {
@@ -51,6 +51,8 @@ public enum VoiceIntentAction: String, CaseIterable, Sendable {
         case .returnToPoint: return "몇 번 지점(P1, 피원, 세 번째 자리 등)으로 다시 가자는 말. number에 지점 번호를 넣는다. 받아쓰기가 P를 피 · 비 · 삐 · 키로, 숫자를 원 · 윈 · 일 · 엘(1), 투 · 이(2), 쓰리 · 삼(3), 포 · 사(4), 파이브 · 오(5)처럼 적을 수 있다. 예: 키원 = 1, 비투 = 2. 번호가 분명하지 않으면 sure는 false다"
         case .showAllStages: return "저장된 무대를 전부 보여 주거나 읽어 달라는 말(다 불러와 줘, 무대 뭐 있어 등)"
         case .chooseStage: return "목록의 몇 번째 무대를 고르겠다는 말. number에 목록 번호를 넣는다"
+        case .back: return "바로 앞 단계나 이전 선택으로 돌아가자는 말"
+        case .chooseStageAgain: return "지금 무대를 그만두고 다른 무대를 고르겠다는 말(무대 바꿔 줘, 다른 무대로 할래 등)"
         }
     }
 }
@@ -77,6 +79,8 @@ public enum VoiceIntentDecision: Equatable, Sendable {
         case .performance: command = .performance
         case .cancel: command = .cancel
         case .showAllStages: command = .showAllStages
+        case .back: command = .back
+        case .chooseStageAgain: command = .chooseStageAgain
         case .returnToPoint:
             guard case .guidance(let count) = screen, number >= 1, number <= count else { return .none }
             command = .returnToPoint(number)
@@ -117,6 +121,8 @@ public enum VoiceIntentCopy {
         case .returnToPoint(let index): return "\(index)번 지점으로 다시 안내할까요?"
         case .showAllStages: return "저장된 무대를 모두 읽어드릴까요?"
         case .chooseStage(let index): return "\(index)번 무대를 선택할까요?"
+        case .back: return "이전 단계로 돌아갈까요?"
+        case .chooseStageAgain: return "지금 안내를 끝내고 무대를 다시 고를까요?"
         }
     }
     public static let declined = "알겠어요. 하지 않을게요."
@@ -151,7 +157,7 @@ public struct AppleIntelligenceVoiceIntentResolver: VoiceIntentResolving {
     }
     @Generable
     enum Action: String {
-        case continueGuidance, pause, repeatInstruction, next, practice, performance, cancel, returnToPoint, showAllStages, chooseStage, none
+        case continueGuidance, pause, repeatInstruction, next, practice, performance, cancel, returnToPoint, showAllStages, chooseStage, back, chooseStageAgain, none
     }
 
     public init() {}

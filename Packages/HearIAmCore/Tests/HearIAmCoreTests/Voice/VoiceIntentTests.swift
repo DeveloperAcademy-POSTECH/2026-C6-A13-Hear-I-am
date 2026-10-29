@@ -38,6 +38,15 @@ final class VoiceIntentTests: XCTestCase {
         XCTAssertEqual(VoiceIntentDecision.from(action:"showAllStages",number:0,sure:true,screen:.stageList(stageCount:0)),.command(.showAllStages))
         XCTAssertTrue(VoiceIntentDecision.instructions(for:list).contains("showAllStages:"))
     }
+    func testBackAndChooseStageAgainAreOfferedWhereTheyMeanSomething() {
+        XCTAssertEqual(VoiceIntentDecision.from(action:"back",number:0,sure:true,screen:.preparation),.command(.back))
+        XCTAssertEqual(VoiceIntentDecision.from(action:"back",number:0,sure:true,screen:.modeChoice),.command(.back))
+        XCTAssertEqual(VoiceIntentDecision.from(action:"back",number:0,sure:true,screen:guidance),.none)
+        XCTAssertEqual(VoiceIntentDecision.from(action:"chooseStageAgain",number:0,sure:true,screen:.recovery),.command(.chooseStageAgain))
+        XCTAssertEqual(VoiceIntentDecision.from(action:"chooseStageAgain",number:0,sure:false,screen:guidance),.confirm(.chooseStageAgain))
+        XCTAssertEqual(VoiceIntentDecision.from(action:"chooseStageAgain",number:0,sure:true,screen:.stageList(stageCount:2)),.none)
+        XCTAssertEqual(VoiceIntentCopy.question(.chooseStageAgain),"지금 안내를 끝내고 무대를 다시 고를까요?")
+    }
     func testYesAndNoAnswers() {
         for text in ["응","네.","그래 ","좋아요","OK"] { XCTAssertEqual(VoiceIntentCopy.answer(text),true,text) }
         for text in ["아니","아니요!","됐어"] { XCTAssertEqual(VoiceIntentCopy.answer(text),false,text) }

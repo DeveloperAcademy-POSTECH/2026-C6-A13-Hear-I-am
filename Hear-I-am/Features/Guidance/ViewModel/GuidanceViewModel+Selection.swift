@@ -4,8 +4,9 @@ import HearIAmCore
 extension GuidanceViewModel {
     func selectionDescription(empty: Bool) {
         guard phase == .selection else { return }
-        if voiceExperiment && !empty {
-            read(["어느 무대를 사용할까요? 무대 이름을 말씀해주세요. 장소와 관련된 무대를 찾아달라고 하거나, 화면의 번호로 선택할 수도 있어요."])
+        if voiceExperiment && empty {read(VoiceAppRequest.noStageOffer);return}
+        if voiceExperiment {
+            read([VoiceStepCopy.stageList])
             return
         }
         read([empty ? "저장된 무대가 없습니다. 장소 탭의 새 스캔을 통해 공간과 동선을 먼저 저장해주세요." : "안내에 사용할 무대를 선택해주세요."])

@@ -11,6 +11,7 @@ import HearIAmCore
         didSet {
             if voiceExperiment, voiceMode == .performance, phase == .starting {voicePerformanceInputClosed=true}
             run?.setRunning(phase == .guiding,uptime:ProcessInfo.processInfo.systemUptime);captureReplay(force:true);syncVoiceListening()
+            if oldValue != phase {syncVoiceConversationLanguage()}
         }
     }
     @Published var selected: ScanManifest?
@@ -37,11 +38,14 @@ import HearIAmCore
     var voiceInitialPromptPending=false
     @Published var voiceListeningEnabled=true
     @Published var voiceTurnActive=false
-    @Published var voiceTranscript=""
-    /// A command the Apple Intelligence model only guessed; it waits for 「응」 or 「아니」 (#87).
+    /// A command waiting for 「응」 or 「아니」: a guess of the Apple Intelligence model (#87), or leaving a started run.
     var pendingVoiceIntent: VoiceCommand?
     /// The request the user already made to the voice agent on Home (#90).
     var voiceInitialRequest: String?
+    /// Opens the 공연 사전 저장 tab when a request in the stage list is about pre-saved plans.
+    var onOpenPlans: (() -> Void)?
+    /// Opens a new scan from the 장소 tab when the stage list is asked for one, or when nothing is saved.
+    var onOpenScan: (() -> Void)?
     /// Stage and mode Siri already named (#91).
     var voiceInitialStageID: UUID?
     var voiceInitialMode: VoiceUsageMode?
@@ -49,6 +53,9 @@ import HearIAmCore
     var voicePendingRequest: String?
     /// Guidance acts on speech only after 「히얼아이엠」 and while that conversation goes on (#90).
     var voiceConversationDeadline: Double?
+    /// Once called, the conversation stays open through the step-by-step phases, so the next screen
+    /// does not need another call. A tap closes it; the next call opens it again.
+    var voiceConversationOpen=false
     var voiceConversationTimer: Task<Void,Never>?
     @Published var voiceInputError: String?
     let voiceRecognition=VoiceRecognitionService()
@@ -57,7 +64,6 @@ import HearIAmCore
     var voiceInputTask: Task<Void,Never>?
     var voiceRecognitionRequested=false
     var voiceReadyChimePending=false
-    @Published var voiceListeningPulse=0
     var voicePausedNavigation=false
     var voiceStages: [ScanManifest]=[]
     var voiceStagePaths: [UUID:[String]]=[:]

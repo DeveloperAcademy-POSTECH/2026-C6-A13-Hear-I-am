@@ -16,6 +16,16 @@ final class VoiceCommandParserTests: XCTestCase {
             XCTAssertEqual(VoiceCommandParser.parse(text),.returnToPoint(index),text)
         }
     }
+    func testBackAndChooseStageAgain() {
+        for text in ["이전","이전으로","이전 단계로 돌아가 줘","전 단계로","뒤로 가기"] {
+            XCTAssertEqual(VoiceCommandParser.parse(text),.back,text)
+        }
+        for text in ["무대 다시 선택","무대 다시 고를래","다른 무대로 할래","무대 바꿔 줘"] {
+            XCTAssertEqual(VoiceCommandParser.parse(text),.chooseStageAgain,text)
+        }
+        // A direction word alone is not a step back; 「뒤로」 is what guidance itself says.
+        XCTAssertNil(VoiceCommandParser.parse("뒤로"))
+    }
     func testFieldMishearingsOfPointOne() {
         // Transcripts from the 10/28 device test where P1 was said.
         for text in ["비 일로 돌아가", "피엘로 돌아가", "비닐로 들어가", "피원으로 가 줘", "비원으로 돌아가자"] {

@@ -21,7 +21,7 @@ extension GuidanceViewModel {
         guard phase == .guiding || phase == .starting else { return }
         invalidateTasks();guide?.pause();phase = started ? .paused : .departure
         message="현재 목표는 \(targetName)이에요."
-        read(["안내를 일시정지했습니다. 다시 시작 버튼을 누르면 이어서 안내합니다."])
+        read([voiceShouldListen ? VoiceStepCopy.paused : "안내를 일시정지했습니다. 다시 시작 버튼을 누르면 이어서 안내합니다."])
     }
     /// Clears every signal rule; called when guidance starts or resumes.
     func resetSignals() {
@@ -194,6 +194,6 @@ extension GuidanceViewModel {
         case .offRoute,.outsideStage: message="저장된 동선의 안내 범위를 벗어났어요. 현재 위치와 동선을 확인해주세요."
         default: message="위치와 방향을 다시 확인해주세요."
         }
-        read(["잠시 멈춰주세요. \(message)"])
+        read([voiceShouldListen ? VoiceStepCopy.autoPaused(message) : "잠시 멈춰주세요. \(message)"])
     }
 }
