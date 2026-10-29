@@ -146,6 +146,7 @@ struct SavedStagePreview: View {
             .sheet(isPresented:$model.photoExpanded) {
                 if let scan=model.loaded,let photo=model.selectedPhoto {
                     SavedPhotoViewpoint(scan:scan,photo:photo,store:model.store,cleanSurfaces:model.cleanSurfaces,display:model.display)
+                        .suspendsVoiceWake()
                 }
             }
     }

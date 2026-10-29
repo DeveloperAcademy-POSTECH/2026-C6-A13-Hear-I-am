@@ -51,7 +51,20 @@ extension GuidanceViewModel {
                 let record=try completedRecord()
                 try await library.saveGuidanceRecord(record)
                 onSaved()
-            } catch {saveError="기록을 저장하지 못했어요. 다시 시도해주세요. \(error.localizedDescription)"}
+            } catch {
+                saveError="기록을 저장하지 못했어요. 다시 시도해주세요. \(error.localizedDescription)"
+                if voiceExperiment {read(["안내 기록을 저장하지 못했어요. 도와주시는 분이 화면 아래 기록 저장 다시 시도를 눌러주세요."])}
+            }
+        }
+    }
+    /// Voice guidance ends without a button (Figma 22): the record saves itself as soon as the closing
+    /// line is heard, the app says so, and the screen closes. A failure keeps the save button.
+    func saveRecordByVoice(to library: StageLibrary, close: @escaping () -> Void) {
+        guard voiceExperiment, phase == .completed, pendingRecord == nil else {return}
+        saveRecord(to:library) { [weak self] in
+            guard let self else {return}
+            logSignal("record_saved","voice")
+            read(["안내 기록을 저장했어요. 처음 화면으로 돌아갈게요."]) {close()}
         }
     }
     /// Stops the session, timers and audio. Called once when the screen closes.

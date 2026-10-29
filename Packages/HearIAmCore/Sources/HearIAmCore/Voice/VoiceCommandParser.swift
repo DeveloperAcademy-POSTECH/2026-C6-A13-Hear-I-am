@@ -8,6 +8,10 @@ public enum VoiceCommand: Equatable, Sendable {
     /// Reached only through the Apple Intelligence model (#87); exact stage phrases stay in VoiceStageSearch.
     case showAllStages
     case chooseStage(Int)
+    /// One step back before guidance starts, like the 「취소 · 이전 선택」 button (Figma 05–13).
+    case back
+    /// Ends this run and goes back to the stage list, like 「무대 다시 선택」 (Figma 21).
+    case chooseStageAgain
 }
 
 public enum VoiceCommandParser {
@@ -35,7 +39,9 @@ public enum VoiceCommandParser {
         (.start,["시작","시작해","시작해줘","시작해주세요","안내시작","안내시작해줘","안내시작해주세요","start","startguidance"]),
         (.practice,["연습","연습용","연습모드","연습으로","연습할게","연습할게요","연습용으로","연습용으로할게","연습용으로할게요","practice","rehearsal"]),
         (.performance,["실전","실전용","실전모드","공연","공연용","공연모드","실전으로","실전용으로","실전으로할게","실전용으로할게요","공연용으로","performance","liveperformance"]),
-        (.cancel,["취소","취소해","취소해줘","취소해주세요","아니","아니요","cancel","no"])
+        (.cancel,["취소","취소해","취소해줘","취소해주세요","아니","아니요","cancel","no"]),
+        (.back,["이전","이전으로","이전단계","이전단계로","이전으로가줘","이전으로돌아가","이전으로돌아가줘","이전단계로가줘","이전단계로돌아가","이전단계로돌아가줘","이전으로가","전단계","전단계로","전단계로가줘","뒤로가기","이전선택","back","goback"]),
+        (.chooseStageAgain,["무대다시선택","무대다시선택해줘","무대다시선택할래","무대다시고를래","무대다시골라줘","무대다시고르기","다른무대","다른무대로","다른무대선택","다른무대로할래","무대바꿔","무대바꿔줘","무대변경","무대변경해줘"])
     ]
 
     private struct PointToken { let range: NSRange; let index: Int }

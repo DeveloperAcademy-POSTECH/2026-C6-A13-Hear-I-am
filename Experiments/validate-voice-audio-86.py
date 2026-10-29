@@ -5,8 +5,10 @@ Requires macOS and Xcode. No generated file is written into the repository.
 from pathlib import Path
 import os, subprocess, tempfile
 root=Path(__file__).resolve().parents[1]
-source=(root/'Hear-I-am/Features/VoiceRehearsal/Service/VoiceRecognitionService.swift').read_text()
-converter=source[source.index('final class VoiceNarrationPCMConverter {'):]
+voice=root/'Hear-I-am/Features/Voice/Recognition'
+narration=(voice/'VoiceNarrationPlayer.swift').read_text()
+converter=narration[narration.index('final class VoiceNarrationPCMConverter {'):]
+source=(voice/'VoiceRecognitionInput.swift').read_text()
 meter_start=source.index('    private static func rootMeanSquare(')
 meter_end=source.index('    func finish()',meter_start)
 meter=source[meter_start:meter_end].replace('private static func rootMeanSquare','func rootMeanSquare')

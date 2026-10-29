@@ -65,7 +65,7 @@ extension GuidanceViewModel {
         }
         if departureReady, !readyAnnounced, instructionDone, !speaking, !voiceTurnActive {
             readyAnnounced=true
-            read([started ? "재개 준비가 완료됐습니다. 안내 다시 시작 버튼을 눌러주세요." : "출발 준비가 완료됐습니다. 안내 시작 버튼을 누르면 첫 번째 지점으로 안내합니다."])
+            read(voiceShouldListen ? VoiceStepCopy.departureReady(started:started,performance:voiceMode == .performance) : [started ? "재개 준비가 완료됐습니다. 안내 다시 시작 버튼을 눌러주세요." : "출발 준비가 완료됐습니다. 안내 시작 버튼을 누르면 첫 번째 지점으로 안내합니다."])
         }
     }
 }

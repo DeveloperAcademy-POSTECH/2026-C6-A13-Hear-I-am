@@ -74,9 +74,7 @@ struct HearShortcuts: AppShortcutsProvider {
         AppShortcut(intent:StartVoiceGuidanceIntent(),phrases:[
             "\(.applicationName) 안내 시작",
             "\(.applicationName)로 안내 시작해 줘",
-            "\(.applicationName) 열어 줘",
-            "\(.applicationName)에서 \(\.$stage) 무대 열어 줘",
-            "\(.applicationName)로 \(\.$stage) 안내해 줘"
+            "\(.applicationName) 열어 줘"
         ],shortTitle:"안내 시작",systemImageName:"waveform")
     }
 }

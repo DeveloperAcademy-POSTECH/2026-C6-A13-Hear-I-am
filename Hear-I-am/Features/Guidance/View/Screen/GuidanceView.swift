@@ -7,10 +7,12 @@ struct GuidanceView: View {
     @StateObject private var model: GuidanceViewModel
     /// `request` is what the user already asked the voice agent on Home; it is handled first (#90).
     /// `stageID` and `mode` come from Siri (#91): the stage is chosen and the mode applied first.
-    init(library:StageLibrary,voiceExperiment:Bool = false,request:String? = nil,stageID:UUID? = nil,mode:VoiceUsageMode? = nil) {
+    init(library:StageLibrary,voiceExperiment:Bool = false,request:String? = nil,stageID:UUID? = nil,mode:VoiceUsageMode? = nil,
+         openPlans:(() -> Void)? = nil,openScan:(() -> Void)? = nil) {
         self.library=library
         let model=GuidanceViewModel(voiceExperiment:voiceExperiment)
         model.voiceInitialRequest=request
+        model.onOpenPlans=openPlans;model.onOpenScan=openScan
         model.voiceInitialStageID=stageID;model.voiceInitialMode=mode
         _model=StateObject(wrappedValue:model)
     }
@@ -48,9 +50,9 @@ struct GuidanceView: View {
             }
             .safeAreaInset(edge:.bottom,spacing:0) {
                 VStack(spacing:0) {
-                    if model.voiceExperiment {VoiceRehearsalPanel(model:model)}
-                    // Selection starts voice-first; navigation and recovery controls stay available.
-                    if !model.voiceExperiment || model.phase != .selection || model.voiceSelectionControlsVisible || model.audioIssue != nil {
+                    // Selection starts voice-first; navigation and recovery controls stay available, and show
+                    // at once when the microphone cannot be used.
+                    if !model.voiceExperiment || model.phase != .selection || model.voiceSelectionControlsVisible || model.audioIssue != nil || model.voiceInputError != nil {
                         GuidanceControls(library:library,model:model,close:close,saveAndClose:saveAndClose)
                     }
                 }.background(Color(.systemBackground))
@@ -65,7 +67,8 @@ struct GuidanceView: View {
         .overlay {
             if model.voiceExperiment {
                 VoiceEdgeGlow(visualization:model.voiceRecognition.inputVisualization,active:model.voiceShowsListening)
-                if model.voiceAwake || model.voiceTurnActive {VoiceDismissLayer {model.dismissVoiceConversation()}}
+                // Only while the microphone is on: with performance mode's microphone off a tap must reach the buttons.
+                if model.voiceShouldListen && (model.voiceAwake || model.voiceTurnActive) {VoiceDismissLayer {model.dismissVoiceConversation()}}
             }
         }
         .interactiveDismissDisabled()
@@ -80,6 +83,9 @@ struct GuidanceView: View {
             else {model.selectionDescription(empty:library.records.isEmpty)}
         }
         .onDisappear {model.finish();ScreenOrientation.set(.portrait)}
+        .onChange(of:model.phase) { _, phase in
+            if phase == .completed {model.saveRecordByVoice(to:library,close:close)}
+        }
         .onChange(of:scenePhase) { _, value in
             // Camera permission sheets may make the scene inactive during restoration.
             if value == .active { model.setActive(true) }
