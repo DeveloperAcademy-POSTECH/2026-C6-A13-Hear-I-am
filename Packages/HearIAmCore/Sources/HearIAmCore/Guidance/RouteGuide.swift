@@ -11,6 +11,10 @@ public struct GuideUpdate: Equatable, Sendable {
 public struct RouteGuide: Sendable {
     public private(set) var state: GuideState = .idle
     public private(set) var targetIndex=1
+    /// Explicit point facing takes priority over a chair/stairs facing edge.
+    public private(set) var facingPointIndex: Int?
+    public static let facingToleranceDegrees = 15.0
+    private var facingGate=DepartureGate()
     public private(set) var holdRemaining: Double = 0
     public var isHolding: Bool { holdRemaining > 0 }
     public private(set) var pauseReason: GuidePauseReason?
@@ -47,14 +51,14 @@ public struct RouteGuide: Sendable {
     }
     @discardableResult public mutating func start(position: FloorPoint, headingDegrees: Double, trackingValid: Bool) -> Bool {
         guard state == .idle, ready(position:position,headingDegrees:headingDegrees,trackingValid:trackingValid) else { return false }
-        state = .guiding; targetIndex=1; holdRemaining=0; arrivedSince=nil; lastTime=nil; lastSpeech = -.infinity; sector=nil; pauseReason=nil
+        state = .guiding; targetIndex=1; facingPointIndex=route.facing(at:0) == nil ? nil : 0; facingGate.reset(); holdRemaining=0; arrivedSince=nil; lastTime=nil; lastSpeech = -.infinity; sector=nil; pauseReason=nil
         return true
     }
     public mutating func pause() { pause(reason:.manual) }
     public mutating func pauseForUnclearHeading() { pause(reason:.unclearHeading) }
     private mutating func pause(reason: GuidePauseReason) {
         guard state == .guiding else { return }
-        state = .paused; pauseReason=reason; arrivedSince=nil; reentrySince=nil; lastReentryTime=nil
+        state = .paused; facingGate.reset(); pauseReason=reason; arrivedSince=nil; reentrySince=nil; lastReentryTime=nil
     }
     @discardableResult public mutating func resume(position: FloorPoint, trackingValid: Bool) -> Bool {
         guard canResume(position:position,trackingValid:trackingValid) else { return false }
@@ -81,7 +85,7 @@ public struct RouteGuide: Sendable {
         return nil
     }
     public func cue(position: FloorPoint, headingDegrees: Double) -> GuidanceCue? {
-        guard !isHolding, route.points.indices.contains(targetIndex) else { return nil }
+        guard facingPointIndex == nil, !isHolding, route.points.indices.contains(targetIndex) else { return nil }
         return GuidanceCue(position:position,goal:route.points[targetIndex],headingDegrees:headingDegrees,sector:sector)
     }
     /// Recoverable pauses resume after one second of fresh, verified in-bounds samples and a valid heading.
@@ -97,7 +101,7 @@ public struct RouteGuide: Sendable {
         guard time-since >= 1.0 else { return false }
         return resume(position:position,trackingValid:true)
     }
-    public mutating func observe(time: Double, position: FloorPoint, headingDegrees: Double, trackingValid: Bool, allowsTargetAdvance: Bool = true) -> GuideUpdate {
+    public mutating func observe(time: Double, position: FloorPoint, headingDegrees: Double, trackingValid: Bool, allowsTargetAdvance: Bool = true, allowsFacingCompletion: Bool = true) -> GuideUpdate {
         guard state == .guiding else { return GuideUpdate(state:state,targetIndex:targetIndex,announcement:nil) }
         guard time.isFinite, position.valid, headingDegrees.isFinite, trackingValid else {
             pause(reason:.invalidSample); return GuideUpdate(state:state,targetIndex:targetIndex,announcement:nil)
@@ -111,6 +115,15 @@ public struct RouteGuide: Sendable {
         }
         let elapsed=lastTime.map {time-$0} ?? 0
         lastTime=time
+        if let index=facingPointIndex, let facing=route.facing(at:index) {
+            let eligible=allowsFacingCompletion && position.distance(to:route.points[index]) <= (index == 0 ? settings.startRadius : settings.arrivalRadius) && abs(facing.bearing(headingDegrees:headingDegrees)) <= Self.facingToleranceDegrees
+            if facingGate.observe(time:time,eligible:eligible) {
+                facingPointIndex=nil;facingGate.reset();arrivedSince=nil
+                holdRemaining=Double(route.holdSeconds(at:index))
+                if index == route.points.count-1 { state = .completed }
+            }
+            return GuideUpdate(state:state,targetIndex:targetIndex,announcement:nil)
+        }
         if isHolding {
             holdRemaining=max(0,holdRemaining-elapsed)
             arrivedSince=nil
@@ -124,6 +137,12 @@ public struct RouteGuide: Sendable {
         if allowsTargetAdvance && distance <= settings.arrivalRadius {
             if arrivedSince == nil { arrivedSince=time }
             if let since=arrivedSince, time-since >= settings.arrivalDwell {
+                if route.facing(at:targetIndex) != nil {
+                    let index=targetIndex
+                    facingPointIndex=index;facingGate.reset();arrivedSince=nil;sector=nil
+                    if index < route.points.count-1 { targetIndex += 1 }
+                    return GuideUpdate(state:state,targetIndex:targetIndex,announcement:"\(route.pointLabel(at:index)) 도착.")
+                }
                 if targetIndex == route.points.count-1 {
                     state = .completed
                     return GuideUpdate(state:state,targetIndex:targetIndex,announcement:GuidanceCopy.completed)
