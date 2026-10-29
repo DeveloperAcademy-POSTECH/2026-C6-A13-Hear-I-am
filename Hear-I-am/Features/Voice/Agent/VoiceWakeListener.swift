@@ -15,7 +15,7 @@ import HearIAmCore
     var onRequest: ((String) -> Void)?
     var visualization: VoiceInputVisualization {recognition.inputVisualization}
 
-    static let greeting="네, 어떤 무대를 준비할까요?"
+    static let greeting="네, 어떤 공연을 준비할까요?"
     private let recognition=VoiceRecognitionService()
     private let speech=GuidanceSpeech()
     private let chime=VoiceListeningChime()

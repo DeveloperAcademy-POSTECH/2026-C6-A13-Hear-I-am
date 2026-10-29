@@ -4,13 +4,13 @@ import XCTest
 final class VoiceStepCopyTests: XCTestCase {
     /// Each step opens with the screen's title, then says the word that moves on.
     func testStepsStartWithTheirTitleAndNameTheWordToSay() {
-        XCTAssertTrue(VoiceStepCopy.stageList.hasPrefix("무대 선택."))
-        XCTAssertTrue(VoiceStepCopy.stageChosen("의자 테스트")[1].hasPrefix("사용 방식 선택."))
+        XCTAssertTrue(VoiceStepCopy.stageList.hasPrefix("공연 찾기."))
+        XCTAssertTrue(VoiceStepCopy.stageChosen("의자 테스트")[1].hasPrefix("사용 방식."))
         XCTAssertTrue(VoiceStepCopy.restoring.hasPrefix("현장 확인."))
         XCTAssertEqual(VoiceStepCopy.wear[1], "허리띠 착용.")
         XCTAssertTrue(VoiceStepCopy.wear.last!.contains("‘착용 완료’"))
         XCTAssertEqual(VoiceStepCopy.departure(started: false).first, "출발 준비.")
-        XCTAssertTrue(VoiceStepCopy.departureReady(started: false, performance: false)[0].contains("‘시작’"))
+        XCTAssertTrue(VoiceStepCopy.departureReady(started: false, performance: false)[0].contains("‘출발’"))
         XCTAssertTrue(VoiceStepCopy.paused.contains("‘계속’"))
     }
     func testCheckpointsNameTheOneToAimAt() {
@@ -21,7 +21,7 @@ final class VoiceStepCopyTests: XCTestCase {
     /// Performance mode closes the microphone at the start, so it does not ask for the call.
     func testDepartureReadyTellsHowToSpeakDuringGuidance() {
         XCTAssertTrue(VoiceStepCopy.departureReady(started: false, performance: false)[1].contains("히얼아이엠"))
-        XCTAssertTrue(VoiceStepCopy.departureReady(started: false, performance: true)[1].contains("마이크가 꺼져요"))
+        XCTAssertTrue(VoiceStepCopy.departureReady(started: false, performance: true)[1].contains("호출어를 듣지 않고"))
         XCTAssertEqual(VoiceStepCopy.departureReady(started: true, performance: false), ["재개 준비가 됐어요. ‘계속’이라고 말하면 이어서 안내해요."])
     }
     func testRecoveryLinesSayWhatToSay() {
