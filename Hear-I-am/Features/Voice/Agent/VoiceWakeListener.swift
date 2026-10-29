@@ -81,6 +81,7 @@ import HearIAmCore
 
     private func heardFinal(_ text:String) {
         guard active else {return}
+        VoiceLog.write(recognition.listensInEnglish ? "home_heard_english" : "home_heard",([text]+recognition.lastAlternatives.filter {$0 != text}).joined(separator:" | "),screen:awake ? "home.awake" : "home.asleep")
         // The call may sit in a lower recognition candidate (#92).
         let call=([text]+recognition.lastAlternatives).lazy.compactMap(VoiceWakeWord.request(in:)).first
         if let request=call {

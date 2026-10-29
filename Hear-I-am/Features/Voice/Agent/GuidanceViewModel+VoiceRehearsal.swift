@@ -307,6 +307,7 @@ extension GuidanceViewModel {
         voiceTurnActive=false
         var text=text
         voicePendingRequest=nil
+        logSignal("voice_heard",([text]+voiceRecognition.lastAlternatives.filter {$0 != text}).joined(separator:" | "))
         // A lower recognition candidate may hold the call or an exact command the best one missed (#92).
         let alternatives=voiceRecognition.lastAlternatives
         if VoiceWakeWord.request(in:text) == nil, let called=alternatives.first(where:{VoiceWakeWord.request(in:$0) != nil}) {
@@ -385,6 +386,7 @@ extension GuidanceViewModel {
         #endif
     }
     private func readVoiceCommandNotUnderstood() {
+        logSignal("voice_not_understood","")
         read(["요청을 확실히 이해하지 못했어요. \(phase == .selection ? "무대 선택 화면에서는 장소나 무대 이름을, 사용 방식 화면에서는 연습용 또는 실전용을 말씀해주세요." : "계속, 멈춰, 또는 P2로 다시 안내해 줘처럼 한 가지 요청을 말씀해주세요.")"])
     }
     private func performVoiceCommand(_ command:VoiceCommand, confirmed:Bool = false) {

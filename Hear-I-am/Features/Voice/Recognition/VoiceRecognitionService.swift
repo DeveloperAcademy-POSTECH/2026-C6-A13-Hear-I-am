@@ -683,3 +683,35 @@ extension VoiceRecognitionService {
         taskFinished(successfully: false, errorCode: error.code, errorDomain: error.domain, turnID: turnID)
     }
 }
+
+/// Every request the app heard and what it made of it, kept on the phone so misheard words can be read
+/// back after a test (#92). One JSON line per entry in Documents/VoiceLogs/voice-<date>.jsonl.
+enum VoiceLog {
+    private static let queue = DispatchQueue(label: "VoiceLog")
+    private static let clock: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        formatter.timeZone = .current
+        return formatter
+    }()
+
+    static func write(_ event: String, _ detail: String, screen: String) {
+        let time = clock.string(from: Date())
+        let entry = ["time": time, "event": event, "screen": screen, "detail": detail]
+        queue.async {
+            guard var line = try? JSONSerialization.data(withJSONObject: entry, options: [.sortedKeys]),
+                  let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
+            line.append(0x0a)
+            let folder = documents.appendingPathComponent("VoiceLogs", isDirectory: true)
+            try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            let file = folder.appendingPathComponent("voice-\(time.prefix(10)).jsonl")
+            if let handle = try? FileHandle(forWritingTo: file) {
+                defer { try? handle.close() }
+                _ = try? handle.seekToEnd()
+                try? handle.write(contentsOf: line)
+            } else {
+                try? line.write(to: file)
+            }
+        }
+    }
+}

@@ -238,6 +238,7 @@ extension GuidanceViewModel {
     /// Logs a sound, vibration or spoken line with where the wearer stood and where the target was.
     /// Until 10/19 the log said which signal played but not where, so a run could not be read point by point.
     func logSignal(_ name: String, _ detail: String) {
+        if name.hasPrefix("voice_") {VoiceLog.write(name,detail,screen:"guidance.\(phase)")}
         guard let pose=signalPose else { tracking.event(name,detail:detail);return }
         var context=String(format:"x=%.2f y=%.2f heading=%.0f",pose.point.x,pose.point.y,pose.heading)
         // The pose is the last fresh one; say so when tracking has not given a new one since.
