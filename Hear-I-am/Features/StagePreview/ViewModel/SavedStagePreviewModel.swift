@@ -12,6 +12,7 @@ final class SavedStagePreviewModel: ObservableObject {
     @Published var cameraRevision=0
     @Published var selection: ReplaySelection? { didSet { refreshHoldEditor() } }
     @Published var holdSecondsText="0"
+    @Published var pointFacing: StageFacing?
     @Published var savingHold=false
     @Published var holdNotice: String?
     @Published var holdSaveError: String?
@@ -29,17 +30,19 @@ final class SavedStagePreviewModel: ObservableObject {
         return seconds
     }
     private func refreshHoldEditor() {
+        pointFacing=selectedPointIndex.flatMap {loaded?.manifest.route?.facing(at:$0)}
         holdSecondsText=String(selectedPointIndex.flatMap {loaded?.manifest.route?.holdSeconds(at:$0)} ?? 0)
         holdNotice=nil; holdSaveError=nil
     }
-    func savePointHold() async {
-        guard !savingHold, canEditPointHold, let index=selectedPointIndex, let seconds=enteredHoldSeconds, let scan=loaded else { return }
+    func savePointSettings() async {
+        guard !savingHold, let index=selectedPointIndex, let seconds=enteredHoldSeconds, let scan=loaded else { return }
+        let facing=pointFacing
         savingHold=true; holdNotice=nil; holdSaveError=nil
         defer { savingHold=false }
         do {
-            let manifest=try await store.setPointHold(record.id,index:index,seconds:seconds)
+            let manifest=try await store.setPointPerformance(record.id,index:index,facing:facing,seconds:canEditPointHold ? seconds : 0)
             loaded=LoadedScan(manifest:manifest,worldMap:scan.worldMap,meshes:scan.meshes)
-            if selectedPointIndex == index { holdNotice="저장했습니다. \(manifest.route?.pointLabel(at:index) ?? "선택 지점") 도착 후 \(seconds)초 동안 다음 지점 안내를 쉬어요." }
+            if selectedPointIndex == index { holdNotice="\(manifest.route?.pointLabel(at:index) ?? "선택 지점") 설정을 저장했습니다." }
         } catch { holdSaveError="저장하지 못했어요: \(error.localizedDescription)" }
     }
     @Published var showPhotoPins=true

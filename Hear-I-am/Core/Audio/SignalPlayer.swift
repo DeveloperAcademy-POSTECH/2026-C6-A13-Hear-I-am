@@ -35,9 +35,15 @@ import HearIAmCore
     static var directionDeadbandDegrees: Double {
         get {
             let v=UserDefaults.standard.double(forKey:directionDeadbandKey)
-            return v >= 3 && v <= 45 ? v : DirectionTickGate.defaultDeadbandDegrees
+            let minDeg=Double(DirectionTickGate.minConfigurableDeadbandDegrees)
+            let maxDeg=Double(DirectionTickGate.maxConfigurableDeadbandDegrees)
+            return v >= minDeg && v <= maxDeg ? v : DirectionTickGate.defaultDeadbandDegrees
         }
-        set { UserDefaults.standard.set(max(3,min(45,newValue)),forKey:directionDeadbandKey) }
+        set {
+            let minDeg=Double(DirectionTickGate.minConfigurableDeadbandDegrees)
+            let maxDeg=Double(DirectionTickGate.maxConfigurableDeadbandDegrees)
+            UserDefaults.standard.set(max(minDeg,min(maxDeg,newValue)),forKey:directionDeadbandKey)
+        }
     }
     private(set) var speechActive=false
     /// A long-running warning is softened so it does not drown the performance.
