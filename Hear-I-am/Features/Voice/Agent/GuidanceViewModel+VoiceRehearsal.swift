@@ -188,7 +188,7 @@ extension GuidanceViewModel {
         let title=voiceSearchQuery.map {"\($0) 관련 무대는 \(items.count)개예요."} ?? "어느 무대를 사용할까요?"
         // Separate utterances keep a long result list interruptible at every item.
         let names=items.enumerated().map {"\($0.offset+1)번, \($0.element.name). \((voiceStagePaths[$0.element.id] ?? []).joined(separator:", "))."}
-        read([title]+names+["무대 이름이나 번호를 말씀해주세요. 선택하면 사용 방식으로 넘어갑니다."])
+        read([title]+names+["무대 이름이나 번호를 말씀해주세요. 선택하면 사용 방식으로 넘어갑니다."],interruptible:true)
     }
     func syncVoiceListening() {
         guard voiceExperiment else {return}
@@ -253,8 +253,15 @@ extension GuidanceViewModel {
         listeningChime.play()
         logSignal("voice_wake","english")
     }
+    /// The app is saying something that must not be cut: what was heard is dropped, not acted on.
+    var voiceNarrationProtected: Bool {speaking && !voiceNarrationInterruptible}
     func voiceSpeechDetected() {
         guard voiceShouldListen, !voiceTurnActive, voiceAwake else {return}
+        if voiceNarrationProtected {
+            voiceRecognition.discardPendingSpeech()
+            logSignal("voice_ignored","while_speaking")
+            return
+        }
         // Invalidate delayed narration callbacks before cutting the speech already playing.
         generation=UUID();voice.stop();instructionDone=true
         voiceTurnActive=true;voiceInitialPromptPending=false
@@ -307,6 +314,7 @@ extension GuidanceViewModel {
         voiceTurnActive=false
         var text=text
         voicePendingRequest=nil
+        if voiceNarrationProtected {logSignal("voice_ignored","while_speaking \(text)");return}
         logSignal("voice_heard",([text]+voiceRecognition.lastAlternatives.filter {$0 != text}).joined(separator:" | "))
         // A lower recognition candidate may hold the call or an exact command the best one missed (#92).
         let alternatives=voiceRecognition.lastAlternatives

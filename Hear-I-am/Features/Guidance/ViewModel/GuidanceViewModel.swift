@@ -38,6 +38,10 @@ import HearIAmCore
     var voiceInitialPromptPending=false
     @Published var voiceListeningEnabled=true
     @Published var voiceTurnActive=false
+    /// Whether speaking over the line now playing cuts it (#92, 10/29). Only a list to choose from, the stage
+    /// list, may be cut; replies and step lines that follow a request play to the end and the speech over
+    /// them is dropped, so the app is not stopped half way through doing what was asked.
+    var voiceNarrationInterruptible=false
     /// A command waiting for 「응」 or 「아니」: a guess of the Apple Intelligence model (#87), or leaving a started run.
     var pendingVoiceIntent: VoiceCommand?
     /// The request the user already made to the voice agent on Home (#90).
@@ -175,7 +179,7 @@ import HearIAmCore
         if phase == .departure { read([departureStatus]);return }
         read(currentInstruction)
     }
-    func read(_ texts: [String], after: (()->Void)? = nil) {
+    func read(_ texts: [String], interruptible: Bool = false, after: (()->Void)? = nil) {
         if voiceExperiment, voiceTurnActive {
             // A tracking/audio interruption must not apply an old command to a new recovery step.
             voiceRecognition.discardPendingSpeech();voiceTurnActive=false
@@ -184,6 +188,7 @@ import HearIAmCore
         let answering=voiceExperiment && voiceAwake && phase != .guiding && phase != .starting
         if answering {keepVoiceConversation(120)}
         audioIssue=nil;instructionDone=false;currentInstruction=texts
+        voiceNarrationInterruptible=interruptible
         let operation=generation
         voice.play(texts) { [weak self] finished in
             guard let self, finished, self.generation == operation, self.active else { return }

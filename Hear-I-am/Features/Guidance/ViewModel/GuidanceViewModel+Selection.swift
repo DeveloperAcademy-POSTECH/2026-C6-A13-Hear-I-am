@@ -6,7 +6,7 @@ extension GuidanceViewModel {
         guard phase == .selection else { return }
         if voiceExperiment && empty {read(VoiceAppRequest.noStageOffer);return}
         if voiceExperiment {
-            read([VoiceStepCopy.stageList])
+            read([VoiceStepCopy.stageList],interruptible:true)
             return
         }
         read([empty ? "저장된 무대가 없습니다. 장소 탭의 새 스캔을 통해 공간과 동선을 먼저 저장해주세요." : "안내에 사용할 무대를 선택해주세요."])
