@@ -6,6 +6,12 @@ import HearIAmCore
 struct HomeSettingsView: View {
     @StateObject private var output=SoundOutputStatus()
     @AppStorage(VoiceRecognitionService.analyzerKey) private var speechAnalyzer=false
+    @AppStorage(SignalPlayer.directionDeadbandKey) private var directionDeadbandDegrees=DirectionTickGate.defaultDeadbandDegrees
+    private var selectedDeadbandDegrees: Int {
+        let minDeg=Double(DirectionTickGate.minConfigurableDeadbandDegrees)
+        let maxDeg=Double(DirectionTickGate.maxConfigurableDeadbandDegrees)
+        return Int((directionDeadbandDegrees >= minDeg && directionDeadbandDegrees <= maxDeg ? directionDeadbandDegrees : DirectionTickGate.defaultDeadbandDegrees).rounded())
+    }
     var body: some View {
         List {
             Section {
@@ -21,7 +27,7 @@ struct HomeSettingsView: View {
                     }.padding(.vertical,12)
                 }.accessibilityIdentifier("settings.tutorial")
             }
-            Section("소리") {
+            Section("소리 및 안내") {
                 NavigationLink { SoundOutputView() } label: {
                     Label {
                         VStack(alignment:.leading,spacing:4) {
@@ -31,6 +37,15 @@ struct HomeSettingsView: View {
                     } icon: {Image(systemName:"speaker.wave.2").accessibilityHidden(true)}
                     .padding(.vertical,4)
                 }.accessibilityIdentifier("settings.output")
+                NavigationLink { DirectionDeadbandView() } label: {
+                    Label {
+                        VStack(alignment:.leading,spacing:4) {
+                            Text("방향 허용 각도")
+                            Text("±\(selectedDeadbandDegrees)° 이내에서는 방향 신호를 쉬어요").font(.subheadline).foregroundStyle(.secondary)
+                        }
+                    } icon: {Image(systemName:"location.north.line").accessibilityHidden(true)}
+                    .padding(.vertical,4)
+                }.accessibilityIdentifier("settings.deadband")
             }
             Section {
                 Toggle(isOn:$speechAnalyzer) {
@@ -65,6 +80,114 @@ private struct SettingsPendingRow: View {
             Text("준비 중").font(.subheadline).foregroundStyle(.secondary)
         }.padding(.vertical,8).frame(maxWidth:.infinity,alignment:.leading)
             .accessibilityElement(children:.ignore).accessibilityLabel(title).accessibilityValue("준비 중")
+    }
+}
+
+struct DirectionDeadbandView: View {
+    @AppStorage(SignalPlayer.directionDeadbandKey) private var storedDegrees=DirectionTickGate.defaultDeadbandDegrees
+    @State private var degreesText=""
+    @State private var notice: String?
+    @FocusState private var fieldFocused: Bool
+    private let minDegrees=DirectionTickGate.minConfigurableDeadbandDegrees
+    private let maxDegrees=DirectionTickGate.maxConfigurableDeadbandDegrees
+    private let presets=DirectionTickGate.deadbandPresets
+
+    private var currentDegrees: Int {
+        let minDeg=Double(minDegrees), maxDeg=Double(maxDegrees)
+        let value=storedDegrees >= minDeg && storedDegrees <= maxDeg ? storedDegrees : DirectionTickGate.defaultDeadbandDegrees
+        return Int(value.rounded())
+    }
+    private var parsedDegrees: Int? {
+        guard let value=Int(degreesText.trimmingCharacters(in:.whitespacesAndNewlines)),
+              (minDegrees...maxDegrees).contains(value) else { return nil }
+        return value
+    }
+
+    var body: some View {
+        List {
+            Section("현재 적용 각도") {
+                VStack(alignment:.leading,spacing:6) {
+                    Text("±\(currentDegrees)°").font(.title2.bold())
+                    Text("목표 방향에서 왼쪽·오른쪽으로 \(currentDegrees)° 이내로 향하고 있으면 방향 맞음으로 인정되어 방향 음성과 톡톡 소리가 나지 않아요.")
+                        .font(.subheadline).foregroundStyle(.secondary)
+                }.padding(.vertical,6)
+            }
+            Section {
+                VStack(alignment:.leading,spacing:10) {
+                    HStack(spacing:10) {
+                        Text("±").font(.headline).foregroundStyle(.secondary).accessibilityHidden(true)
+                        TextField("\(minDegrees)~\(maxDegrees)",text:$degreesText)
+                            .keyboardType(.numberPad)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width:110)
+                            .focused($fieldFocused)
+                            .accessibilityLabel("방향 허용 각도, 도")
+                            .accessibilityIdentifier("deadband.input")
+                            .onChange(of:degreesText) { _,_ in notice=nil }
+                        Text("° (도)").font(.subheadline)
+                        Spacer()
+                        Button("적용") { applyEnteredDegrees() }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(parsedDegrees == nil)
+                            .accessibilityIdentifier("deadband.apply")
+                    }
+                    if !degreesText.isEmpty && parsedDegrees == nil {
+                        Text("\(minDegrees)° 이상 \(maxDegrees)° 이하의 정수를 입력해주세요.")
+                            .font(.caption).foregroundStyle(.red)
+                    }
+                    if let notice {
+                        Text(notice).font(.caption).foregroundStyle(Color.hearGreen)
+                    }
+                }.padding(.vertical,6)
+            } header: {
+                Text("각도 직접 입력 (\(minDegrees)° ~ \(maxDegrees)°)")
+            } footer: {
+                Text("기본값은 15°예요. 이동 중 왼쪽·오른쪽 피드백이 너무 자주 들리면 숫자를 높여 정면 인정 범위를 넓힐 수 있어요.")
+            }
+            Section("빠른 선택") {
+                ForEach(presets,id:\.self) { deg in
+                    presetRow(deg)
+                }
+            }
+        }.listStyle(.insetGrouped).tint(.hearInk)
+            .navigationTitle("방향 허용 각도").navigationBarTitleDisplayMode(.inline)
+            .toolbar(.hidden,for:.tabBar)
+            .toolbar {
+                ToolbarItemGroup(placement:.keyboard) {
+                    Spacer()
+                    Button("완료") { fieldFocused=false }
+                }
+            }
+            .onAppear { degreesText="\(currentDegrees)" }
+    }
+
+    private func applyEnteredDegrees() {
+        guard let value=parsedDegrees else { return }
+        save(value)
+        fieldFocused=false
+    }
+    private func save(_ value: Int) {
+        SignalPlayer.directionDeadbandDegrees=Double(value)
+        storedDegrees=Double(value)
+        degreesText="\(value)"
+        notice="±\(value)°로 설정했어요."
+    }
+    private func presetRow(_ degrees: Int) -> some View {
+        let selected=currentDegrees == degrees
+        let detail=degrees == 15 ? "기본 · 15° 이상 벗어나면 안내 시작" : "\(degrees)° 이상 벗어났을 때만 방향 안내"
+        return Button { save(degrees);fieldFocused=false } label: {
+            HStack(spacing:12) {
+                Image(systemName:selected ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size:22)).frame(width:26).accessibilityHidden(true)
+                VStack(alignment:.leading,spacing:4) {
+                    Text("±\(degrees)°").font(.headline)
+                    Text(detail).font(.subheadline).foregroundStyle(.secondary)
+                }
+                Spacer(minLength:0)
+            }.padding(.vertical,6).contentShape(Rectangle())
+        }.buttonStyle(.plain).accessibilityLabel("±\(degrees)도").accessibilityHint(detail)
+            .accessibilityAddTraits(selected ? [.isSelected] : [])
+            .accessibilityIdentifier("deadband.preset.\(degrees)")
     }
 }
 
