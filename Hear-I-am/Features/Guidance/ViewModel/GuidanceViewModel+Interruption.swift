@@ -26,8 +26,8 @@ extension GuidanceViewModel {
     }
     func requestExit() {
         guard phase != .finishing else { return }
+        if !started { startPreparationPaused=true;startAlignmentCompleted=false;departureReady=false }
         if phase == .guiding || phase == .starting || phase == .approaching {
-            if !started { startPreparationPaused=true;startAlignmentCompleted=false }
             guide?.pause();phase = started ? .paused : .departure
         }
         invalidateTasks();showExit=true
