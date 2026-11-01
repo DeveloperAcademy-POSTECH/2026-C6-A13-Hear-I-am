@@ -1,7 +1,7 @@
 import SwiftUI
 import HearIAmCore
 
-/// Final summary and stage name before saving.
+/// Confirm the scan first. Performance and venue classification follows a durable save.
 struct PreparationReviewCard: View {
     @ObservedObject var model: PreparationViewModel
     var body: some View {
@@ -12,8 +12,7 @@ struct PreparationReviewCard: View {
                 PreparationMiniMap(model:model).frame(width:260)
                 VStack(alignment:.leading,spacing:12) {
                     Text("무대 정보를 확인해주세요").font(.title3.bold())
-                    TextField("무대 이름",text:$model.scanName).textFieldStyle(.roundedBorder)
-                    if model.nameTooLong {Text("무대 이름은 80자 이내로 입력해주세요.").font(.caption).foregroundStyle(.red)}
+                    Text("먼저 무대를 저장한 뒤 공연과 공연장을 선택해요.").font(.subheadline).foregroundStyle(.secondary)
                     Text("경로 \(draft.route.count)점 · 기물 \(draft.objects.count)개 · 사진 \(model.session.photoSources.count)장 · 확인점 2개").font(.subheadline)
                     Text(StageDangerZone.summary(draft.dangerZones)).font(.caption).foregroundStyle(.orange)
                     if draft.errors.isEmpty {Text(model.saveRecoveryMessage ?? "저장 준비가 끝났어요.").font(.caption).foregroundStyle(.secondary)}

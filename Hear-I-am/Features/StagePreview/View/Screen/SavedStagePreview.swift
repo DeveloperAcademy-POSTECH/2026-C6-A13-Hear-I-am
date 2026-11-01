@@ -3,10 +3,10 @@ import HearIAmCore
 
 struct SavedStagePreview: View {
     @StateObject private var model: SavedStagePreviewModel
-    init(record: ScanManifest, store: ScanStore, camera: ReplayCamera = .overview, display: ReplayDisplay = .scan, selection: ReplaySelection? = nil) {
+    init(record: ScanManifest, store: ScanStore, camera: ReplayCamera = .overview, display: ReplayDisplay = .clean, selection: ReplaySelection? = nil) {
         let model=SavedStagePreviewModel(record:record,store:store)
-        model.cameraMode=camera;model.display=display;model.selection=selection
-        model.photoCardCollapsed=display == .clean
+        model.cameraMode=camera;model.display = .clean;model.selection=selection
+        model.photoCardCollapsed=true
         if case .photo=selection {model.photoPinsVisible=true;model.photoCardCollapsed=false}
         _model=StateObject(wrappedValue:model)
     }
@@ -15,9 +15,6 @@ struct SavedStagePreview: View {
             ScrollView {
                 VStack(alignment:.leading,spacing:14) {
                     if let scan=model.loaded {
-                        Picker("공간 표시",selection:$model.display) {
-                            ForEach(ReplayDisplay.allCases,id:\.self) {Text($0.rawValue).tag($0)}
-                        }.pickerStyle(.segmented)
                         ZStack(alignment:.bottomTrailing) {
                             SavedMeshView(scan:scan,model:model)
                                 .accessibilityLabel("저장된 무대 3D 공간. 아래 목록에서도 지점과 기물을 선택할 수 있어요.")
@@ -57,7 +54,6 @@ struct SavedStagePreview: View {
                                 }.buttonStyle(.plain).accessibilityAddTraits(model.cameraMode==mode ? .isSelected : [])
                             }
                         }
-                        if model.display == .scan {Toggle("표면 선 보기",isOn:$model.wireframe)}
                         Text("한 손가락 회전 · 두 손가락 이동 · 핀치 확대").font(.caption).foregroundStyle(.secondary)
                         if let route=scan.manifest.route {
                             ScrollView(.horizontal) {
@@ -101,7 +97,7 @@ struct SavedStagePreview: View {
                                             .font(.caption).foregroundStyle(.secondary)
                                     }
                                     Button("경로점 설정 저장") {Task {await model.savePointSettings()}}
-                                        .buttonStyle(.borderedProminent)
+                                        .buttonStyle(V3PrimaryButtonStyle())
                                         .disabled(model.enteredHoldSeconds == nil || model.savingHold)
                                     if !model.canEditPointHold {
                                         if model.savingHold { ProgressView("저장 중…") }
@@ -145,7 +141,8 @@ struct SavedStagePreview: View {
                     } else {ProgressView("공간을 불러오는 중입니다…").frame(maxWidth:.infinity,minHeight:300)}
                 }.padding(16)
             }
-        }.navigationTitle(model.record.name).navigationBarTitleDisplayMode(.inline)
+        }.background(HearV3.canvas).preferredColorScheme(.dark)
+            .navigationTitle(model.record.name).navigationBarTitleDisplayMode(.inline)
             .task {
                 await model.load()
                 #if DEBUG
