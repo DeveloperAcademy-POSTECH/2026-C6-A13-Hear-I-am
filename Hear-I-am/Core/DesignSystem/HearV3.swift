@@ -8,7 +8,7 @@ enum HearV3 {
     static let selected=Color("SemiSelected")
     static let text=Color("SemiText")
     static let secondary=Color("SemiSecondary")
-    static let accent=Color(red:0.45,green:0.77,blue:0.64)
+    static let accent=Color(red:114.0/255,green:201.0/255,blue:155.0/255)
 }
 
 extension View {
@@ -23,10 +23,11 @@ extension View {
 }
 
 struct V3PrimaryButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
     func makeBody(configuration:Configuration) -> some View {
         configuration.label.font(.headline).multilineTextAlignment(.center)
             .frame(maxWidth:.infinity,minHeight:24).padding(.vertical,16).padding(.horizontal,20)
             .foregroundStyle(HearV3.canvas).background(HearV3.text,in:Capsule())
-            .opacity(configuration.isPressed ? 0.7 : 1)
+            .opacity(!isEnabled ? 0.4 : configuration.isPressed ? 0.7 : 1)
     }
 }

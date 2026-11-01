@@ -28,6 +28,9 @@ struct PerformanceLibraryView: View {
                         Menu {
                             Button("최근 수정순") {alphabetical=false}
                             Button("이름순") {alphabetical=true}
+                            Divider()
+                            Button("목록 새로고침",systemImage:"arrow.clockwise") {Task {await library.refresh()}}
+                                .disabled(library.loading)
                         } label: {Label(alphabetical ? "이름순" : "최근 수정순",systemImage:"chevron.down").font(.caption).frame(minHeight:44)}
                     }
                     if library.loading && folders.isEmpty {ProgressView("공연을 불러오는 중이에요").frame(maxWidth:.infinity)}

@@ -70,7 +70,7 @@ public struct PerformanceCatalog: Codable, Equatable, Sendable {
             throw LabError.invalid("\(label) 이름은 1~80자로 입력해주세요.")
         }
         guard Set(names.map(PlaceSearch.normalized)).count==names.count else {
-            throw LabError.invalid("같은 이름의 \(label)이 이미 있어요.")
+            throw LabError.invalid("같은 이름이 이미 있어요. 다른 \(label) 이름을 입력해주세요.")
         }
     }
 
