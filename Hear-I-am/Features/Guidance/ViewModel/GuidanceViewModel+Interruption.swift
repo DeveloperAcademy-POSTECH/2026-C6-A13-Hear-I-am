@@ -11,10 +11,20 @@ extension GuidanceViewModel {
         if phase == .selection { return }
         guide?.pause();phase = .interrupted;departureReady=false;departureGate.reset();message=reason
         tracking.endSession()
-        if announce && active { read(["위치 또는 소리를 확인할 수 없어 안내를 멈췄습니다. 잠시 멈춰주세요. 휴대폰을 손에 들고 확인점을 다시 확인해주세요."]) }
+        if announce && active { read([voiceShouldListen ? VoiceStepCopy.interrupted : "위치 또는 소리를 확인할 수 없어 안내를 멈췄습니다. 잠시 멈춰주세요. 휴대폰을 손에 들고 확인점을 다시 확인해주세요."]) }
     }
     func setActive(_ value: Bool) {
         guard active != value else { return };active=value
+        if voiceExperiment {
+            if !value {
+                voiceListeningEnabled=false
+                stopVoiceExperiment()
+            } else {
+                // Back in the app, listening resumes by itself; there is no retry button on screen.
+                voiceInputError=nil;voiceListeningEnabled=true;voiceReadyChimePending=true
+                syncVoiceListening()
+            }
+        }
         if !value {
             interrupt("앱이 중단됐어요. 확인점과 착용 상태를 다시 확인해주세요.",announce:false)
             tracking.setActive(false)
@@ -28,9 +38,10 @@ extension GuidanceViewModel {
         guard phase != .finishing else { return }
         if phase == .guiding || phase == .starting || phase == .approaching { guide?.pause();phase = started ? .paused : .departure }
         invalidateTasks();showExit=true
+        syncVoiceListening()
         read(["안내를 끝낼까요? 계속 사용하려면 계속 사용하기를 눌러주세요."])
     }
-    func cancelExit() { showExit=false;replay() }
+    func cancelExit() { showExit=false;replay();syncVoiceListening() }
 
     func observeAudioSession() {
         observations.append(NotificationCenter.default.addObserver(forName:AVAudioSession.interruptionNotification,object:nil,queue:.main) { [weak self] n in

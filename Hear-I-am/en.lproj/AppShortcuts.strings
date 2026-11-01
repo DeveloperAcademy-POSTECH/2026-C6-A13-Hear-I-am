@@ -1,0 +1,5 @@
+/* Siri phrases in English (#91). */
+"${applicationName} 안내 시작" = "Start guidance in ${applicationName}";
+"${applicationName}로 안내 시작해 줘" = "Start ${applicationName}";
+"${applicationName} 열어 줘" = "Open ${applicationName}";
+"안내 시작" = "Start Guidance";

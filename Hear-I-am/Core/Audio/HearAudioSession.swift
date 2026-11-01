@@ -5,6 +5,8 @@ import AVFoundation
     private(set) static var active=false
     /// The output the active session was set up for; a changed setting is applied on the next sound.
     private static var configuredForSpeaker: Bool?
+    private static var configuredForVoiceInput = false
+    private static var voiceInputLeases: Set<UUID> = []
 
     /// Plays through the phone speaker even when AirPods are connected (10/19, so signals can be tried
     /// with or without earbuds). Off: the connected AirPods, or the speaker when none is connected.
@@ -13,23 +15,52 @@ import AVFoundation
 
     static func activate() throws {
         let speaker=forcesSpeaker
-        guard !active || configuredForSpeaker != speaker else { return }
+        let voiceInput = !voiceInputLeases.isEmpty
+        guard !active || configuredForSpeaker != speaker || configuredForVoiceInput != voiceInput else { return }
         let audio=AVAudioSession.sharedInstance()
-        if speaker {
+        if voiceInput {
+            // Only the opt-in rehearsal listener requests a microphone. Existing speech/tone calls
+            // share this configuration instead of changing it back to playback in the middle of ASR.
+            var options: AVAudioSession.CategoryOptions = [.defaultToSpeaker, .mixWithOthers]
+            if !speaker { options.insert(.allowBluetoothHFP) }
+            try audio.setCategory(.playAndRecord, mode: .voiceChat, options: options)
+        } else if speaker {
             // .playback cannot override the route. .playAndRecord without Bluetooth options leaves only
             // the built-in outputs, and .defaultToSpeaker picks the speaker over the receiver. Input is never used.
             try audio.setCategory(.playAndRecord,mode:.default,options:[.defaultToSpeaker,.mixWithOthers])
         } else {
             try audio.setCategory(.playback,mode:.spokenAudio,options:[.mixWithOthers])
         }
-        try audio.setActive(true);active=true;configuredForSpeaker=speaker
+        try audio.setActive(true);active=true;configuredForSpeaker=speaker;configuredForVoiceInput=voiceInput
+    }
+    /// A lease is held only while the rehearsal service owns an input engine.
+    static func acquireVoiceInput() throws -> UUID {
+        let lease = UUID()
+        voiceInputLeases.insert(lease)
+        do { try activate(); return lease }
+        catch {
+            voiceInputLeases.remove(lease)
+            active = false
+            configuredForSpeaker = nil
+            configuredForVoiceInput = false
+            throw error
+        }
+    }
+    static func releaseVoiceInput(_ lease: UUID, restorePlayback: Bool = true) {
+        guard voiceInputLeases.remove(lease) != nil else { return }
+        active = false
+        configuredForSpeaker = nil
+        configuredForVoiceInput = false
+        // Do not reactivate audio during a system interruption or in the background.
+        if restorePlayback { try? activate() }
     }
     static func deactivate() {
-        active=false;configuredForSpeaker=nil
+        guard voiceInputLeases.isEmpty else { return }
+        active=false;configuredForSpeaker=nil;configuredForVoiceInput=false
         try? AVAudioSession.sharedInstance().setActive(false,options:.notifyOthersOnDeactivation)
     }
     /// The system already deactivated the session; the next activate() sets it up again.
-    static func interrupted() { active=false;configuredForSpeaker=nil }
+    static func interrupted() { active=false;configuredForSpeaker=nil;configuredForVoiceInput=false }
 
     /// Output names for logs, e.g. "Headphones:AirPods Pro" or "Speaker:Speaker".
     static var route: String {

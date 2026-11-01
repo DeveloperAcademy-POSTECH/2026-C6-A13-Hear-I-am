@@ -14,13 +14,14 @@ extension GuidanceViewModel {
 
     var canResume: Bool {
         guard let pose=freshPose(), let guide else { return false }
+        if guide.rehearsalReturnArrivalIndex != nil {return guide.canResumeForwardAfterRehearsalReturn(position:pose.point,trackingValid:true)}
         return guide.canResume(position:pose.point,trackingValid:true)
     }
     func pause() {
         guard phase == .guiding || phase == .starting || phase == .approaching else { return }
         invalidateTasks();guide?.pause();phase = started ? .paused : .departure
         message="현재 목표는 \(targetName)이에요."
-        read(["안내를 일시정지했습니다. 다시 시작 버튼을 누르면 이어서 안내합니다."])
+        read([voiceShouldListen ? VoiceStepCopy.paused : "안내를 일시정지했습니다. 다시 시작 버튼을 누르면 이어서 안내합니다."])
     }
     /// Clears every signal rule; called when guidance starts or resumes.
     func resetSignals() {
@@ -36,6 +37,7 @@ extension GuidanceViewModel {
         let update=guide.observe(time:pose.time,position:pose.point,headingDegrees:pose.heading,trackingValid:true,allowsTargetAdvance:aligningStep == nil,allowsFacingCompletion:!speaking && audioIssue == nil)
         self.guide=guide;performanceHoldRemaining=guide.holdRemaining;cue=guide.cue(position:pose.point,headingDegrees:pose.heading)
         tracking.setGuidanceTarget(guide.facingPointIndex ?? guide.targetIndex,completed:guide.state == .completed)
+        if let index=guide.rehearsalReturnArrivalIndex {reachedVoiceReturn(index,time:pose.time);return}
         if let previousFacing, guide.facingPointIndex == nil, update.state != .paused {
             signals.playAligned();directionTicks.reset();distances.reset()
             announceNextSide=true;pendingTurnSide=false;ticksWaitForWord=false
@@ -228,6 +230,6 @@ extension GuidanceViewModel {
         case .offRoute,.outsideStage: message="저장된 동선의 안내 범위를 벗어났어요. 현재 위치와 동선을 확인해주세요."
         default: message="위치와 방향을 다시 확인해주세요."
         }
-        read(["잠시 멈춰주세요. \(message)"])
+        read([voiceShouldListen ? VoiceStepCopy.autoPaused(message) : "잠시 멈춰주세요. \(message)"])
     }
 }

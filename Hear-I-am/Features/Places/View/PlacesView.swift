@@ -3,6 +3,8 @@ import HearIAmCore
 
 struct PlacesView: View {
     @ObservedObject var library: StageLibrary
+    /// Asked for by the voice agent (「새 스캔」); cleared once the scan opens.
+    @Binding var voiceScan: Bool
     @StateObject private var model=PlaceLibrary()
     @State private var query=""
     @State private var kind: PlaceKind?
@@ -41,18 +43,30 @@ struct PlacesView: View {
                 }
         }.tint(.hearInk)
             .task {await model.refresh()}
+            .onAppear {beginVoiceScan()}
+            .onChange(of:voiceScan) {beginVoiceScan()}
+            .onChange(of:model.ready) {beginVoiceScan()}
             .onChange(of:scenePhase) {_, phase in if phase == .active, !model.scanPresented,model.sheet == nil {Task {await model.refresh();await library.refresh()}}}
             .sheet(item:$model.sheet) {request in
-                switch request.content {
-                case .edit(let place):PlaceEditorView(model:model,library:library,place:place)
-                case .move(let scans):PlaceMoveView(scans:scans,model:model,library:library)
-                case .rename(let scan):PlaceRenameView(scan:scan,library:library)
-                }
+                // A sheet over the tabs keeps guidance from opening on top, so the call waits.
+                Group {
+                    switch request.content {
+                    case .edit(let place):PlaceEditorView(model:model,library:library,place:place)
+                    case .move(let scans):PlaceMoveView(scans:scans,model:model,library:library)
+                    case .rename(let scan):PlaceRenameView(scan:scan,library:library)
+                    }
+                }.suspendsVoiceWake()
             }
             .fullScreenCover(isPresented:$model.scanPresented,onDismiss:{Task {await model.finishScan(library:library)}}) {
-                PreparationView(library:library)
+                PreparationView(library:library).suspendsVoiceWake()
             }
             .alert("확인이 필요해요",isPresented:Binding(get:{model.error != nil && model.sheet == nil},set:{if !$0 {model.error=nil}})) {Button("확인",role:.cancel) {model.error=nil}} message:{Text(model.error ?? "")}
+    }
+    /// The same scan as the 새 스캔 button, waiting until the places are loaded.
+    private func beginVoiceScan() {
+        guard voiceScan, model.ready, !model.busy, !model.loading else {return}
+        voiceScan=false
+        Task {await model.beginScan(at:nil,library:library)}
     }
     private var searchField: some View {
         HStack(spacing:10) {
