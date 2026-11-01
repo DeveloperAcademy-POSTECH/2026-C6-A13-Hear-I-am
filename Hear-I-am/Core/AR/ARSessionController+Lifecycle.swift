@@ -21,7 +21,7 @@ extension ARSessionController {
             status="네 꼭짓점, 경로, 기물, 확인점 1·2를 선택하세요"
         }
     }
-    func restore(_ item: ScanManifest) {
+    func restore(_ item: ScanManifest, validation: RestorationValidation = .checkpoints) {
         guard !busy else { return }
         busy=true
         // Capture invalidation generation BEFORE an await; backgrounding cancels this operation.
@@ -51,6 +51,7 @@ extension ARSessionController {
                 guard token==operation, active else { return }
                 busy=false
                 reset()
+                restorationValidation=validation
                 scannedFootprint=footprint
                 manifest=loaded.manifest; scanID=item.id; stage=loaded.manifest.frame
                 origin=loaded.manifest.frame.origin; front=loaded.manifest.frame.front; checkpoint=loaded.manifest.checkpoint; secondCheckpoint=loaded.manifest.secondCheckpoint
@@ -125,7 +126,7 @@ extension ARSessionController {
         let was=gate.verified; gate.expire(now:now)
         if !measuredCheckpoints.isEmpty && checkpointStableSince != gate.normalSince { clearAlignment() }
         if was && !gate.verified { invalidateWear("센서 표본 만료 · 두 확인점 재확인 필요"); event("sample_expired") }
-        canVerify=gate.canVerify(now:now); ready=gate.isReady(now:now)
+        canVerify=gate.canVerify(now:now); ready=gate.isReady(now:now,validation:restorationValidation)
         if let latest, now-latest.time>0.5 { canSave=false }
         if purpose == .preparation { updateAim() }
         if let restoreStarted, now-restoreStarted>60, !ready, !canVerify {
