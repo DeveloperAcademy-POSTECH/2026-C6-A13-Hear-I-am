@@ -55,6 +55,7 @@ struct GuidanceView: View {
                         }
                         Button("안내 끝내기",systemImage:"xmark") {exit()}
                     } label: {Image(systemName:"gearshape")}
+                    .accessibilityLabel("안내 설정 및 종료")
                     .disabled(model.phase == .finishing || model.savingRecord || (model.phase == .completed && model.speaking))
                 }
             }
