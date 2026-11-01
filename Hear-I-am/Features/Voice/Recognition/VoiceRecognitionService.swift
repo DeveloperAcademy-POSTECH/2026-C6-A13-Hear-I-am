@@ -52,7 +52,7 @@ import HearIAmCore
     private var turnID: UUID?
     private var wantsListening = false
     private var speechDetected = false
-    private var finalizing = false
+    @Published private(set) var finalizing = false
     private var contextualStrings: [String] = []
     /// Every candidate the recognizer gave for the last final result after the best one (#92).
     private(set) var lastAlternatives: [String] = []

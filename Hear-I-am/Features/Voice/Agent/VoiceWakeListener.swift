@@ -10,6 +10,8 @@ import HearIAmCore
     @Published private(set) var listening=false
     @Published private(set) var awake=false
     @Published private(set) var speaking=false
+    @Published private(set) var caption=VoiceHomeCaption()
+    @Published private(set) var confirmingInput=false
     /// Why the call cannot be heard (no permission, dictation off); nil while listening works.
     @Published private(set) var failure: String?
     var onRequest: ((String) -> Void)?
@@ -35,9 +37,12 @@ import HearIAmCore
             self?.recognition.speakNarration(utterance,completion:completion) ?? false
         }
         speech.stopBufferedOutput={ [weak self] in self?.recognition.stopNarration() }
+        speech.onText={ [weak self] text in self?.caption.updateNarration(text) }
         speech.onSpeaking={ [weak self] value in self?.speaking=value }
         recognition.onTranscript={ [weak self] text in self?.heardPartial(text) }
         recognition.onFinal={ [weak self] text in self?.heardFinal(text) }
+        recognition.onRecoverableError={ [weak self] _ in self?.caption.clearRequest() }
+        recognition.$finalizing.assign(to:&$confirmingInput)
         // A permission or dictation failure shows a fallback button; the next visit to Home tries again.
         recognition.onError={ [weak self] message in self?.active=false;self?.failure=message;self?.sleep() }
         // A call, another app's sound or a headset change: listen again shortly, if the app is still in front.
@@ -89,6 +94,8 @@ import HearIAmCore
         // Someone is still talking to the agent; it must not fall asleep in the middle of the request.
         if awake, !recognition.listensInEnglish {
             if speaking {heardOverSpeech=true}
+            caption.receivePartial(text,isAwake:awake,isEnglish:recognition.listensInEnglish,
+                                   overlappingNarration:heardOverSpeech,spokenLines:spokenLines)
             stayAwake(8);return
         }
         guard !awake, VoiceWakeWord.matches(text) else {return}
@@ -103,7 +110,7 @@ import HearIAmCore
         let call=([text]+recognition.lastAlternatives).lazy.compactMap(VoiceWakeWord.request(in:)).first
         if let request=call {
             if !awake {wake()}
-            if request.isEmpty {if !speaking {greet()}} else {hand(request)}
+            if request.isEmpty {caption.clearRequest();if !speaking {greet()}} else {hand(request)}
             return
         }
         guard awake, !recognition.listensInEnglish else {return}
@@ -112,12 +119,13 @@ import HearIAmCore
         if heardOverSpeech {
             heardOverSpeech=false
             request=VoiceEcho.strippingLeadingEcho(text,of:spokenLines)
-            if request.isEmpty {VoiceLog.write("home_ignored","echo \(text)",screen:"home.awake");return}
+            if request.isEmpty {caption.clearRequest();VoiceLog.write("home_ignored","echo \(text)",screen:"home.awake");return}
         }
         hand(request)
     }
 
     private func wake() {
+        caption.reset()
         awake=true
         speech.stop()
         recognition.listenInEnglish(false)
@@ -126,6 +134,7 @@ import HearIAmCore
     }
 
     private func greet() {
+        caption.clearRequest()
         stayAwake(60)
         spokenLines=[Self.greeting];heardOverSpeech=false
         speech.play([Self.greeting]) { [weak self] _ in self?.stayAwake(8) }
@@ -140,6 +149,7 @@ import HearIAmCore
     /// follow-up, as after the greeting, then goes back to waiting for the call. `then` runs once the
     /// answer has been said, unless the agent was closed first.
     func answer(_ lines:[String],then next:(() -> Void)? = nil) {
+        caption.reset()
         awake=true
         // Handing the request over left the recognizer in English; a follow-up comes in Korean.
         recognition.listenInEnglish(false)
@@ -174,6 +184,7 @@ import HearIAmCore
         sleepTask?.cancel();sleepTask=nil;answerID=nil
         if speaking {speech.stop()}
         awake=false
+        caption.reset()
         if active {recognition.listenInEnglish(true)}
     }
 }
