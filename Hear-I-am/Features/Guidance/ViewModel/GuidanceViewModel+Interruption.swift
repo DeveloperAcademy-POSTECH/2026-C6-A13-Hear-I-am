@@ -11,7 +11,7 @@ extension GuidanceViewModel {
         if phase == .selection { return }
         guide?.pause();phase = .interrupted;departureReady=false;departureGate.reset();message=reason
         tracking.endSession()
-        if announce && active { read(["위치 또는 소리를 확인할 수 없어 안내를 멈췄어요. 잠시 멈춰주세요. \(recoveryInstruction)" + (voiceShouldListen ? " 준비되면 ‘계속’이라고 말해주세요." : "")]) }
+        if announce && active { read([voiceShouldListen ? VoiceStepCopy.interrupted : "위치 또는 소리를 확인할 수 없어 안내를 멈췄습니다. 잠시 멈춰주세요. 휴대폰을 손에 들고 확인점을 다시 확인해주세요."]) }
     }
     func setActive(_ value: Bool) {
         guard active != value else { return };active=value
@@ -26,11 +26,11 @@ extension GuidanceViewModel {
             }
         }
         if !value {
-            interrupt("앱이 중단됐어요. \(recoveryInstruction)",announce:false)
+            interrupt("앱이 중단됐어요. 확인점과 착용 상태를 다시 확인해주세요.",announce:false)
             tracking.setActive(false)
         } else {
             tracking.setActive(true)
-            if phase == .interrupted { read(["안내를 멈췄습니다. \(recoveryInstruction)"]) }
+            if phase == .interrupted { read(["안내를 멈췄습니다. 휴대폰을 손에 들고 확인점을 다시 확인해주세요."]) }
             else if phase == .selection { replay() }
         }
     }
@@ -49,13 +49,13 @@ extension GuidanceViewModel {
                   AVAudioSession.InterruptionType(rawValue:raw) == .began else { return }
             Task { @MainActor in
                 self?.voice.audioWasInterrupted();self?.signals.stop()
-                self?.interrupt("음성 재생이 중단됐어요. 위치와 착용 상태를 다시 확인해주세요.",announce:false)
+                self?.interrupt("음성 재생이 중단됐어요. 확인점과 착용 상태를 다시 확인해주세요.",announce:false)
             }
         })
         observations.append(NotificationCenter.default.addObserver(forName:AVAudioSession.routeChangeNotification,object:nil,queue:.main) { [weak self] n in
             guard let raw=n.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt,
                   AVAudioSession.RouteChangeReason(rawValue:raw) == .oldDeviceUnavailable else { return }
-            Task { @MainActor in self?.interrupt("소리 출력이 변경됐어요. 위치와 착용 상태를 다시 확인해주세요.") }
+            Task { @MainActor in self?.interrupt("소리 출력이 변경됐어요. 확인점과 착용 상태를 다시 확인해주세요.") }
         })
     }
 }

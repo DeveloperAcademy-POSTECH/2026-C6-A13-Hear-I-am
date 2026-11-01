@@ -8,8 +8,8 @@ struct GuidanceButton: View {
     var body: some View {
         Button(action:action) {
             Text(title).font(.headline).frame(maxWidth:.infinity,minHeight:56)
-                .foregroundStyle(secondary ? Color.primary : Color(.systemBackground))
-                .background(secondary ? Color(.secondarySystemBackground) : Color.primary,in:Capsule())
+                .foregroundStyle(secondary ? Color.hearInk : .white)
+                .background(secondary ? Color(.systemGray6) : .hearInk,in:RoundedRectangle(cornerRadius:16))
                 .opacity(enabled ? 1 : 0.35)
         }.buttonStyle(.plain).disabled(!enabled)
     }

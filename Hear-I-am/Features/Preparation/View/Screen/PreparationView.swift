@@ -5,12 +5,10 @@ import HearIAmCore
 struct PreparationView: View {
     @ObservedObject var library: StageLibrary
     @StateObject private var model: PreparationViewModel
-    private let onSaved: ((UUID) -> Void)?
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
-    init(library: StageLibrary, initialPlan: PerformancePlan? = nil, onSaved: ((UUID) -> Void)? = nil) {
+    init(library: StageLibrary, initialPlan: PerformancePlan? = nil) {
         self.library=library
-        self.onSaved=onSaved
         _model=StateObject(wrappedValue:PreparationViewModel(initialPlan:initialPlan))
     }
     var body: some View {
@@ -86,11 +84,7 @@ struct PreparationView: View {
             .onAppear {ScreenOrientation.set(.landscape); model.appear()}
             .onDisappear {model.disappear(); ScreenOrientation.set(.portrait)}
             .onChange(of:scenePhase) {_,phase in model.scenePhaseChanged(phase)}
-            .onChange(of:model.savedID) {_,id in
-                guard let id else {return}
-                onSaved?(id)
-                dismiss()
-            }
+            .onChange(of:model.savedID) {_,id in if id != nil {dismiss()}}
             .alert("공간 스캔을 확정할까요?",isPresented:$model.confirmingScan) {
                 Button("계속 스캔",role:.cancel) {}
                 Button("공간 확정") {model.confirmScan()}

@@ -13,12 +13,12 @@ import HearIAmCore
     private var anchorTime=0.0,anchorUptime=0.0
     private var resumeAfterScrub=false
     init(record: GuidanceRecord,replay: GuidanceReplay) {
-        self.record=record;self.replay=replay;self.analysis=GuidanceReplayAnalysis(replay:replay,route:record.route,guidancePath:record.guidancePath)
+        self.record=record;self.replay=replay;self.analysis=GuidanceReplayAnalysis(replay:replay,route:record.route)
         scene=GuidanceReplayScene(record:record)
     }
     var pose: GuidanceReplaySample? {replay.pose(at:time)}
     var currentStatus: GuidanceReplayStatus {pose?.status ?? .untracked}
-    var deviation: Double? {pose?.position.map {GuidanceReplayAnalysis.deviation($0,points:record.guidancePath)}}
+    var deviation: Double? {pose?.position.map {GuidanceReplayAnalysis.deviation($0,route:record.route)}}
     func play(at uptime: Double = ProcessInfo.processInfo.systemUptime) {
         guard replay.duration>0 else {return}
         if time>=replay.duration {time=0}

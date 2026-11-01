@@ -86,11 +86,11 @@ public struct GuidanceReplayAnalysis: Sendable {
     public let maximumDeviation: Double
     public let missingSeconds: Double
     public let events: [GuidanceReplayEvent]
-    public init(replay: GuidanceReplay,route: StageRoute,guidancePath: [FloorPoint]? = nil) {
+    public init(replay: GuidanceReplay,route: StageRoute) {
         var distance=0.0,maximum=0.0,covered=0.0
         var events=[GuidanceReplayEvent(time:0,kind:.start)]
         for (i,s) in replay.samples.enumerated() {
-            if let p=s.position {maximum=max(maximum,Self.deviation(p,points:guidancePath ?? route.points))}
+            if let p=s.position {maximum=max(maximum,Self.deviation(p,route:route))}
             guard i>0 else {continue}
             let previous=replay.samples[i-1]
             if replay.connects(previous,s),let a=previous.position,let b=s.position {
@@ -104,9 +104,6 @@ public struct GuidanceReplayAnalysis: Sendable {
         self.missingSeconds=max(0,replay.duration-covered);self.events=events
     }
     public static func deviation(_ p: FloorPoint,route: StageRoute) -> Double {
-        deviation(p,points:route.points)
-    }
-    public static func deviation(_ p: FloorPoint,points: [FloorPoint]) -> Double {
-        zip(points,points.dropFirst()).map {p.distance(toSegmentFrom:$0.0,to:$0.1)}.min() ?? 0
+        zip(route.points,route.points.dropFirst()).map {p.distance(toSegmentFrom:$0.0,to:$0.1)}.min() ?? 0
     }
 }

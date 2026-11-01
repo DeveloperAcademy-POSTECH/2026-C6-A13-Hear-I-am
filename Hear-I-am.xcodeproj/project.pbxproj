@@ -140,19 +140,6 @@
 		3EE1B91790585D95921F7A1D /* VoiceGlass.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D92C3BB3413511C203D8887 /* VoiceGlass.swift */; };
 		22B717874CF6C70C749671A7 /* VoiceWakeListener.swift in Sources */ = {isa = PBXBuildFile; fileRef = 730D15DEAA1975E78EE744B6 /* VoiceWakeListener.swift */; };
 		005135EFEFBA1FF1442A7766 /* VoiceWakeGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 764BBB152672D4E5076FD9B2 /* VoiceWakeGate.swift */; };
-		6CA76517DAAADAA4C1F61725 /* HearV3.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF6C3737D1404B54C03622C3 /* HearV3.swift */; };
-		1F0865EFB55B86AAA9E6C85E /* RoleSelectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3066BB303909034804A5D8FA /* RoleSelectionView.swift */; };
-		D2668D1BBE4CC1C3618297E3 /* V3UsageHelpView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F3E1D57838BE7EB084F7B90 /* V3UsageHelpView.swift */; };
-		E0773D8C69004844E8A4A41B /* GuidanceViewModel+PerformanceSelection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37DEF6E5BC37EBD752C9B439 /* GuidanceViewModel+PerformanceSelection.swift */; };
-		AC6CF3CFA857F1B9C6DEE10B /* GuidanceLiveView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32A639A5348DC9DFAA90F2AE /* GuidanceLiveView.swift */; };
-		D2E54FFF5AD331241F0538B7 /* PerformanceLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED57B6EF0D43F112A09ECCA0 /* PerformanceLibraryView.swift */; };
-		A43BE5371BEA58AF83D8A0E1 /* PerformanceDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A708458A6F2778528ABCD685 /* PerformanceDetailView.swift */; };
-		1DB38E8A3FDB2ADD9D618B74 /* PerformanceStageCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35432BDBD57431E8EB1405EA /* PerformanceStageCard.swift */; };
-		01F5C97632973220BB178EC4 /* StageClassificationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14782BB3E4FEA91757D38E5A /* StageClassificationView.swift */; };
-		175CA93E520860A1BDED09A4 /* PerformanceTagManagementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BE625ACF1545A48F491C411 /* PerformanceTagManagementView.swift */; };
-		4F18D9BB965C58A6F195AA68 /* HelperScanHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 035AD5FF8E6708BC58AE97AB /* HelperScanHomeView.swift */; };
-		1C02C217DC70C12AE3B89B70 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 2FE25071A0B95163D391C2C2 /* Localizable.strings */; };
-		0FEA08BF4742948167225F5D /* HomeVoiceAtmosphere.swift in Sources */ = {isa = PBXBuildFile; fileRef = F58DC67D887BB308A5A25BBA /* HomeVoiceAtmosphere.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -277,34 +264,20 @@
 		E5DD490E6C8B13E5386CFAF0 /* FrontDirectionSensor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrontDirectionSensor.swift; sourceTree = "<group>"; };
 		3FB4F7E0A74FB58A995DC87C /* FrontDirectionPracticeViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrontDirectionPracticeViewModel.swift; sourceTree = "<group>"; };
 		DE264B9FF2297F674DAAAB1F /* FrontDirectionPracticeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrontDirectionPracticeView.swift; sourceTree = "<group>"; };
-		C50ACB3DD34DF239B1E2F81F /* VoiceUsageMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "VoiceUsageMode.swift"; sourceTree = "<group>"; };
-		C3239CAD6733E0FD21DD32B8 /* VoiceListeningChime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "VoiceListeningChime.swift"; sourceTree = "<group>"; };
-		9F6B001212C7FAC426FA88E1 /* VoiceRecognitionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "VoiceRecognitionService.swift"; sourceTree = "<group>"; };
-		2CCDD1B4D4845912209F7AE9 /* VoiceRehearsalPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "VoiceRehearsalPanel.swift"; sourceTree = "<group>"; };
-		1A9984F195ECC33D4E06F459 /* GuidanceViewModel+VoiceRehearsal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GuidanceViewModel+VoiceRehearsal.swift"; sourceTree = "<group>"; };
-		ECFEF84B528B216C84395DC2 /* HearSiriIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "HearSiriIntents.swift"; sourceTree = "<group>"; };
+		C50ACB3DD34DF239B1E2F81F /* VoiceUsageMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Hear-I-am/Features/Voice/Agent/VoiceUsageMode.swift"; sourceTree = SOURCE_ROOT; };
+		C3239CAD6733E0FD21DD32B8 /* VoiceListeningChime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Hear-I-am/Features/Voice/Recognition/VoiceListeningChime.swift"; sourceTree = SOURCE_ROOT; };
+		9F6B001212C7FAC426FA88E1 /* VoiceRecognitionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Hear-I-am/Features/Voice/Recognition/VoiceRecognitionService.swift"; sourceTree = SOURCE_ROOT; };
+		2CCDD1B4D4845912209F7AE9 /* VoiceRehearsalPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Hear-I-am/Features/Voice/View/VoiceRehearsalPanel.swift"; sourceTree = SOURCE_ROOT; };
+		1A9984F195ECC33D4E06F459 /* GuidanceViewModel+VoiceRehearsal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Hear-I-am/Features/Voice/Agent/GuidanceViewModel+VoiceRehearsal.swift"; sourceTree = SOURCE_ROOT; };
+		ECFEF84B528B216C84395DC2 /* HearSiriIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Hear-I-am/Features/Voice/Siri/HearSiriIntents.swift"; sourceTree = SOURCE_ROOT; };
 		D24CD3352517A80985F40132 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = "Hear-I-am/en.lproj/AppShortcuts.strings"; sourceTree = SOURCE_ROOT; };
 		FD9DCF93CC13C6AD65803A0E /* ko */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ko; path = "Hear-I-am/ko.lproj/AppShortcuts.strings"; sourceTree = SOURCE_ROOT; };
-		E7092C3E04E0456BEC977054 /* VoiceSpeechAnalyzer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "VoiceSpeechAnalyzer.swift"; sourceTree = "<group>"; };
-		841C6CF2B6F5DDFE4345DC9E /* VoiceRecognitionInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "VoiceRecognitionInput.swift"; sourceTree = "<group>"; };
-		D4E89113328340EDC5CBE49C /* VoiceNarrationPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "VoiceNarrationPlayer.swift"; sourceTree = "<group>"; };
-		7D92C3BB3413511C203D8887 /* VoiceGlass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "VoiceGlass.swift"; sourceTree = "<group>"; };
-		730D15DEAA1975E78EE744B6 /* VoiceWakeListener.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "VoiceWakeListener.swift"; sourceTree = "<group>"; };
-		764BBB152672D4E5076FD9B2 /* VoiceWakeGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "VoiceWakeGate.swift"; sourceTree = "<group>"; };
-		EF6C3737D1404B54C03622C3 /* HearV3.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "HearV3.swift"; sourceTree = "<group>"; };
-		3066BB303909034804A5D8FA /* RoleSelectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RoleSelectionView.swift"; sourceTree = "<group>"; };
-		3F3E1D57838BE7EB084F7B90 /* V3UsageHelpView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "V3UsageHelpView.swift"; sourceTree = "<group>"; };
-		37DEF6E5BC37EBD752C9B439 /* GuidanceViewModel+PerformanceSelection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GuidanceViewModel+PerformanceSelection.swift"; sourceTree = "<group>"; };
-		32A639A5348DC9DFAA90F2AE /* GuidanceLiveView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GuidanceLiveView.swift"; sourceTree = "<group>"; };
-		ED57B6EF0D43F112A09ECCA0 /* PerformanceLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PerformanceLibraryView.swift"; sourceTree = "<group>"; };
-		A708458A6F2778528ABCD685 /* PerformanceDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PerformanceDetailView.swift"; sourceTree = "<group>"; };
-		35432BDBD57431E8EB1405EA /* PerformanceStageCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PerformanceStageCard.swift"; sourceTree = "<group>"; };
-		14782BB3E4FEA91757D38E5A /* StageClassificationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "StageClassificationView.swift"; sourceTree = "<group>"; };
-		4BE625ACF1545A48F491C411 /* PerformanceTagManagementView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PerformanceTagManagementView.swift"; sourceTree = "<group>"; };
-		035AD5FF8E6708BC58AE97AB /* HelperScanHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "HelperScanHomeView.swift"; sourceTree = "<group>"; };
-		310A3ECE06831B3760022F16 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = "../en.lproj/Localizable.strings"; sourceTree = "<group>"; };
-		542D66527B02A78545104566 /* ko */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ko; path = "../ko.lproj/Localizable.strings"; sourceTree = "<group>"; };
-		F58DC67D887BB308A5A25BBA /* HomeVoiceAtmosphere.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeVoiceAtmosphere.swift; sourceTree = "<group>"; };
+		E7092C3E04E0456BEC977054 /* VoiceSpeechAnalyzer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Hear-I-am/Features/Voice/Recognition/VoiceSpeechAnalyzer.swift"; sourceTree = SOURCE_ROOT; };
+		841C6CF2B6F5DDFE4345DC9E /* VoiceRecognitionInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Hear-I-am/Features/Voice/Recognition/VoiceRecognitionInput.swift"; sourceTree = SOURCE_ROOT; };
+		D4E89113328340EDC5CBE49C /* VoiceNarrationPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Hear-I-am/Features/Voice/Recognition/VoiceNarrationPlayer.swift"; sourceTree = SOURCE_ROOT; };
+		7D92C3BB3413511C203D8887 /* VoiceGlass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Hear-I-am/Features/Voice/View/VoiceGlass.swift"; sourceTree = SOURCE_ROOT; };
+		730D15DEAA1975E78EE744B6 /* VoiceWakeListener.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Hear-I-am/Features/Voice/Agent/VoiceWakeListener.swift"; sourceTree = SOURCE_ROOT; };
+		764BBB152672D4E5076FD9B2 /* VoiceWakeGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Hear-I-am/Features/Voice/Agent/VoiceWakeGate.swift"; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -346,7 +319,6 @@
 		16B11A13A7FBA5CBAE71C9BA /* Parts */ = {
 			isa = PBXGroup;
 			children = (
-				F58DC67D887BB308A5A25BBA /* HomeVoiceAtmosphere.swift */,
 				8142CDE35A01BAD95188EAE6 /* HomeActionCard.swift */,
 				F9DE9AB83C23BCC3EB3BE325 /* HomeStageList.swift */,
 				5D05FD1427F1D8C0A3545E6F /* StageRow.swift */,
@@ -376,9 +348,8 @@
 			isa = PBXGroup;
 			children = (
 				C340F1B860A25307924F2BD3 /* PreparationView.swift */,
-				035AD5FF8E6708BC58AE97AB /* HelperScanHomeView.swift */,
 			);
-			path = "Screen";
+			path = Screen;
 			sourceTree = "<group>";
 		};
 		2278031D2A15F71C52F08411 /* AR */ = {
@@ -512,10 +483,8 @@
 				93804605A383D36621768212 /* Records */,
 				D68D3833E51BBBB75875D1FA /* SoundTest */,
 				CD7F24D5B9C54756988252F5 /* StagePreview */,
-				6F298E5F443CE5A78FBE180E /* Performances */,
-				8F950F0C25FA74AA08EA0CB4 /* Onboarding */,
 			);
-			path = "Features";
+			path = Features;
 			sourceTree = "<group>";
 		};
 		583E21F2A8F81E76179EACE5 /* ViewModel */ = {
@@ -694,9 +663,8 @@
 				FC2463CC15C59B86D72DD3D6 /* ScreenOrientation.swift */,
 				19CBE42B0DCF8C14F2419B70 /* StageMap.swift */,
 				DF75FE4E62D7F51E265F184F /* View+LibrarySelection.swift */,
-				EF6C3737D1404B54C03622C3 /* HearV3.swift */,
 			);
-			path = "DesignSystem";
+			path = DesignSystem;
 			sourceTree = "<group>";
 		};
 		91DC1DEC5764EFC5DA61257C /* App */ = {
@@ -773,7 +741,6 @@
 			isa = PBXGroup;
 			children = (
 				CEF3295A562F96FC1DE68889 /* Assets.xcassets */,
-				2FE25071A0B95163D391C2C2 /* Localizable.strings */,
 				9AEAB7E2E56E0E21AFBB462A /* AppShortcuts.strings */,
 				75897F93E4C7DD266125D339 /* PrivacyInfo.xcprivacy */,
 				D44F4CE6A8C292BF30224E80 /* ReplayModels.scnassets */,
@@ -848,9 +815,8 @@
 			children = (
 				CC8A4BF4410000A803BAE8B2 /* HomeSettingsView.swift */,
 				43B082D62023E7B7CA038611 /* HomeView.swift */,
-				3F3E1D57838BE7EB084F7B90 /* V3UsageHelpView.swift */,
 			);
-			path = "Screen";
+			path = Screen;
 			sourceTree = "<group>";
 		};
 		E5FD3EADA5C275D14CBDEAD1 /* Home */ = {
@@ -900,9 +866,8 @@
 				99F557F11BC7D746B83CD908 /* GuidanceRouteHeader.swift */,
 				55C3BE20F36262581E6A9451 /* GuidanceRouteOverlay.swift */,
 				35355DCEB93AAAA37B28413D /* GuidanceStageList.swift */,
-				32A639A5348DC9DFAA90F2AE /* GuidanceLiveView.swift */,
 			);
-			path = "Parts";
+			path = Parts;
 			sourceTree = "<group>";
 		};
 		F73A1F84B3224F5CA6C6ECE2 /* ViewModel */ = {
@@ -960,7 +925,7 @@
 				635750EC5C342EA92DE91956 /* View */,
 				518D05E904C7DD4176BCC82F /* Siri */,
 			);
-			path = "Voice";
+			name = Voice;
 			sourceTree = "<group>";
 		};
 		2A4CFC856BA7D20F3C8BBFEF /* Recognition */ = {
@@ -972,7 +937,7 @@
 				D4E89113328340EDC5CBE49C /* VoiceNarrationPlayer.swift */,
 				C3239CAD6733E0FD21DD32B8 /* VoiceListeningChime.swift */,
 			);
-			path = "Recognition";
+			name = Recognition;
 			sourceTree = "<group>";
 		};
 		2EC1BF4453E460611EA94C2E /* Agent */ = {
@@ -982,9 +947,8 @@
 				730D15DEAA1975E78EE744B6 /* VoiceWakeListener.swift */,
 				764BBB152672D4E5076FD9B2 /* VoiceWakeGate.swift */,
 				C50ACB3DD34DF239B1E2F81F /* VoiceUsageMode.swift */,
-				37DEF6E5BC37EBD752C9B439 /* GuidanceViewModel+PerformanceSelection.swift */,
 			);
-			path = "Agent";
+			name = Agent;
 			sourceTree = "<group>";
 		};
 		635750EC5C342EA92DE91956 /* View */ = {
@@ -993,7 +957,7 @@
 				2CCDD1B4D4845912209F7AE9 /* VoiceRehearsalPanel.swift */,
 				7D92C3BB3413511C203D8887 /* VoiceGlass.swift */,
 			);
-			path = "View";
+			name = View;
 			sourceTree = "<group>";
 		};
 		518D05E904C7DD4176BCC82F /* Siri */ = {
@@ -1001,75 +965,7 @@
 			children = (
 				ECFEF84B528B216C84395DC2 /* HearSiriIntents.swift */,
 			);
-			path = "Siri";
-			sourceTree = "<group>";
-		};
-		6F298E5F443CE5A78FBE180E /* Performances */ = {
-			isa = PBXGroup;
-			children = (
-				69A4527E698024D4F54CA81E /* View */,
-			);
-			path = "Performances";
-			sourceTree = "<group>";
-		};
-		69A4527E698024D4F54CA81E /* View */ = {
-			isa = PBXGroup;
-			children = (
-				C592110C59D7EFE5FAD88D69 /* Screen */,
-				D92CD6F315C77E9C7AE2C3D7 /* Sheet */,
-				F4C84D7075D89D4C20D2B4D0 /* Parts */,
-			);
-			path = "View";
-			sourceTree = "<group>";
-		};
-		C592110C59D7EFE5FAD88D69 /* Screen */ = {
-			isa = PBXGroup;
-			children = (
-				4BE625ACF1545A48F491C411 /* PerformanceTagManagementView.swift */,
-				A708458A6F2778528ABCD685 /* PerformanceDetailView.swift */,
-				ED57B6EF0D43F112A09ECCA0 /* PerformanceLibraryView.swift */,
-			);
-			path = "Screen";
-			sourceTree = "<group>";
-		};
-		D92CD6F315C77E9C7AE2C3D7 /* Sheet */ = {
-			isa = PBXGroup;
-			children = (
-				14782BB3E4FEA91757D38E5A /* StageClassificationView.swift */,
-			);
-			path = "Sheet";
-			sourceTree = "<group>";
-		};
-		F4C84D7075D89D4C20D2B4D0 /* Parts */ = {
-			isa = PBXGroup;
-			children = (
-				35432BDBD57431E8EB1405EA /* PerformanceStageCard.swift */,
-			);
-			path = "Parts";
-			sourceTree = "<group>";
-		};
-		8F950F0C25FA74AA08EA0CB4 /* Onboarding */ = {
-			isa = PBXGroup;
-			children = (
-				C6818D045082CFD41D766F16 /* View */,
-			);
-			path = "Onboarding";
-			sourceTree = "<group>";
-		};
-		C6818D045082CFD41D766F16 /* View */ = {
-			isa = PBXGroup;
-			children = (
-				D61424A32FA889360A1706D8 /* Screen */,
-			);
-			path = "View";
-			sourceTree = "<group>";
-		};
-		D61424A32FA889360A1706D8 /* Screen */ = {
-			isa = PBXGroup;
-			children = (
-				3066BB303909034804A5D8FA /* RoleSelectionView.swift */,
-			);
-			path = "Screen";
+			name = Siri;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -1140,7 +1036,6 @@
 				AD17F75881AD0B8688842F58 /* Assets.xcassets in Resources */,
 				2B503DC11A185EB1A3A06AF6 /* PrivacyInfo.xcprivacy in Resources */,
 				0A253829E02E693820910F8B /* ReplayModels.scnassets in Resources */,
-				1C02C217DC70C12AE3B89B70 /* Localizable.strings in Resources */,
 				8F40D1C8A65D0733A98D1981 /* AppShortcuts.strings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -1152,17 +1047,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				4F18D9BB965C58A6F195AA68 /* HelperScanHomeView.swift in Sources */,
-				175CA93E520860A1BDED09A4 /* PerformanceTagManagementView.swift in Sources */,
-				01F5C97632973220BB178EC4 /* StageClassificationView.swift in Sources */,
-				1DB38E8A3FDB2ADD9D618B74 /* PerformanceStageCard.swift in Sources */,
-				A43BE5371BEA58AF83D8A0E1 /* PerformanceDetailView.swift in Sources */,
-				D2E54FFF5AD331241F0538B7 /* PerformanceLibraryView.swift in Sources */,
-				AC6CF3CFA857F1B9C6DEE10B /* GuidanceLiveView.swift in Sources */,
-				E0773D8C69004844E8A4A41B /* GuidanceViewModel+PerformanceSelection.swift in Sources */,
-				D2668D1BBE4CC1C3618297E3 /* V3UsageHelpView.swift in Sources */,
-				1F0865EFB55B86AAA9E6C85E /* RoleSelectionView.swift in Sources */,
-				6CA76517DAAADAA4C1F61725 /* HearV3.swift in Sources */,
 				590208009E83056A89A481D8 /* VoiceUsageMode.swift in Sources */,
 				9A04B3BE74BB776D91D90F68 /* HearSiriIntents.swift in Sources */,
 				8BB84ABDD7447BA90C48FE27 /* VoiceListeningChime.swift in Sources */,
@@ -1229,7 +1113,6 @@
 				6D3F26F42C09E75387311322 /* HearAudioSession.swift in Sources */,
 				C9ACA4BE60866FA5E8965725 /* HearIAmApp.swift in Sources */,
 				3C78D4DE73CA2E1CA3C75EBD /* HearRootView.swift in Sources */,
-				0FEA08BF4742948167225F5D /* HomeVoiceAtmosphere.swift in Sources */,
 				34954D50303FCB804701535D /* HomeActionCard.swift in Sources */,
 				FF831C64D02C6732D6831BF4 /* HomeSettingsView.swift in Sources */,
 				BC1F1AE3EA5B843B67EC9124 /* HomeStageList.swift in Sources */,
@@ -1305,15 +1188,6 @@
 				FD9DCF93CC13C6AD65803A0E /* ko */,
 			);
 			name = AppShortcuts.strings;
-			sourceTree = "<group>";
-		};
-		2FE25071A0B95163D391C2C2 /* Localizable.strings */ = {
-			isa = PBXVariantGroup;
-			children = (
-				310A3ECE06831B3760022F16 /* en */,
-				542D66527B02A78545104566 /* ko */,
-			);
-			name = Localizable.strings;
 			sourceTree = "<group>";
 		};
 /* End PBXVariantGroup section */

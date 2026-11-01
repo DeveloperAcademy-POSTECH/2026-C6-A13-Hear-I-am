@@ -8,8 +8,6 @@ public struct GuidanceRun: Sendable {
     private let route: StageRoute
     private var startedAt: Date?
     private var completedAt: Date?
-    private var firstGuidedPointIndex: Int?
-    private var practiceOrigin: FloorPoint?
     private var segmentStart: Double?
     private var activeSeconds = 0.0
     private var replayStart: Double?
@@ -35,7 +33,6 @@ public struct GuidanceRun: Sendable {
         guard guide.state == .completed, guide.route == route, let startedAt, completedAt == nil else { return }
         setRunning(false,uptime:uptime)
         completedAt=max(date,startedAt)
-        firstGuidedPointIndex=guide.practiceFirstIndex;practiceOrigin=guide.practiceOrigin
         replayEnd=max(0,uptime-(replayStart ?? uptime),replaySamples.last?.time ?? 0)
     }
     /// This observer never mutates guidance rules. Only fresh, verified poses are supplied by the app.
@@ -65,7 +62,7 @@ public struct GuidanceRun: Sendable {
         }
         let replay: GuidanceReplay? = replaySamples.isEmpty ? nil : GuidanceReplay(duration:replayEnd ?? 0,samples:replaySamples,truncated:replayTruncated)
         let value=GuidanceRecord(version:replay == nil ? 1 : 2,id:id,stageID:stageID,stageName:stageName,route:route,
-                                 startedAt:startedAt,completedAt:completedAt,finishedAt:max(finishedAt,completedAt),activeSeconds:activeSeconds,replay:replay,firstGuidedPointIndex:firstGuidedPointIndex,practiceOrigin:practiceOrigin)
+                                 startedAt:startedAt,completedAt:completedAt,finishedAt:max(finishedAt,completedAt),activeSeconds:activeSeconds,replay:replay)
         try value.validate(); return value
     }
 }

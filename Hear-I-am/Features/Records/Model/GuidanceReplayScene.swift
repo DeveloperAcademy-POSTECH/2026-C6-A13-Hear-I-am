@@ -28,19 +28,18 @@ import HearIAmCore
         scene.rootNode.addChildNode(ReplaySurfaceFactory.stageFloor(route.area))
         scene.rootNode.addChildNode(ReplayModelFactory.stageBoundary(route.area))
         for object in route.obstacles {scene.rootNode.addChildNode(ReplayModelFactory.object(object))}
-        let pathPoints=record.guidancePath,pathHeights=record.guidancePathHeights
-        for (index,p) in pathPoints.enumerated() {
+        for (index,p) in route.points.enumerated() {
             let marker: SCNNode
             if index==0 {
-                let next=pathPoints[1]
+                let next=route.points[1]
                 marker=ReplayModelFactory.startMarker(heading:Float(atan2(next.x-p.x,-(next.y-p.y))))
-            } else if index==pathPoints.count-1 {marker=ReplayModelFactory.arrivalMarker()}
+            } else if index==route.points.count-1 {marker=ReplayModelFactory.arrivalMarker()}
             else {marker=ReplayModelFactory.waypoint(index+1)}
-            marker.position=SCNVector3(p.x,pathHeights[index]+0.015,-p.y)
+            marker.position=SCNVector3(p.x,routeHeight(index)+0.015,-p.y)
             scene.rootNode.addChildNode(marker)
-            if index>0, pathPoints[index-1].distance(to:p)>0.0001 {
-                let a=pathPoints[index-1]
-                let from=SCNVector3(a.x,pathHeights[index-1]+0.035,-a.y),to=SCNVector3(p.x,pathHeights[index]+0.035,-p.y)
+            if index>0 {
+                let a=route.points[index-1]
+                let from=SCNVector3(a.x,routeHeight(index-1)+0.035,-a.y),to=SCNVector3(p.x,routeHeight(index)+0.035,-p.y)
                 let path=ReplayModelFactory.dashedRoute(from:from,to:to)
                 ReplayModelFactory.routeOverlay(path,order:4);scene.rootNode.addChildNode(path)
                 scene.rootNode.addChildNode(ReplayModelFactory.routeChevron(from:from,to:to))
@@ -50,7 +49,7 @@ import HearIAmCore
         person.addChildNode(ring);scene.rootNode.addChildNode(person)
         buildTrace()
         var points=[SIMD3<Float>(0,0,0),.init(Float(route.area.width),1.8,-Float(route.area.depth))]
-        for p in pathPoints {points.append(.init(Float(p.x),1.8,-Float(p.y)))}
+        for p in route.points {points.append(.init(Float(p.x),1.8,-Float(p.y)))}
         for object in route.obstacles {
             for p in object.vertices {points.append(.init(Float(p.x),Float(ObjectPlacement(object).height),-Float(p.y)))}
         }
@@ -61,15 +60,14 @@ import HearIAmCore
                 .init(points.map(\.x).max()!,max(points.map(\.y).max()!,Float(route.pointHeights?.max() ?? 0)+1.8),points.map(\.z).max()!))
         show(time:0)
     }
-    /// Height follows this run's planned segment, never a measured foot elevation. Practice origin is on the stage floor.
+    private func routeHeight(_ index: Int) -> Double {record.route.pointHeights?[index] ?? 0}
+    /// Height is a display estimate along the saved segment, never a measured foot elevation.
     func height(_ p: FloorPoint,target: Int) -> Double {
-        let path=record.guidancePath,heights=record.guidancePathHeights
-        let offset=record.practiceOrigin != nil ? (record.firstGuidedPointIndex ?? 1)-1 : 0
-        let index=max(1,min(target-offset,path.count-1))
-        let a=path[index-1],b=path[index]
+        let index=max(1,min(target,record.route.points.count-1))
+        let a=record.route.points[index-1],b=record.route.points[index]
         let dx=b.x-a.x,dy=b.y-a.y,length=dx*dx+dy*dy
         let t=length>0 ? max(0,min(1,((p.x-a.x)*dx+(p.y-a.y)*dy)/length)) : 0
-        return heights[index-1]+(heights[index]-heights[index-1])*t
+        return routeHeight(index-1)+(routeHeight(index)-routeHeight(index-1))*t
     }
     private func buildTrace() {
         guard let replay=record.replay else {return}
