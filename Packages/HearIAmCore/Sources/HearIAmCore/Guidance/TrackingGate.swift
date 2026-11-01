@@ -1,6 +1,12 @@
 import Foundation
 
 /// Quality gate: normal is not verification. Every interruption revokes explicit validation.
+public enum RestorationValidation: Sendable {
+    case checkpoints
+    /// Practice only: normal tracking and restored reference anchors, without manual checkpoint correction.
+    case relocalization
+}
+
 public struct TrackingGate: Sendable {
     public private(set) var normalSince: Double?
     public private(set) var lastTime: Double?
@@ -26,7 +32,9 @@ public struct TrackingGate: Sendable {
             tolerance > 0 && tolerance <= 0.5 && error <= tolerance
         return verified
     }
-    public func isReady(now: Double) -> Bool { verified && canVerify(now: now) }
+    public func isReady(now: Double, validation: RestorationValidation = .checkpoints) -> Bool {
+        canVerify(now:now) && (validation == .relocalization || verified)
+    }
     public mutating func expire(now: Double) {
         if let lastTime, !now.isFinite || now < lastTime || now-lastTime > maxAge { invalidate() }
     }
