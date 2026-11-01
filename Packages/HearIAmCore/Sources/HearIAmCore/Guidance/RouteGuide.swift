@@ -11,6 +11,14 @@ public struct GuideUpdate: Equatable, Sendable {
 public struct RouteGuide: Sendable {
     public private(set) var state: GuideState = .idle
     public private(set) var targetIndex=1
+    public private(set) var practiceEntry: PracticeEntry?
+    /// Earlier saved points were not visited when practice began directly at P1.
+    public private(set) var practiceFirstIndex: Int?
+    /// Retained after arriving at P1 so the completed record can reproduce this run's first segment.
+    public private(set) var practiceOrigin: FloorPoint?
+    public var activeSegmentStartPoint: FloorPoint {
+        practiceEntry?.origin ?? route.points[activeSegmentStartIndex]
+    }
     /// Explicit point facing takes priority over a chair/stairs facing edge.
     public private(set) var facingPointIndex: Int?
     public static let facingToleranceDegrees = 15.0
@@ -74,6 +82,20 @@ public struct RouteGuide: Sendable {
         state = .guiding; targetIndex=1; facingPointIndex=route.facing(at:0) == nil ? nil : 0; facingGate.reset(); holdRemaining=0; arrivedSince=nil; lastTime=nil; lastSpeech = -.infinity; sector=nil; pauseReason=nil
         return true
     }
+    public func practiceEntry(from position: FloorPoint, footprint: ScannedFootprint) throws -> PracticeEntry {
+        guard state == .idle, usesRouteCorridor, pathIsValid else { throw LabError.invalid("연습을 시작할 동선을 확인해주세요.") }
+        return try PracticeEntry(position:position,route:route,settings:settings,footprint:footprint)
+    }
+    /// Only called for a new practice run. Recovery uses resume(), preserving the target and holds.
+    @discardableResult public mutating func startPractice(position: FloorPoint, headingDegrees: Double, trackingValid: Bool,
+                                                         footprint: ScannedFootprint) throws -> Bool {
+        guard trackingValid, position.valid, headingDegrees.isFinite else {return false}
+        let entry=try practiceEntry(from:position,footprint:footprint)
+        practiceEntry=entry;practiceFirstIndex=entry.targetIndex;practiceOrigin=position
+        state = .guiding;targetIndex=entry.targetIndex;facingPointIndex=nil;facingGate.reset()
+        holdRemaining=0;arrivedSince=nil;lastTime=nil;lastSpeech = -.infinity;sector=nil;pauseReason=nil
+        return true
+    }
     public mutating func pause() { pause(reason:.manual) }
     public mutating func pauseForUnclearHeading() { pause(reason:.unclearHeading) }
     private mutating func pause(reason: GuidePauseReason) {
@@ -89,7 +111,7 @@ public struct RouteGuide: Sendable {
     public func canResume(position: FloorPoint, trackingValid: Bool) -> Bool {
         state == .paused && rehearsalReturnArrivalIndex == nil && trackingValid && position.valid &&
         (!pausesForPositionIssues || (usesRouteCorridor ? positionIssue(position) == nil : route.area.contains(position,margin:settings.boundaryMargin))) &&
-        pathIsValid
+        pathIsValid && (practiceEntry.map {(try? $0.validateRemaining(from:position,route:route,settings:settings)) != nil} ?? true)
     }
     /// P numbers name ordinary waypoints; chair/stair milestones also occupy route indices.
     public func rehearsalPointIndex(number: Int) -> Int? {
@@ -110,7 +132,7 @@ public struct RouteGuide: Sendable {
         guard trackingValid, position.valid, headingDegrees.isFinite else {
             throw RehearsalReturnError.trackingUnavailable
         }
-        guard index > 0, index < route.points.count-1, index < targetIndex else {
+        guard index > 0, index >= (practiceFirstIndex ?? 1), index < route.points.count-1, index < targetIndex, practiceEntry == nil else {
             throw RehearsalReturnError.unvisitedDestination
         }
         if let issue=positionIssue(position) { throw RehearsalReturnError.positionUnsafe(issue) }
@@ -149,6 +171,11 @@ public struct RouteGuide: Sendable {
     public func positionIssue(_ position: FloorPoint) -> GuidePauseReason? {
         guard position.valid, route.points.indices.contains(targetIndex), targetIndex > 0,
               route.points.indices.contains(activeSegmentStartIndex) else { return .invalidSample }
+        if let entry=practiceEntry {
+            if !entry.footprint.covers(from:position,to:route.points[targetIndex]) {return .outsideStage}
+            if route.obstacles.contains(where:{$0.blocksTravel(from:position,to:route.points[targetIndex],clearance:settings.obstacleClearance)}) {return .obstacleProximity}
+            return position.distance(toSegmentFrom:entry.origin,to:route.points[targetIndex]) > Self.corridorRadius ? .offRoute : nil
+        }
         let lowerIndex=min(activeSegmentStartIndex,targetIndex), upperIndex=max(activeSegmentStartIndex,targetIndex)
         let externalSegment=route.version == 2 &&
             (lowerIndex == 0 && upperIndex == 1 || lowerIndex == route.points.count-2 && upperIndex == route.points.count-1)
@@ -226,6 +253,7 @@ public struct RouteGuide: Sendable {
                     arrivedIndex=targetIndex
                     targetIndex -= 1; arrivedSince=nil; sector=nil
                 } else {
+                    practiceEntry=nil
                     if route.facing(at:targetIndex) != nil {
                         let index=targetIndex
                         facingPointIndex=index;facingGate.reset();arrivedSince=nil;sector=nil
