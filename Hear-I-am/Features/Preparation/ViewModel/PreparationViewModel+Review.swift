@@ -4,7 +4,7 @@ import HearIAmCore
 /// 검토·저장. Saving needs a stable world map; failures keep every input for another try.
 extension PreparationViewModel {
     var nameTooLong: Bool { scanName.count>80 }
-    var canSave: Bool { session.canSave && !session.photoCapturing && !scanName.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty && !nameTooLong }
+    var canSave: Bool { session.canSave && !session.photoCapturing }
     var saveRecoveryMessage: String? {
         guard draft.errors.isEmpty, !busy else { return nil }
         if session.canSave {
@@ -13,5 +13,14 @@ extension PreparationViewModel {
         return "무대·동선·확인점 입력은 유지됩니다. 주변의 무늬나 고정된 기물을 천천히 비춰주세요. 추적과 공간 지도가 안정되면 저장 버튼이 활성화됩니다."
     }
     var isSaving: Bool { busy && review }
-    func save() { session.save(name:scanName) }
+    func save() {
+        // Keep the generated name stable across retries; classification never gates the scan save.
+        if scanName == "무대 스캔" || scanName.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty {
+            let formatter=DateFormatter()
+            formatter.locale=Locale(identifier:"ko_KR")
+            formatter.dateFormat="M월 d일 HH:mm 무대"
+            scanName=formatter.string(from:Date())
+        }
+        session.save(name:scanName)
+    }
 }

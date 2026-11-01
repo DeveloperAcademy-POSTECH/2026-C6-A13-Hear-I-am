@@ -17,7 +17,8 @@ extension ARSessionController {
         if wasVerified && !gate.verified { invalidateWear("추적 제한 · 두 확인점 재확인 필요") }
         if sample.time-lastUI >= 0.05 {
             lastUI=sample.time; tracking=sample.tracking; mapping=sample.mapping
-            ready=gate.isReady(now:now); canVerify=gate.canVerify(now:now)
+            ready=gate.isReady(now:now,validation:restorationValidation); canVerify=gate.canVerify(now:now)
+            if ready, restorationValidation == .relocalization {restoreStarted=nil}
             canSave=mode == .scanning && !busy && sample.normal && sample.mapped &&
                 referenceAnchorsPresent(sample) && (!supportsMesh || !meshes.isEmpty) && stage != nil && routeIsValid
             if let stage, ready {
