@@ -19,7 +19,7 @@ struct HearRootView: View {
             if showsLaunch {HearLaunchView()}
             else if let role {
                 if role == .performer {
-                    HomeView(library:library,wake:wake,start:{open(VoiceGuidanceLaunch())},changeRole:chooseRole)
+                    HomeView(library:library,wake:wake,start:{open(VoiceGuidanceLaunch())},changeRole:chooseRole,isPresented:guidance == nil)
                 } else {helperTabs}
             } else {RoleSelectionView {role=$0;tab=0;openSiriRequest();syncWake()}}
         }
