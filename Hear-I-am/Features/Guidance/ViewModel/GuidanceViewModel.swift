@@ -43,6 +43,12 @@ import HearIAmCore
     /// list, may be cut; replies and step lines that follow a request play to the end and the speech over
     /// them is dropped, so the app is not stopped half way through doing what was asked.
     var voiceNarrationInterruptible=false
+    /// A line cut by the audio restart on opening, to be said again once listening is back.
+    var voiceReplayAfterRecovery=false
+    /// The line before the one now speaking; recognition lags, so an echo may be of either (11/01).
+    var previousSpokenText=""
+    /// The request being heard began while the app was speaking, so its start may be the app's own voice.
+    var voiceTurnOverNarration=false
     /// A command waiting for 「응」 or 「아니」: a guess of the Apple Intelligence model (#87), or leaving a started run.
     var pendingVoiceIntent: VoiceCommand?
     /// The request the user already made to the voice agent on Home (#90).
@@ -138,7 +144,10 @@ import HearIAmCore
 
         }
         signals.onEvent={ [weak self] in self?.logSignal($0,$1) }
-        voice.onText={ [weak self] in self?.spokenText=$0;self?.logSignal("voice",$0) }
+        voice.onText={ [weak self] in
+            guard let self else {return}
+            self.previousSpokenText=self.spokenText;self.spokenText=$0;self.logSignal("voice",$0)
+        }
         voice.onError={ [weak self] text in
             guard let self else { return }
             self.audioIssue=text;self.instructionDone=false

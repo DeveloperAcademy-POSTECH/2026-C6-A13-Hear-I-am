@@ -6,13 +6,28 @@ public enum VoiceAppRequest: Equatable, Sendable {
     case scan
 
     public static func resolve(_ text: String) -> VoiceAppRequest? {
-        let compact = text.lowercased().replacingOccurrences(of: #"[\s.!?。！？,~]"#, with: "", options: .regularExpression)
+        let compact = compacted(text)
         if planWords.contains(where: compact.contains) { return .plans }
+        if compact == "스캔" || compact == "스캔이요" { return .scan }
         return scanWords.contains(where: compact.contains) ? .scan : nil
+    }
+
+    /// Home asks first whether to scan a stage or rehearse with a saved performance (10/31). This is the
+    /// rehearse answer: guidance opens on its performance list. Only whole answers count, so a stage or
+    /// place name that contains 「연습」(대연습실) is still a name.
+    public static func isRehearsal(_ text: String) -> Bool {
+        compacted(text).range(of: #"^(?:네|응)?(?:저장된)?(?:공연)?(?:으로)?연습(?:용)?(?:으로)?(?:할게|할래|하기|해|하자|해줘|해주세요|할게요|할래요)?(?:요)?$"#, options: .regularExpression) != nil
+    }
+
+    private static func compacted(_ text: String) -> String {
+        text.lowercased().replacingOccurrences(of: #"[\s.!?。！？,~]"#, with: "", options: .regularExpression)
     }
     private static let planWords = ["사전저장", "사전에저장", "미리저장", "미리그린", "미리그려", "그려둔", "그려놓은", "사전도면", "공연도면"]
     /// 「스캔한 무대」 asks for saved stages, so only words that start a scan count.
-    private static let scanWords = ["새스캔", "새로스캔", "스캔시작", "스캔해", "스캔할", "스캔하", "스캔열어", "스캔켜", "새무대", "무대새로", "무대만들"]
+    private static let scanWords = ["새스캔", "새로스캔", "스캔시작", "스캔해", "스캔할", "스캔하", "스캔열어", "스캔켜", "새무대", "무대새로", "무대만들", "무대스캔"]
+
+    /// What the agent says when called: the two things it can do.
+    public static let homeQuestion = ["네, 무엇을 할까요? 무대를 스캔할까요, 저장된 공연으로 연습할까요?"]
 
     /// What the agent says after opening the plans tab: the names, then why they cannot start guidance.
     public static func plansAnswer(names: [String]) -> [String] {

@@ -55,7 +55,8 @@ struct HearRootView: View {
                     switch VoiceAppRequest.resolve(text) {
                     case .plans?:showPlans()
                     case .scan?:showScan()
-                    case nil:open(VoiceGuidanceLaunch(request:text))
+                    // 「연습」 opens guidance on its performance list; a performance or place name goes straight to it.
+                    case nil:open(VoiceGuidanceLaunch(request:VoiceAppRequest.isRehearsal(text) ? nil : text))
                     }
                 }
                 syncWake()

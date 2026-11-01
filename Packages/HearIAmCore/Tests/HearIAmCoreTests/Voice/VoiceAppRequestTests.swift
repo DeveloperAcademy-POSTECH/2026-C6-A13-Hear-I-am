@@ -17,6 +17,17 @@ final class VoiceAppRequestTests: XCTestCase {
         // Plans come first: their answer is about scanning, but the request is to see them.
         XCTAssertEqual(VoiceAppRequest.resolve("사전 저장된 공연 스캔할 때 볼래"), .plans)
     }
+    func testHomeChoiceAnswers() {
+        for text in ["스캔", "무대 스캔할게", "스캔할래요"] { XCTAssertEqual(VoiceAppRequest.resolve(text), .scan, text) }
+        for text in ["연습", "연습할게요", "공연 연습", "저장된 공연으로 연습할게", "네 연습할래"] {
+            XCTAssertTrue(VoiceAppRequest.isRehearsal(text), text)
+            XCTAssertNil(VoiceAppRequest.resolve(text), text)
+        }
+        // A name with 「연습」 in it is a name, not the rehearse answer.
+        for text in ["대연습실 Look at me", "연습실 동선 열어 줘", "효자아트홀에 저장된 공연 리스트 찾아 줘"] {
+            XCTAssertFalse(VoiceAppRequest.isRehearsal(text), text)
+        }
+    }
     func testPlansAnswerNamesThemAndSaysTheyNeedAScan() {
         XCTAssertEqual(VoiceAppRequest.plansAnswer(names: ["포스텍"]).first, "공연 사전 저장에 1개가 있어요. 포스텍.")
         XCTAssertTrue(VoiceAppRequest.plansAnswer(names: ["포스텍"]).last!.contains("스캔"))
