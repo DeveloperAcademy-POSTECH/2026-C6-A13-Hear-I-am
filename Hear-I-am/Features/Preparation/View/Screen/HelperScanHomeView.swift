@@ -46,11 +46,8 @@ struct HelperScanHomeView:View {
             }.v3Screen().navigationTitle("스캔").navigationBarTitleDisplayMode(.inline)
                 .toolbar {ToolbarItem(placement:.topBarTrailing) {Button {settings=true} label:{Image(systemName:"gearshape")}.accessibilityLabel("설정")}}
         }.v3Screen()
-            .sheet(isPresented:$settings) {
-                NavigationStack {
-                    HomeSettingsView(role:.helper,changeRole:changeRole)
-                        .toolbar {ToolbarItem(placement:.cancellationAction) {Button("닫기") {settings=false}}}
-                }.v3Screen().suspendsVoiceWake()
+            .navigationDestination(isPresented:$settings) {
+                HomeSettingsView(role:.helper,changeRole:changeRole).suspendsVoiceWake()
             }
             .fullScreenCover(isPresented:$scanning,onDismiss:finishScan) {
                 PreparationView(library:library,onSaved:{id in savedID=id}).suspendsVoiceWake()
