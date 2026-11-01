@@ -8,6 +8,14 @@ extension GuidanceViewModel {
         guard let pose=freshPose(), let guide else {
             return tracking.heading == nil ? "카메라가 바닥이나 천장을 향하지 않도록 허리 앞쪽에 세워주세요." : "현재 위치를 다시 확인하고 있어요."
         }
+        if isPractice, !started {
+            if let issue=practiceEntryIssue {return issue}
+            return departureReady ? "‘출발’이라고 말하면 현재 위치에서 P1으로 안내해요." : "현재 위치에서 P1까지 경로를 확인하고 있어요. 잠시 멈춰주세요."
+        }
+        if isPractice, started, let entry=guide.practiceEntry {
+            do {try entry.validateRemaining(from:pose.point,route:guide.route,settings:guide.settings)}
+            catch {return error.localizedDescription}
+        }
         if !started, pose.point.distance(to:guide.route.points[0]) > guide.settings.startRadius {
             return "출발점까지 안내 버튼을 눌러 이동해주세요. 무대 안팎의 스캔한 공간에서 접근할 수 있어요."
         }
@@ -29,17 +37,26 @@ extension GuidanceViewModel {
         if pendingFacing != nil { lines=["바라볼 방향 안내를 이어갑니다."] }
         else if let returnIndex {lines=["\(voicePointName(returnIndex))로 다시 안내합니다. 저장된 동선을 따라 이동합니다."]}
         else if let arrived=guide?.rehearsalReturnArrivalIndex {lines=["안내를 다시 시작합니다.","\(guide?.route.pointLabel(at:arrived+1) ?? targetName)으로 이동합니다."]}
+        else if !started, isPractice {lines=["현재 위치에서 P1으로 안내합니다."]}
         else if !started, guide?.route.facing(at:0) != nil { lines=["안내를 시작합니다. 출발점에서 바라볼 방향을 먼저 맞춥니다."] }
         else if resumingHold { lines=["공연 대기를 이어갑니다."] }
         else { lines=[started ? "안내를 다시 시작합니다." : "안내를 시작합니다.",SignalCopy.start] }
         read(lines) { [weak self] in
             guard let self, self.phase == .starting, var guide=self.guide else { return }
-            guard let pose=self.freshPose() else { self.interrupt("현재 위치를 확인할 수 없어요. 확인점을 다시 확인해주세요.");return }
+            guard let pose=self.freshPose() else { self.interrupt("현재 위치를 확인할 수 없어요. \(self.recoveryInstruction)");return }
             let first = !self.started
             let success: Bool
             if guide.rehearsalReturnArrivalIndex != nil {
                 success=guide.resumeForwardAfterRehearsalReturn(position:pose.point,trackingValid:true)
                 if success {self.logSignal("rehearsal_forward_resumed","target=P\(guide.targetIndex)")}
+            } else if !self.started, self.isPractice {
+                do {
+                    guard let footprint=self.tracking.scannedFootprint else {throw LabError.invalid("저장된 스캔 범위를 확인할 수 없어요. 조력자에게 공간을 다시 스캔해달라고 요청해주세요.")}
+                    success=try guide.startPractice(position:pose.point,headingDegrees:pose.heading,trackingValid:true,footprint:footprint)
+                } catch {
+                    self.phase = .departure;self.departureReady=false;self.departureGate.reset()
+                    self.practiceEntryIssue=error.localizedDescription;self.read([error.localizedDescription]);return
+                }
             } else {success=self.started ? guide.resume(position:pose.point,trackingValid:true) : guide.start(position:pose.point,headingDegrees:pose.heading,trackingValid:true)}
             guard success else {
                 self.phase = .departure;self.departureReady=false;self.departureGate.reset();self.readyAnnounced=false
@@ -59,7 +76,20 @@ extension GuidanceViewModel {
         }
     }
     func tickDeparture(pose: (point: FloorPoint, heading: Double, time: Double), guide: RouteGuide) {
-        let eligible=started ? (guide.rehearsalReturnArrivalIndex != nil ? guide.canResumeForwardAfterRehearsalReturn(position:pose.point,trackingValid:true) : guide.canResume(position:pose.point,trackingValid:true)) : guide.ready(position:pose.point,headingDegrees:pose.heading,trackingValid:true)
+        let eligible: Bool
+        if !started, isPractice {
+            do {
+                guard let footprint=tracking.scannedFootprint else {throw LabError.invalid("저장된 스캔 범위를 확인할 수 없어요. 조력자에게 도움을 요청해주세요.")}
+                _=try guide.practiceEntry(from:pose.point,footprint:footprint)
+                if practiceEntryIssue != nil {message=""}
+                practiceEntryIssue=nil;eligible=true
+            } catch {
+                eligible=false
+                let issue=error.localizedDescription
+                if message != issue, instructionDone, !speaking {message=issue;read([issue])}
+                practiceEntryIssue=issue
+            }
+        } else {eligible=started ? (guide.rehearsalReturnArrivalIndex != nil ? guide.canResumeForwardAfterRehearsalReturn(position:pose.point,trackingValid:true) : guide.canResume(position:pose.point,trackingValid:true)) : guide.ready(position:pose.point,headingDegrees:pose.heading,trackingValid:true)}
         let wasReady=departureReady
         departureReady=departureGate.observe(time:pose.time,eligible:eligible)
         // The start is a point too: ding once the wearer has settled on it (10/19).
@@ -77,7 +107,7 @@ extension GuidanceViewModel {
     }
 
     /// Availability is separate from route eligibility: a tap must be able to explain why guidance cannot start.
-    var canApproachStart: Bool { !started && phase == .departure && guide != nil && active }
+    var canApproachStart: Bool { !isPractice && !started && phase == .departure && guide != nil && active }
     func startApproach() {
         guard canApproachStart, canAdvanceInstruction else { return }
         // Stop the wear/departure explanation immediately, even when the pose is not usable yet.
