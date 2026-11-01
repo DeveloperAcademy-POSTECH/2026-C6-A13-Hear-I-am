@@ -18,8 +18,6 @@ struct HearRootView: View {
     @State private var tab=0
     @AppStorage(HearRole.key) private var role=HearRole.performer.rawValue
     @State private var guidance: VoiceGuidanceLaunch?
-    /// The logo animation on a cold start (HearSplashView). Turned off for now (10/29); set to true to bring it back.
-    @State private var splash=false
     /// Set when the agent was asked for a new scan; the 장소 tab opens it once its places are loaded.
     @State private var voiceScan=false
     @Environment(\.scenePhase) private var scenePhase
@@ -45,7 +43,6 @@ struct HearRootView: View {
             // The agent shows as light around the screen edge; a tap anywhere while it listens closes it.
             .overlay {VoiceEdgeGlow(visualization:wake.visualization,active:wake.awake)}
             .overlay {if wake.awake {VoiceDismissLayer {wake.dismiss()}}}
-            .overlay {if splash {HearSplashView {splash=false}}}
     }
 
     var body: some View {
@@ -66,7 +63,6 @@ struct HearRootView: View {
             .onChange(of:scenePhase) {syncWake()}
             .onChange(of:tab) {syncWake()}
             .onChange(of:role) {syncWake()}
-            .onChange(of:splash) {syncWake()}
             // Siri phrases that name a stage only know the stages it was last told about.
             .onChange(of:library.records.map(\.id)) {HearShortcuts.updateAppShortcutParameters()}
             .task {
@@ -100,9 +96,8 @@ struct HearRootView: View {
         open(VoiceGuidanceLaunch(stageID:value.stageID,mode:value.mode))
     }
     private func syncWake() {
-        // The microphone permission prompt waits until the logo animation is over.
         let performerHome=role == HearRole.performer.rawValue && tab == 0
-        if performerHome && scenePhase == .active && guidance == nil && gate.open && !splash {wake.start()}
+        if performerHome && scenePhase == .active && guidance == nil && gate.open {wake.start()}
         else {wake.stop()}
     }
 }
