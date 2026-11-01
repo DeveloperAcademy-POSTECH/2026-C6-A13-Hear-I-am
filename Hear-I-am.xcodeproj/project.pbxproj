@@ -143,6 +143,14 @@
 		6CA76517DAAADAA4C1F61725 /* HearV3.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF6C3737D1404B54C03622C3 /* HearV3.swift */; };
 		1F0865EFB55B86AAA9E6C85E /* RoleSelectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3066BB303909034804A5D8FA /* RoleSelectionView.swift */; };
 		D2668D1BBE4CC1C3618297E3 /* V3UsageHelpView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F3E1D57838BE7EB084F7B90 /* V3UsageHelpView.swift */; };
+		E0773D8C69004844E8A4A41B /* GuidanceViewModel+PerformanceSelection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37DEF6E5BC37EBD752C9B439 /* GuidanceViewModel+PerformanceSelection.swift */; };
+		AC6CF3CFA857F1B9C6DEE10B /* GuidanceLiveView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32A639A5348DC9DFAA90F2AE /* GuidanceLiveView.swift */; };
+		D2E54FFF5AD331241F0538B7 /* PerformanceLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED57B6EF0D43F112A09ECCA0 /* PerformanceLibraryView.swift */; };
+		A43BE5371BEA58AF83D8A0E1 /* PerformanceDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A708458A6F2778528ABCD685 /* PerformanceDetailView.swift */; };
+		1DB38E8A3FDB2ADD9D618B74 /* PerformanceStageCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35432BDBD57431E8EB1405EA /* PerformanceStageCard.swift */; };
+		01F5C97632973220BB178EC4 /* StageClassificationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14782BB3E4FEA91757D38E5A /* StageClassificationView.swift */; };
+		175CA93E520860A1BDED09A4 /* PerformanceTagManagementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BE625ACF1545A48F491C411 /* PerformanceTagManagementView.swift */; };
+		4F18D9BB965C58A6F195AA68 /* HelperScanHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 035AD5FF8E6708BC58AE97AB /* HelperScanHomeView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -284,6 +292,14 @@
 		EF6C3737D1404B54C03622C3 /* HearV3.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Hear-I-am/Core/DesignSystem/HearV3.swift"; sourceTree = SOURCE_ROOT; };
 		3066BB303909034804A5D8FA /* RoleSelectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Hear-I-am/Features/Onboarding/View/RoleSelectionView.swift"; sourceTree = SOURCE_ROOT; };
 		3F3E1D57838BE7EB084F7B90 /* V3UsageHelpView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Hear-I-am/Features/Home/View/Screen/V3UsageHelpView.swift"; sourceTree = SOURCE_ROOT; };
+		37DEF6E5BC37EBD752C9B439 /* GuidanceViewModel+PerformanceSelection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Hear-I-am/Features/Voice/Agent/GuidanceViewModel+PerformanceSelection.swift"; sourceTree = SOURCE_ROOT; };
+		32A639A5348DC9DFAA90F2AE /* GuidanceLiveView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Hear-I-am/Features/Guidance/View/Parts/GuidanceLiveView.swift"; sourceTree = SOURCE_ROOT; };
+		ED57B6EF0D43F112A09ECCA0 /* PerformanceLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Hear-I-am/Features/Performances/View/PerformanceLibraryView.swift"; sourceTree = SOURCE_ROOT; };
+		A708458A6F2778528ABCD685 /* PerformanceDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Hear-I-am/Features/Performances/View/PerformanceDetailView.swift"; sourceTree = SOURCE_ROOT; };
+		35432BDBD57431E8EB1405EA /* PerformanceStageCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Hear-I-am/Features/Performances/View/PerformanceStageCard.swift"; sourceTree = SOURCE_ROOT; };
+		14782BB3E4FEA91757D38E5A /* StageClassificationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Hear-I-am/Features/Performances/View/StageClassificationView.swift"; sourceTree = SOURCE_ROOT; };
+		4BE625ACF1545A48F491C411 /* PerformanceTagManagementView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Hear-I-am/Features/Performances/View/PerformanceTagManagementView.swift"; sourceTree = SOURCE_ROOT; };
+		035AD5FF8E6708BC58AE97AB /* HelperScanHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Hear-I-am/Features/Performances/View/HelperScanHomeView.swift"; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -978,6 +994,14 @@
 		3827548992A19AB75CC26B41 /* V3 Flow */ = {
 			isa = PBXGroup;
 			children = (
+				035AD5FF8E6708BC58AE97AB /* HelperScanHomeView.swift */,
+				4BE625ACF1545A48F491C411 /* PerformanceTagManagementView.swift */,
+				14782BB3E4FEA91757D38E5A /* StageClassificationView.swift */,
+				35432BDBD57431E8EB1405EA /* PerformanceStageCard.swift */,
+				A708458A6F2778528ABCD685 /* PerformanceDetailView.swift */,
+				ED57B6EF0D43F112A09ECCA0 /* PerformanceLibraryView.swift */,
+				32A639A5348DC9DFAA90F2AE /* GuidanceLiveView.swift */,
+				37DEF6E5BC37EBD752C9B439 /* GuidanceViewModel+PerformanceSelection.swift */,
 				3F3E1D57838BE7EB084F7B90 /* V3UsageHelpView.swift */,
 				3066BB303909034804A5D8FA /* RoleSelectionView.swift */,
 				EF6C3737D1404B54C03622C3 /* HearV3.swift */,
@@ -1064,6 +1088,14 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				4F18D9BB965C58A6F195AA68 /* HelperScanHomeView.swift in Sources */,
+				175CA93E520860A1BDED09A4 /* PerformanceTagManagementView.swift in Sources */,
+				01F5C97632973220BB178EC4 /* StageClassificationView.swift in Sources */,
+				1DB38E8A3FDB2ADD9D618B74 /* PerformanceStageCard.swift in Sources */,
+				A43BE5371BEA58AF83D8A0E1 /* PerformanceDetailView.swift in Sources */,
+				D2E54FFF5AD331241F0538B7 /* PerformanceLibraryView.swift in Sources */,
+				AC6CF3CFA857F1B9C6DEE10B /* GuidanceLiveView.swift in Sources */,
+				E0773D8C69004844E8A4A41B /* GuidanceViewModel+PerformanceSelection.swift in Sources */,
 				D2668D1BBE4CC1C3618297E3 /* V3UsageHelpView.swift in Sources */,
 				1F0865EFB55B86AAA9E6C85E /* RoleSelectionView.swift in Sources */,
 				6CA76517DAAADAA4C1F61725 /* HearV3.swift in Sources */,
