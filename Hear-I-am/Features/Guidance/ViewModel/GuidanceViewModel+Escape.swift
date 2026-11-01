@@ -39,7 +39,7 @@ extension GuidanceViewModel {
     private func escapeBearing(pose: (point: FloorPoint, heading: Double, time: Double), guide: RouteGuide) -> Double {
         let points=guide.route.points, i=guide.targetIndex
         if points.indices.contains(guide.activeSegmentStartIndex), points.indices.contains(i) {
-            let toward=Self.closest(on:points[guide.activeSegmentStartIndex],points[i],to:pose.point)
+            let toward=Self.closest(on:guide.activeSegmentStartPoint,points[i],to:pose.point)
             if pose.point.distance(to:toward) > 0.1 { return StageHeading.bearing(from:pose.point,to:toward,headingDegrees:pose.heading) }
         }
         guard let blocked=guide.route.obstacles.compactMap({$0.blockingPoint(from:pose.point)}).min(by: {

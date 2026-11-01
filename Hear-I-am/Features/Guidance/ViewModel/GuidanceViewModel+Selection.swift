@@ -9,7 +9,7 @@ extension GuidanceViewModel {
             read([VoiceStepCopy.stageList],interruptible:true)
             return
         }
-        read([empty ? "저장된 무대가 없습니다. 장소 탭의 새 스캔을 통해 공간과 동선을 먼저 저장해주세요." : "안내에 사용할 무대를 선택해주세요."])
+        read([empty ? "저장된 무대가 없습니다. 조력자 화면의 스캔 탭을 통해 공간과 동선을 먼저 저장해주세요." : "안내에 사용할 무대를 선택해주세요."])
     }
     func select(_ item: ScanManifest, advanceAutomatically: Bool = true) {
         guard phase == .selection else { return }

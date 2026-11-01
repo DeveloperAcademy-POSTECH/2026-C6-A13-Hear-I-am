@@ -79,14 +79,14 @@ final class VoiceAnalyzerTurn: VoiceAudioSink, VoiceAnalyzerCancelling, @uncheck
                     }
                     let shown = result.isFinal ? finalized : finalized + text
                     if !shown.trimmingCharacters(in: .whitespaces).isEmpty {
-                        await MainActor.run { service?.analyzerPartial(shown, turnID: turnID) }
+                        await MainActor.run { [weak service] in service?.analyzerPartial(shown, turnID: turnID) }
                     }
                 }
                 let heard = finalized, others = alternatives
-                await MainActor.run { service?.analyzerFinal(heard, alternatives: others, turnID: turnID) }
+                await MainActor.run { [weak service] in service?.analyzerFinal(heard, alternatives: others, turnID: turnID) }
             } catch {
                 guard !Task.isCancelled else { return }
-                await MainActor.run { service?.analyzerFailed(error, turnID: turnID) }
+                await MainActor.run { [weak service] in service?.analyzerFailed(error, turnID: turnID) }
             }
         }
     }
