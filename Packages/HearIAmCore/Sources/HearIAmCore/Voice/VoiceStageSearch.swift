@@ -33,6 +33,17 @@ public enum VoiceStageSearch {
             }
             if exact.count == 1 { return .selected(exact[0]) }
             if exact.count > 1 { return .results(query: text, indices: exact) }
+            // A name inside a longer request, as in 「머지테스트 열람」 (11/01). The longest name wins when it
+            // holds the shorter ones (「머지테스트」 over 「테스트」); several distinct names make a list.
+            let inside=names.indices.filter { names[$0].count >= 2 && request.contains(names[$0]) }
+            if let longest=inside.max(by: { names[$0].count < names[$1].count }) {
+                let others=inside.filter { names[$0] != names[longest] }
+                if others.allSatisfy({ names[longest].contains(names[$0]) }) {
+                    let same=inside.filter { names[$0] == names[longest] }
+                    return same.count == 1 ? .selected(longest) : .results(query: text, indices: same)
+                }
+                return .results(query: text, indices: inside)
+            }
         }
         if ["전체", "전체목록", "모든무대", "전체무대", "전체무대보여줘", "전체목록보여줘", "모든무대보여줘"].contains(request) {
             return .results(query: "전체", indices: Array(names.indices))
@@ -60,6 +71,19 @@ public enum VoiceStageSearch {
     public static func isKeywordSearch(_ text: String) -> Bool {
         let request=normalized(text)
         return ["관련", "검색", "찾아"].contains { request.contains($0) }
+    }
+
+    /// Whether a request points at the `number`-th stage by its number or by part of its name. The model
+    /// once offered 9번 for 「연남」, which named no stage at all (11/01); such a guess is dropped.
+    public static func mentions(_ text: String, number: Int, name: String) -> Bool {
+        let request=normalized(text), name=normalized(name)
+        if request.contains("\(number)") { return true }
+        if let sino=VoiceCommandParser.sinoKorean.first(where: { $0.value == number })?.key, request.contains(sino+"번") { return true }
+        let ordinals=["첫번째", "두번째", "세번째", "네번째", "다섯번째", "여섯번째", "일곱번째", "여덟번째", "아홉번째", "열번째"]
+        if ordinals.indices.contains(number-1), request.contains(ordinals[number-1]) { return true }
+        let letters=Array(name)
+        guard letters.count >= 2 else { return !name.isEmpty && request.contains(name) }
+        return (0..<(letters.count-1)).contains { request.contains(String(letters[$0...$0+1])) }
     }
 
     /// One-based ordinals always refer to the currently visible result list.

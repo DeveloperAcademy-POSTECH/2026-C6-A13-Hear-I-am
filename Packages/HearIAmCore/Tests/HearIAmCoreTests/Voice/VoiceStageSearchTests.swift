@@ -48,4 +48,22 @@ final class VoiceStageSearchTests: XCTestCase {
         XCTAssertFalse(VoiceStageSearch.isKeywordSearch("무대 목록 다 보여줘"))
         XCTAssertFalse(VoiceStageSearch.isKeywordSearch("오늘 날씨 어때"))
     }
+
+    /// The stage names saved on the 16 Pro Max on 11/01.
+    let phoneNames=["무대 스캔", "333", "테스트2", "무대 스캔", "4444", "무대 스캔", "장애물 음성 테스트", "무대 스캔", "머지테스트", "확인점 2개"]
+    func testNameInsideALongerRequestSelectsThatStage() {
+        XCTAssertEqual(VoiceStageSearch.resolve("머지테스트 열람", names: phoneNames), .selected(8))
+        XCTAssertEqual(VoiceStageSearch.resolve("이번 머지테스트 열람", names: phoneNames), .selected(8))
+        XCTAssertEqual(VoiceStageSearch.resolve("머지테스트 하고 싶어", names: ["테스트", "머지테스트"]), .selected(1))
+        XCTAssertEqual(VoiceStageSearch.resolve("무대 스캔 보여줘", names: phoneNames), .results(query: "무대 스캔 보여줘", indices: [0, 3, 5, 7]))
+        XCTAssertEqual(VoiceStageSearch.resolve("연남", names: phoneNames), .results(query: "연남", indices: []))
+    }
+    func testModelStageGuessMustBeNamedOrNumbered() {
+        XCTAssertFalse(VoiceStageSearch.mentions("연남", number: 9, name: "머지테스트"))
+        XCTAssertTrue(VoiceStageSearch.mentions("머지테스트 연남", number: 9, name: "머지테스트"))
+        XCTAssertTrue(VoiceStageSearch.mentions("머지 쪽 거", number: 9, name: "머지테스트"))
+        XCTAssertTrue(VoiceStageSearch.mentions("구번 거", number: 9, name: "머지테스트"))
+        XCTAssertTrue(VoiceStageSearch.mentions("두 번째 거", number: 2, name: "333"))
+        XCTAssertFalse(VoiceStageSearch.mentions("열람", number: 2, name: "333"))
+    }
 }

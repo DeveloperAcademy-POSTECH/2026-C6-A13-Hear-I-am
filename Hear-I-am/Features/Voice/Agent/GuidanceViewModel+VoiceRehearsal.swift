@@ -77,6 +77,8 @@ extension GuidanceViewModel {
         voiceRecognition.onRecoveryReady={ [weak self] in
             // Stop any system-synthesizer fallback spoken while the engine was being restarted.
             guard let self else {return}
+            // The line cut here (the first 「공연 찾기…」 on opening, 11/01) is said again once listening is back.
+            if !self.instructionDone, !self.currentInstruction.isEmpty {self.voiceReplayAfterRecovery=true}
             self.generation=UUID();self.voice.stop();self.instructionDone=true
             self.voiceReadyChimePending=true
         }
@@ -102,6 +104,15 @@ extension GuidanceViewModel {
                     }
                     else if let request=self.voiceInitialRequest {self.voiceInitialRequest=nil;self.handleVoiceCommand(request)}
                     else {self.selectionDescription(empty:self.voiceStages.isEmpty)}
+                }
+            } else if self.voiceReplayAfterRecovery {
+                self.voiceReplayAfterRecovery=false
+                let operation=self.generation, lines=self.currentInstruction, interruptible=self.voiceNarrationInterruptible
+                Task { @MainActor [weak self] in
+                    try? await Task.sleep(nanoseconds:250_000_000)
+                    guard let self, self.generation == operation, self.voiceShouldListen, !self.voiceTurnActive, !self.speaking else {return}
+                    self.logSignal("voice_replay","after_recovery")
+                    self.read(lines,interruptible:interruptible)
                 }
             }
         }.store(in:&voiceSubscriptions)
@@ -182,13 +193,14 @@ extension GuidanceViewModel {
     func announceVoiceStageResults() {
         let items=visibleVoiceStages
         if items.isEmpty {
-            read(["\(voiceSearchQuery ?? "요청한 이름")에 해당하는 저장 무대가 없어요. 다른 장소나 공연 이름을 말씀해주세요. 취소하면 전체 목록으로 돌아갑니다."])
+            read(["\(voiceSearchQuery ?? "요청한 이름")에 해당하는 저장된 공연이 없어요. 다른 장소나 공연 이름을 말해주세요. 취소하면 전체 목록으로 돌아가요."])
             return
         }
-        let title=voiceSearchQuery.map {"\($0) 관련 무대는 \(items.count)개예요."} ?? "어느 무대를 사용할까요?"
+        // Words of the new 공연 찾기 screen (IA 10/29).
+        let title=voiceSearchQuery.map {$0 == "전체" ? "저장된 공연은 \(items.count)개예요." : "\($0) 관련 공연은 \(items.count)개예요."} ?? "어떤 공연을 준비할까요?"
         // Separate utterances keep a long result list interruptible at every item.
         let names=items.enumerated().map {"\($0.offset+1)번, \($0.element.name). \((voiceStagePaths[$0.element.id] ?? []).joined(separator:", "))."}
-        read([title]+names+["무대 이름이나 번호를 말씀해주세요. 선택하면 사용 방식으로 넘어갑니다."],interruptible:true)
+        read([title]+names+["공연 이름이나 번호를 말해주세요."],interruptible:true)
     }
     func syncVoiceListening() {
         guard voiceExperiment else {return}
@@ -233,6 +245,16 @@ extension GuidanceViewModel {
     /// Speech heard while the conversation is closed belongs to someone else until it contains the call.
     func voicePartial(_ text:String) {
         guard voiceShouldListen else {return}
+        // While the app speaks, the user may cut in with a request this screen can act on (11/01). Other
+        // words, noise and the app's own voice coming back do not stop it. A single word that is in the line
+        // being read may be the start of that line's echo, so it waits for the final text.
+        if speaking, voiceAwake, !voiceTurnActive {
+            guard let request=voiceBargeInRequest(text) else {return}
+            let single = !request.contains(" ")
+            if single, VoiceStageSearch.normalized(spokenText).contains(VoiceStageSearch.normalized(request)) {return}
+            voiceSpeechDetected(overNarration:true)
+            return
+        }
         if !voiceTurnActive {
             guard VoiceWakeWord.matches(text) else {return}
             if voiceRecognition.listensInEnglish {voiceWoken();return}
@@ -253,15 +275,35 @@ extension GuidanceViewModel {
         listeningChime.play()
         logSignal("voice_wake","english")
     }
-    /// The app is saying something that must not be cut: what was heard is dropped, not acted on.
-    var voiceNarrationProtected: Bool {speaking && !voiceNarrationInterruptible}
-    func voiceSpeechDetected() {
-        guard voiceShouldListen, !voiceTurnActive, voiceAwake else {return}
-        if voiceNarrationProtected {
-            voiceRecognition.discardPendingSpeech()
-            logSignal("voice_ignored","while_speaking")
-            return
+    /// What was heard over the app's speech, without the app's own words at the start, when it is a request
+    /// this screen can act on at once. Only such a request cuts the app's speech; nil leaves it talking.
+    func voiceBargeInRequest(_ text:String) -> String? {
+        let request=VoiceEcho.strippingLeadingEcho(text,of:narrationLines)
+        guard !request.isEmpty, !VoiceEcho.isEcho(request,of:narrationLines) else {return nil}
+        if VoiceWakeWord.request(in:request) != nil {return request}
+        if pendingVoiceIntent != nil, VoiceIntentCopy.answer(request) != nil {return request}
+        if VoiceCommandParser.parse(request) != nil {return request}
+        if phase == .selection, !started, VoiceAppRequest.resolve(request) != nil {return request}
+        if phase == .selection, !voiceChoosingMode {
+            if VoiceStageSearch.ordinal(request) != nil {return request}
+            switch VoiceStageSearch.resolve(request,names:voiceStages.map(\.name),contexts:voiceStages.map {voiceStagePaths[$0.id] ?? []}) {
+            case .selected: return request
+            case .results(_,let indices) where !indices.isEmpty: return request
+            default: break
+            }
         }
+        return nil
+    }
+    /// The lines the app is saying or has just said, for telling its own voice from the user's.
+    var narrationLines: [String] {[spokenText,previousSpokenText]}
+    /// `overNarration`: the words heard over a list were checked and are not the app's own voice.
+    func voiceSpeechDetected(overNarration: Bool = false) {
+        guard voiceShouldListen, !voiceTurnActive, voiceAwake else {return}
+        // Sound alone over the app's speech may be its own voice or someone nearby; the words decide
+        // (voicePartial). The words are kept, not discarded: dropping them was why a request over the
+        // app's speech was never heard (11/01).
+        if speaking && !overNarration {return}
+        voiceTurnOverNarration=overNarration
         // Invalidate delayed narration callbacks before cutting the speech already playing.
         generation=UUID();voice.stop();instructionDone=true
         voiceTurnActive=true;voiceInitialPromptPending=false
@@ -311,10 +353,23 @@ extension GuidanceViewModel {
     func handleVoiceCommand(_ text:String) {
         guard voiceShouldListen else {return}
         let accepted=voiceTurnActive || voiceAwake
+        let wasTurn=voiceTurnActive
         voiceTurnActive=false
         var text=text
+        if speaking, voiceAwake, !wasTurn {
+            // The whole request came before its words cut in (voicePartial): the same rule decides here.
+            guard let request=voiceBargeInRequest(text) else {logSignal("voice_ignored","while_speaking \(text)");return}
+            voicePendingRequest=nil
+            voiceSpeechDetected(overNarration:true);voiceTurnActive=false;voiceTurnOverNarration=false
+            text=request
+        }
         voicePendingRequest=nil
-        if voiceNarrationProtected {logSignal("voice_ignored","while_speaking \(text)");return}
+        if voiceTurnOverNarration {
+            voiceTurnOverNarration=false
+            let own=text
+            text=VoiceEcho.strippingLeadingEcho(text,of:narrationLines)
+            if text.isEmpty {logSignal("voice_ignored","echo \(own)");return}
+        }
         logSignal("voice_heard",([text]+voiceRecognition.lastAlternatives.filter {$0 != text}).joined(separator:" | "))
         // A lower recognition candidate may hold the call or an exact command the best one missed (#92).
         let alternatives=voiceRecognition.lastAlternatives
@@ -374,16 +429,23 @@ extension GuidanceViewModel {
         if request != text {logSignal("voice_point_spelling","\(text) -> \(request)")}
         voicePendingRequest=text
         Task { [weak self] in
-            let decision=await AppleIntelligenceVoiceIntentResolver().resolve(request,screen:screen)
+            var decision=await AppleIntelligenceVoiceIntentResolver().resolve(request,screen:screen)
             guard let self, self.voiceShouldListen, self.voicePendingRequest == text, self.voiceScreen == screen else {return}
             self.voicePendingRequest=nil
             let seconds=String(format:"%.2fs",ProcessInfo.processInfo.systemUptime-began)
+            let guessed: VoiceCommand? = {switch decision {case .command(let c),.confirm(let c): return c; case .none: return nil}}()
+            if case .chooseStage(let number)? = guessed {
+                let items=self.visibleVoiceStages
+                if !items.indices.contains(number-1) || !VoiceStageSearch.mentions(text,number:number,name:items[number-1].name) {
+                    self.logSignal("voice_intent_dropped","chooseStage(\(number)) for \(text)");decision = .none
+                }
+            }
             switch decision {
             case .command(let command):
                 self.logSignal("voice_intent","model \(command) \(seconds)");self.performVoiceCommand(command)
             case .confirm(let command):
                 self.logSignal("voice_intent","ask \(command) \(seconds)")
-                self.pendingVoiceIntent=command;self.read([VoiceIntentCopy.question(command)])
+                self.pendingVoiceIntent=command;self.read([self.voiceQuestion(command)])
             case .none:
                 self.logSignal("voice_intent","none \(seconds)");self.readVoiceCommandNotUnderstood()
             }
@@ -392,6 +454,13 @@ extension GuidanceViewModel {
         #else
         return false
         #endif
+    }
+    /// A stage is asked by its number and name, so the user hears which one would be picked.
+    private func voiceQuestion(_ command:VoiceCommand) -> String {
+        if case .chooseStage(let number)=command, visibleVoiceStages.indices.contains(number-1) {
+            return "\(number)번, \(visibleVoiceStages[number-1].name). 이 공연을 선택할까요?"
+        }
+        return VoiceIntentCopy.question(command)
     }
     private func readVoiceCommandNotUnderstood() {
         logSignal("voice_not_understood","")

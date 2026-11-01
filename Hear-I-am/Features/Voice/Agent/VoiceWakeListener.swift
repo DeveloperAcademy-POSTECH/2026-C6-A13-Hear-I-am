@@ -15,13 +15,16 @@ import HearIAmCore
     var onRequest: ((String) -> Void)?
     var visualization: VoiceInputVisualization {recognition.inputVisualization}
 
-    static let greeting="네, 어떤 공연을 준비할까요?"
+    static let greeting=VoiceAppRequest.homeQuestion[0]
     private let recognition=VoiceRecognitionService()
     private let speech=GuidanceSpeech()
     private let chime=VoiceListeningChime()
     private var startTask: Task<Void,Never>?
     private var sleepTask: Task<Void,Never>?
     private var resumeTask: Task<Void,Never>?
+    /// What the agent last said, and whether the request now heard began while it was saying it (11/01).
+    private var spokenLines: [String]=[]
+    private var heardOverSpeech=false
     private var active=false
     /// The answer whose end opens the next screen; a tap or sleep in between cancels it.
     private var answerID: UUID?
@@ -73,7 +76,10 @@ import HearIAmCore
     private func heardPartial(_ text:String) {
         guard active else {return}
         // Someone is still talking to the agent; it must not fall asleep in the middle of the request.
-        if awake, !recognition.listensInEnglish {stayAwake(8);return}
+        if awake, !recognition.listensInEnglish {
+            if speaking {heardOverSpeech=true}
+            stayAwake(8);return
+        }
         guard !awake, VoiceWakeWord.matches(text) else {return}
         // Switching to Korean ends this English turn, so the greeting cannot wait for its final text.
         wake();greet()
@@ -90,7 +96,14 @@ import HearIAmCore
             return
         }
         guard awake, !recognition.listensInEnglish else {return}
-        hand(text)
+        // The question itself can come back through the microphone ahead of the answer.
+        var request=text
+        if heardOverSpeech {
+            heardOverSpeech=false
+            request=VoiceEcho.strippingLeadingEcho(text,of:spokenLines)
+            if request.isEmpty {VoiceLog.write("home_ignored","echo \(text)",screen:"home.awake");return}
+        }
+        hand(request)
     }
 
     private func wake() {
@@ -103,6 +116,7 @@ import HearIAmCore
 
     private func greet() {
         stayAwake(60)
+        spokenLines=[Self.greeting];heardOverSpeech=false
         speech.play([Self.greeting]) { [weak self] _ in self?.stayAwake(8) }
     }
 
@@ -121,6 +135,7 @@ import HearIAmCore
         start()
         stayAwake(60)
         let id=UUID();answerID=id
+        spokenLines=lines;heardOverSpeech=false
         speech.play(lines) { [weak self] _ in
             guard let self else {return}
             self.stayAwake(8)
