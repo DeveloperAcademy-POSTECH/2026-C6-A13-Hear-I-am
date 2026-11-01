@@ -3,9 +3,8 @@ import Combine
 import Foundation
 import HearIAmCore
 
-/// Starts voice guidance from Siri (#91). From iOS 27.2 Siri understands Korean, so 「시리야, HearIam으로
-/// 의자 테스트 연습 시작해」 opens the app and continues straight into that stage. The wake word inside the app
-/// (#90) only works while the app is open; Siri is the way in from outside it.
+/// Starts voice guidance from Siri (#91). Localized App Shortcuts open the app from outside it.
+/// The wake word inside the app (#90) only works while the app is open.
 @MainActor final class VoiceLaunch: ObservableObject {
     struct Request: Equatable {
         let id=UUID()
@@ -78,9 +77,9 @@ struct StartVoiceGuidanceIntent: AppIntent {
 struct HearShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
         AppShortcut(intent:StartVoiceGuidanceIntent(),phrases:[
-            "\(.applicationName) 안내 시작",
-            "\(.applicationName)로 안내 시작해 줘",
-            "\(.applicationName) 열어 줘"
-        ],shortTitle:"안내 시작",systemImageName:"waveform")
+            "Start guidance in \(.applicationName)",
+            "Start \(.applicationName)",
+            "Open \(.applicationName)"
+        ],shortTitle:"Start Guidance",systemImageName:"waveform")
     }
 }
