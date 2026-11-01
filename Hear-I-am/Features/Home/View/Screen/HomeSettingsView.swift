@@ -19,7 +19,7 @@ struct HomeSettingsView: View {
     }
     var body: some View {
         List {
-            if let changeRole {
+            if changeRole != nil {
                 Section {
                     Button {confirmsRoleChange=true} label: {
                         Label("사용 역할 · \(role.title)",systemImage:role == .performer ? "headphones" : "camera")
