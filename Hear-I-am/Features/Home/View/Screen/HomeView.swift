@@ -1,66 +1,78 @@
 import SwiftUI
 import HearIAmCore
 
-/// Voice-first home. Scan preparation and saved performances remain in the Places tab.
+/// Performer-only home. The white orb is also an accessible manual entry to voice conversation.
 struct HomeView: View {
-    @ObservedObject var library: StageLibrary
-    /// The call is heard app-wide (HearRootView); Home shows the agent's state and the button fallback.
-    @ObservedObject var wake: VoiceWakeListener
-    let start: () -> Void
+    @ObservedObject var library:StageLibrary
+    @ObservedObject var wake:VoiceWakeListener
+    let start:()->Void
+    var changeRole:(()->Void)? = nil
     @State private var showingSettings=false
-    @ScaledMetric(relativeTo:.largeTitle) private var headingSize: CGFloat=44
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         NavigationStack {
-            GeometryReader { geometry in
-                ScrollView {
-                    VStack(alignment:.leading,spacing:0) {
-                        HStack {
-                            Text(VoiceWakeWord.phrase).font(.largeTitle.bold())
-                            Spacer()
-                            Button {showingSettings=true} label: {
-                                Image(systemName:"gearshape").font(.title2)
-                                    .frame(width:44,height:44)
-                                    .background(Color(.systemGray6),in:Circle())
-                            }.accessibilityLabel("설정").accessibilityIdentifier("home.settings")
-                        }
-                        Spacer(minLength:48)
-                        // Voice only: no start button. Calling the app name wakes the agent here (#90); the light
-                        // around the screen edge is the only sign that it listens.
-                        VStack(spacing:32) {
+            GeometryReader {geometry in
+                ZStack(alignment:.bottom) {
+                    HearV3.canvas.ignoresSafeArea()
+                    Image("HearV3Ambient").resizable().scaledToFill().frame(height:280).clipped()
+                        .opacity(wake.awake ? 1 : 0.55).ignoresSafeArea(edges:.bottom).accessibilityHidden(true)
+                    ScrollView {
+                        VStack(spacing:24) {
+                            Spacer(minLength:44)
+                            Button {wake.beginConversation()} label: {
+                                Image("HearV3Orb").resizable().scaledToFit().frame(width:144,height:144)
+                                    .scaleEffect(wake.speaking && !reduceMotion ? 1.08 : 1)
+                                    .animation(.easeInOut(duration:0.4),value:wake.speaking)
+                            }.buttonStyle(.plain).accessibilityLabel("눌러서 말하기")
+                                .accessibilityHint("호출어 없이 음성 대화를 시작해요")
+                                .accessibilityIdentifier("home.voice.orb")
                             VStack(spacing:12) {
-                                Text("이렇게 불러주세요").font(.headline).foregroundStyle(.secondary)
-                                Text("“\(VoiceWakeWord.phrase)”")
-                                    .font(.system(size:headingSize,weight:.bold))
-                                    .minimumScaleFactor(0.6).lineLimit(1)
-                                Text("무대 고르기부터 출발까지\n말로 이어서 진행해요")
-                                    .font(.body).foregroundStyle(.secondary)
-                                    .multilineTextAlignment(.center)
-                                    .fixedSize(horizontal:false,vertical:true)
-                                    .padding(.top,4)
+                                Text(wake.awake ? (wake.speaking ? "말하고 있어요" : "듣고 있어요") : "이렇게 불러주세요")
+                                    .font(.headline).foregroundStyle(HearV3.secondary)
+                                Text(wake.awake ? "어떤 공연을 찾으시나요?" : "“Hear I am”")
+                                    .font(.largeTitle.bold()).multilineTextAlignment(.center)
+                                Text(wake.awake ? "공연 이름이나 공연장 이름을 말씀해주세요." : "띠링·인사를 들은 뒤\n한국어로 요청해주세요.")
+                                    .foregroundStyle(HearV3.secondary).multilineTextAlignment(.center)
+                            }.fixedSize(horizontal:false,vertical:true)
+                            VStack(alignment:.leading,spacing:8) {
+                                Text("이렇게 요청할 수 있어요").font(.headline)
+                                Text("“Lion King 연습할래”\n“효자아트홀에 저장된 공연 찾아줘”").font(.subheadline).foregroundStyle(HearV3.secondary)
+                            }.v3Card(inset:16)
+                            if let failure=wake.failure {
+                                VStack(spacing:12) {
+                                    Text(failure).font(.subheadline).multilineTextAlignment(.center)
+                                    Button("버튼으로 무대 선택하기",action:start).buttonStyle(V3PrimaryButtonStyle())
+                                        .accessibilityIdentifier("home.voice.start")
+                                }.v3Card(inset:16)
+                            } else {
+                                Label(wake.awake ? "한국어로 요청을 듣고 있어요" : "호출을 기다리고 있어요",systemImage:"mic")
+                                    .font(.subheadline).frame(maxWidth:.infinity,alignment:.leading).v3Card(inset:16)
                             }
-                        }.frame(maxWidth:.infinity)
-                            .accessibilityElement(children:.ignore)
-                            .accessibilityLabel("Hear I am이라고 부르면 안내를 시작해요. 무대 고르기부터 출발까지 말로 이어서 진행해요.")
-                            .accessibilityAddTraits(.isHeader)
-                        if let failure=wake.failure {
-                            // Without a microphone or dictation the call cannot be heard; keep one way in.
-                            VStack(spacing:12) {
-                                Text(failure).font(.body).foregroundStyle(.secondary)
-                                    .multilineTextAlignment(.center).fixedSize(horizontal:false,vertical:true)
-                                Button("버튼으로 시작") {start()}.font(.headline).frame(minHeight:44)
-                                    .accessibilityIdentifier("home.voice.start")
-                            }.frame(maxWidth:.infinity).padding(.top,24)
-                        }
-                        Spacer(minLength:36)
-                    }.padding(.horizontal,24).padding(.vertical,20)
-                        .frame(minHeight:geometry.size.height,alignment:.top)
-                }.scrollBounceBehavior(.basedOnSize)
+                            Button("저장된 공연에서 직접 선택",action:start).font(.subheadline).frame(minHeight:48)
+                                .accessibilityIdentifier("home.stage.list")
+                            Spacer(minLength:20)
+                        }.padding(20).frame(minHeight:geometry.size.height)
+                    }.scrollBounceBehavior(.basedOnSize)
+                }
             }
-            .background(Color(.systemBackground))
-            .navigationTitle("홈").toolbar(.hidden,for:.navigationBar)
-            .toolbar(showingSettings ? .hidden : .visible,for:.tabBar)
-            .navigationDestination(isPresented:$showingSettings) {HomeSettingsView().suspendsVoiceWake()}
-        }
+            .navigationTitle("Hear I am").navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement:.topBarTrailing) {
+                    Button {showingSettings=true} label: {Image(systemName:"gearshape")}
+                        .accessibilityLabel("설정").accessibilityIdentifier("home.settings")
+                }
+                if wake.awake {
+                    ToolbarItem(placement:.topBarLeading) {
+                        Button("대화 닫기") {wake.dismiss()}.accessibilityIdentifier("home.voice.close")
+                    }
+                }
+            }
+            .navigationDestination(isPresented:$showingSettings) {
+                HomeSettingsView(role:.performer,changeRole:changeRole).suspendsVoiceWake()
+            }
+            .overlay {VoiceEdgeGlow(visualization:wake.visualization,active:wake.awake)}
+            .v3Screen()
+        }.preferredColorScheme(.dark)
     }
 }

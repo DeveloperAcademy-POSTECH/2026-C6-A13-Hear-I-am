@@ -141,6 +141,8 @@
 		22B717874CF6C70C749671A7 /* VoiceWakeListener.swift in Sources */ = {isa = PBXBuildFile; fileRef = 730D15DEAA1975E78EE744B6 /* VoiceWakeListener.swift */; };
 		005135EFEFBA1FF1442A7766 /* VoiceWakeGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 764BBB152672D4E5076FD9B2 /* VoiceWakeGate.swift */; };
 		6CA76517DAAADAA4C1F61725 /* HearV3.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF6C3737D1404B54C03622C3 /* HearV3.swift */; };
+		1F0865EFB55B86AAA9E6C85E /* RoleSelectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3066BB303909034804A5D8FA /* RoleSelectionView.swift */; };
+		D2668D1BBE4CC1C3618297E3 /* V3UsageHelpView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F3E1D57838BE7EB084F7B90 /* V3UsageHelpView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -280,6 +282,8 @@
 		730D15DEAA1975E78EE744B6 /* VoiceWakeListener.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Hear-I-am/Features/Voice/Agent/VoiceWakeListener.swift"; sourceTree = SOURCE_ROOT; };
 		764BBB152672D4E5076FD9B2 /* VoiceWakeGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Hear-I-am/Features/Voice/Agent/VoiceWakeGate.swift"; sourceTree = SOURCE_ROOT; };
 		EF6C3737D1404B54C03622C3 /* HearV3.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Hear-I-am/Core/DesignSystem/HearV3.swift"; sourceTree = SOURCE_ROOT; };
+		3066BB303909034804A5D8FA /* RoleSelectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Hear-I-am/Features/Onboarding/View/RoleSelectionView.swift"; sourceTree = SOURCE_ROOT; };
+		3F3E1D57838BE7EB084F7B90 /* V3UsageHelpView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Hear-I-am/Features/Home/View/Screen/V3UsageHelpView.swift"; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -974,6 +978,8 @@
 		3827548992A19AB75CC26B41 /* V3 Flow */ = {
 			isa = PBXGroup;
 			children = (
+				3F3E1D57838BE7EB084F7B90 /* V3UsageHelpView.swift */,
+				3066BB303909034804A5D8FA /* RoleSelectionView.swift */,
 				EF6C3737D1404B54C03622C3 /* HearV3.swift */,
 			);
 			name = "V3 Flow";
@@ -1058,6 +1064,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D2668D1BBE4CC1C3618297E3 /* V3UsageHelpView.swift in Sources */,
+				1F0865EFB55B86AAA9E6C85E /* RoleSelectionView.swift in Sources */,
 				6CA76517DAAADAA4C1F61725 /* HearV3.swift in Sources */,
 				590208009E83056A89A481D8 /* VoiceUsageMode.swift in Sources */,
 				9A04B3BE74BB776D91D90F68 /* HearSiriIntents.swift in Sources */,
