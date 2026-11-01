@@ -73,6 +73,17 @@ import HearIAmCore
         recognition.stop()
     }
 
+    /// The same conversation can be opened with the orb when saying the wake phrase is inconvenient.
+    func beginConversation() {
+        start()
+        Task { @MainActor [weak self] in
+            guard let self else {return}
+            await self.startTask?.value
+            guard self.active, self.failure == nil else {return}
+            self.wake();self.greet()
+        }
+    }
+
     private func heardPartial(_ text:String) {
         guard active else {return}
         // Someone is still talking to the agent; it must not fall asleep in the middle of the request.

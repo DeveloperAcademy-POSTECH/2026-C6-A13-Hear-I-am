@@ -1,9 +1,14 @@
 import SwiftUI
 import AVFoundation
+import Speech
+import CoreMotion
 import HearIAmCore
 
 /// Pushed from Home. Settings and its children share Home's navigation stack.
 struct HomeSettingsView: View {
+    var role:HearRole = .performer
+    var changeRole:(()->Void)? = nil
+    @State private var confirmsRoleChange=false
     @StateObject private var output=SoundOutputStatus()
     @AppStorage(VoiceRecognitionService.analyzerKey) private var speechAnalyzer=false
     @AppStorage(SignalPlayer.directionDeadbandKey) private var directionDeadbandDegrees=DirectionTickGate.defaultDeadbandDegrees
@@ -14,6 +19,13 @@ struct HomeSettingsView: View {
     }
     var body: some View {
         List {
+            if let changeRole {
+                Section {
+                    Button {confirmsRoleChange=true} label: {
+                        Label("사용 역할 · \(role.title)",systemImage:role == .performer ? "headphones" : "camera")
+                    }.accessibilityIdentifier("settings.role")
+                }
+            }
             Section {
                 NavigationLink { SoundTestView() } label: {
                     HStack(spacing:14) {
@@ -56,30 +68,20 @@ struct HomeSettingsView: View {
                 }.accessibilityIdentifier("settings.speechAnalyzer")
             } header: {Text("음성 인식")}
             Section("사용 도움말") {
-                SettingsPendingRow(title:"착용과 안내 준비",symbol:"person")
-                SettingsPendingRow(title:"소리가 들리지 않을 때",symbol:"questionmark.circle")
+                NavigationLink {V3UsageHelpView()} label: {Label("착용과 안내 준비",systemImage:"person")}
+                NavigationLink {V3VoiceHelpView()} label: {Label("음성으로 사용하기",systemImage:"mic")}
             }
             Section("앱 관리") {
-                SettingsPendingRow(title:"권한 상태",symbol:"checkmark.shield")
-                SettingsPendingRow(title:"앱 정보",symbol:"info.circle")
+                NavigationLink {V3PermissionView()} label: {Label("권한 상태",systemImage:"checkmark.shield")}
+                LabeledContent("Hear I am",value:Bundle.main.object(forInfoDictionaryKey:"CFBundleShortVersionString") as? String ?? "")
             }
-        }.listStyle(.insetGrouped).tint(.hearInk)
-            .navigationTitle("설정").navigationBarTitleDisplayMode(.large)
+        }.listStyle(.insetGrouped).tint(HearV3.text).scrollContentBackground(.hidden).background(HearV3.canvas)
+            .navigationTitle("설정").navigationBarTitleDisplayMode(.inline)
+            .confirmationDialog("사용 역할을 바꿀까요?",isPresented:$confirmsRoleChange,titleVisibility:.visible) {
+                Button("역할 다시 선택") {changeRole?()}
+                Button("취소",role:.cancel) {}
+            } message: {Text("저장한 공연과 기록은 유지돼요.")}
             .toolbar(.visible,for:.navigationBar).toolbar(.hidden,for:.tabBar)
-    }
-}
-
-private struct SettingsPendingRow: View {
-    let title: String
-    let symbol: String
-    @Environment(\.dynamicTypeSize) private var typeSize
-    var body: some View {
-        (typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment:.leading,spacing:6)) : AnyLayout(HStackLayout(spacing:12))) {
-            Label(title,systemImage:symbol)
-            if !typeSize.isAccessibilitySize { Spacer(minLength:8) }
-            Text("준비 중").font(.subheadline).foregroundStyle(.secondary)
-        }.padding(.vertical,8).frame(maxWidth:.infinity,alignment:.leading)
-            .accessibilityElement(children:.ignore).accessibilityLabel(title).accessibilityValue("준비 중")
     }
 }
 
@@ -149,7 +151,7 @@ struct DirectionDeadbandView: View {
                     presetRow(deg)
                 }
             }
-        }.listStyle(.insetGrouped).tint(.hearInk)
+        }.listStyle(.insetGrouped).tint(HearV3.text).scrollContentBackground(.hidden).background(HearV3.canvas)
             .navigationTitle("방향 허용 각도").navigationBarTitleDisplayMode(.inline)
             .toolbar(.hidden,for:.tabBar)
             .toolbar {
@@ -219,7 +221,7 @@ struct SoundOutputView: View {
                 Text("음량은 iPhone의 음량 버튼으로 조절하세요.")
             }
             if let error=model.error { Section { TutorialPlaybackError(message:error) } }
-        }.listStyle(.insetGrouped).tint(.hearInk)
+        }.listStyle(.insetGrouped).tint(HearV3.text).scrollContentBackground(.hidden).background(HearV3.canvas)
             .navigationTitle("소리 출력").navigationBarTitleDisplayMode(.inline)
             .toolbar(.hidden,for:.tabBar)
             .onAppear {model.appear();output.refresh()}.onDisappear {model.disappear()}
