@@ -15,72 +15,64 @@ struct PreparationView: View {
     }
     var body: some View {
         GeometryReader { safe in
-        VStack(spacing:0) {
-            PreparationStepBar(model:model) {if model.exitNeedsConfirmation {model.confirmingExit=true} else {dismiss()}}
-            GeometryReader { geometry in
-            ZStack {
-                CameraView(model:model.session).frame(maxWidth:.infinity,maxHeight:.infinity)
-                if !model.supported {Color(.systemGray6)}
-                if model.supported {
-                Image(systemName:"plus").font(.system(size:30,weight:.light)).foregroundStyle(!model.aimBlocked ? .white : .red).shadow(color:.black,radius:2).accessibilityHidden(true)
-                VStack {
-                    HStack(alignment:.top) {
-                        if model.step != .scan {PreparationMiniMap(model:model).frame(width:180,height:125).padding(10).background(.regularMaterial,in:RoundedRectangle(cornerRadius:18))}
-                        Spacer(minLength:70)
-                        PreparationGuideCard(model:model,maxHeight:max(76,geometry.size.height-152))
-                            .frame(width:min(260,geometry.size.width*0.35)).background(.regularMaterial,in:RoundedRectangle(cornerRadius:20))
-                    }
+        let insets=safe.safeAreaInsets
+        ZStack {
+            CameraView(model:model.session).frame(maxWidth:.infinity,maxHeight:.infinity)
+            if !model.supported {Color(white:0.12)}
+            if model.supported {
+                Image(systemName:"plus").font(.system(size:34,weight:.light))
+                    .foregroundStyle(!model.aimBlocked ? Color.black : .red).shadow(color:.white.opacity(0.8),radius:1.5)
+                    .accessibilityHidden(true)
+                // Figma 452:11120: everything floats on the camera; the plan sits on the right edge.
+                VStack(spacing:0) {
+                    PreparationStepBar(model:model) {if model.exitNeedsConfirmation {model.confirmingExit=true} else {dismiss()}}
                     Spacer(minLength:8)
-                    HStack {PreparationPhotoControls(model:model);Spacer()}
-                    if model.step == .route, !model.draft.dangerZoneRoutePointLabels.isEmpty {
-                        Label("주의: \(model.draft.dangerZoneRoutePointLabels.joined(separator:" · ")) 위험 구역 포함",systemImage:"exclamationmark.triangle.fill")
-                            .font(.caption).foregroundStyle(.orange)
-                            .padding(.horizontal,12).padding(.vertical,6)
-                            .background(.regularMaterial,in:RoundedRectangle(cornerRadius:10))
-                            .fixedSize(horizontal:false,vertical:true)
-                            .allowsHitTesting(false)
-                    }
-                    HStack {
-                        if let hint=model.showsCrosshairHint {
-                            Text(hint)
-                                .font(.caption).foregroundStyle(!model.aimBlocked ? .primary : Color.red).padding(8).background(.regularMaterial,in:Capsule())
+                    ZStack(alignment:.bottom) {
+                        PreparationToolGroup(model:model,hasPlans:!library.plans.isEmpty)
+                        HStack(alignment:.bottom) {
+                            PreparationPhotoControls(model:model)
+                            Spacer()
+                            PreparationControls(model:model)
                         }
-                        Spacer()
-                        PreparationControls(model:model,hasPlans:!library.plans.isEmpty)
                     }
-                }.padding(.leading,safe.safeAreaInsets.leading+14)
-                    .padding(.trailing,safe.safeAreaInsets.trailing+14)
-                    .padding(.bottom,safe.safeAreaInsets.bottom+14)
-                    .padding(.top,14)
+                }.padding(.leading,insets.leading+16).padding(.trailing,insets.trailing+16)
+                    .padding(.top,insets.top+14).padding(.bottom,insets.bottom+14)
+                if model.step != .scan {
+                    HStack {
+                        Spacer()
+                        PreparationGuideCard(model:model,maxHeight:max(160,safe.size.height-150))
+                    }.padding(.trailing,insets.trailing+8).padding(.top,70).padding(.bottom,80)
                 }
-                if let intro=model.intro, model.supported {
-                    Color.black.opacity(0.30)
-                    PreparationIntro(step:model.step.rawValue,page:intro) {model.nextIntroPage()}.padding(16)
-                }
-                if !model.supported {
+            }
+            if let intro=model.intro, model.supported {
+                Color.black.opacity(0.25)
+                PreparationIntro(step:model.step.rawValue,page:intro) {model.intro=$0}.padding(16)
+            }
+            if !model.supported {
+                VStack(spacing:16) {
                     ContentUnavailableView("LiDAR 지원 iPhone이 필요해요",systemImage:"camera",description:Text("무대 준비는 실제 카메라와 LiDAR로 공간을 저장합니다. 시뮬레이터에서는 스캔할 수 없어요."))
-                        .frame(maxWidth:500).background(.regularMaterial,in:RoundedRectangle(cornerRadius:20))
-                }
-                if model.interrupted {
-                    VStack(spacing:14) {
-                        Label("공간 추적이 잠시 멈췄어요",systemImage:"pause.circle").font(.headline)
-                        Text("입력한 정보는 유지됩니다. 같은 공간을 비추고 다시 시작해주세요.").font(.subheadline)
-                        ActionButton(title:"추적 다시 시작") {model.resumeTracking()}
-                    }.padding(24).background(.regularMaterial,in:RoundedRectangle(cornerRadius:20))
-                }
-                if model.choosingPlan {
-                    PreparationPlanPicker(plans:library.plans,initialID:model.selectedPlan?.id,onConfirm:{model.selectReferencePlan($0)},onCancel:{model.choosingPlan=false})
-                }
-                if model.review {PreparationReviewCard(model:model)}
-                if model.isSaving {
-                    Color.black.opacity(0.35)
-                    VStack(spacing:16) {ProgressView(); Text("무대 정보를 저장하는 중입니다…").font(.headline)}
-                        .padding(32).background(.regularMaterial,in:RoundedRectangle(cornerRadius:22))
-                }
-            }.frame(width:geometry.size.width,height:geometry.size.height).clipped()
-            }.ignoresSafeArea(.container,edges:[.horizontal,.bottom])
-        }
-        }.background(.white).preferredColorScheme(.light)
+                    ScanCardButton(title:"나가기",primary:false) {dismiss()}.frame(width:160)
+                }.padding(28).frame(maxWidth:500).scanCard()
+            }
+            if model.interrupted {
+                VStack(spacing:14) {
+                    Label("공간 추적이 잠시 멈췄어요",systemImage:"pause.circle").font(.headline).foregroundStyle(.white)
+                    Text("입력한 정보는 유지됩니다. 같은 공간을 비추고 다시 시작해주세요.").font(.subheadline).foregroundStyle(.white.opacity(0.75))
+                    ScanCardButton(title:"추적 다시 시작") {model.resumeTracking()}.frame(width:200)
+                }.padding(28).scanCard()
+            }
+            if model.choosingPlan {
+                PreparationPlanPicker(plans:library.plans,initialID:model.selectedPlan?.id,onConfirm:{model.selectReferencePlan($0)},onCancel:{model.choosingPlan=false})
+            }
+            if model.review {PreparationReviewCard(model:model)}
+            if model.isSaving {
+                Color.black.opacity(0.35)
+                VStack(spacing:16) {ProgressView().tint(.white); Text("무대 정보를 저장하는 중입니다…").font(.headline).foregroundStyle(.white)}
+                    .padding(32).scanCard()
+            }
+        }.frame(width:safe.size.width+insets.leading+insets.trailing,height:safe.size.height+insets.top+insets.bottom)
+            .ignoresSafeArea()
+        }.background(.black).preferredColorScheme(.light)
             .sheet(isPresented:$model.showingPhotos) {PreparationPhotosSheet(model:model)}
             .sheet(isPresented:$model.editingDangerZones) { PreparationDangerZoneSheet(model:model) }
             .onAppear {ScreenOrientation.set(.landscape); model.appear()}

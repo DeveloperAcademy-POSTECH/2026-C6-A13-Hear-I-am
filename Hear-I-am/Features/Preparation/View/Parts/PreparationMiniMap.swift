@@ -4,6 +4,8 @@ import HearIAmCore
 /// Floor plan of the current draft, re-projected onto the latest stage rectangle.
 struct PreparationMiniMap: View {
     @ObservedObject var model: PreparationViewModel
+    /// The dark plan used on the scan screen's glass panels.
+    var dark=false
     var body: some View {
         let draft=model.draft, area=draft.area, boundary=model.step == .boundary
         let placing=model.step == .route && !draft.routeFinished
@@ -17,6 +19,6 @@ struct PreparationMiniMap: View {
                  activeCorner:boundary ? model.nextCorner : nil,
                  clearance:model.step >= .objects ? draft.effectiveObstacleClearance : nil,
                  aim:placing ? area.flatMap {a in model.session.aimPoint.map(a.floor)} : nil,aimBlocked:model.aimBlocked,
-                 reference:model.visiblePlanReference)
+                 reference:model.visiblePlanReference,v3Style:dark)
     }
 }

@@ -1,56 +1,98 @@
 import SwiftUI
 import HearIAmCore
 
-/// Bottom-right action buttons for the current step.
-struct PreparationControls: View {
+/// Bottom-centre tools of the current step: undo on its own, then the step's point and option buttons
+/// (Figma 452:13140 · 452:13160 · 452:13186). Undo is drawn outlined while there is nothing to undo.
+struct PreparationToolGroup: View {
     @ObservedObject var model: PreparationViewModel
     var hasPlans=false
     var body: some View {
         let draft=model.draft
+        HStack(spacing:8) {
+            switch model.step {
+            case .scan:
+                EmptyView()
+            case .boundary:
+                undo(enabled:model.lastCapturedCorner != nil && !model.busy) {if let last=model.lastCapturedCorner {model.undoCorner(last)}}
+                group {
+                    tool("plus","무대 \(model.nextCorner.map {PreparationStep.cornerNames[$0]} ?? "") 모서리 지정",enabled:model.nextCorner != nil && model.canPlacePoint) {
+                        if let next=model.nextCorner {model.captureCorner(next)}
+                    }
+                    tool("exclamationmark.triangle.fill","위험 구역",enabled:draft.area != nil && !model.busy) {model.editingDangerZones=true}
+                    if hasPlans {
+                        tool("folder.fill",model.selectedPlan == nil ? "사전 저장 동선 불러오기" : "참고 동선 변경",enabled:draft.area != nil) {model.choosingPlan=true}
+                    }
+                }
+            case .objects:
+                undo(enabled:model.objectEditing && !model.pendingObjectWorld.isEmpty) {model.undoObjectVertex()}
+                group {
+                    tool("plus","둘레 점 추가",enabled:model.objectEditing && model.canPlacePoint && model.pendingObjectWorld.count<8) {model.addObjectVertex()}
+                    if model.objectEditing {
+                        tool("xmark","기물 입력 취소") {model.cancelObject()}
+                    } else {
+                        tool("shippingbox.fill","기물 추가, 등록한 기물 \(draft.objects.count)개",enabled:draft.area != nil) {model.beginObject()}
+                            .overlay(alignment:.top) {
+                                Text("\(draft.objects.count)").font(.system(size:11,weight:.bold)).foregroundStyle(.white)
+                                    .frame(minWidth:20,minHeight:20).background(Color.black.opacity(0.6),in:Circle())
+                                    .offset(y:-30).accessibilityHidden(true)
+                            }
+                    }
+                }
+            case .route:
+                undo(enabled:!draft.route.isEmpty && !model.busy) {model.undoRoutePoint()}
+                group {
+                    tool("plus","\(draft.nextRoutePointLabel(at:model.session.aimPoint)) 지정",
+                         enabled:!draft.routeFinished && draft.route.count<StageRoute.maxPointCount-1 && model.canPlacePoint && draft.area != nil) {model.addRoutePoint()}
+                    tool("flag.checkered","도착점 지정",enabled:!draft.routeFinished && draft.route.count>=2 && model.canPlacePoint && draft.area != nil) {model.addRoutePoint(destination:true)}
+                }
+            case .checkpoint:
+                group {
+                    let next: Int? = draft.checkpoint == nil ? 0 : (draft.secondCheckpoint == nil ? 1 : nil)
+                    tool("plus",next.map {"확인점 \($0+1) 지정"} ?? "확인점 두 개 지정됨",enabled:next != nil && model.canPlacePoint && draft.area != nil) {
+                        if let next {model.placeCheckpoint(next)}
+                    }
+                }
+            }
+        }
+    }
+    private func undo(enabled: Bool, action: @escaping () -> Void) -> some View {
+        ScanCircleButton(systemImage:enabled ? "arrowshape.turn.up.backward.fill" : "arrowshape.turn.up.backward",label:"마지막 점 삭제",size:50,enabled:enabled,action:action)
+    }
+    /// 50pt glass capsule of 44pt tools, 10pt in from its ends (Figma 452:12581).
+    private func group<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        HStack(spacing:4) {content()}.padding(.horizontal,10).frame(height:50)
+            .liquidGlass(Capsule(),tint:ScanChrome.buttonTint)
+    }
+    private func tool(_ systemImage: String, _ label: String, enabled: Bool=true, action: @escaping () -> Void) -> some View {
+        Button(action:action) {
+            Image(systemName:systemImage).font(.system(size:17,weight:.semibold)).foregroundStyle(.white)
+                .frame(width:44,height:44).contentShape(Rectangle())
+        }.buttonStyle(.plain).disabled(!enabled).opacity(enabled ? 1 : 0.4).accessibilityLabel(label)
+    }
+}
+
+/// Bottom-right button that finishes the current step.
+struct PreparationControls: View {
+    @ObservedObject var model: PreparationViewModel
+    var body: some View {
+        let draft=model.draft
         switch model.step {
         case .scan:
-            ActionButton(title:"공간 확정하기",enabled:model.canConfirmScan) {model.confirmingScan=true}
+            ScanPrimaryButton(title:"스캔 완료",enabled:model.canConfirmScan) {model.confirmingScan=true}
         case .boundary:
-            if let last=model.lastCapturedCorner {
-                ActionButton(title:"마지막 점 삭제",primary:false,enabled:!model.busy) {model.undoCorner(last)}
-            }
-            if let next=model.nextCorner {ActionButton(title:"모서리 지정",enabled:model.canPlacePoint) {model.captureCorner(next)}}
-            if draft.area != nil {
-                ActionButton(title:"위험 구역",primary:false,enabled:!model.busy) {model.editingDangerZones=true}
-                if let plan=model.selectedPlan {
-                    if hasPlans { ActionButton(title:"참고 동선 변경",primary:false) {model.choosingPlan=true} }
-                    ActionButton(title:"‘\(plan.name)’ 참고해 입력") {model.selectReferencePlan(plan)}
-                } else {
-                    if hasPlans {
-                        ActionButton(title:"사전 저장 동선 불러오기",primary:false) {model.choosingPlan=true}
-                    }
-                    ActionButton(title:"직접 입력") {model.advance()}
-                }
+            ScanPrimaryButton(title:"무대 영역 확정",enabled:draft.area != nil && !model.busy) {
+                if let plan=model.selectedPlan {model.selectReferencePlan(plan)} else {model.advance()}
             }
         case .objects:
             if model.objectEditing {
-                Button("취소") {model.cancelObject()}.padding(8).background(.regularMaterial,in:Capsule())
-                ActionButton(title:"마지막 점 삭제",primary:false,enabled:!model.pendingObjectWorld.isEmpty) {model.undoObjectVertex()}
-                ActionButton(title:"둘레 점 추가",enabled:model.canPlacePoint && model.pendingObjectWorld.count<8) {model.addObjectVertex()}
-                ActionButton(title:"기물 등록",enabled:model.pendingObjectWorld.count>=3) {model.commitObject()}
+                ScanPrimaryButton(title:"기물 등록",enabled:model.pendingObjectWorld.count>=3) {model.commitObject()}
             } else {
-                ActionButton(title:"기물 추가",primary:false,enabled:draft.area != nil) {model.beginObject()}
-                ActionButton(title:draft.objects.isEmpty ? "건너뛰기" : "다음 단계",enabled:draft.objectErrors.isEmpty) {model.advance()}
+                ScanPrimaryButton(title:draft.objects.isEmpty ? "건너뛰기" : "기물 확정",enabled:draft.objectErrors.isEmpty) {model.advance()}
             }
         case .route:
-            if !draft.route.isEmpty {ActionButton(title:"마지막 점 삭제",primary:false) {model.undoRoutePoint()}}
-            if draft.routeFinished {
-                ActionButton(title:"다음 단계",enabled:draft.routeErrors.isEmpty) {model.advance()}
-            } else {
-                if draft.route.count<StageRoute.maxPointCount-1 {ActionButton(title:"\(draft.nextRoutePointLabel(at:model.session.aimPoint)) 지정",enabled:model.canPlacePoint && draft.area != nil) {model.addRoutePoint()}}
-                if draft.route.count>=2 {ActionButton(title:"도착점 지정",enabled:model.canPlacePoint && draft.area != nil) {model.addRoutePoint(destination:true)}}
-            }
+            ScanPrimaryButton(title:"경로 확정",enabled:draft.routeFinished && draft.routeErrors.isEmpty) {model.advance()}
         case .checkpoint:
-            ActionButton(title:draft.checkpoint == nil ? "확인점 1 지정" : "확인점 1 다시 찍기",primary:draft.checkpoint == nil,enabled:model.canPlacePoint && draft.area != nil) {model.placeCheckpoint(0)}
-            if draft.checkpoint != nil {
-                ActionButton(title:draft.secondCheckpoint == nil ? "확인점 2 지정" : "확인점 2 다시 찍기",primary:draft.secondCheckpoint == nil,enabled:model.canPlacePoint) {model.placeCheckpoint(1)}
-            }
-            if draft.checkpoint != nil {ActionButton(title:"검토하기",enabled:draft.checkpointErrors.isEmpty) {model.review=true}}
+            ScanPrimaryButton(title:"확인점 확정",enabled:draft.checkpoint != nil && draft.checkpointErrors.isEmpty) {model.review=true}
         }
     }
 }
