@@ -29,7 +29,13 @@ struct StageEntityQuery: EntityStringQuery {
     private func stages() async -> [StageEntity] {
         let docs=FileManager.default.urls(for:.documentDirectory,in:.userDomainMask)[0]
         let records=(try? await ScanStore(root:docs.appendingPathComponent("Scans",isDirectory:true)).list()) ?? []
-        return records.filter(\.supportsAlignment).map {StageEntity(id:$0.id,name:$0.name)}
+        let catalog=(try? await PerformanceCatalogStore(root:docs.appendingPathComponent("Performances",isDirectory:true)).load()) ?? PerformanceCatalog()
+        return records.filter(\.supportsAlignment).map { record in
+            let names=[catalog.folder(for:record.id)?.name,catalog.venue(for:record.id)?.name,record.name].compactMap {$0}
+            var unique:[String]=[]
+            for name in names where !unique.contains(name) {unique.append(name)}
+            return StageEntity(id:record.id,name:unique.joined(separator:" · "))
+        }
     }
     func entities(for identifiers: [UUID]) async throws -> [StageEntity] {
         await stages().filter {identifiers.contains($0.id)}
