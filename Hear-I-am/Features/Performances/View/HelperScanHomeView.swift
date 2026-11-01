@@ -58,7 +58,7 @@ struct HelperScanHomeView:View {
             .sheet(item:$classification,onDismiss:{
                 if let id=openAfterClassification {openAfterClassification=nil;onShowPerformance(id)}
             }) {saved in
-                StageClassificationView(library:library,scanIDs:[saved.id],wasJustSaved:true) {id in openAfterClassification=id}.suspendsVoiceWake()
+                StageClassificationView(library:library,scanIDs:[saved.id],wasJustSaved:true,opensPerformanceOnCompletion:true) {id in openAfterClassification=id}.suspendsVoiceWake()
             }
             .alert("카메라 접근이 필요해요",isPresented:$cameraDenied) {
                 Button("iPhone 설정 열기") {if let url=URL(string:UIApplication.openSettingsURLString) {UIApplication.shared.open(url)}}

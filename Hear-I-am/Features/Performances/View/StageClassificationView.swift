@@ -6,6 +6,7 @@ struct StageClassificationView: View {
     @ObservedObject var library:StageLibrary
     let scanIDs:[UUID]
     let wasJustSaved:Bool
+    let opensPerformanceOnCompletion:Bool
     let onClassified:(UUID?)->Void
     @State private var performanceID:UUID?
     @State private var venueID:UUID?
@@ -16,8 +17,8 @@ struct StageClassificationView: View {
     @State private var busy=false
     @State private var error:String?
     @Environment(\.dismiss) private var dismiss
-    init(library:StageLibrary,scanIDs:[UUID],initialPerformanceID:UUID?=nil,initialVenueID:UUID?=nil,wasJustSaved:Bool=false,onClassified:@escaping (UUID?)->Void) {
-        self.library=library;self.scanIDs=scanIDs;self.wasJustSaved=wasJustSaved;self.onClassified=onClassified
+    init(library:StageLibrary,scanIDs:[UUID],initialPerformanceID:UUID?=nil,initialVenueID:UUID?=nil,wasJustSaved:Bool=false,opensPerformanceOnCompletion:Bool=false,onClassified:@escaping (UUID?)->Void) {
+        self.library=library;self.scanIDs=scanIDs;self.wasJustSaved=wasJustSaved;self.opensPerformanceOnCompletion=opensPerformanceOnCompletion;self.onClassified=onClassified
         _performanceID=State(initialValue:initialPerformanceID);_venueID=State(initialValue:initialVenueID)
         _stageName=State(initialValue:scanIDs.count == 1 ? library.records.first {$0.id==scanIDs.first}?.name ?? "" : "")
     }
@@ -103,7 +104,7 @@ struct StageClassificationView: View {
                 if let performanceID {
                     NavigationLink("공연장 태그 관리") {PerformanceTagManagementView(library:library,performanceID:performanceID,onStartGuidance:nil)}.buttonStyle(.bordered)
                 }
-                Button(folder == nil ? "완료" : "저장한 공연 보기") {dismiss();onClassified(performanceID)}.buttonStyle(V3PrimaryButtonStyle()).accessibilityIdentifier("classification.finish")
+                Button(folder != nil && opensPerformanceOnCompletion ? "저장한 공연 보기" : "완료") {dismiss();onClassified(performanceID)}.buttonStyle(V3PrimaryButtonStyle()).accessibilityIdentifier("classification.finish")
             }.padding(20)
         }
     }
