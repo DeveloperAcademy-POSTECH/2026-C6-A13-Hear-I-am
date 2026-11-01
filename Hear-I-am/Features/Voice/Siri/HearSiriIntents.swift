@@ -3,8 +3,9 @@ import Combine
 import Foundation
 import HearIAmCore
 
-/// Starts voice guidance from Siri (#91). Localized App Shortcuts open the app from outside it.
-/// The wake word inside the app (#90) only works while the app is open.
+/// Starts voice guidance from Siri (#91). From iOS 27.2 Siri understands Korean, so 「시리야, HearIam으로
+/// 의자 테스트 연습 시작해」 opens the app and continues straight into that stage. The wake word inside the app
+/// (#90) only works while the app is open; Siri is the way in from outside it.
 @MainActor final class VoiceLaunch: ObservableObject {
     struct Request: Equatable {
         let id=UUID()
@@ -28,13 +29,7 @@ struct StageEntityQuery: EntityStringQuery {
     private func stages() async -> [StageEntity] {
         let docs=FileManager.default.urls(for:.documentDirectory,in:.userDomainMask)[0]
         let records=(try? await ScanStore(root:docs.appendingPathComponent("Scans",isDirectory:true)).list()) ?? []
-        let catalog=(try? await PerformanceCatalogStore(root:docs.appendingPathComponent("Performances",isDirectory:true)).load()) ?? PerformanceCatalog()
-        return records.filter(\.supportsAlignment).map { record in
-            let names=[catalog.folder(for:record.id)?.name,catalog.venue(for:record.id)?.name,record.name].compactMap {$0}
-            var unique:[String]=[]
-            for name in names where !unique.contains(name) {unique.append(name)}
-            return StageEntity(id:record.id,name:unique.joined(separator:" · "))
-        }
+        return records.filter(\.supportsAlignment).map {StageEntity(id:$0.id,name:$0.name)}
     }
     func entities(for identifiers: [UUID]) async throws -> [StageEntity] {
         await stages().filter {identifiers.contains($0.id)}
@@ -77,9 +72,9 @@ struct StartVoiceGuidanceIntent: AppIntent {
 struct HearShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
         AppShortcut(intent:StartVoiceGuidanceIntent(),phrases:[
-            "Start guidance in \(.applicationName)",
-            "Start \(.applicationName)",
-            "Open \(.applicationName)"
-        ],shortTitle:"Start Guidance",systemImageName:"waveform")
+            "\(.applicationName) 안내 시작",
+            "\(.applicationName)로 안내 시작해 줘",
+            "\(.applicationName) 열어 줘"
+        ],shortTitle:"안내 시작",systemImageName:"waveform")
     }
 }

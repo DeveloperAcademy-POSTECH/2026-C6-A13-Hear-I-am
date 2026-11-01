@@ -1,93 +1,103 @@
 import SwiftUI
 import HearIAmCore
 
-/// A role belongs to this app session, never to persistent preferences.
+/// Who uses this phone (new IA, 10/29). The voice agent works only for the performer, and only on Home and
+/// in guidance; the helper's places, plans and records are silent. Onboarding will set it; until then the
+/// phone is the performer's.
+enum HearRole: String {
+    case performer, helper
+    static let key="app.role"
+}
+
 struct HearRootView: View {
     @StateObject private var library=StageLibrary()
+    /// The call is heard on every tab, not only Home (#90).
     @StateObject private var wake=VoiceWakeListener()
     @ObservedObject private var launch=VoiceLaunch.shared
     @ObservedObject private var gate=VoiceWakeGate.shared
-    @State private var showsLaunch=true
-    @State private var role:HearRole?
     @State private var tab=0
-    @State private var selectedPerformanceID:UUID?
-    @State private var guidance:VoiceGuidanceLaunch?
+    @AppStorage(HearRole.key) private var role=HearRole.performer.rawValue
+    @State private var guidance: VoiceGuidanceLaunch?
+    /// Set when the agent was asked for a new scan; the 장소 tab opens it once its places are loaded.
+    @State private var voiceScan=false
     @Environment(\.scenePhase) private var scenePhase
-
-    var body: some View {
-        Group {
-            if showsLaunch {HearLaunchView()}
-            else if let role {
-                if role == .performer {
-                    HomeView(library:library,wake:wake,start:{open(VoiceGuidanceLaunch())},changeRole:chooseRole,isPresented:guidance == nil)
-                } else {helperTabs}
-            } else {RoleSelectionView {role=$0;tab=0;openSiriRequest();syncWake()}}
-        }
-        .fullScreenCover(item:$guidance,onDismiss:{openSiriRequest();syncWake()}) {request in
-            GuidanceView(library:library,voiceExperiment:true,request:request.request,
-                         stageID:request.stageID,mode:request.mode,helperPreparation:request.helperPreparation,
-                         openPlans:{guidance=nil;openHelper(tab:1)},openScan:{guidance=nil;openHelper(tab:0)})
-        }
-        .onAppear {
-            wake.onRequest={text in
-                switch VoiceAppRequest.resolve(text) {
-                case .plans?: wake.answer(["공연 관리는 조력자 화면에서 사용할 수 있어요."]) {openHelper(tab:1)}
-                case .scan?: wake.answer(VoiceAppRequest.scanAnswer) {openHelper(tab:0)}
-                case nil:open(VoiceGuidanceLaunch(request:VoiceAppRequest.isRehearsal(text) ? nil : text))
+    /// The tabs with guidance and the voice agent's light on top; split from `body` for the type checker.
+    private var tabs: some View {
+        TabView(selection:$tab) {
+            HomeView(library:library,wake:wake) {open(VoiceGuidanceLaunch())}.tabItem {Label("홈",systemImage:"house.fill")}.tag(0)
+            PlacesView(library:library,voiceScan:$voiceScan).tabItem {Label("장소",systemImage:"folder.fill")}.tag(1)
+            PlanLibraryView(library:library).tabItem {Label("공연 사전 저장",systemImage:"map")}.tag(2)
+            GuidanceRecordsView(library:library)
+                .tabItem {Label("기록",systemImage:"clock")}.tag(3)
+        }.tint(.hearInk).preferredColorScheme(.light)
+            // The call and Siri open guidance over whichever tab is showing (#90, #91). An item, not a flag,
+            // so the screen gets the request it was opened with rather than the value from before.
+            // A Siri request that came while guidance was open waits for it to close.
+            .fullScreenCover(item:$guidance,onDismiss:{openSiriRequest();syncWake()}) { launch in
+                GuidanceView(library:library,voiceExperiment:true,request:launch.request,stageID:launch.stageID,mode:launch.mode) {
+                    guidance=nil;showPlans()
+                } openScan: {
+                    guidance=nil;showScan()
                 }
             }
-            syncWake()
-        }
-        .onChange(of:launch.pending) {openSiriRequest()}
-        .onChange(of:gate.open) {openSiriRequest();syncWake()}
-        .onChange(of:scenePhase) {syncWake()}
-        .onChange(of:role) {syncWake()}
-        .onChange(of:library.records.map(\.id)) {HearShortcuts.updateAppShortcutParameters()}
-        .task {
-            await library.refresh()
-            HearShortcuts.updateAppShortcutParameters()
-        }
-        .task {
-            guard showsLaunch else {return}
-            try? await Task.sleep(for:.milliseconds(850))
-            guard !Task.isCancelled else {return}
-            showsLaunch=false
-        }
-        .alert("확인이 필요해요",isPresented:Binding(get:{library.error != nil},set:{if !$0 {library.error=nil}})) {
-            Button("확인",role:.cancel) {library.error=nil}
-        } message: {Text(library.error ?? "")}
+            // The agent shows as light around the screen edge; a tap anywhere while it listens closes it.
+            .overlay {VoiceEdgeGlow(visualization:wake.visualization,active:wake.awake)}
+            .overlay {if wake.awake {VoiceDismissLayer {wake.dismiss()}}}
     }
 
-    private var helperTabs: some View {
-        TabView(selection:$tab) {
-            HelperScanHomeView(library:library) {id in selectedPerformanceID=id;tab=1}
-                .tabItem {Label("스캔",systemImage:"camera")}.tag(0)
-            PerformanceLibraryView(library:library,selectedPerformanceID:$selectedPerformanceID) {stageID in
-                open(VoiceGuidanceLaunch(stageID:stageID,mode:.performance,helperPreparation:true))
-            }.tabItem {Label("공연 관리",systemImage:"folder")}.tag(1)
-            GuidanceRecordsView(library:library).tabItem {Label("기록",systemImage:"clock")}.tag(2)
-        }.tint(HearV3.text).preferredColorScheme(.dark)
-            .environment(\.hearChangeRole,chooseRole)
+    var body: some View {
+        tabs
+            .onAppear {
+                wake.onRequest={ text in
+                    switch VoiceAppRequest.resolve(text) {
+                    case .plans?:showPlans()
+                    case .scan?:showScan()
+                    // 「연습」 opens guidance on its performance list; a performance or place name goes straight to it.
+                    case nil:open(VoiceGuidanceLaunch(request:VoiceAppRequest.isRehearsal(text) ? nil : text))
+                    }
+                }
+                syncWake()
+            }
+            .onChange(of:launch.pending) {openSiriRequest()}
+            .onChange(of:gate.open) {openSiriRequest();syncWake()}
+            .onChange(of:scenePhase) {syncWake()}
+            .onChange(of:tab) {syncWake()}
+            .onChange(of:role) {syncWake()}
+            // Siri phrases that name a stage only know the stages it was last told about.
+            .onChange(of:library.records.map(\.id)) {HearShortcuts.updateAppShortcutParameters()}
+            .task {
+                await library.refresh()
+                // Re-register Siri phrases on every launch; Shortcuts did not list them on Ian's phone (10/28).
+                HearShortcuts.updateAppShortcutParameters()
+            }
+            .alert("확인이 필요해요",isPresented:Binding(get:{library.error != nil},set:{if !$0 {library.error=nil}})) {
+                Button("확인",role:.cancel) {library.error=nil}
+            } message: {Text(library.error ?? "")}
     }
-    private func chooseRole() {wake.stop();role=nil;selectedPerformanceID=nil}
-    private func openHelper(tab:Int) {wake.stop();role = .helper;self.tab=tab}
-    private func open(_ value:VoiceGuidanceLaunch) {wake.stop();guidance=value}
+
+    private func open(_ launch: VoiceGuidanceLaunch) {
+        wake.stop()
+        guidance=launch
+    }
+    /// 「사전 저장된 공연 보여줘」 opens the 공연 사전 저장 tab and reads what is there.
+    /// The tab belongs to the helper, where the agent does not listen, so the answer comes first.
+    private func showPlans() {
+        wake.answer(VoiceAppRequest.plansAnswer(names:library.plans.map(\.name))) {tab=2}
+    }
+    /// 「새 스캔」 opens a scan from the 장소 tab. The helper scans with buttons and the scan screen stops
+    /// listening, so the agent says so before it opens.
+    private func showScan() {
+        wake.answer(VoiceAppRequest.scanAnswer) {tab=1;voiceScan=true}
+    }
+    /// A Siri request waits while another screen covers the tabs, then opens guidance.
     private func openSiriRequest() {
-        guard !showsLaunch,role != nil,let value=launch.pending,guidance == nil,gate.open else {return}
+        guard let value=launch.pending, guidance == nil, gate.open else {return}
         launch.pending=nil
-        let helper=role == .helper
-        open(VoiceGuidanceLaunch(stageID:value.stageID,mode:helper ? .performance : value.mode,helperPreparation:helper))
+        open(VoiceGuidanceLaunch(stageID:value.stageID,mode:value.mode))
     }
     private func syncWake() {
-        if !showsLaunch,role == .performer,scenePhase == .active,guidance == nil,gate.open {wake.start()}
+        let performerHome=role == HearRole.performer.rawValue && tab == 0
+        if performerHome && scenePhase == .active && guidance == nil && gate.open {wake.start()}
         else {wake.stop()}
-    }
-}
-
-private struct HearChangeRoleKey: EnvironmentKey {static let defaultValue:(()->Void)? = nil}
-extension EnvironmentValues {
-    var hearChangeRole:(()->Void)? {
-        get {self[HearChangeRoleKey.self]}
-        set {self[HearChangeRoleKey.self]=newValue}
     }
 }

@@ -7,9 +7,6 @@ struct GuidanceHeadline {
     let title: String
     let detail: String
 
-    init(title: String, detail: String, symbol: String) {
-        self.title=title;self.detail=detail;self.symbol=symbol
-    }
     init(facing: StageFacing, pointName: String) {
         symbol="arrow.triangle.turn.up.right.circle"
         title="\(pointName) · 바라볼 방향 맞추기"

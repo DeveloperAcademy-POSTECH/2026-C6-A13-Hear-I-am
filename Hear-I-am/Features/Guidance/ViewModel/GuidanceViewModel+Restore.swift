@@ -10,9 +10,8 @@ extension GuidanceViewModel {
         tracking.endSession();tracking.setActive(true);tracking.errorMessage=nil
         message="저장한 공연장 위치를 확인하고 있어요."
         phase = .restoring
-        let instruction=isPractice ? "저장한 실제 공간 안에서 휴대폰을 손에 들고 제자리에서 천천히 한 바퀴 돌아주세요. 공간을 찾으면 알려드릴게요." : "조력자가 휴대폰을 들고 저장한 공연장 주변을 천천히 비춰주세요. 공간을 찾은 뒤 확인점 두 개를 맞춥니다."
-        read((voiceIntroduction.map {[$0]} ?? [])+[instruction])
-        tracking.restore(selected,validation:isPractice ? .relocalization : .checkpoints)
+        read((voiceIntroduction.map {[$0]} ?? [])+[voiceShouldListen ? VoiceStepCopy.restoring : "휴대폰을 손에 들고 주변을 천천히 비춰주세요."])
+        tracking.restore(selected)
     }
     func verifyCheckpoint() {
         guard canVerify else { return }
@@ -33,12 +32,6 @@ extension GuidanceViewModel {
         guard !voiceTurnActive else {return}
         if let error=tracking.errorMessage { fail(error);return }
         if !tracking.busy && tracking.mode == .idle { fail(tracking.status);return }
-        if isPractice, tracking.ready, canAdvanceInstruction {
-            invalidateTasks();phase = .wear
-            message="저장한 공간을 찾았어요. 확인점 보정 없이 연습을 시작해요."
-            read(["공연장을 찾았어요.",GuidanceCopy.doNotDisturb,"휴대폰을 허리 앞쪽에 세로로 고정해주세요. 후면 카메라는 몸 바깥쪽을 향하고 렌즈는 가리지 말아주세요.","다 차면 ‘착용 완료’라고 말해주세요."])
-            return
-        }
         if tracking.canVerify, canAdvanceInstruction {
             invalidateTasks()
             phase = .checkpoint;message="중앙 조준점을 저장한 확인점 1번에 맞춰주세요."

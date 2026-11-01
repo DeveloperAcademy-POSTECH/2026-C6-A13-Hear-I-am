@@ -48,7 +48,6 @@ final class ARSessionController: ObservableObject {
     var scanID=UUID()
     var active=true
     var gate=TrackingGate()
-    var restorationValidation: RestorationValidation = .checkpoints
     var latest: CameraSample?
     var lastUI = -Double.infinity
     var lastPoseLog = -Double.infinity
@@ -157,7 +156,7 @@ final class ARSessionController: ObservableObject {
         stopLog()
         saveRecoveryPending=false
         session?.delegate=nil; session?.pause()
-        token=UUID(); gate=TrackingGate(); restorationValidation = .checkpoints; latest=nil
+        token=UUID(); gate=TrackingGate(); latest=nil
         clearPhotos()
         if purpose == .preparation { preparedDraft=PreparationDraft(); savedID=nil; onReset?() }
         position=nil; heading=nil; guidancePoseTime=nil; ready=false; canVerify=false; canSave=false

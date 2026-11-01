@@ -3,7 +3,6 @@ import SwiftUI
 import HearIAmCore
 
 @MainActor final class StageLibrary: ObservableObject {
-    @Published private(set) var catalog=PerformanceCatalog()
     @Published private(set) var records: [ScanManifest] = []
     @Published private(set) var guidanceRecords: [GuidanceRecord] = []
     @Published private(set) var recordError: String?
@@ -11,18 +10,13 @@ import HearIAmCore
     @Published private(set) var pins = LibraryPins()
     @Published private(set) var loading = false
     @Published var error: String?
-    let catalogStore: PerformanceCatalogStore
-    private let legacyPlacesStore: PlaceFolderStore
     let scans: ScanStore
     let planStore: PerformancePlanStore
     let guidanceRecordsStore: GuidanceRecordStore
     private let pinURL: URL
-    private var refreshTask: Task<Void, Never>?
     var groups: (pinned: [ScanManifest], recent: [ScanManifest]) { pins.groups(records) }
     init() {
         let docs=FileManager.default.urls(for:.documentDirectory,in:.userDomainMask)[0]
-        catalogStore=PerformanceCatalogStore(root:docs.appendingPathComponent("Performances",isDirectory:true))
-        legacyPlacesStore=PlaceFolderStore(root:docs.appendingPathComponent("PlaceFolders",isDirectory:true))
         scans=ScanStore(root:docs.appendingPathComponent("Scans",isDirectory:true))
         planStore=PerformancePlanStore(root:docs.appendingPathComponent("PerformancePlans",isDirectory:true))
         guidanceRecordsStore=GuidanceRecordStore(root:docs.appendingPathComponent("GuidanceRecords",isDirectory:true))
@@ -33,26 +27,9 @@ import HearIAmCore
         }
     }
     func refresh() async {
-        if let refreshTask {await refreshTask.value;return}
-        let task=Task { @MainActor in await self.loadLibrary() }
-        refreshTask=task
-        await task.value
-        refreshTask=nil
-    }
-    private func loadLibrary() async {
         loading=true; defer {loading=false}
-        do {
-            // Do not commit a partial migration when either source cannot be read.
-            let loadedScans=try await scans.list()
-            let loadedPlans=try await planStore.list()
-            records=loadedScans;plans=loadedPlans
-            let existing=try await catalogStore.load()
-            if existing.migrationCompleted {catalog=existing}
-            else {
-                let places=try await legacyPlacesStore.load()
-                catalog=try await catalogStore.migrateIfNeeded(scans:loadedScans,plans:loadedPlans,places:places)
-            }
-        } catch {self.error="공연 목록을 불러오지 못했어요. 기존 자료는 유지됩니다. \(error.localizedDescription)"}
+        do {records=try await scans.list()} catch {self.error="무대 목록: \(error.localizedDescription)"}
+        do {plans=try await planStore.list()} catch {self.error="공연 사전 저장: \(error.localizedDescription)"}
     }
     func refreshGuidanceRecords() async {
         do {guidanceRecords=try await guidanceRecordsStore.list();recordError=nil}
@@ -85,66 +62,5 @@ import HearIAmCore
     func savePlan(_ value: PerformancePlan) async throws {
         var plan=value; plan.updatedAt=Date(); plan.name=plan.name.trimmingCharacters(in:.whitespacesAndNewlines)
         try await planStore.save(plan); plans=try await planStore.list()
-    }
-}
-
-// MARK: - Performance folders and venue classification
-extension StageLibrary {
-    var performanceFolders: [PerformanceFolder] {catalog.performances.sorted {$0.updatedAt>$1.updatedAt}}
-    var unassignedScans: [ScanManifest] {records.filter {catalog.folder(for:$0.id)==nil}}
-    func scans(in performanceID: UUID, venueID: UUID? = nil, includeAllVenues: Bool = true) -> [ScanManifest] {
-        records.filter {
-            guard let assignment=catalog.assignments[$0.id],assignment.performanceID==performanceID else {return false}
-            return includeAllVenues || assignment.venueID==venueID
-        }.sorted {$0.date>$1.date}
-    }
-    var voiceStageContexts: [UUID: [String]] {
-        Dictionary(uniqueKeysWithValues:records.compactMap {record in
-            guard let folder=catalog.folder(for:record.id) else {return nil}
-            let names=[folder.name]+(catalog.venue(for:record.id).map {[$0.name]} ?? [])+(catalog.assignments[record.id]?.legacyPath ?? [])
-            return (record.id,Array(Set(names)))
-        })
-    }
-    @discardableResult func createPerformance(name: String, notes: String = "") async throws -> PerformanceFolder {
-        let folder=PerformanceFolder(name:name,notes:notes)
-        catalog=try await catalogStore.upsert(folder)
-        return catalog.performances.first {$0.id==folder.id}!
-    }
-    func updatePerformance(id: UUID, name: String, notes: String) async throws {
-        guard var folder=catalog.performances.first(where:{$0.id==id}) else {throw LabError.invalid("공연을 찾을 수 없어요.")}
-        folder.name=name;folder.notes=notes;catalog=try await catalogStore.upsert(folder)
-    }
-    func deletePerformance(_ id: UUID) async throws {catalog=try await catalogStore.deletePerformance(id)}
-    @discardableResult func createVenue(name: String, in performanceID: UUID) async throws -> PerformanceVenueTag {
-        let tag=PerformanceVenueTag(name:name)
-        catalog=try await catalogStore.upsertVenue(tag,in:performanceID)
-        return catalog.performances.first {$0.id==performanceID}!.venues.first {$0.id==tag.id}!
-    }
-    func renameVenue(_ id: UUID, in performanceID: UUID, to name: String) async throws {
-        guard catalog.performances.first(where:{$0.id==performanceID})?.venues.contains(where:{$0.id==id})==true else {throw LabError.invalid("공연장 태그를 찾을 수 없어요.")}
-        catalog=try await catalogStore.upsertVenue(.init(id:id,name:name),in:performanceID)
-    }
-    func deleteVenue(_ id: UUID, in performanceID: UUID) async throws {catalog=try await catalogStore.deleteVenue(id,in:performanceID)}
-    func assignScans(_ scanIDs: [UUID], to performanceID: UUID?, venueID: UUID? = nil) async throws {
-        guard Set(scanIDs).isSubset(of:Set(records.map(\.id))) else {throw LabError.invalid("저장한 무대를 다시 불러와주세요.")}
-        catalog=try await catalogStore.assign(scanIDs,to:performanceID,venueID:venueID)
-    }
-    func referencePlan(for performanceID: UUID) -> PerformancePlan {
-        let folder=catalog.performances.first {$0.id==performanceID}
-        if let id=folder?.defaultPlanID,let plan=plans.first(where:{$0.id==id}) {return plan}
-        var plan=PerformancePlan();plan.name=folder?.name ?? "기본 동선";return plan
-    }
-    func savePerformancePlan(_ value: PerformancePlan, for performanceID: UUID) async throws {
-        guard catalog.performances.contains(where:{$0.id==performanceID}) else {throw LabError.invalid("공연을 찾을 수 없어요.")}
-        let previous=plans.first {$0.id==value.id}
-        var plan=value;plan.updatedAt=Date();plan.name=plan.name.trimmingCharacters(in:.whitespacesAndNewlines)
-        try await planStore.save(plan)
-        do {catalog=try await catalogStore.setDefaultPlan(plan.id,for:performanceID)}
-        catch {
-            // Keep the preceding plan if the metadata transaction fails.
-            if let previous {try? await planStore.save(previous)} else {try? await planStore.delete(plan.id)}
-            throw error
-        }
-        plans.removeAll {$0.id==plan.id};plans.append(plan);plans.sort {$0.updatedAt>$1.updatedAt}
     }
 }

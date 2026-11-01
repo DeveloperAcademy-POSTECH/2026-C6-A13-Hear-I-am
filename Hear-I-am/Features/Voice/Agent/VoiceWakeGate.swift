@@ -7,7 +7,6 @@ struct VoiceGuidanceLaunch: Identifiable {
     var request: String?
     var stageID: UUID?
     var mode: VoiceUsageMode?
-    var helperPreparation=false
 }
 
 /// The call is heard on every tab, but not while a screen covers the tabs: that screen owns the
