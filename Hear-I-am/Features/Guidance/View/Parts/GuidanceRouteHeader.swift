@@ -6,7 +6,7 @@ struct GuidanceRouteHeader: View {
     var body: some View {
         let headline=model.headline
         HStack(alignment:.top,spacing:16) {
-            Image(systemName:headline.symbol).font(.system(size:42,weight:.medium)).foregroundStyle(Color.hearGreen)
+            Image(systemName:headline.symbol).font(.system(size:42,weight:.medium)).foregroundStyle(model.voiceExperiment ? Color.primary : Color.hearGreen)
                 .frame(width:56).accessibilityHidden(true)
             VStack(alignment:.leading,spacing:7) {
                 Text(headline.title.replacingOccurrences(of:"\n",with:" ")).font(.title2.bold()).fixedSize(horizontal:false,vertical:true)

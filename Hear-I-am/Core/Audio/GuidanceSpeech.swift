@@ -8,6 +8,9 @@ import HearIAmCore
     private var utterance: AVSpeechUtterance?
     private var lineID: UUID?
     private var completion: ((Bool)->Void)?
+    /// Optional duplex renderer used only by the #69 voice experiment.
+    var bufferedOutput: ((AVSpeechUtterance, @escaping (Bool)->Void)->Bool)?
+    var stopBufferedOutput: (()->Void)?
     var onSpeaking: ((Bool)->Void)?
     var onText: ((String)->Void)?
     var onError: ((String)->Void)?
@@ -37,6 +40,7 @@ import HearIAmCore
     func stop() {
         let callback=completion;completion=nil
         utterance=nil;lineID=nil;queue.cancel();speakingDirection=false
+        stopBufferedOutput?()
         synthesizer.stopSpeaking(at:.immediate)
         onSpeaking?(false);callback?(false)
     }
@@ -57,7 +61,12 @@ import HearIAmCore
         let next=AVSpeechUtterance(string:line.text)
         next.voice=AVSpeechSynthesisVoice(language:"ko-KR");next.rate=0.48;next.volume=volume
         utterance=next;lineID=line.id
-        onSpeaking?(true);onText?(line.text);synthesizer.speak(next)
+        onText?(line.text);onSpeaking?(true)
+        if bufferedOutput?(next,{ [weak self, weak next] success in
+            guard let self, let next, self.utterance === next else {return}
+            if success {self.finished(next)} else {self.canceled(next)}
+        }) == true {return}
+        synthesizer.speak(next)
     }
     private func finished(_ item: AVSpeechUtterance) {
         guard utterance === item, let lineID, queue.finish(lineID) else { return }

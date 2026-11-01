@@ -28,7 +28,7 @@ struct GuidanceInstruction: View {
     @ViewBuilder private func illustration(symbol: String) -> some View {
         if model.phase == .wear { Image("BeltAction").resizable().scaledToFit().frame(height:170).frame(maxWidth:.infinity).accessibilityHidden(true) }
         else {
-            Image(systemName:symbol).font(.system(size:72,weight:.medium)).foregroundStyle(model.phase == .failed || model.phase == .interrupted ? .red : Color.hearGreen)
+            Image(systemName:symbol).font(.system(size:72,weight:.medium)).foregroundStyle(model.voiceExperiment ? Color.primary : (model.phase == .failed || model.phase == .interrupted ? .red : Color.hearGreen))
                 .frame(maxWidth:.infinity).padding(.vertical,24).accessibilityHidden(true)
         }
     }
