@@ -1,5 +1,124 @@
 import SwiftUI
+import AVKit
+import MediaPlayer
+import CoreMotion
 import HearIAmCore
+
+// MARK: - Settings look (Figma 「설정」 457:14420 and its children; sizes are the design's)
+
+enum SettingsStyle {
+    static let group=Color(red:28/255,green:28/255,blue:30/255)                       // #1C1C1E
+    static let secondary=Color(red:235/255,green:235/255,blue:245/255).opacity(0.7)   // labels/secondary
+    static let separator=Color(red:84/255,green:84/255,blue:88/255).opacity(0.65)     // separators/dark
+    static let darkText=Color(red:38/255,green:38/255,blue:38/255)                    // #262626 on white buttons
+    static let dimButton=Color.white.opacity(0.1)
+    static let cornerRadius: CGFloat=26
+    static let rowHeight: CGFloat=52
+    static let tallRowHeight: CGFloat=68
+    static let buttonHeight: CGFloat=50
+    static let rowInset: CGFloat=18
+}
+
+/// A section caption above a rounded group: 13pt on Settings, 15pt on the tutorial list, 17pt semibold on lesson pages.
+struct SettingsSectionHeader: View {
+    let title: String
+    var size: CGFloat=13
+    var weight: Font.Weight = .regular
+    var body: some View {
+        Text(title).font(.system(size:size,weight:weight)).foregroundStyle(SettingsStyle.secondary)
+            .lineLimit(1).padding(.leading,16).padding(.bottom,8).frame(maxWidth:.infinity,alignment:.leading)
+            .accessibilityAddTraits(.isHeader)
+    }
+}
+
+/// One rounded dark group (#1C1C1E, radius 26). Put `SettingsDivider()` between rows.
+struct SettingsGroup<Content: View>: View {
+    @ViewBuilder let content: Content
+    var body: some View {
+        VStack(spacing:0) {content}
+            .background(SettingsStyle.group,in:RoundedRectangle(cornerRadius:SettingsStyle.cornerRadius,style:.continuous))
+            .clipShape(RoundedRectangle(cornerRadius:SettingsStyle.cornerRadius,style:.continuous))
+    }
+}
+
+struct SettingsDivider: View {
+    var body: some View {
+        Rectangle().fill(SettingsStyle.separator).frame(height:1/UIScreen.main.scale*2)
+            .padding(.leading,SettingsStyle.rowInset).accessibilityHidden(true)
+    }
+}
+
+/// Title, optional detail line, trailing value and an accessory: 52pt single-line rows, 68pt with a detail line.
+struct SettingsRowLabel: View {
+    enum Accessory { case none, chevron, chevronDown, checkmark, play, stop }
+    let title: String
+    var detail: String?=nil
+    var value: String?=nil
+    var accessory: Accessory = .chevron
+    var body: some View {
+        HStack(spacing:8) {
+            VStack(alignment:.leading,spacing:4) {
+                Text(title).font(.system(size:17)).foregroundStyle(.white).lineLimit(1)
+                if let detail {Text(detail).font(.system(size:15)).foregroundStyle(SettingsStyle.secondary).lineLimit(1)}
+            }.frame(maxWidth:.infinity,alignment:.leading)
+            if let value {Text(value).font(.system(size:17)).foregroundStyle(SettingsStyle.secondary).lineLimit(1).minimumScaleFactor(0.8)}
+            switch accessory {
+            case .none: EmptyView()
+            case .chevron: Image(systemName:"chevron.right").font(.system(size:14,weight:.semibold)).foregroundStyle(SettingsStyle.secondary.opacity(0.5))
+            case .chevronDown: Image(systemName:"chevron.down").font(.system(size:14,weight:.medium)).foregroundStyle(SettingsStyle.secondary)
+            case .checkmark: Image(systemName:"checkmark").font(.system(size:17,weight:.semibold)).foregroundStyle(.white)
+            case .play: Image(systemName:"play.fill").font(.system(size:17)).foregroundStyle(.white)
+            case .stop: Image(systemName:"stop.fill").font(.system(size:17)).foregroundStyle(.white)
+            }
+        }.padding(.horizontal,SettingsStyle.rowInset)
+            .frame(maxWidth:.infinity,minHeight:detail == nil ? SettingsStyle.rowHeight : SettingsStyle.tallRowHeight,alignment:.leading)
+            .contentShape(Rectangle())
+    }
+}
+
+/// The 50pt capsule label: white with dark text, or dim glass with white text.
+struct SettingsCapsuleLabel: View {
+    let title: String
+    var primary=true
+    var body: some View {
+        Text(title).font(.system(size:18,weight:.semibold)).lineLimit(1).minimumScaleFactor(0.8)
+            .foregroundStyle(primary ? SettingsStyle.darkText : .white)
+            .frame(maxWidth:.infinity,minHeight:SettingsStyle.buttonHeight)
+            .modifier(CapsuleFill(primary:primary))
+            .contentShape(Capsule())
+    }
+    private struct CapsuleFill: ViewModifier {
+        let primary: Bool
+        func body(content: Content) -> some View {
+            if primary {content.background(Color.white,in:Capsule())}
+            else {content.liquidGlass(Capsule(),tint:SettingsStyle.dimButton,interactive:true)}
+        }
+    }
+}
+
+struct SettingsCapsuleButton: View {
+    let title: String
+    var primary=true
+    let action: () -> Void
+    var body: some View {
+        Button(action:action) {SettingsCapsuleLabel(title:title,primary:primary)}.buttonStyle(.plain)
+    }
+}
+
+extension View {
+    /// Bottom buttons over the design's fade (clear → #00070A, about 150pt), 16pt from the sides.
+    func settingsBottomBar<Bar: View>(inset: CGFloat=16, @ViewBuilder _ bar: () -> Bar) -> some View {
+        safeAreaInset(edge:.bottom,spacing:0) {
+            bar().padding(.horizontal,inset).padding(.top,44).padding(.bottom,10)
+                .background(LinearGradient(colors:[Color(red:0,green:7/255,blue:10/255).opacity(0),Color(red:0,green:7/255,blue:10/255)],startPoint:.top,endPoint:.bottom).ignoresSafeArea())
+        }
+    }
+    func settingsScreen() -> some View {
+        background(Color.black.ignoresSafeArea()).toolbar(.hidden,for:.tabBar).tint(.white).preferredColorScheme(.dark)
+    }
+}
+
+// MARK: - Playing examples
 
 struct TutorialExampleRow: View {
     let example: SignalTutorialExample
@@ -7,18 +126,7 @@ struct TutorialExampleRow: View {
     private var playing: Bool {model.activeID == example.id}
     var body: some View {
         Button {model.play(example)} label: {
-            HStack(spacing:12) {
-                Image(systemName:example.symbol).font(.system(size:23)).frame(width:38).accessibilityHidden(true)
-                VStack(alignment:.leading,spacing:5) {
-                    Text(example.title).font(.headline)
-                    Text(playing ? "재생 중 · 누르면 중지" : example.detail).font(.subheadline).foregroundStyle(.secondary)
-                }.fixedSize(horizontal:false,vertical:true).frame(maxWidth:.infinity,alignment:.leading)
-                Image(systemName:playing ? "stop.fill" : "play.fill").font(.system(size:15,weight:.semibold))
-                    .foregroundStyle(.white).frame(width:40,height:40).background(Color.hearInk,in:Circle()).accessibilityHidden(true)
-            }.padding(16).frame(maxWidth:.infinity,minHeight:76,alignment:.leading)
-                .background(Color(.systemBackground),in:RoundedRectangle(cornerRadius:18))
-                .overlay(RoundedRectangle(cornerRadius:18).stroke(Color(.systemGray5),lineWidth:1))
-                .contentShape(RoundedRectangle(cornerRadius:18))
+            SettingsRowLabel(title:example.title,detail:playing ? "재생 중 · 누르면 중지" : example.detail,accessory:playing ? .stop : .play)
         }.buttonStyle(.plain)
             .accessibilityLabel(example.title+(playing ? " 중지" : " 듣기"))
             .accessibilityValue(playing ? "재생 중" : "")
@@ -30,24 +138,151 @@ struct TutorialExampleRow: View {
 struct TutorialPlaybackError: View {
     let message: String
     var body: some View {
-        Label(message,systemImage:"exclamationmark.circle").font(.subheadline)
+        Label(message,systemImage:"exclamationmark.circle").font(.system(size:15)).foregroundStyle(.white)
             .fixedSize(horizontal:false,vertical:true).padding(14).frame(maxWidth:.infinity,alignment:.leading)
-            .background(Color(.systemGray6),in:RoundedRectangle(cornerRadius:14))
+            .background(SettingsStyle.group,in:RoundedRectangle(cornerRadius:18,style:.continuous))
     }
 }
 
-struct TutorialOutputLink: View {
-    @StateObject private var output=SoundOutputStatus()
+// MARK: - Output device
+
+/// 「출력 기기」 row. Tapping opens the system route picker, the only public way to switch AirPods or speakers.
+struct OutputDeviceRow: View {
+    @ObservedObject var output: SoundOutputStatus
+    @State private var picker=RoutePicker()
     var body: some View {
-        NavigationLink {SoundOutputView()} label: {
-            HStack(spacing:10) {
-                Image(systemName:output.symbol).font(.system(size:20)).accessibilityHidden(true)
-                Text("현재 출력 · "+output.name).font(.subheadline).fixedSize(horizontal:false,vertical:true)
-                Spacer(minLength:0)
-                Image(systemName:"chevron.right").font(.system(size:12)).foregroundStyle(.secondary).accessibilityHidden(true)
-            }.padding(14).frame(minHeight:48).background(Color(.systemBackground),in:RoundedRectangle(cornerRadius:14))
-                .overlay(RoundedRectangle(cornerRadius:14).stroke(Color(.systemGray5),lineWidth:1))
-        }.buttonStyle(.plain).accessibilityHint("소리 출력 설정으로 이동합니다")
-            .onAppear {output.refresh()}
+        Button {picker.present()} label: {
+            SettingsRowLabel(title:"출력 기기",value:output.name,accessory:.chevronDown)
+        }.buttonStyle(.plain)
+            .background(RoutePickerHost(picker:picker).frame(width:1,height:1).opacity(0.01).accessibilityHidden(true))
+            .background(SettingsStyle.group,in:RoundedRectangle(cornerRadius:SettingsStyle.cornerRadius,style:.continuous))
+            .accessibilityLabel("출력 기기, \(output.name)").accessibilityHint("눌러서 소리가 나올 기기를 바꿔요")
+            .accessibilityIdentifier("output.device")
+    }
+}
+
+final class RoutePicker {
+    let view: AVRoutePickerView = {
+        let view=AVRoutePickerView()
+        view.prioritizesVideoDevices=false
+        return view
+    }()
+    func present() {
+        (view.subviews.compactMap {$0 as? UIButton}.first)?.sendActions(for:.touchUpInside)
+    }
+}
+
+private struct RoutePickerHost: UIViewRepresentable {
+    let picker: RoutePicker
+    func makeUIView(context: Context) -> AVRoutePickerView {picker.view}
+    func updateUIView(_ view: AVRoutePickerView, context: Context) {}
+}
+
+/// The system volume as a 52pt slider row (Figma 「음량 조절 / iOS Slider」).
+struct SystemVolumeSlider: View {
+    var body: some View {
+        HStack(spacing:14) {
+            Image(systemName:"speaker.fill").font(.system(size:15)).foregroundStyle(SettingsStyle.secondary).accessibilityHidden(true)
+            VolumeViewHost().frame(height:34)
+            Image(systemName:"speaker.wave.3.fill").font(.system(size:15)).foregroundStyle(SettingsStyle.secondary).accessibilityHidden(true)
+        }.padding(.horizontal,SettingsStyle.rowInset).frame(height:SettingsStyle.rowHeight)
+            .background(SettingsStyle.group,in:RoundedRectangle(cornerRadius:SettingsStyle.cornerRadius,style:.continuous))
+    }
+}
+
+private struct VolumeViewHost: UIViewRepresentable {
+    func makeUIView(context: Context) -> MPVolumeView {
+        let view=MPVolumeView(frame:.zero)
+        view.tintColor = .white
+        return view
+    }
+    func updateUIView(_ view: MPVolumeView, context: Context) {}
+}
+
+/// What is connected, read from the current audio route. iOS gives apps the port type and its name
+/// only, so the model is guessed from the name; colour and battery are not available to apps.
+enum OutputDeviceKind: Equatable {
+    case iPhone, airPods, airPodsMax, headphones
+
+    init(port: AVAudioSessionPortDescription?) {
+        guard let port else {self = .iPhone; return}
+        switch port.portType {
+        case .builtInSpeaker, .builtInReceiver: self = .iPhone
+        default:
+            let name=port.portName.lowercased()
+            if name.contains("airpods max") || name.contains("airpodsmax") {self = .airPodsMax}
+            else if name.contains("airpods") {self = .airPods}
+            else {self = .headphones}
+        }
+    }
+}
+
+/// The connected device drawn at the design's 150pt and tilting with the phone, so it reads as an object
+/// (Figma 457:13480 · 13846 · 13950). It springs in again whenever the device changes.
+struct OutputDeviceHero: View {
+    @ObservedObject var output: SoundOutputStatus
+    @StateObject private var tilt=DeviceTilt()
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var appeared=false
+    var body: some View {
+        VStack(spacing:5) {
+            Group {
+                switch output.kind {
+                case .iPhone: device("DeviceIPhone",size:150)
+                case .airPodsMax: device("DeviceAirPodsMax",size:160)
+                case .airPods:
+                    HStack(spacing:18) {device("DeviceAirPods",size:140);device("DeviceAirPodsCase",size:120)}
+                case .headphones:
+                    Image(systemName:"headphones").font(.system(size:96,weight:.light)).foregroundStyle(.white)
+                        .frame(width:150,height:150).modifier(TiltEffect(tilt:tilt,enabled:!reduceMotion))
+                }
+            }.frame(height:162).scaleEffect(appeared ? 1 : 0.86).opacity(appeared ? 1 : 0)
+            Text(output.name).font(.system(size:17,weight:.semibold)).foregroundStyle(.white).lineLimit(1)
+        }.padding(.top,32).frame(maxWidth:.infinity,minHeight:275,maxHeight:275,alignment:.top)
+            .accessibilityElement(children:.ignore).accessibilityLabel("연결된 기기, \(output.name)")
+            .onAppear {
+                if !reduceMotion {tilt.start()}
+                withAnimation(.spring(response:0.6,dampingFraction:0.75)) {appeared=true}
+            }
+            .onDisappear {tilt.stop();appeared=false}
+            .onChange(of:output.kind) {_,_ in
+                appeared=false
+                withAnimation(.spring(response:0.6,dampingFraction:0.75)) {appeared=true}
+            }
+    }
+    private func device(_ name: String, size: CGFloat) -> some View {
+        Image(name).resizable().scaledToFit().frame(width:size,height:size)
+            .modifier(TiltEffect(tilt:tilt,enabled:!reduceMotion))
+    }
+}
+
+/// Small rotations from the phone's attitude, smoothed so the image sways instead of jittering.
+@MainActor final class DeviceTilt: ObservableObject {
+    @Published private(set) var pitch=0.0
+    @Published private(set) var roll=0.0
+    private let motion=CMMotionManager()
+    func start() {
+        guard motion.isDeviceMotionAvailable, !motion.isDeviceMotionActive else {return}
+        motion.deviceMotionUpdateInterval=1.0/30.0
+        motion.startDeviceMotionUpdates(to:.main) {[weak self] sample,_ in
+            guard let self, let gravity=sample?.gravity else {return}
+            // Held in the hand, gravity.z sits near -0.6; tipping the phone moves z and x.
+            let targetPitch=max(-1,min(1,(gravity.z+0.6)*1.6))*12
+            let targetRoll=max(-1,min(1,gravity.x*1.6))*16
+            self.pitch+=(targetPitch-self.pitch)*0.12
+            self.roll+=(targetRoll-self.roll)*0.12
+        }
+    }
+    func stop() {motion.stopDeviceMotionUpdates();pitch=0;roll=0}
+}
+
+private struct TiltEffect: ViewModifier {
+    @ObservedObject var tilt: DeviceTilt
+    let enabled: Bool
+    func body(content: Content) -> some View {
+        content
+            .rotation3DEffect(.degrees(enabled ? tilt.roll : 0),axis:(x:0,y:1,z:0),perspective:0.5)
+            .rotation3DEffect(.degrees(enabled ? -tilt.pitch : 0),axis:(x:1,y:0,z:0),perspective:0.5)
+            .shadow(color:.white.opacity(0.08),radius:24,x:enabled ? -tilt.roll : 0,y:12)
     }
 }
