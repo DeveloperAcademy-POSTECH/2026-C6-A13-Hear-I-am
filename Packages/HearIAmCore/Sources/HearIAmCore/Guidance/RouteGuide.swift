@@ -14,6 +14,8 @@ public struct RouteGuide: Sendable {
     public private(set) var practiceEntry: PracticeEntry?
     /// Earlier saved points were not visited when practice began directly at P1.
     public private(set) var practiceFirstIndex: Int?
+    /// Retained after arriving at P1 so the completed record can reproduce this run's first segment.
+    public private(set) var practiceOrigin: FloorPoint?
     public var activeSegmentStartPoint: FloorPoint {
         practiceEntry?.origin ?? route.points[activeSegmentStartIndex]
     }
@@ -89,7 +91,7 @@ public struct RouteGuide: Sendable {
                                                          footprint: ScannedFootprint) throws -> Bool {
         guard trackingValid, position.valid, headingDegrees.isFinite else {return false}
         let entry=try practiceEntry(from:position,footprint:footprint)
-        practiceEntry=entry;practiceFirstIndex=entry.targetIndex
+        practiceEntry=entry;practiceFirstIndex=entry.targetIndex;practiceOrigin=position
         state = .guiding;targetIndex=entry.targetIndex;facingPointIndex=nil;facingGate.reset()
         holdRemaining=0;arrivedSince=nil;lastTime=nil;lastSpeech = -.infinity;sector=nil;pauseReason=nil
         return true

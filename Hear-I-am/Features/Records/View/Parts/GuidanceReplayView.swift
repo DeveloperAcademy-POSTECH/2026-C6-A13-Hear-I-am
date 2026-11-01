@@ -126,7 +126,7 @@ struct GuidanceReplayView: View {
                 HStack(alignment:.top,spacing:0) {metricItems}
                 VStack(alignment:.leading,spacing:12) {metricItems}
             }
-            Text(String(format:"표준 경로 %.1f m · %d개 지점 도착",player.record.routeLength,player.record.reachedPointCount))
+            Text(String(format:"안내 경로 %.1f m · %d개 지점 도착",player.record.guidanceRouteLength,player.record.reachedPointCount))
                 .font(.caption).foregroundStyle(.secondary)
             Text("안내 시간은 정지·재확인 시간을 제외해요. 이동 거리와 최대 이격은 추적 오차가 포함된 추정값이에요.")
                 .font(.caption).foregroundStyle(.secondary)
@@ -144,7 +144,7 @@ struct GuidanceReplayView: View {
     private func eventTitle(_ event: GuidanceReplayEvent) -> String {
         switch event.kind {
         case .start: return "출발"
-        case .arrival(let index): return "\(index+1)번 도착"
+        case .arrival(let index): return "\(player.record.route.pointLabel(at:index)) 도착"
         case .status(let status): return status.title
         case .finish: return "마지막 도착"
         }
