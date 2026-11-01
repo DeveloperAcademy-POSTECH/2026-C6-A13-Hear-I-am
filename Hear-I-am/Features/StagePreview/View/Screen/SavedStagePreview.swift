@@ -97,7 +97,7 @@ struct SavedStagePreview: View {
                                             .font(.caption).foregroundStyle(.secondary)
                                     }
                                     Button("경로점 설정 저장") {Task {await model.savePointSettings()}}
-                                        .buttonStyle(.borderedProminent)
+                                        .buttonStyle(V3PrimaryButtonStyle())
                                         .disabled(model.enteredHoldSeconds == nil || model.savingHold)
                                     if !model.canEditPointHold {
                                         if model.savingHold { ProgressView("저장 중…") }
