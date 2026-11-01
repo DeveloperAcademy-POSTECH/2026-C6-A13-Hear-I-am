@@ -9,7 +9,7 @@ struct GuidanceRecordDetail: View {
                 HStack {
                     Text(record.stageName).font(.title2.bold())
                     Spacer()
-                    Label("완료",systemImage:"checkmark.circle.fill").font(.subheadline).foregroundStyle(Color.hearGreen)
+                    Label("완료",systemImage:"checkmark.circle.fill").font(.subheadline).foregroundStyle(HearV3.accent)
                 }
                 Text(record.completedAt.formatted(.dateTime.locale(Locale(identifier:"ko_KR")).year().month().day().hour().minute()))
                     .font(.subheadline).foregroundStyle(.secondary)
@@ -17,7 +17,7 @@ struct GuidanceRecordDetail: View {
                     GuidanceReplayView(record:record,replay:replay)
                 } else {legacySummary}
             }.padding(20)
-        }.navigationTitle("안내 기록").navigationBarTitleDisplayMode(.inline)
+        }.v3Screen().navigationTitle("이동 기록").navigationBarTitleDisplayMode(.inline)
     }
     private var legacySummary: some View {
         VStack(alignment:.leading,spacing:20) {
