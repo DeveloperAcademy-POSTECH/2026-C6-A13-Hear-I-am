@@ -616,7 +616,7 @@ extension GuidanceViewModel {
         guard voiceMode == .practice, started, phase == .paused || phase == .guiding else {
             read(["지점으로 돌아가기는 연습 안내를 시작한 후 사용할 수 있어요."]);return
         }
-        guard let pose=freshPose(), var guide else {read(["현재 위치를 확인할 수 없어요. 확인점을 다시 확인해주세요."]);return}
+        guard let pose=freshPose(), var guide else {read(["현재 위치를 확인할 수 없어요. \(recoveryInstruction)"]);return}
         guard let index=guide.rehearsalPointIndex(number:number) else {
             read(["저장된 동선에 P\(number) 지점이 없어요. 지점 이름을 다시 확인해주세요."]);return
         }
