@@ -152,6 +152,7 @@
 		175CA93E520860A1BDED09A4 /* PerformanceTagManagementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BE625ACF1545A48F491C411 /* PerformanceTagManagementView.swift */; };
 		4F18D9BB965C58A6F195AA68 /* HelperScanHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 035AD5FF8E6708BC58AE97AB /* HelperScanHomeView.swift */; };
 		1C02C217DC70C12AE3B89B70 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 2FE25071A0B95163D391C2C2 /* Localizable.strings */; };
+		0FEA08BF4742948167225F5D /* HomeVoiceAtmosphere.swift in Sources */ = {isa = PBXBuildFile; fileRef = F58DC67D887BB308A5A25BBA /* HomeVoiceAtmosphere.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -303,6 +304,7 @@
 		035AD5FF8E6708BC58AE97AB /* HelperScanHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "HelperScanHomeView.swift"; sourceTree = "<group>"; };
 		310A3ECE06831B3760022F16 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = "../en.lproj/Localizable.strings"; sourceTree = "<group>"; };
 		542D66527B02A78545104566 /* ko */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ko; path = "../ko.lproj/Localizable.strings"; sourceTree = "<group>"; };
+		F58DC67D887BB308A5A25BBA /* HomeVoiceAtmosphere.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeVoiceAtmosphere.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -344,6 +346,7 @@
 		16B11A13A7FBA5CBAE71C9BA /* Parts */ = {
 			isa = PBXGroup;
 			children = (
+				F58DC67D887BB308A5A25BBA /* HomeVoiceAtmosphere.swift */,
 				8142CDE35A01BAD95188EAE6 /* HomeActionCard.swift */,
 				F9DE9AB83C23BCC3EB3BE325 /* HomeStageList.swift */,
 				5D05FD1427F1D8C0A3545E6F /* StageRow.swift */,
@@ -1226,6 +1229,7 @@
 				6D3F26F42C09E75387311322 /* HearAudioSession.swift in Sources */,
 				C9ACA4BE60866FA5E8965725 /* HearIAmApp.swift in Sources */,
 				3C78D4DE73CA2E1CA3C75EBD /* HearRootView.swift in Sources */,
+				0FEA08BF4742948167225F5D /* HomeVoiceAtmosphere.swift in Sources */,
 				34954D50303FCB804701535D /* HomeActionCard.swift in Sources */,
 				FF831C64D02C6732D6831BF4 /* HomeSettingsView.swift in Sources */,
 				BC1F1AE3EA5B843B67EC9124 /* HomeStageList.swift in Sources */,
