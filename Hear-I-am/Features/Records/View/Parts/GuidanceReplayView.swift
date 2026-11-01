@@ -93,7 +93,7 @@ struct GuidanceReplayView: View {
                 Spacer()
             }.font(.caption).foregroundStyle(.secondary).monospacedDigit()
             Slider(value:Binding(get:{player.time},set:{player.seek($0)}),in:0...max(player.replay.duration,0.001),onEditingChanged:player.scrub)
-                .tint(.hearGreen).disabled(player.replay.duration<=0)
+                .tint(HearV3.accent).disabled(player.replay.duration<=0)
                 .accessibilityLabel("재생 위치").accessibilityValue("\(GuidanceReplayPlayer.clock(player.time)), 전체 \(GuidanceReplayPlayer.clock(player.replay.duration))")
             HStack {
                 Text(GuidanceReplayPlayer.clock(player.time))
@@ -106,7 +106,7 @@ struct GuidanceReplayView: View {
                 Spacer()
                 Button {if player.isPlaying {player.pause()} else {player.play()}} label: {
                     Image(systemName:player.isPlaying ? "pause.fill" : "play.fill")
-                        .font(.title3).foregroundStyle(.white).frame(width:56,height:48).background(Color.hearGreen,in:Capsule())
+                        .font(.title3).foregroundStyle(HearV3.canvas).frame(width:56,height:48).background(HearV3.accent,in:Capsule())
                 }.accessibilityLabel(player.isPlaying ? "일시정지" : "재생").disabled(player.replay.duration<=0)
                 Spacer()
                 Menu {

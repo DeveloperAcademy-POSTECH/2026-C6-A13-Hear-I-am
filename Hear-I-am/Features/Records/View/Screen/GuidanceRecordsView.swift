@@ -1,49 +1,64 @@
 import SwiftUI
 import HearIAmCore
 
+/// The existing completed-run collection, presented in the V3 helper shell.
 struct GuidanceRecordsView: View {
-    @ObservedObject var library: StageLibrary
+    @ObservedObject var library:StageLibrary
+    @Environment(\.hearChangeRole) private var changeRole
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment:.leading,spacing:20) {
-                    Text("완료한 안내를 돌아봐요").font(.title2.bold())
-                    Text("마지막 지점에 도착한 뒤 종료한 안내만 기록돼요.").font(.subheadline).foregroundStyle(.secondary)
-                    if let error=library.recordError {
+            List {
+                Section {
+                    VStack(alignment:.leading,spacing:8) {
+                        Text("무대 위의 발자취").font(.title.bold())
+                        Text("연습과 공연에서 걸어온 길을 살펴보세요.").font(.subheadline).foregroundStyle(HearV3.secondary)
+                    }.padding(.vertical,12).listRowSeparator(.hidden)
+                }
+                if let error=library.recordError {
+                    Section {
                         Text(error).foregroundStyle(.red)
                         Button("다시 불러오기") {Task {await library.refreshGuidanceRecords()}}
                     }
-                    if library.guidanceRecords.isEmpty && library.recordError == nil {
-                        ContentUnavailableView("완료한 안내가 아직 없어요",systemImage:"clock",description:Text("저장한 무대로 안내를 시작하고\n마지막 도착 안내 후 종료해주세요."))
+                }
+                if library.guidanceRecords.isEmpty && library.recordError == nil {
+                    ContentUnavailableView("아직 저장된 기록이 없어요",systemImage:"clock",description:Text("이동 안내를 완료하면\n이곳에서 다시 살펴볼 수 있어요."))
+                        .listRowSeparator(.hidden)
+                }
+                Section {
+                    ForEach(library.guidanceRecords) {record in
+                        NavigationLink {GuidanceRecordDetail(record:record)} label: {recordRow(record)}
+                            .accessibilityIdentifier("records.\(record.id)")
                     }
-                    ForEach(library.guidanceRecords) { record in
-                        NavigationLink { GuidanceRecordDetail(record:record) } label: {
-                            VStack(alignment:.leading,spacing:14) {
-                                HStack(alignment:.top) {
-                                    VStack(alignment:.leading,spacing:7) {
-                                        Text(record.stageName).font(.headline)
-                                        Text(record.completedAt.formatted(.dateTime.locale(Locale(identifier:"ko_KR")).year().month().day().hour().minute()))
-                                            .font(.caption).foregroundStyle(.secondary)
-                                    }
-                                    Spacer()
-                                    VStack(alignment:.trailing,spacing:8) {
-                                        Image(systemName:"checkmark.circle.fill").foregroundStyle(Color.hearGreen)
-                                        if record.replay != nil {Label("이동 재생",systemImage:"play.circle").font(.caption).foregroundStyle(Color.hearGreen)}
-                                    }
-                                }
-                                HStack {
-                                    Label(record.activeDurationText,systemImage:"timer")
-                                    Spacer()
-                                    Text("도착 \(record.reachedPointCount)개 지점")
-                                    Image(systemName:"chevron.right").font(.caption)
-                                }.font(.subheadline)
-                            }.padding(20).background(Color(.systemGray6),in:RoundedRectangle(cornerRadius:20))
-                        }.buttonStyle(.plain)
+                } header: {
+                    if !library.guidanceRecords.isEmpty {Text("최근 기록 · \(library.guidanceRecords.count)개")}
+                } footer: {
+                    if !library.guidanceRecords.isEmpty {Text("마지막 지점에 도착한 뒤 종료한 안내만 기록돼요.")}
+                }
+            }.listStyle(.plain).scrollContentBackground(.hidden).background(HearV3.canvas)
+                .navigationTitle("기록").navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement:.topBarTrailing) {
+                        NavigationLink {HomeSettingsView(role:.helper,changeRole:changeRole)} label: {Image(systemName:"gearshape")}
+                            .accessibilityLabel("설정")
                     }
-                }.padding(20)
-            }.navigationTitle("기록")
+                }
                 .task {await library.refreshGuidanceRecords()}
                 .refreshable {await library.refreshGuidanceRecords()}
+                .v3Screen()
         }
+    }
+    private func recordRow(_ record:GuidanceRecord)->some View {
+        VStack(alignment:.leading,spacing:9) {
+            Text(record.stageName).font(.headline)
+            Text(record.completedAt.formatted(.dateTime.locale(Locale(identifier:"ko_KR")).month().day().hour().minute()))
+                .font(.subheadline).foregroundStyle(HearV3.secondary)
+            HStack {
+                Text("안내 \(record.activeDurationText) · \(record.reachedPointCount)개 지점 도착")
+                    .font(.caption).foregroundStyle(HearV3.secondary)
+                Spacer(minLength:8)
+                Text("완료").font(.caption.weight(.medium)).foregroundStyle(HearV3.accent)
+                    .padding(.horizontal,8).padding(.vertical,4).background(HearV3.accent.opacity(0.15),in:Capsule())
+            }
+        }.padding(.vertical,12)
     }
 }
