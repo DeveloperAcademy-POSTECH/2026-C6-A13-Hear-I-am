@@ -12,7 +12,8 @@ public actor GuidanceRecordStore {
             let existing=try decode(url)
             guard existing.stageID == record.stageID, existing.route == record.route,
                   existing.startedAt == record.startedAt, existing.completedAt == record.completedAt,
-                  existing.activeSeconds == record.activeSeconds, existing.replay == record.replay else { throw LabError.invalid("이미 저장된 안내 기록과 일치하지 않습니다.") }
+                  existing.activeSeconds == record.activeSeconds, existing.replay == record.replay,
+                  (existing.firstGuidedPointIndex ?? 1) == (record.firstGuidedPointIndex ?? 1), existing.practiceOrigin == record.practiceOrigin else { throw LabError.invalid("이미 저장된 안내 기록과 일치하지 않습니다.") }
             return existing
         }
         try JSONEncoder().encode(record).write(to:url,options:.atomic)
