@@ -198,7 +198,7 @@ import HearIAmCore
         if voiceExperiment, phase == .selection {
             // Replay the current question, not the last microphone error announcement.
             if voiceChoosingMode {readVoiceModeQuestion()}
-            else if voiceSearchQuery != nil {announceVoiceStageResults()}
+            else if voiceSearchQuery != nil || voicePerformanceID != nil {announceVoiceStageResults()}
             else {selectionDescription(empty:voiceStages.isEmpty)}
             return
         }
@@ -216,7 +216,7 @@ import HearIAmCore
             guard let pose=freshPose(), let guide, let cue=guide.cue(position:pose.point,headingDegrees:pose.heading) else { return }
             read(["\(targetName)으로 이동합니다. \(cue.speech)"]);return
         }
-        if phase == .interrupted { read(["안내를 멈췄습니다. 휴대폰을 손에 들고 확인점을 다시 확인해주세요."]);return }
+        if phase == .interrupted { read(["안내를 멈췄습니다. \(recoveryInstruction)"]);return }
         if phase == .paused { read(["안내를 일시정지했습니다. 현재 위치와 저장된 동선을 확인한 뒤 다시 시작해주세요."]);return }
         if phase == .wear { read([GuidanceCopy.doNotDisturb,"휴대폰을 허리 앞쪽에 세로로 고정해주세요. 후면 카메라는 몸 바깥쪽을 향하고 렌즈는 가리지 말아주세요."]);return }
         if phase == .departure { read([departureStatus]);return }
