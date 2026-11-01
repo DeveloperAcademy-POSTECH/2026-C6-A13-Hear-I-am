@@ -9,6 +9,7 @@ import HearIAmCore
 @MainActor final class GuidanceViewModel: ObservableObject {
     @Published var phase: GuidancePhase = .selection {
         didSet {
+            if phase == .selection, oldValue != .selection {restoreVoiceSelectionOrigin()}
             if voiceExperiment, voiceMode == .performance, phase == .starting {voicePerformanceInputClosed=true}
             run?.setRunning(phase == .guiding,uptime:ProcessInfo.processInfo.systemUptime);captureReplay(force:true);syncVoiceListening()
             if oldValue != phase {syncVoiceConversationLanguage()}
@@ -27,13 +28,28 @@ import HearIAmCore
     @Published var arrivedName: String?
     @Published var performanceHoldRemaining: Double = 0
     @Published var showExit=false
+    @Published private(set) var isSettingsPresented=false
+    private var settingsVoiceWasEnabled=true
+    private var settingsConversationWasAwake=false
+    var settingsDeferredVoiceRequest: String?
+    var voicePreparationDeferredBySettings=false
     @Published var savingRecord=false
     @Published var saveError: String?
     let voiceExperiment: Bool
     @Published var voiceMode: VoiceUsageMode?
+    @Published var helperPreparation=false
+    /// Captured before selecting a usage mode; a performer handing off for live use remains a performer on Back.
+    var voiceStartedAsHelper: Bool?
+    var isPractice: Bool {voiceMode == .practice}
+    var practiceEntryIssue: String?
+    var recoveryInstruction: String {
+        isPractice ? "휴대폰을 손에 들고 제자리에서 주변을 천천히 비춰 공간을 다시 찾아주세요." : "휴대폰을 손에 들고 확인점을 다시 확인해주세요."
+    }
     @Published var voiceChoosingMode=false
     @Published var voiceSelectionControlsVisible=false
     @Published var voicePerformanceInputClosed=false
+    @Published var voicePerformanceID: UUID?
+    var voiceCatalog=PerformanceCatalog()
     @Published var voiceSearchQuery: String?
     @Published var voiceSearchIDs: [UUID]?
     var voiceInitialPromptPending=false
@@ -120,16 +136,22 @@ import HearIAmCore
     /// Position and checkpoint checks still apply.
     // Speech (including a previous playback error) never locks a next-step button.
     // Each action stops the old narration and retries audio; its own tracking/position guards still apply.
-    var canAdvanceInstruction: Bool { active && !savingRecord && (!voiceExperiment || voiceMode != nil) }
+    var canAdvanceInstruction: Bool { active && !isSettingsPresented && !savingRecord && (!voiceExperiment || voiceMode != nil) }
     var hasStarted: Bool { started }
     var targetIndex: Int { phase == .approaching ? 0 : guide?.facingPointIndex ?? guide?.targetIndex ?? 1 }
-    var targetName: String { GuidanceCopy.target(targetIndex,last:(selected?.route?.points.count ?? 2)-1) }
+    var targetName: String {
+        if phase == .approaching {return "출발점"}
+        return guide?.route.pointLabel(at:targetIndex) ?? GuidanceCopy.target(targetIndex,last:(selected?.route?.points.count ?? 2)-1)
+    }
     var headline: GuidanceHeadline {
         if phase == .guiding, let index=guide?.facingPointIndex, let route=guide?.route, let facing=route.facing(at:index) {
             return GuidanceHeadline(facing:facing,pointName:route.pointLabel(at:index))
         }
         if phase == .guiding, performanceHoldRemaining > 0 {
             return GuidanceHeadline(holdingSeconds:performanceHoldRemaining,pointName:guide?.route.pointLabel(at:max(1,targetIndex-1)) ?? SignalCopy.point(max(1,targetIndex-1)))
+        }
+        if phase == .departure, isPractice, !started {
+            return GuidanceHeadline(title:departureReady ? "준비되면\n‘출발’이라고 말해주세요" : "현재 위치에서\n출발을 준비해요",detail:departureStatus,symbol:departureReady ? "checkmark.circle" : "location.circle")
         }
         return GuidanceHeadline(phase:phase,targetName:targetName,hasStarted:started,departureReady:departureReady,
                          departureStatus:departureStatus,arrivedName:arrivedName,cue:cue,message:message)
@@ -201,6 +223,7 @@ import HearIAmCore
         read(currentInstruction)
     }
     func read(_ texts: [String], interruptible: Bool = false, after: (()->Void)? = nil) {
+        guard !isSettingsPresented else {return}
         if voiceExperiment, voiceTurnActive {
             // A tracking/audio interruption must not apply an old command to a new recovery step.
             voiceRecognition.discardPendingSpeech();voiceTurnActive=false
@@ -218,6 +241,31 @@ import HearIAmCore
             after?()
         }
     }
+    /// Settings suspend this screen's input and transitions while AR continues tracking underneath.
+    func beginSettings() {
+        guard !isSettingsPresented else {return}
+        settingsVoiceWasEnabled=voiceListeningEnabled
+        settingsConversationWasAwake=voiceAwake
+        if phase == .selection, let request=voicePendingRequest {settingsDeferredVoiceRequest=request}
+        isSettingsPresented=true
+        if [.guiding,.starting,.approaching].contains(phase) {
+            guide?.pause();phase = started ? .paused : .departure
+            message="설정을 마치면 현재 목표에서 안내를 다시 시작할 수 있어요."
+        }
+        invalidateTasks();signals.stop()
+        voiceConversationTimer?.cancel()
+        voiceRecognition.discardPendingSpeech();voicePendingRequest=nil;voiceTurnActive=false
+        stopVoiceExperiment()
+        instructionDone=true;lastPoseTime=nil
+        if phase == .departure {departureReady=false;departureGate.reset();readyAnnounced=false}
+    }
+    func endSettings() {
+        guard isSettingsPresented else {return}
+        isSettingsPresented=false
+        voiceListeningEnabled=settingsVoiceWasEnabled
+        if settingsConversationWasAwake,voiceListeningEnabled {keepVoiceConversation(30)}
+        resumeVoiceAfterSettings()
+    }
     /// Cancels pending speech callbacks; late callbacks see a new generation.
     func invalidateTasks() {
         generation=UUID();voice.stop();instructionDone=false;arrivedName=nil;arrivalShownAt=nil
@@ -233,13 +281,13 @@ import HearIAmCore
     }
 
     private func tick() {
-        guard active else { return }
+        guard active, !isSettingsPresented else { return }
         captureReplay()
         guard !showExit else { return }
         if phase == .restoring { tickRestoring();return }
         if phase == .checkpoint { tickCheckpoint();return }
         if [.wear,.departure,.starting,.guiding,.paused,.approaching].contains(phase), !tracking.ready {
-            interrupt("위치 추적이 끊겼어요. 확인점을 다시 확인해주세요.");return
+            interrupt("위치 추적이 끊겼어요. \(recoveryInstruction)");return
         }
         if let p=tracking.position, let time=tracking.guidancePoseTime,
            ProcessInfo.processInfo.systemUptime-time >= 0, ProcessInfo.processInfo.systemUptime-time <= 0.5,
@@ -247,7 +295,7 @@ import HearIAmCore
             startDistance=FloorPoint(p.x,p.y).distance(to:first)
         } else { startDistance=nil }
         guard let pose=freshPose() else {
-            if phase == .approaching { interrupt("현재 위치와 방향을 확인할 수 없어요. 확인점을 다시 확인해주세요.");return }
+            if phase == .approaching { interrupt("현재 위치와 방향을 확인할 수 없어요. \(recoveryInstruction)");return }
             if phase == .departure { departureReady=false;departureGate.reset();readyAnnounced=false }
             if phase == .guiding || phase == .starting { if tracking.heading == nil { interrupt("몸이 향한 방향을 확인할 수 없어요. 착용 방향을 다시 확인해주세요.") } }
             return
