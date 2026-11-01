@@ -15,7 +15,7 @@ struct HomeView: View {
             GeometryReader {geometry in
                 ZStack(alignment:.bottom) {
                     HearV3.canvas.ignoresSafeArea()
-                    Image("HearV3Ambient").resizable().scaledToFill().frame(height:280).clipped()
+                    Image("HearV3Ambient").resizable().scaledToFill().frame(width:geometry.size.width,height:280).clipped()
                         .opacity(wake.awake ? 1 : 0.55).ignoresSafeArea(edges:.bottom).accessibilityHidden(true)
                     ScrollView {
                         VStack(spacing:24) {
@@ -54,7 +54,7 @@ struct HomeView: View {
                             Spacer(minLength:20)
                         }.padding(20).frame(minHeight:geometry.size.height)
                     }.scrollBounceBehavior(.basedOnSize)
-                }
+                }.frame(width:geometry.size.width,height:geometry.size.height)
             }
             .navigationTitle("Hear I am").navigationBarTitleDisplayMode(.inline)
             .toolbar {
