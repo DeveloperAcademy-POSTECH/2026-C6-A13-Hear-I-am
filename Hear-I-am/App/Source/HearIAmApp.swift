@@ -9,6 +9,10 @@ import SwiftUI
                 GuidanceReplayPreviewHarness()
             } else if ProcessInfo.processInfo.arguments.contains("--stage-replay-preview") {
                 StageReplayPreviewHarness()
+            } else if ProcessInfo.processInfo.arguments.contains("--guidance-v3-practice-preview") {
+                GuidanceV3PreviewHarness(practice:true)
+            } else if ProcessInfo.processInfo.arguments.contains("--guidance-v3-preview") {
+                GuidanceV3PreviewHarness(practice:false)
             } else {HearRootView()}
             #else
             HearRootView()

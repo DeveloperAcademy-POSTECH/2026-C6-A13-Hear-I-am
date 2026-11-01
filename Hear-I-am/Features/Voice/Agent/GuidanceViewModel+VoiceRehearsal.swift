@@ -8,7 +8,7 @@ extension GuidanceViewModel {
     /// What the current screen can do, offered to the Apple Intelligence model (#87).
     var voiceScreen: VoiceScreen {
         switch phase {
-        case .selection: return voiceChoosingMode ? .modeChoice : .stageList(stageCount:visibleVoiceStages.count)
+        case .selection: return voiceChoosingMode ? .modeChoice : .stageList(stageCount:voiceSelectionNames.count)
         case .starting,.guiding,.paused:
             return .guidance(pointCount:voiceMode == .practice && started ? max(0,(guide?.route.points.count ?? 0)-1) : 0)
         case .failed,.interrupted: return .recovery
@@ -17,7 +17,7 @@ extension GuidanceViewModel {
     }
 
     var voiceCanOfferInput: Bool {
-        guard voiceExperiment, active, !showExit, !savingRecord, escape == nil, audioIssue == nil else {return false}
+        guard voiceExperiment, !helperPreparation, !isSettingsPresented, active, !showExit, !savingRecord, escape == nil, audioIssue == nil else {return false}
         if voiceMode == .performance && voicePerformanceInputClosed {return false}
         return [.selection,.restoring,.checkpoint,.wear,.departure,.starting,.guiding,.paused,.failed,.interrupted].contains(phase)
     }
@@ -89,7 +89,16 @@ extension GuidanceViewModel {
             guard let self, listening, self.voiceReadyChimePending, self.voiceShouldListen else {return}
             self.voiceReadyChimePending=false
             self.listeningChime.play()
-            if self.voiceInitialPromptPending {
+            if let request=self.settingsDeferredVoiceRequest,self.phase == .selection {
+                let operation=self.generation
+                Task { @MainActor [weak self] in
+                    try? await Task.sleep(nanoseconds:250_000_000)
+                    guard let self,self.generation==operation,self.voiceShouldListen,self.phase == .selection,
+                          self.settingsDeferredVoiceRequest==request else {return}
+                    self.settingsDeferredVoiceRequest=nil
+                    self.handleVoiceCommand(request)
+                }
+            } else if self.voiceInitialPromptPending {
                 self.voiceInitialPromptPending=false
                 let operation=self.generation
                 Task { @MainActor [weak self] in
@@ -117,13 +126,36 @@ extension GuidanceViewModel {
             }
         }.store(in:&voiceSubscriptions)
     }
-    func prepareVoiceExperiment(records:[ScanManifest],places:PlaceFolderIndex = PlaceFolderIndex()) {
+    func prepareVoiceExperiment(records:[ScanManifest],contexts:[UUID:[String]] = [:],catalog:PerformanceCatalog = PerformanceCatalog()) {
         guard voiceExperiment else {return}
+        if voiceStartedAsHelper == nil {voiceStartedAsHelper=helperPreparation}
         voiceStages=records
-        voiceStagePaths=Dictionary(uniqueKeysWithValues:records.map {($0.id,places.path(for:$0.id))})
+        voiceCatalog=catalog
+        voiceStagePaths=contexts
+        guard !isSettingsPresented else {voicePreparationDeferredBySettings=true;return}
+        if helperPreparation {
+            if let id=voiceInitialStageID, let item=records.first(where:{$0.id == id}) {
+                voiceInitialStageID=nil;voiceInitialMode=nil
+                select(item,advanceAutomatically:false)
+                if selected != nil {voiceChoosingMode=true;selectVoiceMode(.performance)}
+            } else {message="준비할 무대를 찾을 수 없어요. 목록에서 다시 선택해주세요."}
+            return
+        }
         voiceInitialPromptPending=true
         voiceReadyChimePending=true
         keepVoiceConversation(30)
+        syncVoiceListening()
+    }
+    func resumeVoiceAfterSettings() {
+        guard active else {return}
+        if voicePreparationDeferredBySettings {
+            voicePreparationDeferredBySettings=false
+            prepareVoiceExperiment(records:voiceStages,contexts:voiceStagePaths,catalog:voiceCatalog)
+            return
+        }
+        // The initial delayed selection may have been cancelled while settings opened.
+        if phase == .selection,voiceInitialRequest != nil || voiceInitialStageID != nil {voiceInitialPromptPending=true}
+        voiceReadyChimePending=voiceShouldListen
         syncVoiceListening()
     }
     func selectVoiceMode(_ mode:VoiceUsageMode, advanceAutomatically: Bool = true) {
@@ -131,6 +163,9 @@ extension GuidanceViewModel {
         voiceRecognition.discardPendingSpeech();voiceTurnActive=false
         voicePerformanceInputClosed=false
         voiceMode=mode
+        helperPreparation=mode == .performance
+        if helperPreparation {stopVoiceExperiment();voiceListeningEnabled=false}
+        else {voiceListeningEnabled=true;syncVoiceListening()}
         voiceSelectionControlsVisible = !advanceAutomatically
         if advanceAutomatically {continueVoiceSelection()}
         else {
@@ -143,6 +178,7 @@ extension GuidanceViewModel {
     }
     func prepareForVoiceTouch() {
         guard voiceExperiment else {return}
+        settingsDeferredVoiceRequest=nil
         generation=UUID();voice.stop();instructionDone=true
         voiceRecognition.discardPendingSpeech();voiceTurnActive=false
     }
@@ -164,15 +200,29 @@ extension GuidanceViewModel {
         read(VoiceStepCopy.stageChosen(selected.name))
     }
     var visibleVoiceStages: [ScanManifest] {
-        guard let ids=voiceSearchIDs else {return voiceStages}
-        return ids.compactMap {id in voiceStages.first {$0.id == id}}
+        let candidates=voiceSearchIDs.map {ids in ids.compactMap {id in voiceStages.first {$0.id == id}}} ?? voiceStages
+        guard let id=voicePerformanceID else {return candidates}
+        return candidates.filter {item in
+            if id == PerformanceVoiceMenu.unassignedID {return voiceCatalog.folder(for:item.id) == nil}
+            return voiceCatalog.assignments[item.id]?.performanceID == id
+        }
     }
     var canCancelVoiceSelection: Bool {
-        voiceExperiment && !started && (selected != nil || voiceChoosingMode || voiceSearchQuery != nil || phase != .selection)
+        voiceExperiment && !started && (selected != nil || voiceChoosingMode || voicePerformanceID != nil || voiceSearchQuery != nil || phase != .selection)
             && ![.starting,.finishing,.completed].contains(phase)
+    }
+    /// Restore the caller's role, not the temporary helper handoff selected by live mode.
+    func restoreVoiceSelectionOrigin() {
+        guard voiceExperiment else {return}
+        let helper=voiceStartedAsHelper ?? helperPreparation
+        helperPreparation=helper
+        voiceListeningEnabled = !helper
+        if !helper {keepVoiceConversation(30)}
     }
     func cancelVoiceSelection() {
         guard voiceExperiment, !started else {return}
+        restoreVoiceSelectionOrigin()
+        defer {syncVoiceListening()}
         voiceRecognition.discardPendingSpeech();voiceTurnActive=false
         invalidateTasks()
         if phase != .selection {
@@ -185,22 +235,31 @@ extension GuidanceViewModel {
         } else if selected != nil {
             selected=nil;guide=nil;run=nil;pendingRecord=nil
             announceVoiceStageResults()
+        } else if voicePerformanceID != nil {
+            voicePerformanceID=nil;voiceSearchQuery=nil;voiceSearchIDs=nil
+            announceVoiceStageResults()
         } else if voiceSearchQuery != nil {
             voiceSearchQuery=nil;voiceSearchIDs=nil
             selectionDescription(empty:voiceStages.isEmpty)
         } else {selectionDescription(empty:voiceStages.isEmpty)}
     }
     func announceVoiceStageResults() {
+        if showsVoicePerformances {
+            let choices=voicePerformanceChoices
+            guard !choices.isEmpty else {read(["저장된 무대를 찾지 못했어요. 다른 공연이나 공연장 이름을 말씀해주세요."]);return}
+            read(["어떤 공연을 준비할까요?"]+choices.enumerated().map {"\($0.offset+1)번, \($0.element.name). 저장된 무대 \($0.element.stageIDs.count)개."}+["공연 이름이나 번호를 말씀해주세요."],interruptible:true)
+            return
+        }
         let items=visibleVoiceStages
         if items.isEmpty {
             read(["\(voiceSearchQuery ?? "요청한 이름")에 해당하는 저장된 공연이 없어요. 다른 장소나 공연 이름을 말해주세요. 취소하면 전체 목록으로 돌아가요."])
             return
         }
         // Words of the new 공연 찾기 screen (IA 10/29).
-        let title=voiceSearchQuery.map {$0 == "전체" ? "저장된 공연은 \(items.count)개예요." : "\($0) 관련 공연은 \(items.count)개예요."} ?? "어떤 공연을 준비할까요?"
+        let title="\(voiceSelectedPerformanceName ?? "선택한 공연")의 어느 무대에서 진행할까요?"
         // Separate utterances keep a long result list interruptible at every item.
-        let names=items.enumerated().map {"\($0.offset+1)번, \($0.element.name). \((voiceStagePaths[$0.element.id] ?? []).joined(separator:", "))."}
-        read([title]+names+["공연 이름이나 번호를 말해주세요."],interruptible:true)
+        let names=items.enumerated().map {"\($0.offset+1)번, \(voiceStageTitle($0.element))."}
+        read([title]+names+["공연장 이름이나 무대 번호를 말해주세요."],interruptible:true)
     }
     func syncVoiceListening() {
         guard voiceExperiment else {return}
@@ -341,6 +400,7 @@ extension GuidanceViewModel {
         }
     }
     func voiceInputFailed(_ error:String) {
+        guard !isSettingsPresented else {return}
         stopVoiceExperiment()
         voiceRecognitionRequested=false;voiceTurnActive=false
         voiceListeningEnabled=false;voiceInputError=error
@@ -352,6 +412,7 @@ extension GuidanceViewModel {
     }
     func handleVoiceCommand(_ text:String) {
         guard voiceShouldListen else {return}
+        settingsDeferredVoiceRequest=nil
         let accepted=voiceTurnActive || voiceAwake
         let wasTurn=voiceTurnActive
         voiceTurnActive=false
@@ -423,20 +484,20 @@ extension GuidanceViewModel {
     private func resolveVoiceIntent(_ text:String) -> Bool {
         #if canImport(FoundationModels)
         guard #available(iOS 26.0, *), AppleIntelligenceVoiceIntentResolver.isAvailable else {return false}
-        let screen=voiceScreen, began=ProcessInfo.processInfo.systemUptime
+        let screen=voiceScreen, began=ProcessInfo.processInfo.systemUptime, operation=generation
         // 「삐원으로 가」 reaches the model as 「P1으로 가」; the model reads numbers from sound poorly.
         let request=VoicePointSpelling.normalized(text)
         if request != text {logSignal("voice_point_spelling","\(text) -> \(request)")}
         voicePendingRequest=text
         Task { [weak self] in
             var decision=await AppleIntelligenceVoiceIntentResolver().resolve(request,screen:screen)
-            guard let self, self.voiceShouldListen, self.voicePendingRequest == text, self.voiceScreen == screen else {return}
+            guard let self, self.generation == operation, self.voiceShouldListen, self.voicePendingRequest == text, self.voiceScreen == screen else {return}
             self.voicePendingRequest=nil
             let seconds=String(format:"%.2fs",ProcessInfo.processInfo.systemUptime-began)
             let guessed: VoiceCommand? = {switch decision {case .command(let c),.confirm(let c): return c; case .none: return nil}}()
             if case .chooseStage(let number)? = guessed {
-                let items=self.visibleVoiceStages
-                if !items.indices.contains(number-1) || !VoiceStageSearch.mentions(text,number:number,name:items[number-1].name) {
+                let items=self.voiceSelectionNames
+                if !items.indices.contains(number-1) || !VoiceStageSearch.mentions(text,number:number,name:items[number-1]) {
                     self.logSignal("voice_intent_dropped","chooseStage(\(number)) for \(text)");decision = .none
                 }
             }
@@ -457,8 +518,8 @@ extension GuidanceViewModel {
     }
     /// A stage is asked by its number and name, so the user hears which one would be picked.
     private func voiceQuestion(_ command:VoiceCommand) -> String {
-        if case .chooseStage(let number)=command, visibleVoiceStages.indices.contains(number-1) {
-            return "\(number)번, \(visibleVoiceStages[number-1].name). 이 공연을 선택할까요?"
+        if case .chooseStage(let number)=command, voiceSelectionNames.indices.contains(number-1) {
+            return "\(number)번, \(voiceSelectionNames[number-1]). 선택할까요?"
         }
         return VoiceIntentCopy.question(command)
     }
@@ -486,9 +547,8 @@ extension GuidanceViewModel {
                 guard !voiceStages.isEmpty else {selectionDescription(empty:true);return}
                 showVoiceStageResults(query:nil,ids:nil)
             case .chooseStage(let number):
-                let items=visibleVoiceStages
-                guard phase == .selection, !voiceChoosingMode, number > 0, number <= items.count else {read(["화면에 있는 무대 번호를 말씀해주세요."]);return}
-                select(items[number-1])
+                guard phase == .selection,!voiceChoosingMode else {return}
+                selectVisibleVoiceItem(number)
             case .back:
                 // The same step back as the 「취소 · 이전 선택」 button; after the start there is no earlier step.
                 if canCancelVoiceSelection {cancelVoiceSelection()}
@@ -501,33 +561,36 @@ extension GuidanceViewModel {
                     pendingVoiceIntent = .chooseStageAgain;read([VoiceIntentCopy.question(.chooseStageAgain)]);return
                 }
                 logSignal("voice_choose_stage_again",started ? "run_dropped" : "before_start")
-                resetSignals();voicePausedNavigation=false
+                resetSignals();voicePausedNavigation=false;voicePerformanceID=nil
                 chooseAgain()
             }
     }
     private func selectStageWithVoice(_ text:String) -> Bool {
-        if let ordinal=VoiceStageSearch.ordinal(text) {
-            let items=visibleVoiceStages
-            guard ordinal > 0, ordinal <= items.count else {
-                read(["화면에 있는 무대 번호를 말씀해주세요."]);return true
+        if let ordinal=VoiceStageSearch.ordinal(text) {selectVisibleVoiceItem(ordinal);return true}
+        if showsVoicePerformances {
+            let choices=voicePerformanceChoices
+            if case .selected(let index)=VoiceStageSearch.resolve(text,names:choices.map(\.name)) {
+                selectVoicePerformance(choices[index].id);return true
             }
-            select(items[ordinal-1]);return true
         }
-        switch VoiceStageSearch.resolve(text,names:voiceStages.map(\.name),contexts:voiceStages.map {voiceStagePaths[$0.id] ?? []}) {
-        case .selected(let index): select(voiceStages[index]);return true
+        let candidates=voicePerformanceID == nil ? voiceStages : visibleVoiceStages
+        let aliases=candidates.map {item in
+            (voiceStagePaths[item.id] ?? []) + [voiceStageTitle(item)]
+        }
+        switch VoiceStageSearch.resolve(text,names:candidates.map(\.name),contexts:aliases) {
+        case .selected(let index): select(candidates[index]);return true
         case .results(let query,let indices):
-            let ids=indices.map {voiceStages[$0].id}
-            // A request such as 「저장된 무대 다 불러와 줘」 matches no name; let the model read it first.
-            // A keyword search that found nothing still says so.
-            if ids.isEmpty, !VoiceStageSearch.isKeywordSearch(text), resolveVoiceIntent(text) {return true}
+            let ids=indices.map {candidates[$0].id}
+            if ids.isEmpty,!VoiceStageSearch.isKeywordSearch(text),resolveVoiceIntent(text) {return true}
             showVoiceStageResults(query:query,ids:ids);return true
-        case .none: return false
+        case .none:return false
         }
     }
     private func showVoiceStageResults(query:String?,ids:[UUID]?) {
         voiceSelectionControlsVisible=false
         voiceRecognition.discardPendingSpeech()
         selected=nil;guide=nil;run=nil;pendingRecord=nil
+        if ids == nil {voicePerformanceID=nil}
         voiceSearchQuery=query;voiceSearchIDs=ids
         announceVoiceStageResults()
     }
@@ -544,7 +607,7 @@ extension GuidanceViewModel {
         case .departure:
             if departureReady && canAdvanceInstruction {startGuidance()} else {read([departureStatus])}
         case .paused:
-            if canResume && canAdvanceInstruction {voicePausedNavigation=false;startGuidance()} else {read(["현재 위치에서 안내를 재개할 수 없어요. 동선과 확인점을 다시 확인해주세요."])}
+            if canResume && canAdvanceInstruction {voicePausedNavigation=false;startGuidance()} else {read([isPractice ? "현재 위치에서 안내를 재개할 수 없어요. 동선과 현재 위치를 다시 확인해주세요." : "현재 위치에서 안내를 재개할 수 없어요. 동선과 확인점을 다시 확인해주세요."])}
         case .failed,.interrupted: restore()
         default: break
         }
@@ -553,7 +616,7 @@ extension GuidanceViewModel {
         guard voiceMode == .practice, started, phase == .paused || phase == .guiding else {
             read(["지점으로 돌아가기는 연습 안내를 시작한 후 사용할 수 있어요."]);return
         }
-        guard let pose=freshPose(), var guide else {read(["현재 위치를 확인할 수 없어요. 확인점을 다시 확인해주세요."]);return}
+        guard let pose=freshPose(), var guide else {read(["현재 위치를 확인할 수 없어요. \(recoveryInstruction)"]);return}
         guard let index=guide.rehearsalPointIndex(number:number) else {
             read(["저장된 동선에 P\(number) 지점이 없어요. 지점 이름을 다시 확인해주세요."]);return
         }
