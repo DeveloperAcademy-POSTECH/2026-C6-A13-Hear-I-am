@@ -107,6 +107,8 @@ struct FrontGlow: View {
     let hasReference: Bool
     let bearing: Double?
     let deadband: Double
+    /// Where the disc sits below the screen's centre: 59.5pt in 정면 찾기, 182.5pt on the walking screen (495:5562).
+    var discOffsetY: CGFloat = 59.5
     @State private var smoother=GlowSmoother()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -121,7 +123,7 @@ struct FrontGlow: View {
                 // 253pt haze (blur 130) → 165pt disc (blur 10) → pressed flat sideways into the blade (blur 21, Figma).
                 let discWidth=mix(165*(1+0.6*spread),253,n), discHeight=mix(165*(1-0.45*spread),253,n)
                 // The flattened disc keeps sliding past the edge and dissolves, so at 90° only the blade is left (Figma).
-                let discX=mix(w/2+sign*side*(1.1+0.6*spread)*(w/2),w/2,n), discY=mix(h/2+59.5,h*0.6,n)
+                let discX=mix(w/2+sign*side*(1.1+0.6*spread)*(w/2),w/2,n), discY=mix(h/2+discOffsetY,h*0.6,n)
                 let blur=mix(10+11*side,130,n)
                 ZStack {
                     Ellipse().fill(state.color.opacity(max(0,1-spread/0.8)))

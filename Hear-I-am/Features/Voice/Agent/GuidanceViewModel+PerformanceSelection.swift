@@ -23,6 +23,8 @@ extension GuidanceViewModel {
         selected=nil;guide=nil;run=nil;pendingRecord=nil
         voicePerformanceID=id
         voiceSelectionControlsVisible=false
+        // One saved stage needs no 「어느 무대?」 question (11/02 test): it is taken straight away.
+        if visibleVoiceStages.count == 1, let only=visibleVoiceStages.first {select(only);return}
         announceVoiceStageResults()
     }
     func selectVisibleVoiceItem(_ number:Int) {

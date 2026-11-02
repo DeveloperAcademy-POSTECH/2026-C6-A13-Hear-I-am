@@ -35,7 +35,11 @@ struct GuidanceControls: View {
                 Button("취소 · 이전 선택") {model.cancelVoiceSelection()}.font(.subheadline).frame(minHeight:44)
             }
             primary
-        }.padding(.horizontal,24).padding(.top,12).padding(.bottom,12).background(model.phase.showsRouteCamera ? (model.isPractice ? Color.white : HearV3.canvas) : HearV3.canvas)
+        }.padding(.horizontal,24).padding(.top,12).padding(.bottom,12).background(paper)
+    }
+    /// The light practice screen is the button-only flow's; the voice flow's walking screen is dark (495:5555).
+    private var paper: Color {
+        model.phase.showsRouteCamera && model.isPractice && !model.voiceExperiment ? Color.white : model.voiceExperiment ? VoiceStyle.canvas : HearV3.canvas
     }
     @ViewBuilder private var selectionSecondaryActions: some View {
         if model.canCancelVoiceSelection {
