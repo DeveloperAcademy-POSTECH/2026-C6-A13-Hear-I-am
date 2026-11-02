@@ -30,6 +30,8 @@ import HearIAmCore
     private var active=false
     /// The answer whose end opens the next screen; a tap or sleep in between cancels it.
     private var answerID: UUID?
+    /// The conversation was opened with the orb rather than the call, so it waits longer for the request.
+    private var openedByTap=false
 
     init() {
         // Speak through the recognizer's engine so its echo cancellation hears the user over the greeting.
@@ -44,11 +46,20 @@ import HearIAmCore
         recognition.onRecoverableError={ [weak self] _ in self?.caption.clearRequest() }
         recognition.$finalizing.assign(to:&$confirmingInput)
         // A permission or dictation failure shows a fallback button; the next visit to Home tries again.
-        recognition.onError={ [weak self] message in self?.active=false;self?.failure=message;self?.sleep() }
-        // A call, another app's sound or a headset change: listen again shortly, if the app is still in front.
-        recognition.onExternalStop={ [weak self] _ in
+        // Opened by a tap, the conversation stays on screen with the reason instead of dropping back.
+        recognition.onError={ [weak self] message in
             guard let self else {return}
-            self.active=false;self.sleep()
+            self.active=false;self.failure=message
+            VoiceLog.write("home_voice_error",message,screen:self.awake ? "home.awake" : "home.asleep")
+            if !self.awake {self.sleep(reason:"error")}
+        }
+        // A call, another app's sound or a headset change: listen again shortly, if the app is still in front.
+        // The conversation, if open, waits on screen for the microphone to come back.
+        recognition.onExternalStop={ [weak self] message in
+            guard let self else {return}
+            self.active=false
+            VoiceLog.write("home_voice_stopped",message,screen:self.awake ? "home.awake" : "home.asleep")
+            if !self.awake {self.sleep(reason:"external")}
             self.resumeTask=Task { @MainActor [weak self] in
                 try? await Task.sleep(nanoseconds:1_500_000_000)
                 guard !Task.isCancelled, UIApplication.shared.applicationState == .active else {return}
@@ -71,7 +82,7 @@ import HearIAmCore
 
     func stop() {
         resumeTask?.cancel();resumeTask=nil
-        sleep()
+        sleep(reason:"stop")
         guard active else {return}
         active=false
         startTask?.cancel();startTask=nil
@@ -79,13 +90,22 @@ import HearIAmCore
     }
 
     /// The same conversation can be opened with the orb when saying the wake phrase is inconvenient.
+    /// The screen opens on the tap itself; the microphone is readied or restarted behind it, and a
+    /// failure is shown there rather than sending the performer back to the waiting screen.
     func beginConversation() {
-        start()
+        guard !awake else {return}
+        VoiceLog.write("home_woke","tap",screen:"home.asleep")
+        // A listener that stopped or failed earlier is started afresh; a healthy one just switches to Korean.
+        if !active || failure != nil {active=false;start()}
+        wake()
+        openedByTap=true
         Task { @MainActor [weak self] in
             guard let self else {return}
             await self.startTask?.value
-            guard self.active, self.failure == nil else {return}
-            self.wake();self.greet()
+            guard self.awake else {return}
+            guard self.failure == nil else {return}
+            self.recognition.listenInEnglish(false)
+            self.greet()
         }
     }
 
@@ -100,11 +120,14 @@ import HearIAmCore
         }
         guard !awake, VoiceWakeWord.matches(text) else {return}
         // Switching to Korean ends this English turn, so the greeting cannot wait for its final text.
+        VoiceLog.write("home_woke","call \(text)",screen:"home.asleep")
         wake();greet()
     }
 
-    private func heardFinal(_ text:String) {
-        guard active else {return}
+    private func heardFinal(_ text:String,typed:Bool=false) {
+        guard active || typed else {return}
+        // Room noise transcribed as punctuation only is no call and no request.
+        guard text.contains(where:{$0.isLetter || $0.isNumber}) else {caption.clearRequest();return}
         VoiceLog.write(recognition.listensInEnglish ? "home_heard_english" : "home_heard",([text]+recognition.lastAlternatives.filter {$0 != text}).joined(separator:" | "),screen:awake ? "home.awake" : "home.asleep")
         // The call may sit in a lower recognition candidate (#92).
         let call=([text]+recognition.lastAlternatives).lazy.compactMap(VoiceWakeWord.request(in:)).first
@@ -124,9 +147,14 @@ import HearIAmCore
         hand(request)
     }
 
+    #if DEBUG
+    /// A line typed for testing is taken like final speech: the call wakes, a request opens guidance.
+    func simulateHeard(_ text:String) {heardFinal(text,typed:true)}
+    #endif
+
     private func wake() {
         caption.reset()
-        awake=true
+        awake=true;openedByTap=false
         speech.stop()
         recognition.listenInEnglish(false)
         chime.play()
@@ -137,7 +165,9 @@ import HearIAmCore
         caption.clearRequest()
         stayAwake(60)
         spokenLines=[Self.greeting];heardOverSpeech=false
-        speech.play([Self.greeting]) { [weak self] _ in self?.stayAwake(8) }
+        // Opened by hand the performer has yet to think of the request, so the quiet allowed is longer.
+        let quiet: Double = openedByTap ? 15 : 8
+        speech.play([Self.greeting]) { [weak self] _ in self?.stayAwake(quiet) }
     }
 
     private func hand(_ request:String) {
@@ -168,7 +198,7 @@ import HearIAmCore
     /// A tap closes the agent and goes back to waiting for 「Hear I am」.
     func dismiss() {
         guard awake else {return}
-        sleep()
+        sleep(reason:"tap")
     }
 
     private func stayAwake(_ seconds:Double) {
@@ -176,14 +206,15 @@ import HearIAmCore
         sleepTask=Task { @MainActor [weak self] in
             try? await Task.sleep(nanoseconds:UInt64(seconds*1_000_000_000))
             guard !Task.isCancelled else {return}
-            self?.sleep()
+            self?.sleep(reason:"quiet \(Int(seconds))s")
         }
     }
 
-    private func sleep() {
+    private func sleep(reason:String) {
         sleepTask?.cancel();sleepTask=nil;answerID=nil
         if speaking {speech.stop()}
-        awake=false
+        if awake {VoiceLog.write("home_slept",reason,screen:"home.awake")}
+        awake=false;openedByTap=false
         caption.reset()
         if active {recognition.listenInEnglish(true)}
     }

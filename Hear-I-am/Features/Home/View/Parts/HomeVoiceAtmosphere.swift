@@ -1,7 +1,7 @@
 import SwiftUI
 import HearIAmCore
 
-/// Soft, slowly drifting light stays below the conversation text without covering controls.
+/// Soft, slowly drifting light stays below the waiting screen without covering controls.
 struct HomeVoiceWaves: View {
     let awake: Bool
     let animating: Bool
@@ -68,62 +68,5 @@ struct HomeVoiceOrb: View {
             .frame(width: 176, height: 176)
         }
         .accessibilityHidden(true)
-    }
-}
-
-/// Partial recognition replaces the current text directly; no artificial typing timer or speech announcements.
-struct HomeConversationCaption: View {
-    let caption: VoiceHomeCaption
-    let speaking: Bool
-    let listening: Bool
-    let confirming: Bool
-    var maximumTextHeight: CGFloat = 180
-
-    private var hasRequest: Bool { !caption.transcript.isEmpty }
-    private var title: String {
-        if confirming && hasRequest { return "요청을 확인하고 있어요" }
-        if hasRequest && listening { return "듣고 있어요" }
-        if speaking { return "말하고 있어요" }
-        return listening ? "듣고 있어요" : "음성 입력을 준비하고 있어요"
-    }
-    private var symbol: String {
-        if confirming && hasRequest { return "clock" }
-        return speaking && !hasRequest ? "speaker.wave.2" : "waveform"
-    }
-    private var displayedText: String {
-        if hasRequest { return caption.transcript }
-        if speaking && !caption.narration.isEmpty { return caption.narration }
-        return "공연 이름을 말씀해주세요."
-    }
-    private var hint: String {
-        if confirming && hasRequest { return "말씀하신 내용을 확인하고 있어요." }
-        if speaking && !hasRequest { return "인사를 들은 뒤 한국어로 요청해주세요." }
-        return "말씀이 끝나면 내용을 확인해요."
-    }
-    private var microphoneStatus: String {
-        if confirming { return "말씀 확인 중 · 음성 입력 대기" }
-        if listening { return speaking ? "마이크 켜짐 · 안내 중에도 요청할 수 있어요" : "마이크 켜짐 · 요청 듣는 중" }
-        return "마이크 입력 준비 중"
-    }
-
-    var body: some View {
-        VStack(spacing:16) {
-            Label(title,systemImage:symbol).font(.subheadline)
-                .accessibilityIdentifier("home.voice.caption.status")
-            ViewThatFits(in:.vertical) {
-                captionText
-                ScrollView {captionText}.frame(height:maximumTextHeight)
-            }.frame(maxHeight:maximumTextHeight).fixedSize(horizontal:false,vertical:true)
-            Text(hint).font(.subheadline).foregroundStyle(HearV3.secondary)
-                .multilineTextAlignment(.center).fixedSize(horizontal:false,vertical:true)
-            Text(microphoneStatus).font(.caption.weight(.medium)).multilineTextAlignment(.center)
-                .accessibilityIdentifier("home.voice.caption.microphone")
-        }.frame(maxWidth:.infinity).foregroundStyle(HearV3.text)
-    }
-
-    private var captionText: some View {
-        Text(displayedText).font(.title3.bold()).multilineTextAlignment(.center)
-            .frame(maxWidth:.infinity).fixedSize(horizontal:false,vertical:true)
-            .accessibilityIdentifier("home.voice.caption.text")
     }
 }

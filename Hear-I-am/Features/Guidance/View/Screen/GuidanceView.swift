@@ -2,6 +2,9 @@ import SwiftUI
 import HearIAmCore
 
 /// Portrait guidance. One AR view stays attached for the whole flow.
+/// By voice (Figma 「apple intellenge」) the performer sees the conversation until the walk starts and then the
+/// 연습 안내 screen; the camera keeps relocalising behind the canvas and is never shown. The helper's 실전용
+/// preparation keeps the camera screens.
 struct GuidanceView: View {
     @ObservedObject var library: StageLibrary
     @StateObject private var model: GuidanceViewModel
@@ -20,30 +23,50 @@ struct GuidanceView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
 
+    /// The performer's own voice flow, as opposed to the helper's preparation and the button-only flow.
+    private var voiceFlow: Bool {model.voiceExperiment && !model.helperPreparation}
+    private var conversation: Bool {voiceFlow && !model.phase.showsRouteCamera}
+    private var practiceWalk: Bool {voiceFlow && model.phase.showsRouteCamera && model.isPractice}
+    private var lightPractice: Bool {model.phase.showsRouteCamera && model.isPractice && !model.voiceExperiment}
+    private var paper: Color {voiceFlow ? VoiceStyle.canvas : lightPractice ? Color.white : HearV3.canvas}
+    /// By voice the buttons appear only when the microphone cannot carry the step or a step needs a decision.
+    private var showsControls: Bool {
+        if !model.voiceExperiment {return true}
+        if model.voiceSelectionControlsVisible || model.audioIssue != nil || model.voiceInputError != nil {return true}
+        if model.phase == .selection {return library.records.isEmpty}
+        if conversation {return [.failed,.interrupted].contains(model.phase)}
+        if practiceWalk {return [.paused,.finishing,.completed].contains(model.phase)}
+        return true
+    }
+
     var body: some View {
         NavigationStack {
             VStack(alignment:.leading,spacing:12) {
-                if !model.phase.showsRouteCamera && (!model.voiceExperiment || model.phase != .selection) {
-                    Text(model.phase.stepLabel(targetName:model.targetName)).font(.subheadline.weight(.semibold)).foregroundStyle(model.voiceExperiment ? Color.primary : Color.hearGreen).padding(.horizontal,24)
+                if !model.phase.showsRouteCamera && !model.voiceExperiment {
+                    Text(model.phase.stepLabel(targetName:model.targetName)).font(.subheadline.weight(.semibold)).foregroundStyle(Color.hearGreen).padding(.horizontal,24)
                 }
                 ZStack {
                     // Keep one AR view attached throughout the flow, including when the screen shows instructions.
                     CameraView(model:model.tracking).frame(maxWidth:.infinity,maxHeight:.infinity).accessibilityHidden(true)
+                    if conversation {VoiceConversationView(library:library,model:model)}
+                    else if practiceWalk {VoicePracticeGuidanceView(model:model)}
                     // Listening while paused keeps the route camera in view; the slim voice card shows it (#90).
-                    if model.phase.showsRouteCamera { GuidanceLiveView(model:model) }
+                    else if model.phase.showsRouteCamera { GuidanceLiveView(model:model) }
                     else if model.phase.isCameraStep { GuidanceCameraPrompt(model:model) }
                     else if model.phase == .selection {
                         HearV3.canvas
-                        if model.voiceExperiment {VoiceStagePicker(library:library,model:model)}
-                        else {GuidanceStageList(library:library,model:model)}
+                        GuidanceStageList(library:library,model:model)
                     }
                     else { HearV3.canvas; GuidanceInstruction(model:model) }
                 }
             }
-            .navigationTitle(model.phase.showsRouteCamera ? "Hear I am" : model.helperPreparation ? "출발 준비" : "Hear I am").navigationBarTitleDisplayMode(.inline)
+            .navigationTitle(practiceWalk ? "연습 안내" : conversation ? "" : model.helperPreparation ? "출발 준비" : "Hear I am").navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(voiceFlow ? .hidden : .automatic,for:.navigationBar)
             .toolbar {
                 ToolbarItem(placement:.topBarLeading) {
-                    if model.voiceShouldListen && (model.voiceAwake || model.voiceTurnActive) {
+                    if conversation {
+                        VoiceBackButton {exit()}.accessibilityIdentifier("voice.back")
+                    } else if model.voiceShouldListen && (model.voiceAwake || model.voiceTurnActive) {
                         Button("대화 닫기",systemImage:"xmark.circle") {model.dismissVoiceConversation()}.labelStyle(.iconOnly)
                     }
                 }
@@ -63,14 +86,14 @@ struct GuidanceView: View {
                 VStack(spacing:0) {
                     // Selection starts voice-first; navigation and recovery controls stay available, and show
                     // at once when the microphone cannot be used.
-                    if !model.voiceExperiment || model.phase != .selection || model.voiceSelectionControlsVisible || model.audioIssue != nil || model.voiceInputError != nil {
+                    if showsControls {
                         GuidanceControls(library:library,model:model,close:close,saveAndClose:saveAndClose)
                     }
-                }.background(model.phase.showsRouteCamera ? (model.isPractice ? Color.white : HearV3.canvas) : HearV3.canvas)
+                }.background(paper)
             }
-            .background(model.phase.showsRouteCamera && model.isPractice ? Color.white : HearV3.canvas)
-            .tint(model.phase.showsRouteCamera && model.isPractice ? Color.black : HearV3.text)
-            .preferredColorScheme(model.phase.showsRouteCamera && model.isPractice ? .light : .dark)
+            .background(paper)
+            .tint(lightPractice ? Color.black : voiceFlow ? Color.white : HearV3.text)
+            .preferredColorScheme(lightPractice ? .light : .dark)
             // Settings push in, as in the design; the guidance resumes when the user comes back.
             .navigationDestination(isPresented:$showingSettings) {HomeSettingsView().suspendsVoiceWake()}
             .onChange(of:showingSettings) {_,shown in if !shown {model.endSettings()}}
@@ -79,12 +102,7 @@ struct GuidanceView: View {
                 Button("계속 사용하기",role:.cancel) { model.cancelExit() }
             } message: { Text("중간에 종료하면 도착 완료로 처리되지 않아요. 저장한 무대와 동선은 유지돼요.") }
         }
-        .overlay {
-            if model.voiceExperiment {
-                VoiceEdgeGlow(visualization:model.voiceRecognition.inputVisualization,active:model.voiceShowsListening)
-                // Only while the microphone is on: with performance mode's microphone off a tap must reach the buttons.
-            }
-        }
+        // The design (495:5074–5481) has no light around the edge; the lights under the conversation move instead.
         .interactiveDismissDisabled()
         .onAppear {ScreenOrientation.set(.portrait)}
         .task {

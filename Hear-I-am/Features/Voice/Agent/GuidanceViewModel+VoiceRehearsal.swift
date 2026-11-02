@@ -129,6 +129,9 @@ extension GuidanceViewModel {
     func prepareVoiceExperiment(records:[ScanManifest],contexts:[UUID:[String]] = [:],catalog:PerformanceCatalog = PerformanceCatalog()) {
         guard voiceExperiment else {return}
         if voiceStartedAsHelper == nil {voiceStartedAsHelper=helperPreparation}
+        #if DEBUG
+        VoiceTestInbox.shared.guidance=self
+        #endif
         voiceStages=records
         voiceCatalog=catalog
         voiceStagePaths=contexts
@@ -143,8 +146,75 @@ extension GuidanceViewModel {
         }
         voiceInitialPromptPending=true
         voiceReadyChimePending=true
+        // The request made on Home opens the conversation as its first bubble (Figma 495:5096).
+        if let request=voiceInitialRequest, voiceChat.isEmpty {voiceChatSeededRequest=request;appendVoiceChat(.user(request))}
         keepVoiceConversation(30)
         syncVoiceListening()
+    }
+
+    // MARK: Conversation (Figma 495:5074–5481)
+
+    func appendVoiceChat(_ kind: VoiceChatEntry.Kind) {
+        voiceChat.append(VoiceChatEntry(kind:kind))
+        // The screen can be read back from the log after a test (11/02).
+        switch kind {
+        case .user(let text): VoiceLog.write("chat_user",text,screen:"guidance.\(phase)")
+        case .app(let text): VoiceLog.write("chat_app",text,screen:"guidance.\(phase)")
+        case .stages(let text,let cards): VoiceLog.write("chat_cards",text+" | "+cards.map {"\($0.number). \($0.name) [\($0.tags.joined(separator:","))]"}.joined(separator:" | "),screen:"guidance.\(phase)")
+        }
+        if voiceChat.count > 80 {voiceChat.removeFirst(voiceChat.count-80)}
+    }
+    /// The spinner line under the conversation while the app is doing something the performer waits for.
+    var voiceChatStatus: String? {
+        switch phase {
+        case .restoring: return "저장된 무대를 찾고 있어요"
+        case .starting: return "연습 안내를 시작하고 있어요"
+        case .departure where !departureReady: return "출발 위치를 확인하고 있어요"
+        default: break
+        }
+        if voicePendingRequest != nil {return "요청을 확인하고 있어요"}
+        if voiceTurnActive {return "듣고 있어요"}
+        return nil
+    }
+    /// The cards the list is read from; the spoken list is not repeated as text under them.
+    func showVoiceChatCards(performances: [PerformanceVoiceChoice], text: String) {
+        let cards=performances.enumerated().map {index,choice -> VoiceChatStage in
+            let stages=choice.stageIDs.compactMap {id in voiceStages.first {$0.id == id}}
+            var seen=Set<String>()
+            let venues=stages.compactMap {voiceCatalog.venue(for:$0.id)?.name}.filter {seen.insert($0).inserted}
+            let sample=stages.first {$0.route != nil} ?? stages.first
+            return VoiceChatStage(id:choice.id,number:index+1,name:choice.name,
+                                  tags:venues.isEmpty ? ["저장된 무대 \(choice.stageIDs.count)개"] : Array(venues.prefix(2)),
+                                  width:sample?.route?.area.width ?? 12,depth:sample?.route?.area.depth ?? 8,
+                                  points:sample?.route?.points ?? [],objects:sample?.route?.obstacles ?? [])
+        }
+        appendVoiceChat(.stages(text,cards));voiceChatSuppressNextLine=true
+    }
+    func showVoiceChatCards(stages: [ScanManifest], text: String) {
+        let cards=stages.enumerated().map {index,item in
+            VoiceChatStage(id:item.id,number:index+1,name:item.name,
+                           tags:[voiceCatalog.venue(for:item.id)?.name,voiceCatalog.folder(for:item.id)?.name].compactMap {$0},
+                           width:item.route?.area.width ?? 12,depth:item.route?.area.depth ?? 8,
+                           points:item.route?.points ?? [],objects:item.route?.obstacles ?? [])
+        }
+        appendVoiceChat(.stages(text,cards));voiceChatSuppressNextLine=true
+    }
+    /// A bubble edited by hand is sent again as if it had been heard (the pencil on Figma 495:5096).
+    func submitTypedRequest(_ text:String) {
+        let request=text.trimmingCharacters(in:.whitespacesAndNewlines)
+        guard voiceExperiment, !request.isEmpty else {return}
+        generation=UUID();voice.stop();instructionDone=true
+        keepVoiceConversation()
+        guard voiceShouldListen else {
+            appendVoiceChat(.user(request));read(["지금은 요청을 받을 수 없어요. 마이크가 켜지면 다시 말씀해주세요."]);return
+        }
+        handleVoiceCommand(request)
+    }
+    /// Where the next point lies against the body's heading, for the front-finding light on the walking screen.
+    var voiceGlowBearing: Double? {
+        guard phase == .guiding, let guide, let pose=signalPose, guide.route.points.indices.contains(guide.targetIndex),
+              ProcessInfo.processInfo.systemUptime-pose.time <= 1 else {return nil}
+        return StageHeading.bearing(from:pose.point,to:guide.route.points[guide.targetIndex],headingDegrees:pose.heading)
     }
     func resumeVoiceAfterSettings() {
         guard active else {return}
@@ -162,8 +232,13 @@ extension GuidanceViewModel {
         guard voiceExperiment, phase == .selection, voiceChoosingMode, selected != nil else {return}
         voiceRecognition.discardPendingSpeech();voiceTurnActive=false
         voicePerformanceInputClosed=false
-        voiceMode=mode
-        helperPreparation=mode == .performance
+        // 실전용 asked for by voice is held back for now (IA 11/02: 「일단, 현재는 실전용 막아두기」); the
+        // helper's own 안내 시작 keeps it.
+        let fallback = mode == .performance && voiceStartedAsHelper != true
+        if fallback {logSignal("voice_mode_fallback","performance -> practice")}
+        voiceModeFallback=fallback
+        voiceMode=fallback ? .practice : mode
+        helperPreparation=voiceMode == .performance
         if helperPreparation {stopVoiceExperiment();voiceListeningEnabled=false}
         else {voiceListeningEnabled=true;syncVoiceListening()}
         voiceSelectionControlsVisible = !advanceAutomatically
@@ -189,7 +264,9 @@ extension GuidanceViewModel {
             // Selection does not depend on a working microphone or finishing a spoken prompt.
             // Subsequent position, checkpoint and output-audio checks are still enforced.
             audioIssue=nil
-            restore(voiceIntroduction:"\(mode.title)을 선택했습니다.")
+            let introduction=voiceModeFallback ? "실전용은 아직 준비 중이에요. 연습용으로 진행할게요." : "\(mode.title)을 선택했습니다."
+            voiceModeFallback=false
+            restore(voiceIntroduction:introduction)
         } else {
             voiceChoosingMode=true
             readVoiceModeQuestion()
@@ -247,6 +324,7 @@ extension GuidanceViewModel {
         if showsVoicePerformances {
             let choices=voicePerformanceChoices
             guard !choices.isEmpty else {read(["저장된 무대를 찾지 못했어요. 다른 공연이나 공연장 이름을 말씀해주세요."]);return}
+            showVoiceChatCards(performances:choices,text:"저장된 공연 \(choices.count)개를 찾았어요.\n공연 이름이나 번호를 말씀해주세요.")
             read(["어떤 공연을 준비할까요?"]+choices.enumerated().map {"\($0.offset+1)번, \($0.element.name). 저장된 무대 \($0.element.stageIDs.count)개."}+["공연 이름이나 번호를 말씀해주세요."],interruptible:true)
             return
         }
@@ -259,6 +337,7 @@ extension GuidanceViewModel {
         let title="\(voiceSelectedPerformanceName ?? "선택한 공연")의 어느 무대에서 진행할까요?"
         // Separate utterances keep a long result list interruptible at every item.
         let names=items.enumerated().map {"\($0.offset+1)번, \(voiceStageTitle($0.element))."}
+        showVoiceChatCards(stages:items,text:"\(title)\n공연장 이름이나 무대 번호를 말씀해주세요.")
         read([title]+names+["공연장 이름이나 무대 번호를 말해주세요."],interruptible:true)
     }
     func syncVoiceListening() {
@@ -416,6 +495,9 @@ extension GuidanceViewModel {
         let accepted=voiceTurnActive || voiceAwake
         let wasTurn=voiceTurnActive
         voiceTurnActive=false
+        // Room noise comes back as 「.」 or 「아.」 (11/02 library test); without a letter or digit it is no request.
+        guard text.contains(where:{$0.isLetter || $0.isNumber}) else {logSignal("voice_ignored","noise \(text)");return}
+        let heard=text
         var text=text
         if speaking, voiceAwake, !wasTurn {
             // The whole request came before its words cut in (voicePartial): the same rule decides here.
@@ -450,6 +532,9 @@ extension GuidanceViewModel {
         }
         keepVoiceConversation()
         logSignal("voice_command",text)
+        // The request becomes the performer's bubble; the one brought from Home is already there.
+        if voiceChatSeededRequest == heard {voiceChatSeededRequest=nil}
+        else if !phase.showsRouteCamera {appendVoiceChat(.user(text))}
         if let pending=pendingVoiceIntent {
             pendingVoiceIntent=nil
             switch VoiceIntentCopy.answer(text) {
