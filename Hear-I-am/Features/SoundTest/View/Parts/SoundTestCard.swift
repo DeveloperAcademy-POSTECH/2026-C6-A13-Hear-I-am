@@ -76,7 +76,7 @@ struct SettingsRowLabel: View {
     }
 }
 
-/// The 50pt capsule label: white with dark text, or dim glass with white text.
+/// The 50pt capsule label: white with dark text, or 10% white with white text (Figma 457:13722 · 13724).
 struct SettingsCapsuleLabel: View {
     let title: String
     var primary=true
@@ -90,8 +90,7 @@ struct SettingsCapsuleLabel: View {
     private struct CapsuleFill: ViewModifier {
         let primary: Bool
         func body(content: Content) -> some View {
-            if primary {content.background(Color.white,in:Capsule())}
-            else {content.liquidGlass(Capsule(),tint:SettingsStyle.dimButton,interactive:true)}
+            content.background(primary ? Color.white : SettingsStyle.dimButton,in:Capsule())
         }
     }
 }
@@ -154,7 +153,8 @@ struct OutputDeviceRow: View {
         Button {picker.present()} label: {
             SettingsRowLabel(title:"출력 기기",value:output.name,accessory:.chevronDown)
         }.buttonStyle(.plain)
-            .background(RoutePickerHost(picker:picker).frame(width:1,height:1).opacity(0.01).accessibilityHidden(true))
+            // The system picker draws its AirPlay glyph past a 1pt frame, so it is clipped away; the row stays the only visible control.
+            .background(RoutePickerHost(picker:picker).frame(width:1,height:1).clipped().opacity(0.01).accessibilityHidden(true))
             .background(SettingsStyle.group,in:RoundedRectangle(cornerRadius:SettingsStyle.cornerRadius,style:.continuous))
             .accessibilityLabel("출력 기기, \(output.name)").accessibilityHint("눌러서 소리가 나올 기기를 바꿔요")
             .accessibilityIdentifier("output.device")
@@ -182,7 +182,7 @@ private struct RoutePickerHost: UIViewRepresentable {
 struct SystemVolumeSlider: View {
     var body: some View {
         HStack(spacing:14) {
-            Image(systemName:"speaker.fill").font(.system(size:15)).foregroundStyle(SettingsStyle.secondary).accessibilityHidden(true)
+            Image(systemName:"speaker.wave.1.fill").font(.system(size:15)).foregroundStyle(SettingsStyle.secondary).accessibilityHidden(true)
             VolumeViewHost().frame(height:34)
             Image(systemName:"speaker.wave.3.fill").font(.system(size:15)).foregroundStyle(SettingsStyle.secondary).accessibilityHidden(true)
         }.padding(.horizontal,SettingsStyle.rowInset).frame(height:SettingsStyle.rowHeight)
@@ -192,11 +192,60 @@ struct SystemVolumeSlider: View {
 
 private struct VolumeViewHost: UIViewRepresentable {
     func makeUIView(context: Context) -> MPVolumeView {
-        let view=MPVolumeView(frame:.zero)
+        let view=CenteredVolumeView(frame:.zero)
         view.tintColor = .white
         return view
     }
     func updateUIView(_ view: MPVolumeView, context: Context) {}
+}
+
+/// MPVolumeView lays its slider toward the top of its bounds; the design wants it on the row's centre line.
+private final class CenteredVolumeView: MPVolumeView {
+    override func volumeSliderRect(forBounds bounds: CGRect) -> CGRect {
+        let slider=super.volumeSliderRect(forBounds:bounds)
+        return CGRect(x:bounds.minX,y:bounds.midY-slider.height/2,width:bounds.width,height:slider.height)
+    }
+}
+
+// MARK: - Read aloud
+
+/// The toolbar's 「voiceover」 button on every settings page (Figma 457:15618 and the others): it reads the page
+/// from the top, one line after another, and turns into a stop button while it speaks.
+@MainActor final class PageReader: ObservableObject {
+    static let shared=PageReader()
+    @Published private(set) var reading=false
+    @Published private(set) var error: String?
+    private let speech=GuidanceSpeech()
+    private init() {
+        speech.onSpeaking={[weak self] on in self?.reading=on}
+        speech.onError={[weak self] message in self?.error=message}
+    }
+    func toggle(_ lines: [String]) {if reading {stop()} else {read(lines)}}
+    func read(_ lines: [String]) {
+        let cleaned=lines.map {$0.trimmingCharacters(in:.whitespacesAndNewlines)}.filter {!$0.isEmpty}
+        guard !cleaned.isEmpty else {return}
+        error=nil
+        speech.play(cleaned)
+    }
+    func stop() {speech.stop()}
+}
+
+struct ReadAloudButton: View {
+    let lines: () -> [String]
+    @ObservedObject private var reader=PageReader.shared
+    var body: some View {
+        Button {reader.toggle(lines())} label: {Image(systemName:reader.reading ? "stop.fill" : SettingsSymbols.readAloud)}
+            .accessibilityLabel(reader.reading ? "읽기 중지" : "화면 읽어주기").accessibilityIdentifier("settings.readAloud")
+    }
+}
+
+extension View {
+    /// Puts the read-aloud button in the navigation bar and stops reading when the page goes away.
+    /// `lines` runs when the button is tapped, so it can stop other playback first.
+    func readsAloud(_ lines: @escaping () -> [String]) -> some View {
+        toolbar {ToolbarItem(placement:.topBarTrailing) {ReadAloudButton(lines:lines)}}
+            .onDisappear {PageReader.shared.stop()}
+    }
 }
 
 /// What is connected, read from the current audio route. iOS gives apps the port type and its name
@@ -229,12 +278,10 @@ struct OutputDeviceHero: View {
             Group {
                 switch output.kind {
                 case .iPhone: device("DeviceIPhone",size:150)
-                case .airPodsMax: device("DeviceAirPodsMax",size:160)
+                // Any other headset is drawn as AirPods Max: the design has only the three pictures.
+                case .airPodsMax, .headphones: device("DeviceAirPodsMax",size:160)
                 case .airPods:
                     HStack(spacing:18) {device("DeviceAirPods",size:140);device("DeviceAirPodsCase",size:120)}
-                case .headphones:
-                    Image(systemName:"headphones").font(.system(size:96,weight:.light)).foregroundStyle(.white)
-                        .frame(width:150,height:150).modifier(TiltEffect(tilt:tilt,enabled:!reduceMotion))
                 }
             }.frame(height:162).scaleEffect(appeared ? 1 : 0.86).opacity(appeared ? 1 : 0)
             Text(output.name).font(.system(size:17,weight:.semibold)).foregroundStyle(.white).lineLimit(1)

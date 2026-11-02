@@ -31,6 +31,12 @@ struct SoundTestView: View {
         }
         .settingsScreen()
         .navigationTitle("안내 신호 익히기").navigationBarTitleDisplayMode(.inline)
+        .readsAloud {
+            var lines=["안내 신호 익히기","연결된 기기, \(output.name)","출력 기기, \(output.name)","음성 안내 리스트"]
+            lines.append(contentsOf:lessons.map {"\($0.title), \($0.subtitle)"})
+            lines.append("안내 신호 차례대로 익히기 버튼")
+            return lines
+        }
         .onAppear {output.refresh()}
     }
 }
@@ -45,7 +51,6 @@ struct SignalLessonView: View {
     @Environment(\.scenePhase) private var scenePhase
     @AccessibilityFocusState private var headingFocused: Bool
     private var lessons: [SoundTestSection] {SoundTestSection.allCases.filter {$0 != .preparation}}
-    private var explaining: Bool {model.activeID == "explanation-\(step.id)"}
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -73,13 +78,7 @@ struct SignalLessonView: View {
         }
         .settingsScreen()
         .navigationTitle(step == .preparation ? "음량 조절" : step.title).navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement:.topBarTrailing) {
-                Button {model.explain(step)} label: {
-                    Image(systemName:explaining ? "stop.fill" : SettingsSymbols.readAloud)
-                }.accessibilityLabel(explaining ? "설명 중지" : "설명 듣기").accessibilityIdentifier("tutorial.explanation")
-            }
-        }
+        .readsAloud {model.stop();return readAloudLines}
         .onAppear {
             model.appear()
             let model=model
@@ -144,7 +143,7 @@ struct SignalLessonView: View {
             ForEach(lessons) { item in
                 Circle().fill(item == step ? Color.white : Color.white.opacity(0.3)).frame(width:6,height:6)
             }
-        }.padding(.horizontal,12).frame(height:26).liquidGlass(Capsule(),tint:SettingsStyle.dimButton)
+        }.padding(.horizontal,12).frame(height:26).background(SettingsStyle.dimButton,in:Capsule())
             .accessibilityElement(children:.ignore)
             .accessibilityLabel("\(lessons.firstIndex(of:step).map {$0+1} ?? 1) / \(lessons.count) 단계")
     }
@@ -161,8 +160,9 @@ struct SignalLessonView: View {
             }.frame(maxWidth:.infinity).frame(height:226)
                 .background {
                     ZStack {
-                        Circle().fill(Color.white.opacity(0.22)).frame(width:191,height:191).blur(radius:60).offset(x:-185+95-77,y:-113+95+112)
-                        Circle().fill(Color.white.opacity(0.22)).frame(width:191,height:191).blur(radius:60).offset(x:-185+95+290,y:-113+95-116)
+                        // Figma Ellipse 31: 191pt white discs at 64%, blurred 75, one past each corner.
+                        Circle().fill(Color.white.opacity(0.64)).frame(width:191,height:191).blur(radius:75).offset(x:-185+95-77,y:-113+95+112)
+                        Circle().fill(Color.white.opacity(0.64)).frame(width:191,height:191).blur(radius:75).offset(x:-185+95+290,y:-113+95-116)
                     }
                 }
                 .background(Color.white.opacity(0.05),in:RoundedRectangle(cornerRadius:34,style:.continuous))
@@ -171,6 +171,21 @@ struct SignalLessonView: View {
         }.buttonStyle(.plain)
             .accessibilityLabel("정면 찾기 연습").accessibilityHint("방향 구별을 위해 몸을 돌려 연습해요")
             .accessibilityIdentifier("tutorial.front-practice")
+    }
+
+    /// The page from the top: title, heading, copy, the 정면 찾기 card, then every group and its sounds.
+    private var readAloudLines: [String] {
+        if step == .preparation {
+            return ["음량 조절","소리가 잘 들리시나요?","안내음성을 듣기 전 음량을 조절해주세요","출발음 음량 조절","넘어가기 버튼"]
+        }
+        var lines=[step.title,heading,step.explanation]
+        if step == .direction {lines+=["정면 찾기","방향 구별을 위해 연습을 해보아요"]}
+        for group in step.groups {
+            lines.append(group.title)
+            lines+=group.examples.map {"\($0.title), \($0.detail)"}
+        }
+        lines+=["이전으로 버튼",step.next == nil ? "목록으로 버튼" : "다음으로 버튼"]
+        return lines
     }
 
     private var heading: String {

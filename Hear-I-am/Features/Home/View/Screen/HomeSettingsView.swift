@@ -63,7 +63,18 @@ struct HomeSettingsView: View {
                 Button("취소",role:.cancel) {}
             } message: {Text("저장한 공연과 기록은 유지돼요.")}
             .toolbar(.visible,for:.navigationBar)
+            .readsAloud {readAloudLines}
             .onAppear {output.refresh()}
+    }
+    /// Everything on the page, top to bottom, for the read-aloud button.
+    private var readAloudLines: [String] {
+        var lines=["설정","안내 신호 익히기","조력자와 하나씩 들어보세요","바로가기 버튼",
+                   "소리","소리 출력, \(output.name)","방향 허용 각도, 플러스마이너스 \(selectedDeadbandDegrees)도",
+                   "사용 도움말","착용과 안내 준비","소리가 들리지 않을 때, 준비 중","음성으로 사용하기",
+                   "음성 인식","새 받아쓰기 엔진 시험, \(speechAnalyzer ? "켜짐" : "꺼짐")","iOS 26의 새 음성 인식을 써요. 다음에 음성 입력을 시작할 때부터 적용돼요.",
+                   "앱 관리","권한 상태","앱 정보, Hear I am \(version)"]
+        if changeRole != nil {lines.append("사용 역할, \(role.title)")}
+        return lines
     }
     private func section<Content: View>(_ title: String, @ViewBuilder _ content: () -> Content) -> some View {
         VStack(spacing:0) {
@@ -94,7 +105,7 @@ struct SettingsHeroCard: View {
                 NavigationLink {SoundTestView()} label: {
                     Text("바로가기").font(.system(size:17,weight:.semibold)).foregroundStyle(.white)
                         .frame(maxWidth:.infinity,minHeight:50)
-                        .liquidGlass(Capsule(),tint:Color.black.opacity(0.2),interactive:true)
+                        .background(Color.black.opacity(0.2),in:Capsule())
                         .contentShape(Capsule())
                 }.buttonStyle(.plain).padding(.top,28).accessibilityLabel("안내 신호 익히기 바로가기")
                     .accessibilityIdentifier("settings.tutorial")
@@ -179,6 +190,13 @@ struct DirectionDeadbandView: View {
                     Button("완료") { fieldFocused=false }
                 }
             }
+            .readsAloud {
+                ["방향 허용 각도","현재 적용 각도, 플러스마이너스 \(currentDegrees)도",
+                 "목표 방향에서 왼쪽·오른쪽으로 \(currentDegrees)도 이내로 향하고 있으면 방향 맞음으로 인정되어 방향 음성과 톡톡 소리가 나지 않아요.",
+                 "각도 직접 입력, \(minDegrees)도에서 \(maxDegrees)도까지",
+                 "기본값은 15도예요. 이동 중 왼쪽·오른쪽 피드백이 너무 자주 들리면 숫자를 높여 정면 인정 범위를 넓힐 수 있어요.",
+                 "빠른 선택"]+presets.map {(deg: Int) -> String in "플러스마이너스 \(deg)도"+(deg == currentDegrees ? ", 선택됨" : "")}
+            }
             .onAppear { degreesText="\(currentDegrees)" }
     }
 
@@ -236,6 +254,12 @@ struct SoundOutputView: View {
             }.padding(.horizontal,16).padding(.bottom,24)
         }.settingsScreen()
             .navigationTitle("소리 출력").navigationBarTitleDisplayMode(.inline)
+            .readsAloud {
+                model.stop()
+                return ["소리 출력","출력 기기, \(output.name)","재생 방식",
+                        "연결된 기기로 자동\(forcesSpeaker ? "" : ", 선택됨")","항상 iPhone 스피커\(forcesSpeaker ? ", 선택됨" : "")",
+                        "소리 확인","음량 조절","\(test.title), \(test.detail)"]
+            }
             .onAppear {model.appear();output.refresh()}.onDisappear {model.disappear()}
             .onChange(of:forcesSpeaker) {_,_ in model.outputPreferenceChanged();output.refresh()}
             .onChange(of:scenePhase) {_,phase in if phase != .active {model.stop()} else {output.refresh()} }
