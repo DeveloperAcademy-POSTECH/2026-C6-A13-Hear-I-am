@@ -11,6 +11,7 @@ struct PreparationView: View {
     /// Black until the window has turned to landscape; black again while it turns back (see `ScanTransition`).
     @State private var veiled=true
     @State private var closing=false
+    @State private var showingSettings=false
     init(library: StageLibrary, initialPlan: PerformancePlan? = nil, onSaved: ((UUID) -> Void)? = nil) {
         self.library=library
         self.onSaved=onSaved
@@ -23,9 +24,12 @@ struct PreparationView: View {
             CameraView(model:model.session).frame(maxWidth:.infinity,maxHeight:.infinity)
             if !model.supported {Color(white:0.12)}
             if model.supported {
-                Image(systemName:"plus").font(.system(size:34,weight:.light))
-                    .foregroundStyle(!model.aimBlocked ? Color.black : .red).shadow(color:.white.opacity(0.8),radius:1.5)
-                    .accessibilityHidden(true)
+                // From 무대 범위 on, where points are placed at the crosshair; 스캔하기 places none.
+                if model.step >= .boundary {
+                    Image(systemName:"plus").font(.system(size:34,weight:.light))
+                        .foregroundStyle(!model.aimBlocked ? Color.black : .red).shadow(color:.white.opacity(0.8),radius:1.5)
+                        .accessibilityHidden(true)
+                }
                 // Figma 452:11120: everything floats on the camera; the plan sits on the right edge.
                 VStack(spacing:0) {
                     PreparationStepBar(model:model) {if model.exitNeedsConfirmation {model.confirmingExit=true} else {close()}}
@@ -43,10 +47,17 @@ struct PreparationView: View {
                 if model.step != .scan {
                     HStack {
                         Spacer()
-                        PreparationGuideCard(model:model,maxHeight:max(160,safe.size.height-150))
+                        PreparationGuideCard(model:model,maxHeight:max(160,safe.size.height-150),edgeGap:insets.trailing+8)
                     }.padding(.trailing,insets.trailing+8).padding(.top,70).padding(.bottom,80)
                 }
             }
+            // Nothing behind the opening coaching can be pressed until its card shows.
+            if model.openingCoaching {
+                Color.black.opacity(0.001).contentShape(Rectangle()).onTapGesture {}
+                    .accessibilityHidden(true)
+            }
+            dangerZoneCard(insets:insets)
+            morePanel(insets:insets)
             if let intro=model.intro, model.supported {
                 Color.black.opacity(0.25)
                 PreparationIntro(step:model.step.rawValue,page:intro) {model.intro=$0}.padding(16)
@@ -84,11 +95,12 @@ struct PreparationView: View {
                     .padding(32).scanCard()
             }
         }.frame(width:safe.size.width+insets.leading+insets.trailing,height:safe.size.height+insets.top+insets.bottom)
+            .animation(.smooth(duration:0.35),value:model.editingDangerZones)
             .ignoresSafeArea()
         }.background(.black).preferredColorScheme(.light)
             .overlay {ScanVeil(on:veiled)}
+            .sheet(isPresented:$showingSettings) {NavigationStack {HomeSettingsView(role:.helper)}}
             .sheet(isPresented:$model.showingPhotos) {PreparationPhotosSheet(model:model)}
-            .sheet(isPresented:$model.editingDangerZones) { PreparationDangerZoneSheet(model:model) }
             .onAppear {
                 ScreenOrientation.set(.landscape); model.appear()
                 Task { @MainActor in
@@ -113,6 +125,29 @@ struct PreparationView: View {
             }
     }
     /// Fade to black, turn the window back to portrait unseen, then drop the cover without the slide-down.
+    /// The ⋯ panel opens under its button, top right; a tap anywhere else closes it (452:12878).
+    @ViewBuilder private func morePanel(insets: EdgeInsets) -> some View {
+        if model.showingMore {
+            Color.black.opacity(0.001)
+                .onTapGesture {withAnimation(.snappy(duration:0.3)) {model.showingMore=false}}
+            PreparationMorePanel(model:model) {showingSettings=true}
+                .padding(.top,insets.top+14+44+8).padding(.trailing,insets.trailing+16)
+                .frame(maxWidth:.infinity,maxHeight:.infinity,alignment:.topTrailing)
+                .transition(.scale(scale:0.85,anchor:.topTrailing).combined(with:.opacity))
+                .zIndex(2)
+        }
+    }
+    /// 위험 구역 rises from the bottom as a card, the camera still showing above it (452:12705).
+    @ViewBuilder private func dangerZoneCard(insets: EdgeInsets) -> some View {
+        if model.editingDangerZones {
+            Color.black.opacity(0.25).transition(.opacity)
+                .onTapGesture {model.editingDangerZones=false}
+            PreparationDangerZoneSheet(model:model,leading:insets.leading,trailing:insets.trailing) {model.editingDangerZones=false}
+                .padding(.top,insets.top+30)
+                .transition(.move(edge:.bottom))
+                .zIndex(1)
+        }
+    }
     private func close() {
         guard !closing else {return}
         closing=true

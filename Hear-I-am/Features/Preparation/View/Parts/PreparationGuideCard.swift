@@ -7,36 +7,39 @@ import HearIAmCore
 struct PreparationGuideCard: View {
     @ObservedObject var model: PreparationViewModel
     let maxHeight: CGFloat
+    /// The space between the panel and the screen edge; folded, the panel slides past it.
+    var edgeGap: CGFloat = 8
     @State private var selectedObject: UUID?
     @State private var selectedCheckpoint=0
     var body: some View {
         // Figma 452:12618: a 289pt glass panel (radius 34, black 20%) with the 4×34 handle on its left edge.
+        // Folded, the whole panel slides to the right edge and only its handle strip stays in view (452:11435);
+        // unfolded it comes back as one piece, glass and contents together (452:11526).
         HStack(spacing:0) {
-            Button {withAnimation(.snappy) {model.guideCollapsed.toggle()}} label: {
+            Button {withAnimation(.snappy(duration:0.35)) {model.guideCollapsed.toggle()}} label: {
                 Capsule().fill(.white).frame(width:4,height:34).frame(width:22,height:64).contentShape(Rectangle())
             }.buttonStyle(.plain).accessibilityLabel(model.guideCollapsed ? "평면도 펼치기" : "평면도 접기")
-            if !model.guideCollapsed {
-                VStack(spacing:10) {
-                    header
-                    ScrollView {
-                        VStack(alignment:.leading,spacing:10) {
-                            if model.step == .objects && model.objectEditing {objectForm}
-                            else {
-                                PreparationMiniMap(model:model,selectedObject:model.step == .objects ? currentObject : nil,
-                                                   selectedPoint:model.step == .route ? currentRoutePoint : nil).frame(height:118)
-                            }
-                            notes
+            VStack(spacing:10) {
+                header
+                ScrollView {
+                    VStack(alignment:.leading,spacing:10) {
+                        if model.step == .objects && model.objectEditing {objectForm}
+                        else {
+                            PreparationMiniMap(model:model,selectedObject:model.step == .objects ? currentObject : nil,
+                                               selectedPoint:model.step == .route ? currentRoutePoint : nil).frame(height:118)
                         }
-                    }.frame(maxHeight:max(80,maxHeight-110))
-                    footer
-                }.padding(.leading,6).padding(.trailing,22).padding(.vertical,19)
-            }
-        }.frame(width:model.guideCollapsed ? nil : 289)
+                        notes
+                    }
+                }.frame(maxHeight:max(80,maxHeight-110))
+                footer
+            }.padding(.leading,6).padding(.trailing,22).padding(.vertical,19)
+                .allowsHitTesting(!model.guideCollapsed)
+                .accessibilityHidden(model.guideCollapsed)
+        }.frame(width:289)
             .background {
-                if !model.guideCollapsed {
-                    Color.clear.liquidGlass(RoundedRectangle(cornerRadius:34,style:.continuous),tint:ScanChrome.panelTint)
-                }
+                Color.clear.liquidGlass(RoundedRectangle(cornerRadius:34,style:.continuous),tint:ScanChrome.panelTint)
             }
+            .offset(x:model.guideCollapsed ? 289-24+edgeGap : 0)
             .environment(\.colorScheme,.dark)
     }
 
