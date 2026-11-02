@@ -17,12 +17,14 @@ struct HearRootView: View {
 
     var body: some View {
         Group {
-            if showsLaunch {HearLaunchView()}
-            else if let role {
+            if let role {
                 if role == .performer {
                     HomeView(library:library,wake:wake,start:{open(VoiceGuidanceLaunch())},changeRole:chooseRole,isPresented:guidance == nil)
                 } else {helperTabs}
-            } else {RoleSelectionView {role=$0;tab=0;openSiriRequest();syncWake()}}
+            } else {
+                // The role page plays the launch logo itself the first time (see RoleSelectionView.runLaunch).
+                RoleSelectionView(animatesLaunch:showsLaunch) {role=$0;tab=0;openSiriRequest();syncWake()}
+            }
         }
         // Black over tabs and bars while the scan screen comes and goes (see ScanTransition).
         .overlay {ScanVeil(on:scanTransition.veiled)}
@@ -52,8 +54,8 @@ struct HearRootView: View {
         }
         .task {
             guard showsLaunch else {return}
-            // Long enough for the launch logo to draw itself in once (it never loops).
-            try? await Task.sleep(for:.seconds(HearLaunchView.duration))
+            // Long enough for the launch logo's loop, second draw-in and rise (it never repeats after that).
+            try? await Task.sleep(for:.seconds(RoleSelectionView.launchDuration))
             guard !Task.isCancelled else {return}
             showsLaunch=false
         }
