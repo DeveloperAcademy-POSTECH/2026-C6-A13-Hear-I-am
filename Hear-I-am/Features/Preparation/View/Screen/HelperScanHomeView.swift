@@ -45,11 +45,12 @@ struct HelperScanHomeView:View {
                 }.padding(20)
             }.v3Screen().navigationTitle("스캔").navigationBarTitleDisplayMode(.inline)
                 .toolbar {ToolbarItem(placement:.topBarTrailing) {Button {settings=true} label:{Image(systemName:"gearshape")}.accessibilityLabel("설정")}}
+                // The destination must sit inside the stack; outside it the button does nothing.
+                .navigationDestination(isPresented:$settings) {
+                    HomeSettingsView(role:.helper,changeRole:changeRole).suspendsVoiceWake()
+                }
         }.v3Screen()
-            .navigationDestination(isPresented:$settings) {
-                HomeSettingsView(role:.helper,changeRole:changeRole).suspendsVoiceWake()
-            }
-            .fullScreenCover(isPresented:$scanning,onDismiss:finishScan) {
+            .scanCover(isPresented:$scanning,onDismiss:finishScan) {
                 PreparationView(library:library,onSaved:{id in savedID=id}).suspendsVoiceWake()
             }
             .sheet(item:$classification,onDismiss:{
