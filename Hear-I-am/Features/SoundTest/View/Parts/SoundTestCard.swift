@@ -76,7 +76,7 @@ struct SettingsRowLabel: View {
     }
 }
 
-/// The 50pt capsule label: white with dark text, or 10% white with white text (Figma 457:13722 · 13724).
+/// The 50pt capsule label: white with dark text, or Liquid Glass tinted 10% white so the page shows through it.
 struct SettingsCapsuleLabel: View {
     let title: String
     var primary=true
@@ -90,7 +90,8 @@ struct SettingsCapsuleLabel: View {
     private struct CapsuleFill: ViewModifier {
         let primary: Bool
         func body(content: Content) -> some View {
-            content.background(primary ? Color.white : SettingsStyle.dimButton,in:Capsule())
+            if primary {content.background(Color.white,in:Capsule())}
+            else {content.liquidGlass(Capsule(),tint:SettingsStyle.dimButton)}
         }
     }
 }
@@ -105,11 +106,13 @@ struct SettingsCapsuleButton: View {
 }
 
 extension View {
-    /// Bottom buttons over the design's fade (clear → #00070A, about 150pt), 16pt from the sides.
+    /// Bottom buttons over the design's fade (clear → #00070A, about 150pt), 16pt from the sides. Rows scrolling
+    /// underneath stay visible through the fade and the glass button.
     func settingsBottomBar<Bar: View>(inset: CGFloat=16, @ViewBuilder _ bar: () -> Bar) -> some View {
         safeAreaInset(edge:.bottom,spacing:0) {
+            let fade=Color(red:0,green:7/255,blue:10/255)
             bar().padding(.horizontal,inset).padding(.top,44).padding(.bottom,10)
-                .background(LinearGradient(colors:[Color(red:0,green:7/255,blue:10/255).opacity(0),Color(red:0,green:7/255,blue:10/255)],startPoint:.top,endPoint:.bottom).ignoresSafeArea())
+                .background(LinearGradient(colors:[fade.opacity(0),fade],startPoint:.top,endPoint:.bottom).ignoresSafeArea())
         }
     }
     func settingsScreen() -> some View {
@@ -235,6 +238,7 @@ struct ReadAloudButton: View {
     @ObservedObject private var reader=PageReader.shared
     var body: some View {
         Button {reader.toggle(lines())} label: {Image(systemName:reader.reading ? "stop.fill" : SettingsSymbols.readAloud)}
+            .animation(nil,value:reader.reading)
             .accessibilityLabel(reader.reading ? "읽기 중지" : "화면 읽어주기").accessibilityIdentifier("settings.readAloud")
     }
 }
@@ -243,7 +247,7 @@ extension View {
     /// Puts the read-aloud button in the navigation bar and stops reading when the page goes away.
     /// `lines` runs when the button is tapped, so it can stop other playback first.
     func readsAloud(_ lines: @escaping () -> [String]) -> some View {
-        toolbar {ToolbarItem(placement:.topBarTrailing) {ReadAloudButton(lines:lines)}}
+        toolbar {ToolbarItem(id:"settings.readAloud",placement:.topBarTrailing) {ReadAloudButton(lines:lines)}}
             .onDisappear {PageReader.shared.stop()}
     }
 }
@@ -255,12 +259,13 @@ enum OutputDeviceKind: Equatable {
 
     init(port: AVAudioSessionPortDescription?) {
         guard let port else {self = .iPhone; return}
+        let name=port.portName.lowercased().replacingOccurrences(of:" ",with:"")
+        let bluetooth=[.bluetoothA2DP,.bluetoothHFP,.bluetoothLE].contains(port.portType)
         switch port.portType {
         case .builtInSpeaker, .builtInReceiver: self = .iPhone
         default:
-            let name=port.portName.lowercased()
-            if name.contains("airpods max") || name.contains("airpodsmax") {self = .airPodsMax}
-            else if name.contains("airpods") {self = .airPods}
+            if name.contains("max") || name.contains("맥스") {self = .airPodsMax}
+            else if name.contains("pods") || name.contains("에어팟") || name.contains("pro") || bluetooth {self = .airPods}
             else {self = .headphones}
         }
     }
@@ -278,7 +283,7 @@ struct OutputDeviceHero: View {
             Group {
                 switch output.kind {
                 case .iPhone: device("DeviceIPhone",size:150)
-                // Any other headset is drawn as AirPods Max: the design has only the three pictures.
+                // Wired headsets are drawn as AirPods Max: the design has only the three pictures.
                 case .airPodsMax, .headphones: device("DeviceAirPodsMax",size:160)
                 case .airPods:
                     HStack(spacing:18) {device("DeviceAirPods",size:140);device("DeviceAirPodsCase",size:120)}

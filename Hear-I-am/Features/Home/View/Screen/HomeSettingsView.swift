@@ -96,7 +96,7 @@ struct SettingsHeroCard: View {
                     Rectangle().colorEffect(ShaderLibrary.settingsHero(.float2(geometry.size),.float(seconds)))
                 }
             }
-            // 58pt symbol, 26pt title, 16pt copy, then a 50pt glass capsule 14pt from the card's sides.
+            // 58pt symbol, 26pt title, 16pt copy, then a 50pt capsule in plain Liquid Glass 14pt from the card's sides.
             VStack(spacing:0) {
                 Image(systemName:"waveform").font(.system(size:44,weight:.regular)).foregroundStyle(.white)
                     .frame(width:58,height:58).accessibilityHidden(true)
@@ -105,7 +105,7 @@ struct SettingsHeroCard: View {
                 NavigationLink {SoundTestView()} label: {
                     Text("바로가기").font(.system(size:17,weight:.semibold)).foregroundStyle(.white)
                         .frame(maxWidth:.infinity,minHeight:50)
-                        .background(Color.black.opacity(0.2),in:Capsule())
+                        .liquidGlass(Capsule())
                         .contentShape(Capsule())
                 }.buttonStyle(.plain).padding(.top,28).accessibilityLabel("안내 신호 익히기 바로가기")
                     .accessibilityIdentifier("settings.tutorial")
@@ -240,6 +240,7 @@ struct SoundOutputView: View {
     var body: some View {
         ScrollView {
             VStack(spacing:0) {
+                OutputDeviceHero(output:output)
                 OutputDeviceRow(output:output).padding(.top,8).padding(.bottom,16)
                 SettingsSectionHeader(title:"재생 방식")
                 SettingsGroup {
