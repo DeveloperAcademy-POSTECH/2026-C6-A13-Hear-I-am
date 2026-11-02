@@ -7,6 +7,7 @@ struct HearRootView: View {
     @StateObject private var wake=VoiceWakeListener()
     @ObservedObject private var launch=VoiceLaunch.shared
     @ObservedObject private var gate=VoiceWakeGate.shared
+    @ObservedObject private var scanTransition=ScanTransition.shared
     @State private var showsLaunch=true
     @State private var role:HearRole?
     @State private var tab=0
@@ -23,6 +24,8 @@ struct HearRootView: View {
                 } else {helperTabs}
             } else {RoleSelectionView {role=$0;tab=0;openSiriRequest();syncWake()}}
         }
+        // Black over tabs and bars while the scan screen comes and goes (see ScanTransition).
+        .overlay {ScanVeil(on:scanTransition.veiled)}
         .fullScreenCover(item:$guidance,onDismiss:{openSiriRequest();syncWake()}) {request in
             GuidanceView(library:library,voiceExperiment:true,request:request.request,
                          stageID:request.stageID,mode:request.mode,helperPreparation:request.helperPreparation,
@@ -49,7 +52,8 @@ struct HearRootView: View {
         }
         .task {
             guard showsLaunch else {return}
-            try? await Task.sleep(for:.milliseconds(850))
+            // Long enough for the launch logo to draw itself in once (it never loops).
+            try? await Task.sleep(for:.seconds(HearLaunchView.duration))
             guard !Task.isCancelled else {return}
             showsLaunch=false
         }

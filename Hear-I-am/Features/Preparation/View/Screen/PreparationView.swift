@@ -8,6 +8,9 @@ struct PreparationView: View {
     private let onSaved: ((UUID) -> Void)?
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
+    /// Black until the window has turned to landscape; black again while it turns back (see `ScanTransition`).
+    @State private var veiled=true
+    @State private var closing=false
     init(library: StageLibrary, initialPlan: PerformancePlan? = nil, onSaved: ((UUID) -> Void)? = nil) {
         self.library=library
         self.onSaved=onSaved
@@ -25,7 +28,7 @@ struct PreparationView: View {
                     .accessibilityHidden(true)
                 // Figma 452:11120: everything floats on the camera; the plan sits on the right edge.
                 VStack(spacing:0) {
-                    PreparationStepBar(model:model) {if model.exitNeedsConfirmation {model.confirmingExit=true} else {dismiss()}}
+                    PreparationStepBar(model:model) {if model.exitNeedsConfirmation {model.confirmingExit=true} else {close()}}
                     Spacer(minLength:8)
                     ZStack(alignment:.bottom) {
                         PreparationToolGroup(model:model,hasPlans:!library.plans.isEmpty)
@@ -51,7 +54,7 @@ struct PreparationView: View {
             if !model.supported {
                 VStack(spacing:16) {
                     ContentUnavailableView("LiDAR 지원 iPhone이 필요해요",systemImage:"camera",description:Text("무대 준비는 실제 카메라와 LiDAR로 공간을 저장합니다. 시뮬레이터에서는 스캔할 수 없어요."))
-                    ScanCardButton(title:"나가기",primary:false) {dismiss()}.frame(width:160)
+                    ScanCardButton(title:"나가기",primary:false) {close()}.frame(width:160)
                 }.padding(28).frame(maxWidth:500).scanCard()
             }
             if model.interrupted {
@@ -73,15 +76,22 @@ struct PreparationView: View {
         }.frame(width:safe.size.width+insets.leading+insets.trailing,height:safe.size.height+insets.top+insets.bottom)
             .ignoresSafeArea()
         }.background(.black).preferredColorScheme(.light)
+            .overlay {ScanVeil(on:veiled)}
             .sheet(isPresented:$model.showingPhotos) {PreparationPhotosSheet(model:model)}
             .sheet(isPresented:$model.editingDangerZones) { PreparationDangerZoneSheet(model:model) }
-            .onAppear {ScreenOrientation.set(.landscape); model.appear()}
+            .onAppear {
+                ScreenOrientation.set(.landscape); model.appear()
+                Task { @MainActor in
+                    try? await Task.sleep(for:.seconds(ScanTransition.rotation))
+                    withAnimation(.easeOut(duration:ScanTransition.fade)) {veiled=false}
+                }
+            }
             .onDisappear {model.disappear(); ScreenOrientation.set(.portrait)}
             .onChange(of:scenePhase) {_,phase in model.scenePhaseChanged(phase)}
             .onChange(of:model.savedID) {_,id in
                 guard let id else {return}
                 onSaved?(id)
-                dismiss()
+                close()
             }
             .alert("공간 스캔을 확정할까요?",isPresented:$model.confirmingScan) {
                 Button("계속 스캔",role:.cancel) {}
@@ -93,7 +103,20 @@ struct PreparationView: View {
             } message:{Text(model.routeHeightMessage)}
             .alert("확인해주세요",isPresented:Binding(get:{model.errorMessage != nil},set:{if !$0 {model.errorMessage=nil}})) {Button("확인",role:.cancel) {model.errorMessage=nil}} message:{Text(model.errorMessage ?? "")}
             .confirmationDialog("준비를 종료할까요? 저장하지 않은 내용은 사라집니다.",isPresented:$model.confirmingExit,titleVisibility:.visible) {
-                Button("저장하지 않고 나가기",role:.destructive) {dismiss()}; Button("계속 준비",role:.cancel) {}
+                Button("저장하지 않고 나가기",role:.destructive) {close()}; Button("계속 준비",role:.cancel) {}
             }
+    }
+    /// Fade to black, turn the window back to portrait unseen, then drop the cover without the slide-down.
+    private func close() {
+        guard !closing else {return}
+        closing=true
+        withAnimation(.easeIn(duration:ScanTransition.fade)) {veiled=true}
+        Task { @MainActor in
+            try? await Task.sleep(for:.seconds(ScanTransition.fade))
+            ScreenOrientation.set(.portrait)
+            try? await Task.sleep(for:.seconds(ScanTransition.rotation))
+            var transaction=Transaction();transaction.disablesAnimations=true
+            withTransaction(transaction) {dismiss()}
+        }
     }
 }
