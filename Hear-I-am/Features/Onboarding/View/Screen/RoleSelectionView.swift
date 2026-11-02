@@ -12,41 +12,60 @@ enum HearRole: String, CaseIterable, Identifiable {
 }
 
 /// Figma 「Stroke Logo · OPPOSITE PAIRS」 (457:16071): eight rays around an empty centre, in the design's
-/// 153-unit box. `time` is seconds into the design's draw-in; each segment grows outward during its own slice.
+/// 153-unit box. `time` is seconds into the design's 4 s loop: each segment grows outward during its draw-in
+/// slice, holds, then shrinks back during its draw-out slice. Past the first loop the segments draw in once
+/// more and stay. The stroke is part of the path so its width animates with the logo's size.
 struct StrokeLogoShape: Shape {
     var time: Double
-    var animatableData: Double {get {time} set {time=newValue}}
+    var lineWidth: CGFloat
+    var animatableData: AnimatablePair<Double,CGFloat> {
+        get {AnimatablePair(time,lineWidth)}
+        set {time=newValue.first; lineWidth=newValue.second}
+    }
 
-    /// The draw-in takes 1.78 s in the design (the 4 s loop's first half); the loop and the draw-out are not used.
-    static let duration: Double = 1.8
+    static let loop: Double = 4
+    /// The draw-in ends at 1.784 s; the logo is whole from there until the draw-out begins at 2.125 s.
+    static let drawIn: Double = 1.8
+    /// The launch plays the draw-in once and stops there (the draw-out and the second draw-in were too long).
+    static let settled: Double = drawIn
     static let unit: CGFloat = 153.054
     static let lineWidth: CGFloat = 7.358/unit
 
-    struct Segment {let ray:Int;let inner:CGFloat;let outer:CGFloat;let start:Double;let end:Double}
-    /// Ray 0 points up and the index turns clockwise by 45°. Radii and timings come from the Figma keyframes.
+    struct Segment {let ray:Int;let inner:CGFloat;let outer:CGFloat;let inStart:Double;let inEnd:Double;let outStart:Double;let outEnd:Double}
+    /// Ray 0 points up and the index turns clockwise by 45°. Radii and timings come from the Figma keyframes
+    /// (percentages of the 4 s loop).
     static let segments: [Segment] = [
-        .init(ray:0,inner:24.2,outer:74.1,start:0.16,end:0.593),
-        .init(ray:4,inner:24.2,outer:74.1,start:0.16,end:0.593),
-        .init(ray:2,inner:24.2,outer:74.1,start:0.72,end:1.153),
-        .init(ray:6,inner:24.2,outer:74.1,start:0.72,end:1.153),
-        .init(ray:1,inner:24.2,outer:48.2,start:0.44,end:0.815),
-        .init(ray:5,inner:24.2,outer:48.2,start:0.44,end:0.815),
-        .init(ray:1,inner:53.2,outer:61.5,start:0.815,end:1.165),
-        .init(ray:5,inner:53.2,outer:61.5,start:0.815,end:1.165),
-        .init(ray:1,inner:66.5,outer:89.5,start:1.165,end:1.538),
-        .init(ray:5,inner:66.5,outer:89.5,start:1.165,end:1.538),
-        .init(ray:7,inner:24.2,outer:36.5,start:1.0,end:1.359),
-        .init(ray:3,inner:24.2,outer:36.5,start:1.0,end:1.359),
-        .init(ray:7,inner:43.6,outer:90.0,start:1.359,end:1.784),
-        .init(ray:3,inner:43.6,outer:90.0,start:1.359,end:1.784),
+        .init(ray:0,inner:24.2,outer:74.1,inStart:0.160,inEnd:0.593,outStart:3.316,outEnd:3.749),
+        .init(ray:4,inner:24.2,outer:74.1,inStart:0.160,inEnd:0.593,outStart:3.316,outEnd:3.749),
+        .init(ray:2,inner:24.2,outer:74.1,inStart:0.720,inEnd:1.153,outStart:2.756,outEnd:3.189),
+        .init(ray:6,inner:24.2,outer:74.1,inStart:0.720,inEnd:1.153,outStart:2.756,outEnd:3.189),
+        .init(ray:1,inner:24.2,outer:48.2,inStart:0.440,inEnd:0.815,outStart:3.094,outEnd:3.469),
+        .init(ray:5,inner:24.2,outer:48.2,inStart:0.440,inEnd:0.815,outStart:3.094,outEnd:3.469),
+        .init(ray:1,inner:53.2,outer:61.5,inStart:0.815,inEnd:1.165,outStart:2.744,outEnd:3.094),
+        .init(ray:5,inner:53.2,outer:61.5,inStart:0.815,inEnd:1.165,outStart:2.744,outEnd:3.094),
+        .init(ray:1,inner:66.5,outer:89.5,inStart:1.165,inEnd:1.538,outStart:2.371,outEnd:2.744),
+        .init(ray:5,inner:66.5,outer:89.5,inStart:1.165,inEnd:1.538,outStart:2.371,outEnd:2.744),
+        .init(ray:7,inner:24.2,outer:36.5,inStart:1.000,inEnd:1.359,outStart:2.550,outEnd:2.909),
+        .init(ray:3,inner:24.2,outer:36.5,inStart:1.000,inEnd:1.357,outStart:2.552,outEnd:2.909),
+        .init(ray:7,inner:43.6,outer:90.0,inStart:1.359,inEnd:1.784,outStart:2.125,outEnd:2.550),
+        .init(ray:3,inner:43.6,outer:90.0,inStart:1.359,inEnd:1.788,outStart:2.121,outEnd:2.550),
     ]
+
+    /// How much of the segment shows at `time`, from its inner end.
+    static func fraction(_ s: Segment, at time: Double) -> Double {
+        let t = time < loop ? time : time-loop
+        let grown=max(0,min(1,(t-s.inStart)/(s.inEnd-s.inStart)))
+        guard time < loop else {return grown}
+        let shrunk=max(0,min(1,(t-s.outStart)/(s.outEnd-s.outStart)))
+        return grown*(1-shrunk)
+    }
 
     func path(in rect: CGRect) -> Path {
         var path=Path()
         let scale=min(rect.width,rect.height)/Self.unit
         let center=CGPoint(x:rect.midX,y:rect.midY)
         for segment in Self.segments {
-            let fraction=max(0,min(1,(time-segment.start)/(segment.end-segment.start)))
+            let fraction=Self.fraction(segment,at:time)
             guard fraction > 0 else {continue}
             let angle = -CGFloat.pi/2 + CGFloat(segment.ray) * .pi/4
             let direction=CGPoint(x:cos(angle),y:sin(angle))
@@ -55,16 +74,15 @@ struct StrokeLogoShape: Shape {
             path.move(to:CGPoint(x:center.x+direction.x*from,y:center.y+direction.y*from))
             path.addLine(to:CGPoint(x:center.x+direction.x*to,y:center.y+direction.y*to))
         }
-        return path
+        return path.strokedPath(StrokeStyle(lineWidth:lineWidth,lineCap:.butt))
     }
 }
 
 struct HearStrokeLogo: View {
     var size: CGFloat
-    var time: Double = StrokeLogoShape.duration
+    var time: Double = StrokeLogoShape.settled
     var body: some View {
-        StrokeLogoShape(time:time)
-            .stroke(.white,style:StrokeStyle(lineWidth:size*StrokeLogoShape.lineWidth,lineCap:.butt))
+        StrokeLogoShape(time:time,lineWidth:size*StrokeLogoShape.lineWidth).fill(.white)
             .frame(width:size,height:size).accessibilityHidden(true)
     }
 }
@@ -78,28 +96,10 @@ enum LandingStyle {
     static let cardHeight: CGFloat = 259
     /// The design renders the photos at 80%, but the exported JPEGs come out lighter than the Figma render; 65% matches it.
     static let photoOpacity: Double = 0.65
-}
-
-/// Launch screen (Figma 457:16069): the logo draws itself in once, then 「Hear I am」 sits under it.
-/// Shown only while the app starts, so the motion never repeats or loops.
-struct HearLaunchView: View {
-    /// Draw-in plus a short hold before the role page takes over.
-    static let duration: Double = StrokeLogoShape.duration + 0.6
-    @State private var time: Double = 0
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    var body: some View {
-        VStack(spacing:36) {
-            HearStrokeLogo(size:153,time:time)
-            Text("Hear I am").font(.system(size:40,weight:.ultraLight)).foregroundStyle(.white)
-        }.offset(y:-43)
-            .frame(maxWidth:.infinity,maxHeight:.infinity).background(LandingStyle.canvas).ignoresSafeArea()
-            .preferredColorScheme(.dark)
-            .accessibilityElement(children:.combine).accessibilityLabel("Hear I am").accessibilityIdentifier("launch.brand")
-            .onAppear {
-                if reduceMotion {time=StrokeLogoShape.duration}
-                else {withAnimation(.linear(duration:StrokeLogoShape.duration)) {time=StrokeLogoShape.duration}}
-            }
-    }
+    /// The design's logo sizes in its 402pt-wide frame; the page scales them with its width.
+    static let launchLogo: CGFloat = 153
+    static let pageLogo: CGFloat = 96.5
+    static let designWidth: CGFloat = 402
 }
 
 /// The soft white glow above the role page (Figma Ellipse 31: 311×264 blurred ellipse, top at −171).
@@ -110,18 +110,42 @@ private struct LandingGlow: View {
     }
 }
 
-/// Role page (Figma 476:3167 · 3204 · 3583). The logo is already drawn here; only the launch screen animates it.
+/// Launch and role page in one (Figma 457:16069 → 476:3167 · 3204 · 3583). At launch the logo sits in the
+/// centre of the screen over 「Hear I am」 and draws itself in once, then rises into its place at the top of
+/// the role page while the page fades in. Opening this page later (changing the role) skips all of that.
 struct RoleSelectionView: View {
     let select:(HearRole)->Void
+    var animatesLaunch=false
     @State private var selected:HearRole?
     @State private var showingSettings=false
+    @State private var launching: Bool
+    @State private var time: Double
+    @Namespace private var logoSpace
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// Draw in, hold, then the rise. The root waits this long before voice features start.
+    static let hold: Double = 0.4
+    static let rise: Double = 0.8
+    static let launchDuration: Double = StrokeLogoShape.settled+hold+rise
+
+    init(animatesLaunch: Bool = false, select: @escaping (HearRole)->Void) {
+        self.select=select
+        self.animatesLaunch=animatesLaunch
+        _launching=State(initialValue:animatesLaunch)
+        _time=State(initialValue:animatesLaunch ? 0 : StrokeLogoShape.settled)
+    }
+
     var body: some View {
         NavigationStack {
+            GeometryReader { geometry in
+            let unit=geometry.size.width/LandingStyle.designWidth
+            let launchLogo=LandingStyle.launchLogo*unit, pageLogo=LandingStyle.pageLogo*unit
             ZStack(alignment:.top) {
                 LandingStyle.canvas.ignoresSafeArea()
-                LandingGlow().ignoresSafeArea()
+                LandingGlow().ignoresSafeArea().opacity(launching ? 0 : 1)
                 VStack(spacing:0) {
-                    HearStrokeLogo(size:96.5).padding(.top,107)
+                    Color.clear.frame(width:pageLogo,height:pageLogo).padding(.top,107)
+                        .matchedGeometryEffect(id:"logo",in:logoSpace,isSource:!launching)
                     VStack(spacing:4) {
                         Text("사용자를 선택해주세요").font(.system(size:28,weight:.bold)).tracking(-0.84).foregroundStyle(.white)
                             .accessibilityAddTraits(.isHeader)
@@ -137,10 +161,29 @@ struct RoleSelectionView: View {
                         }
                     }.padding(.horizontal,20).padding(.top,58)
                     Spacer(minLength:16)
-                }
+                }.opacity(launching ? 0 : 1)
                 Button {showingSettings=true} label: {ScanCircleLabel(systemImage:"gearshape")}
                     .buttonStyle(.plain).frame(maxWidth:.infinity,alignment:.trailing).padding(.trailing,18).padding(.top,14)
                     .accessibilityLabel("설정").accessibilityIdentifier("role.settings")
+                    .opacity(launching ? 0 : 1)
+                // Launch layout (457:16069): the logo's slot dead centre, the wordmark 36pt under it.
+                Color.clear.frame(width:launchLogo,height:launchLogo)
+                    .matchedGeometryEffect(id:"logo",in:logoSpace,isSource:launching)
+                    .overlay(alignment:.top) {
+                        Text("Hear I am").font(.system(size:40,weight:.ultraLight)).foregroundStyle(.white).fixedSize()
+                            .padding(.top,launchLogo+36)
+                    }
+                    .frame(maxWidth:.infinity,maxHeight:.infinity)
+                    .opacity(launching ? 1 : 0).allowsHitTesting(false)
+                    .accessibilityElement(children:.combine).accessibilityLabel("Hear I am").accessibilityIdentifier("launch.brand")
+                    .accessibilityHidden(!launching)
+                // The one logo, following whichever slot is the source.
+                StrokeLogoShape(time:time,lineWidth:(launching ? launchLogo : pageLogo)*StrokeLogoShape.lineWidth)
+                    .fill(.white)
+                    .frame(width:launchLogo,height:launchLogo)
+                    .matchedGeometryEffect(id:"logo",in:logoSpace,isSource:false)
+                    .allowsHitTesting(false).accessibilityHidden(true)
+            }.frame(width:geometry.size.width,height:geometry.size.height)
             }
             .safeAreaInset(edge:.bottom,spacing:0) {
                 Button {if let selected {select(selected)}} label: {
@@ -148,15 +191,26 @@ struct RoleSelectionView: View {
                         .foregroundStyle(selected == nil ? LandingStyle.dimButtonText : LandingStyle.canvas)
                         .frame(maxWidth:.infinity).frame(height:50)
                         .background(selected == nil ? LandingStyle.dimButton : Color.white,in:Capsule())
-                }.buttonStyle(.plain).disabled(selected == nil)
+                }.buttonStyle(.plain).disabled(selected == nil || launching)
                     .padding(.horizontal,20).padding(.bottom,6)
+                    .opacity(launching ? 0 : 1)
                     .accessibilityIdentifier("role.continue")
                     .accessibilityHint(selected == nil ? "먼저 사용자를 선택해주세요" : "")
             }
             .toolbar(.hidden,for:.navigationBar)
             .navigationDestination(isPresented:$showingSettings) {HomeSettingsView()}
             .animation(.easeOut(duration:0.2),value:selected)
+            .onAppear(perform:runLaunch)
         }.preferredColorScheme(.dark)
+    }
+    private func runLaunch() {
+        guard launching else {return}
+        if reduceMotion {time=StrokeLogoShape.settled; launching=false; return}
+        withAnimation(.linear(duration:StrokeLogoShape.settled)) {time=StrokeLogoShape.settled}
+        Task { @MainActor in
+            try? await Task.sleep(for:.seconds(StrokeLogoShape.settled+Self.hold))
+            withAnimation(.easeInOut(duration:Self.rise)) {launching=false}
+        }
     }
     private func dotState(_ role:HearRole) -> RoleDot.State {
         guard let selected else {return .idle}
