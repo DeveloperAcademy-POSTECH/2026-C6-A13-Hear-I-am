@@ -98,6 +98,9 @@ final class ARSessionController: ObservableObject {
     @Published var coachingAllowed=true
     /// True while the scan's opening coaching is held on screen regardless of tracking (452:12789).
     @Published var coachingForced=false
+    /// The scan's mesh waits for the intro card's 「시작하기」: the opening coaching and card run on tracking
+    /// alone, so nothing is scanned before the helper starts (11/02 device test).
+    var meshHeld=false
     /// Bumped whenever a new ARSession is put on the view, so the coaching overlay can follow it.
     @Published var sessionGeneration=0
     /// The Camera Control button was pressed over the camera view.
@@ -149,12 +152,24 @@ final class ARSessionController: ObservableObject {
             planReference:purpose == .preparation ? planReference : nil))
     }
 
-    func startSession(map: ARWorldMap?) {
+    private func configuration(map: ARWorldMap?) -> ARWorldTrackingConfiguration {
         let config=ARWorldTrackingConfiguration()
         config.worldAlignment = .gravity; config.planeDetection=[.horizontal]
         // Mesh creation only in pre-scan when LiDAR is available. During restoration use the saved snapshot.
-        if mode == .scanning && supportsMesh { config.sceneReconstruction = .mesh }
+        if mode == .scanning && supportsMesh && !meshHeld { config.sceneReconstruction = .mesh }
         config.initialWorldMap=map
+        return config
+    }
+    /// Starts the held mesh on the running session; tracking carries on, so the coaching is not shown again.
+    func beginMeshScan() {
+        guard meshHeld else { return }
+        meshHeld=false
+        guard mode == .scanning, supportsMesh, let session else { return }
+        meshes=[:]; renderer.clearMeshes(); updateCounts()
+        session.run(configuration(map:nil))
+    }
+    func startSession(map: ARWorldMap?) {
+        let config=configuration(map:map)
         let newSession=ARSession()
         bridge=SessionBridge(controller:self,token:token)
         newSession.delegate=bridge; newSession.delegateQueue=cameraQueue

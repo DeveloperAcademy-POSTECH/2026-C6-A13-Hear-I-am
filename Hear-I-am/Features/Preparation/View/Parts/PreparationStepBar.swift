@@ -166,18 +166,61 @@ struct PreparationStepBar: View {
             .accessibilityLabel("확인점 1번 \(model.draft.checkpoint == nil ? "미지정" : "지정"), 2번 \(model.draft.secondCheckpoint == nil ? "미지정" : "지정")")
     }
 
-    /// 452:12878. Display switches only; the step's work stays on the bottom bar.
+    /// 452:12878. Opens the dark glass panel drawn by PreparationView under this button.
     private var moreMenu: some View {
-        Menu {
+        ScanCircleButton(systemImage:"ellipsis",label:"더보기") {
+            withAnimation(.snappy(duration:0.3)) {model.showingMore.toggle()}
+        }
+    }
+}
+
+/// The more panel (Figma 452:12878): a dark glass card of 44pt rows, each an icon, a title and, for the
+/// display switches, a green toggle. The last row opens the app settings for testing.
+struct PreparationMorePanel: View {
+    @ObservedObject var model: PreparationViewModel
+    let openSettings: () -> Void
+    private static let label=Color(red:245/255,green:245/255,blue:245/255)
+    private static let green=Color(red:48/255,green:209/255,blue:88/255)
+
+    var body: some View {
+        VStack(alignment:.leading,spacing:0) {
             if model.step <= .objects && model.supportsMesh {
-                Toggle(isOn:Binding(get:{model.showMesh},set:{model.showMesh=$0})) {Label("스캔 범위(메쉬) 표시",systemImage:"eye")}
+                toggleRow("eye","스캔 범위(매쉬) 표시",isOn:Binding(get:{model.showMesh},set:{model.showMesh=$0}))
             }
             if model.canShowPlanReference {
-                Toggle(isOn:$model.showPlanReference) {Label("참고 잔상 표시",systemImage:"square.on.square.dashed")}
+                toggleRow("square.on.square.dashed","참고 잔상 표시",isOn:$model.showPlanReference)
             }
-            Text(model.supportsMesh ? "\(model.meshCount)개 표면 · \(model.mapping)" : "LiDAR 센서가 있어야 정확하게 측정돼요 · \(model.mapping)")
-        } label: {
-            ScanCircleLabel(systemImage:"ellipsis")
-        }.accessibilityLabel("더보기")
+            Button {
+                withAnimation(.snappy(duration:0.3)) {model.showingMore=false}
+                openSettings()
+            } label: {
+                row("gearshape","설정 바로가기(개발자 용)") {EmptyView()}
+            }.buttonStyle(.plain)
+        }
+        .padding(.horizontal,16).padding(.vertical,8)
+        .frame(width:330)
+        .background {
+            RoundedRectangle(cornerRadius:34,style:.continuous).fill(Color(white:26/255).opacity(0.34))
+                .liquidGlass(RoundedRectangle(cornerRadius:34,style:.continuous),tint:Color(white:26/255).opacity(0.34))
+                .shadow(color:.black.opacity(0.45),radius:24,y:8)
+        }
+        .overlay(RoundedRectangle(cornerRadius:34,style:.continuous).strokeBorder(Color(white:166/255).opacity(0.6),lineWidth:0.5))
+        .environment(\.colorScheme,.dark)
+    }
+
+    private func toggleRow(_ symbol: String, _ title: String, isOn: Binding<Bool>) -> some View {
+        row(symbol,title) {
+            Toggle(title,isOn:isOn).labelsHidden().tint(Self.green)
+        }
+    }
+    private func row<Trailing: View>(_ symbol: String, _ title: String, @ViewBuilder trailing: () -> Trailing) -> some View {
+        HStack(spacing:8) {
+            Image(systemName:symbol).font(.system(size:17)).foregroundStyle(Self.label).frame(width:28)
+            Text(title).font(.system(size:17)).tracking(-0.43).foregroundStyle(Self.label).lineLimit(1)
+            Spacer(minLength:6)
+            trailing()
+        }
+        .padding(.leading,6).padding(.trailing,8).frame(height:44)
+        .contentShape(Rectangle())
     }
 }
