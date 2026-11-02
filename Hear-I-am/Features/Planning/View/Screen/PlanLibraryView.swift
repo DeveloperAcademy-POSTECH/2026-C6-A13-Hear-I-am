@@ -39,7 +39,7 @@ struct PlanLibraryView: View {
                 } message: {Text("저장한 사전 도면이 삭제되며 되돌릴 수 없어요. 실제 스캔 무대와 안내 기록은 유지돼요.")}
                 .refreshable {await library.refresh()}
                 .fullScreenCover(item:$model.editing) {plan in PlanEditorView(initial:plan,library:library).suspendsVoiceWake()}
-                .fullScreenCover(item:$model.preparingPlan,onDismiss:{Task {await library.refresh()}}) {plan in PreparationView(library:library,initialPlan:plan).suspendsVoiceWake()}
+                .scanCover(item:$model.preparingPlan,onDismiss:{Task {await library.refresh()}}) {plan in PreparationView(library:library,initialPlan:plan).suspendsVoiceWake()}
         }
     }
 }

@@ -93,6 +93,15 @@ final class ARSessionController: ObservableObject {
     var planReference: StagePlanReference?
     /// Called whenever a new session replaces the previous one, so owners can clear their own input.
     var onReset: (() -> Void)?
+    /// Scan coaching (「Move iPhone to start」): on while the system overlay shows; allowed only during the scan step.
+    @Published var coachingActive=false
+    @Published var coachingAllowed=true
+    /// True while the scan's opening coaching is held on screen regardless of tracking (452:12789).
+    @Published var coachingForced=false
+    /// Bumped whenever a new ARSession is put on the view, so the coaching overlay can follow it.
+    @Published var sessionGeneration=0
+    /// The Camera Control button was pressed over the camera view.
+    var onCaptureEvent: (() -> Void)?
     private var visibleGuidanceTarget: Int?
     private var guidanceCompleted=false
 
@@ -149,7 +158,7 @@ final class ARSessionController: ObservableObject {
         let newSession=ARSession()
         bridge=SessionBridge(controller:self,token:token)
         newSession.delegate=bridge; newSession.delegateQueue=cameraQueue
-        session=newSession; view?.session=newSession
+        session=newSession; view?.session=newSession; sessionGeneration += 1
         newSession.run(config,options:[.resetTracking,.removeExistingAnchors])
         UIApplication.shared.isIdleTimerDisabled=true
     }
