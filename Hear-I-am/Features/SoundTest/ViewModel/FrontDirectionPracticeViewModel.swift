@@ -131,6 +131,10 @@ import HearIAmCore
         if practice.phase == .completed, previousPhase != .completed {
             complete(); return
         }
+        // Once the body has turned, the spoken instruction gives way: cut it so the cues start immediately.
+        if practice.phase == .finding, previousPhase == .turnAway, voice.isSpeaking, !voice.speakingDirection { voice.stop() }
+        // Turning away after a success starts the next trial: drop the pending 「방향이 맞았어요」 and any ding left.
+        if practice.phase == .finding, previousPhase == .completed { clearSounds() }
         guard let cue else { return }
         if cue.spokenWord != nil { pendingSide = true }
         if pendingSide {

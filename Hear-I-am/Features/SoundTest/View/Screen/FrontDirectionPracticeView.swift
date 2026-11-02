@@ -77,7 +77,8 @@ struct FrontDirectionPracticeView: View {
         if !model.isRunning { return "다시 시작" }
         switch model.practice.phase {
         case .needsReference: return "이 방향을 정면으로 지정"
-        case .turnAway, .finding: return nil
+        // Once the front has been found the buttons stay while the user keeps turning and finding it again.
+        case .turnAway, .finding: return model.practice.completedOnce ? "같은 정면으로 다시 연습" : nil
         case .completed: return "같은 정면으로 다시 연습"
         }
     }
@@ -88,7 +89,7 @@ struct FrontDirectionPracticeView: View {
         if !model.isRunning { model.start(); return }
         switch model.practice.phase {
         case .needsReference: model.setReference()
-        case .turnAway, .finding: break
+        case .turnAway, .finding: if model.practice.completedOnce { model.repeatExercise() }
         case .completed: model.repeatExercise()
         }
     }
@@ -97,9 +98,10 @@ struct FrontDirectionPracticeView: View {
     }
 }
 
-/// The light that stands for the chosen front, seen from the phone (Figma 457:13609 · 13642 · 13674 · 13626 · 13659).
-/// It slides toward the side the front is on and shifts green → yellow → red as the body turns away,
-/// easing every frame so position, shape and colour change together and never jump.
+/// The light that stands for the chosen front, seen from the phone (Figma 457:13594 · 13609 · 13642 · 13626 · 13659).
+/// One disc and one edge blade, blurred together: before a front is set the disc is the design's wide white haze;
+/// it tightens into the green disc, then slides to the front's side, flattens sideways and melts into the blade
+/// leaking in from that edge, which is all that is left at 90° (Vector 5).
 struct FrontGlow: View {
     let phase: FrontDirectionPractice.Phase
     let hasReference: Bool
@@ -113,25 +115,21 @@ struct FrontGlow: View {
             let state=smoother.step(to:target,at:context.date,instant:reduceMotion)
             GeometryReader { geometry in
                 let w=geometry.size.width, h=geometry.size.height
+                let n=state.neutral
                 let side=abs(state.x), sign: CGFloat = state.x >= 0 ? 1 : -1
-                let leak=smoothstep(0.2,0.5,side), spread=smoothstep(0.25,1,side)
-                let bandInset: CGFloat = -60+62*leak
+                let leak=smoothstep(0.15,0.55,side), spread=smoothstep(0.3,1,side)
+                // 253pt haze (blur 130) → 165pt disc (blur 10) → pressed flat sideways into the blade (blur 21, Figma).
+                let discWidth=mix(165*(1+0.6*spread),253,n), discHeight=mix(165*(1-0.45*spread),253,n)
+                // The flattened disc keeps sliding past the edge and dissolves, so at 90° only the blade is left (Figma).
+                let discX=mix(w/2+sign*side*(1.1+0.6*spread)*(w/2),w/2,n), discY=mix(h/2+59.5,h*0.6,n)
+                let blur=mix(10+11*side,130,n)
                 ZStack {
-                    // Before a front is set: the design's wide white glow low on the screen (Figma 457:13594).
-                    Ellipse().fill(Color.white.opacity(0.38*state.neutral))
-                        .frame(width:w*1.3,height:h*0.62).position(x:w/2,y:h*0.8).blur(radius:90)
-                    // The chosen front: a 165pt disc (Figma Ellipse 23) that drifts to the side the front is on
-                    // and softens as it goes, leaving the screen at a full turn.
-                    Circle().fill(state.color.opacity(1-state.neutral))
-                        .frame(width:165,height:165)
-                        .position(x:w/2+sign*side*1.14*(w/2),y:h/2+59.5)
-                        .blur(radius:8.4+13*side)
-                    // Light leaking in from that edge (Figma Vector 5·6), wider and taller the further the body has turned.
-                    Capsule().fill(state.color.opacity((1-state.neutral)*0.7*leak))
-                        .frame(width:92+86*spread,height:426+580*spread)
-                        .position(x:sign >= 0 ? w-bandInset : bandInset,y:h*0.55)
-                        .blur(radius:21)
-                }.frame(width:w,height:h)
+                    Ellipse().fill(state.color.opacity(max(0,1-spread/0.8)))
+                        .frame(width:discWidth,height:discHeight).position(x:discX,y:discY)
+                    EdgeBlade(reach:w*0.157*(0.3+0.7*spread),push:40*(1-leak),trailing:sign >= 0)
+                        .fill(state.color.opacity(0.7*leak))
+                }.compositingGroup().blur(radius:blur)
+                    .frame(width:w,height:h)
                     .opacity(state.opacity)
             }
         }
@@ -153,6 +151,31 @@ private func smoothstep(_ a: Double, _ b: Double, _ x: Double) -> Double {
     let t=max(0,min(1,(x-a)/max(b-a,0.0001)))
     return t*t*(3-2*t)
 }
+private func mix(_ a: CGFloat, _ b: CGFloat, _ t: Double) -> CGFloat {a+(b-a)*CGFloat(t)}
+
+/// The light leaking in from one edge (Figma Vector 5 in 457:13659): a blade pointed past the top and bottom of the
+/// screen whose inner edge bulges `reach` points inward at 62% of the height. `push` moves the whole blade past the edge.
+struct EdgeBlade: Shape {
+    var reach: CGFloat
+    var push: CGFloat
+    var trailing: Bool
+    func path(in rect: CGRect) -> Path {
+        let w=rect.width, h=rect.height
+        // (inset from the edge in units of `reach`, y as a fraction of the height), from the design's path.
+        func point(_ inset: CGFloat, _ y: CGFloat) -> CGPoint {
+            let x = trailing ? w-inset*reach+push : inset*reach-push
+            return CGPoint(x:x,y:y*h)
+        }
+        var path=Path()
+        path.move(to:point(-0.52,0.014))
+        path.addCurve(to:point(1,0.616),control1:point(-1.13,0.153),control2:point(1,0.415))
+        path.addCurve(to:point(-0.75,1.12),control1:point(1,0.759),control2:point(-0.62,0.99))
+        path.addLine(to:point(-6,1.12))
+        path.addLine(to:point(-6,0.014))
+        path.closeSubpath()
+        return path
+    }
+}
 
 /// Exponential easing of the light's position, colour stage and grey→colour change.
 final class GlowSmoother {
@@ -170,7 +193,7 @@ final class GlowSmoother {
         let k=instant ? 1 : 1-exp(-dt*7)
         x+=(tx-x)*k
         severity+=(target.severity-severity)*k
-        neutral+=((target.neutral ? 1 : 0)-neutral)*(instant ? 1 : 1-exp(-dt*4))
+        neutral+=((target.neutral ? 1 : 0)-neutral)*(instant ? 1 : 1-exp(-dt*2.5))
         return State(x:x,color:color,opacity:0.95,neutral:neutral)
     }
     /// Green at the front, yellow halfway, red at 90° and beyond; grey before a front is set.
@@ -178,7 +201,7 @@ final class GlowSmoother {
         let s=max(0,min(1,severity))
         let hue=s < 0.5 ? 0.36+(0.14-0.36)*(s*2) : 0.14+(0.0-0.14)*((s-0.5)*2)
         let saturation=(0.62+0.12*s)*(1-neutral)
-        let brightness=0.92-0.4*neutral
+        let brightness=0.92+0.08*neutral
         return Color(hue:hue,saturation:saturation,brightness:brightness)
     }
 }

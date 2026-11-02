@@ -7,6 +7,8 @@ public struct FrontDirectionPractice: Sendable {
     public private(set) var phase: Phase = .needsReference
     public private(set) var referenceHeading: Double?
     public private(set) var bearing: Double?
+    /// True once the front has been found in this session; turning away afterwards starts another trial by itself.
+    public private(set) var completedOnce = false
     private var gate: DirectionTickGate
     private var lastTime: Double?
 
@@ -25,7 +27,7 @@ public struct FrontDirectionPractice: Sendable {
         return true
     }
     public mutating func reset() {
-        referenceHeading = nil; bearing = nil; phase = .needsReference
+        referenceHeading = nil; bearing = nil; phase = .needsReference; completedOnce = false
         gate.reset(); lastTime = nil
     }
     /// Keeps the reference only while the original sensor session is still running.
@@ -42,13 +44,17 @@ public struct FrontDirectionPractice: Sendable {
         guard let referenceHeading else { return nil }
         let delta = HeadingMath.signedDeltaDegrees(from: heading, to: referenceHeading)
         bearing = delta
-        guard phase != .completed else { return nil }
+        // Found the front: stay there until the body turns away again, then find it again without any button.
+        if phase == .completed {
+            guard abs(delta) >= departureDegrees else { return nil }
+            gate.reset(); phase = .finding
+        }
         if phase == .turnAway {
             guard abs(delta) >= departureDegrees else { return nil }
             phase = .finding
         }
         let cue = gate.update(time: time, bearing: delta)
-        if gate.isAligned { phase = .completed }
+        if gate.isAligned { phase = .completed; completedOnce = true }
         return cue
     }
 }

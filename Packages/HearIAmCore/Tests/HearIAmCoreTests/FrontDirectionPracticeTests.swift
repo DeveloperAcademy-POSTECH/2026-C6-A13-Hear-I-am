@@ -14,7 +14,12 @@ final class FrontDirectionPracticeTests: XCTestCase {
         XCTAssertEqual(practice.phase, .finding)
         XCTAssertNil(practice.update(heading: 11, time: 6))
         XCTAssertEqual(practice.phase, .completed)
-        XCTAssertNil(practice.update(heading: 60, time: 7)) // No new trial without user action.
+        XCTAssertTrue(practice.completedOnce)
+        XCTAssertNil(practice.update(heading: 20, time: 7)) // Sway inside the departure band keeps the result.
+        XCTAssertEqual(practice.phase, .completed)
+        XCTAssertNotNil(practice.update(heading: 60, time: 8)) // Turning away again starts the next trial by itself.
+        XCTAssertEqual(practice.phase, .finding)
+        XCTAssertNil(practice.update(heading: 5, time: 9))
         XCTAssertEqual(practice.phase, .completed)
     }
     func testBothDirectionsAndWraparoundUseShortestReturn() {
