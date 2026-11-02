@@ -715,3 +715,43 @@ enum VoiceLog {
         }
     }
 }
+
+#if DEBUG
+/// Silent testing (11/02): lines written to Documents/VoiceTest/inbox.txt on the phone are handled as if
+/// the microphone had heard them, so the flow can be driven from a Mac without speaking. Each line is read
+/// once; the recognizer itself is not involved. Debug builds only.
+@MainActor final class VoiceTestInbox {
+    static let shared = VoiceTestInbox()
+    /// The guidance currently open takes the lines; Home's wake listener gets them otherwise.
+    weak var guidance: GuidanceViewModel?
+    var home: ((String) -> Void)?
+    private var consumed = 0
+    private var timer: Timer?
+    private var url: URL? {
+        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?
+            .appendingPathComponent("VoiceTest/inbox.txt")
+    }
+    func start() {
+        guard timer == nil else { return }
+        consumed = (try? String(contentsOf: url!, encoding: .utf8)).map(Self.lines)?.count ?? 0
+        timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.poll() }
+        }
+    }
+    /// Only non-empty lines count, so an empty file and a trailing newline do not shift the count.
+    private static func lines(_ text: String) -> [String] {
+        text.split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+    }
+    private func poll() {
+        guard let url, let text = try? String(contentsOf: url, encoding: .utf8) else { return }
+        let lines = Self.lines(text)
+        guard lines.count > consumed else { if lines.count < consumed { consumed = lines.count }; return }
+        let fresh = Array(lines[consumed...])
+        consumed = lines.count
+        for line in fresh {
+            VoiceLog.write("test_typed", line, screen: guidance == nil ? "home" : "guidance")
+            if let guidance { guidance.submitTypedRequest(line) } else { home?(line) }
+        }
+    }
+}
+#endif

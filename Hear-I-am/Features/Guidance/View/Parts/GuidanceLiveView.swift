@@ -111,3 +111,81 @@ struct GuidanceV3PreviewHarness: View {
     }
 }
 #endif
+
+/// 연습 안내 by voice (Figma 495:5555 · 5569): the next point's direction as the arrow in the raised circle and
+/// as the 정면 찾기 light, which sits straight ahead in green and slides to the side the point is on. The
+/// camera keeps tracking behind the canvas; nothing of it is shown.
+struct VoicePracticeGuidanceView: View {
+    @ObservedObject var model: GuidanceViewModel
+    @AppStorage(SignalPlayer.directionDeadbandKey) private var deadband=DirectionTickGate.defaultDeadbandDegrees
+    private var walking: Bool {model.phase == .guiding && model.arrivedName == nil && model.guide?.facingPointIndex == nil && model.performanceHoldRemaining == 0}
+    private var cue: GuidanceCue? {walking ? model.cue : nil}
+
+    var body: some View {
+        GeometryReader {geometry in
+            let w=geometry.size.width
+            ZStack(alignment:.top) {
+                VoiceStyle.canvas.ignoresSafeArea()
+                FrontGlow(phase:.finding,hasReference:model.phase == .guiding && model.active,bearing:model.voiceGlowBearing,
+                          deadband:deadband,discOffsetY:182.5)
+                    .ignoresSafeArea().accessibilityHidden(true)
+                VStack(spacing:0) {
+                    ZStack {
+                        Circle().fill(.white.opacity(0.05))
+                        Circle().strokeBorder(LinearGradient(colors:[.white.opacity(0.35),.white.opacity(0.04)],startPoint:.top,endPoint:.bottom),lineWidth:1)
+                        VoiceGuidanceArrow().stroke(VoiceStyle.arrow,style:StrokeStyle(lineWidth:6,lineCap:.round,lineJoin:.round))
+                            .frame(width:130,height:130)
+                            .rotationEffect(.degrees(Double(cue?.sector ?? 0)*45))
+                            .opacity(cue == nil ? 0.35 : 1)
+                    }
+                    .frame(width:130,height:130)
+                    .shadow(color:.black.opacity(0.35),radius:16,y:10)
+                    .animation(.easeInOut(duration:0.35),value:cue?.sector)
+                    .padding(.top,max(0,185-geometry.safeAreaInsets.top-44))
+                    Text(subtitle).font(.system(size:20,weight:.semibold)).foregroundStyle(.white).padding(.top,62)
+                    Text(title).font(.system(size:32,weight:.semibold)).foregroundStyle(.white)
+                        .multilineTextAlignment(.center).fixedSize(horizontal:false,vertical:true).padding(.top,6).padding(.horizontal,24)
+                    if let issue=model.voiceInputError {
+                        Text(issue).font(.system(size:15)).foregroundStyle(VoiceStyle.status).multilineTextAlignment(.center)
+                            .padding(.top,16).padding(.horizontal,32)
+                    }
+                    Spacer(minLength:0)
+                }
+                .frame(width:w)
+                .accessibilityElement(children:.combine)
+                .accessibilityLabel("\(subtitle). \(title)")
+                LinearGradient(stops:[.init(color:VoiceStyle.canvas,location:0.036),.init(color:VoiceStyle.canvas.opacity(0),location:0.596)],
+                               startPoint:.top,endPoint:.bottom)
+                    .frame(height:156).ignoresSafeArea(edges:.top).allowsHitTesting(false).accessibilityHidden(true)
+            }
+        }
+    }
+    private var subtitle: String {
+        switch model.phase {
+        case .finishing,.completed: return "연습 안내"
+        default: return "다음 포인트 · \(model.targetName)"
+        }
+    }
+    private var title: String {
+        switch model.phase {
+        case .starting: return "안내를 시작하고 있어요"
+        case .paused: return "일시정지 중"
+        case .finishing,.completed: return "안내를 마쳤어요"
+        default:
+            if let cue {return "\(cue.direction) \(cue.distance.formatted(.number.precision(.fractionLength(1))))m"}
+            return model.arrivedName == nil && model.guide?.facingPointIndex == nil && model.performanceHoldRemaining == 0 ? "안내하는 중" : model.headline.title.replacingOccurrences(of:"\n",with:" ")
+        }
+    }
+}
+
+/// The arrow of the design's circle (495:5560): a 54pt shaft with a 38pt head, drawn pointing up in a 130pt box.
+struct VoiceGuidanceArrow: Shape {
+    func path(in rect: CGRect) -> Path {
+        let s=rect.width/130
+        var path=Path()
+        path.move(to:CGPoint(x:rect.minX+65*s,y:rect.minY+92*s));path.addLine(to:CGPoint(x:rect.minX+65*s,y:rect.minY+38*s))
+        path.move(to:CGPoint(x:rect.minX+84*s,y:rect.minY+56.73*s));path.addLine(to:CGPoint(x:rect.minX+65*s,y:rect.minY+38*s))
+        path.addLine(to:CGPoint(x:rect.minX+46*s,y:rect.minY+56.73*s))
+        return path
+    }
+}

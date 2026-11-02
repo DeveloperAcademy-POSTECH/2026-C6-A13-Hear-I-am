@@ -2,6 +2,8 @@ import SwiftUI
 import HearIAmCore
 
 /// Performer-only home. The orb also opens voice conversation without a wake phrase.
+/// Once called, the screen becomes the start of the conversation (Figma 495:5074 · 5096): the question
+/// under the logo, then the request as a bubble while the app finds the performance.
 struct HomeView: View {
     @ObservedObject var library:StageLibrary
     @ObservedObject var wake:VoiceWakeListener
@@ -10,44 +12,35 @@ struct HomeView: View {
     var isPresented=true
     @State private var showingSettings=false
     @State private var isVisible=false
+    @State private var heardAt=Date()
     @Environment(\.scenePhase) private var scenePhase
 
     private var animating:Bool {isPresented && isVisible && !showingSettings && scenePhase == .active}
+    private var hasRequest:Bool {!wake.caption.transcript.isEmpty}
 
     var body: some View {
         NavigationStack {
             GeometryReader {geometry in
                 ZStack(alignment:.bottom) {
-                    HearV3.canvas.ignoresSafeArea()
-                    HomeVoiceWaves(awake:wake.awake,animating:animating)
-                        .frame(width:geometry.size.width,height:320 + geometry.safeAreaInsets.bottom)
-                        .offset(y:geometry.safeAreaInsets.bottom)
-                    VStack(spacing:0) {
+                    (wake.awake ? VoiceStyle.canvas : HearV3.canvas).ignoresSafeArea()
+                    if wake.awake {
+                        VoiceBloom(animating:animating).ignoresSafeArea()
+                    } else {
+                        HomeVoiceWaves(awake:false,animating:animating)
+                            .frame(width:geometry.size.width,height:320 + geometry.safeAreaInsets.bottom)
+                            .offset(y:geometry.safeAreaInsets.bottom)
+                    }
+                    if wake.awake {
+                        awakeContent
+                    } else {
                         ScrollView {
-                            VStack(spacing:24) {
-                                if wake.awake {
-                                    VStack(alignment:.leading,spacing:16) {
-                                        Text("안녕하세요.\n어떤 공연을 찾으시나요?")
-                                            .font(.largeTitle.bold()).fixedSize(horizontal:false,vertical:true)
-                                        Text("공연 이름이나 공연장 이름을 말씀해주세요.")
-                                            .font(.subheadline).foregroundStyle(HearV3.secondary)
-                                    }.frame(maxWidth:.infinity,alignment:.leading).padding(.top,60)
-                                } else {
-                                    idleContent
-                                }
-                            }.padding(20)
+                            VStack(spacing:24) {idleContent}.padding(20)
                         }.scrollBounceBehavior(.basedOnSize).clipped()
-                        if wake.awake {
-                            HomeConversationCaption(caption:wake.caption,speaking:wake.speaking,
-                                                    listening:wake.listening,confirming:wake.confirmingInput,
-                                                    maximumTextHeight:max(96,geometry.size.height * 0.24))
-                                .padding(.horizontal,24).padding(.top,24).padding(.bottom,28)
-                                .layoutPriority(1)
-                        }
                     }
                 }.frame(width:geometry.size.width,height:geometry.size.height)
             }
-            .navigationTitle("Hear I am").navigationBarTitleDisplayMode(.inline)
+            .navigationTitle(wake.awake ? "" : "Hear I am").navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(wake.awake ? .hidden : .automatic,for:.navigationBar)
             .toolbar {
                 ToolbarItem(placement:.topBarTrailing) {
                     Button {showingSettings=true} label: {Image(systemName:"gearshape")}
@@ -55,7 +48,7 @@ struct HomeView: View {
                 }
                 if wake.awake {
                     ToolbarItem(placement:.topBarLeading) {
-                        Button("대화 닫기") {wake.dismiss()}.accessibilityIdentifier("home.voice.close")
+                        VoiceBackButton {wake.dismiss()}.accessibilityIdentifier("home.voice.close")
                     }
                 }
             }
@@ -64,8 +57,37 @@ struct HomeView: View {
             }
             .onAppear {isVisible=true}
             .onDisappear {isVisible=false}
+            .onChange(of:hasRequest) {_,heard in if heard {heardAt=Date()}}
+            .animation(.easeInOut(duration:0.3),value:wake.awake)
             .v3Screen()
         }.preferredColorScheme(.dark)
+    }
+
+    /// 495:5074 until the performer speaks, then 495:5096: the words as a bubble over the spinner line.
+    @ViewBuilder private var awakeContent:some View {
+        if hasRequest {
+            ScrollView {
+                VStack(alignment:.leading,spacing:24) {
+                    VoiceUserBubble(text:wake.caption.transcript,date:heardAt)
+                    VoiceStatusRow(text:wake.confirmingInput ? "말씀하신 공연을 찾고 있어요" : "듣고 있어요")
+                }
+                .padding(.horizontal,16).padding(.top,32).padding(.bottom,48)
+            }
+            .scrollIndicators(.hidden)
+            .frame(maxWidth:.infinity,maxHeight:.infinity,alignment:.top)
+            .accessibilityIdentifier("home.voice.caption.text")
+        } else {
+            VoiceWaitingPrompt(animating:animating)
+                .accessibilityIdentifier("home.voice.caption.status")
+                .overlay(alignment:.bottom) {
+                    // Opened by hand while the microphone cannot be used, the reason shows here (not back on the waiting screen).
+                    if let failure=wake.failure {
+                        Text(failure).font(.system(size:15)).foregroundStyle(VoiceStyle.status).multilineTextAlignment(.center)
+                            .padding(.horizontal,32).padding(.bottom,120)
+                            .accessibilityIdentifier("home.voice.failure")
+                    }
+                }
+        }
     }
 
     private var idleContent:some View {

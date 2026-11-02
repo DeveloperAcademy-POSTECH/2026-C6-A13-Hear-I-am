@@ -42,6 +42,10 @@ struct HearRootView: View {
                 }
             }
             syncWake()
+            #if DEBUG
+            VoiceTestInbox.shared.home={text in wake.simulateHeard(text)}
+            VoiceTestInbox.shared.start()
+            #endif
         }
         .onChange(of:launch.pending) {openSiriRequest()}
         .onChange(of:gate.open) {openSiriRequest();syncWake()}

@@ -6,6 +6,9 @@ extension GuidanceViewModel {
         guard phase == .selection else { return }
         if voiceExperiment && empty {read(VoiceAppRequest.noStageOffer);return}
         if voiceExperiment {
+            // Opened without a request: the saved performances are offered as cards straight away (Figma 495:5160).
+            let choices=voicePerformanceChoices
+            if !choices.isEmpty, voiceStartedAsHelper != true {showVoiceChatCards(performances:choices,text:"어떤 공연을 준비할까요?\n공연 이름이나 번호를 말씀해주세요.")}
             read([VoiceStepCopy.stageList],interruptible:true)
             return
         }
