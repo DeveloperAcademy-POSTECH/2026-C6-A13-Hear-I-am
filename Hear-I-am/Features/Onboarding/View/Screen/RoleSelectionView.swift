@@ -96,10 +96,10 @@ enum LandingStyle {
     static let cardHeight: CGFloat = 259
     /// The design renders the photos at 80%, but the exported JPEGs come out lighter than the Figma render; 65% matches it.
     static let photoOpacity: Double = 0.65
-    /// The design's logo sizes in its 402pt-wide frame; the page scales them with its width.
-    static let launchLogo: CGFloat = 153
-    static let pageLogo: CGFloat = 96.5
-    static let designWidth: CGFloat = 402
+    /// The design draws the logo at 153pt on the launch and 96.5pt on the role page; the user asked for
+    /// both a step smaller (2026-11-02).
+    static let launchLogo: CGFloat = 124
+    static let pageLogo: CGFloat = 82
 }
 
 /// The soft white glow above the role page (Figma Ellipse 31: 311×264 blurred ellipse, top at −171).
@@ -119,8 +119,9 @@ struct RoleSelectionView: View {
     @State private var selected:HearRole?
     @State private var showingSettings=false
     @State private var launching: Bool
+    /// Once the rise is over the logo lives in the page's own column, so it is centred by layout, not by numbers.
+    @State private var risen: Bool
     @State private var time: Double
-    @Namespace private var logoSpace
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// Draw in, hold, then the rise. The root waits this long before voice features start.
@@ -132,20 +133,28 @@ struct RoleSelectionView: View {
         self.select=select
         self.animatesLaunch=animatesLaunch
         _launching=State(initialValue:animatesLaunch)
+        _risen=State(initialValue:!animatesLaunch)
         _time=State(initialValue:animatesLaunch ? 0 : StrokeLogoShape.settled)
     }
 
     var body: some View {
         NavigationStack {
             GeometryReader { geometry in
-            let unit=geometry.size.width/LandingStyle.designWidth
-            let launchLogo=LandingStyle.launchLogo*unit, pageLogo=LandingStyle.pageLogo*unit
+            let launchLogo=LandingStyle.launchLogo, pageLogo=LandingStyle.pageLogo
+            // The physical screen's centre in this (safe-area) space, so the launch logo is centred on the screen.
+            let insets=geometry.safeAreaInsets
+            let screenCenter=CGPoint(x:geometry.size.width/2,y:(geometry.size.height+insets.bottom-insets.top)/2)
+            // The role page's slot: first in the top-aligned column, 107pt down (476:3204).
+            let pageCenter=CGPoint(x:geometry.size.width/2,y:107+pageLogo/2)
+            let logoCenter=launching ? screenCenter : pageCenter
             ZStack(alignment:.top) {
                 LandingStyle.canvas.ignoresSafeArea()
                 LandingGlow().ignoresSafeArea().opacity(launching ? 0 : 1)
                 VStack(spacing:0) {
-                    Color.clear.frame(width:pageLogo,height:pageLogo).padding(.top,107)
-                        .matchedGeometryEffect(id:"logo",in:logoSpace,isSource:!launching)
+                    ZStack {
+                        Color.clear
+                        if risen {HearStrokeLogo(size:pageLogo)}
+                    }.frame(width:pageLogo,height:pageLogo).padding(.top,107)
                     VStack(spacing:4) {
                         Text("사용자를 선택해주세요").font(.system(size:28,weight:.bold)).tracking(-0.84).foregroundStyle(.white)
                             .accessibilityAddTraits(.isHeader)
@@ -161,27 +170,23 @@ struct RoleSelectionView: View {
                         }
                     }.padding(.horizontal,20).padding(.top,58)
                     Spacer(minLength:16)
-                }.opacity(launching ? 0 : 1)
+                }.frame(maxWidth:.infinity).opacity(launching ? 0 : 1)
                 Button {showingSettings=true} label: {ScanCircleLabel(systemImage:"gearshape")}
                     .buttonStyle(.plain).frame(maxWidth:.infinity,alignment:.trailing).padding(.trailing,18).padding(.top,14)
                     .accessibilityLabel("설정").accessibilityIdentifier("role.settings")
                     .opacity(launching ? 0 : 1)
-                // Launch layout (457:16069): the logo's slot dead centre, the wordmark 36pt under it.
-                Color.clear.frame(width:launchLogo,height:launchLogo)
-                    .matchedGeometryEffect(id:"logo",in:logoSpace,isSource:launching)
-                    .overlay(alignment:.top) {
-                        Text("Hear I am").font(.system(size:40,weight:.ultraLight)).foregroundStyle(.white).fixedSize()
-                            .padding(.top,launchLogo+36)
-                    }
-                    .frame(maxWidth:.infinity,maxHeight:.infinity)
+                // Launch layout (457:16069): the wordmark 36pt under the centred logo.
+                Text("Hear I am").font(.system(size:40,weight:.ultraLight)).foregroundStyle(.white).fixedSize()
+                    .position(x:screenCenter.x,y:screenCenter.y+launchLogo/2+36+24)
                     .opacity(launching ? 1 : 0).allowsHitTesting(false)
                     .accessibilityElement(children:.combine).accessibilityLabel("Hear I am").accessibilityIdentifier("launch.brand")
                     .accessibilityHidden(!launching)
-                // The one logo, following whichever slot is the source.
+                // The one logo: screen centre at launch, then the role page's slot.
                 StrokeLogoShape(time:time,lineWidth:(launching ? launchLogo : pageLogo)*StrokeLogoShape.lineWidth)
                     .fill(.white)
-                    .frame(width:launchLogo,height:launchLogo)
-                    .matchedGeometryEffect(id:"logo",in:logoSpace,isSource:false)
+                    .frame(width:launching ? launchLogo : pageLogo,height:launching ? launchLogo : pageLogo)
+                    .position(logoCenter)
+                    .opacity(risen ? 0 : 1)
                     .allowsHitTesting(false).accessibilityHidden(true)
             }.frame(width:geometry.size.width,height:geometry.size.height)
             }
@@ -205,11 +210,13 @@ struct RoleSelectionView: View {
     }
     private func runLaunch() {
         guard launching else {return}
-        if reduceMotion {time=StrokeLogoShape.settled; launching=false; return}
+        if reduceMotion {time=StrokeLogoShape.settled; launching=false; risen=true; return}
         withAnimation(.linear(duration:StrokeLogoShape.settled)) {time=StrokeLogoShape.settled}
         Task { @MainActor in
             try? await Task.sleep(for:.seconds(StrokeLogoShape.settled+Self.hold))
             withAnimation(.easeInOut(duration:Self.rise)) {launching=false}
+            try? await Task.sleep(for:.seconds(Self.rise))
+            risen=true
         }
     }
     private func dotState(_ role:HearRole) -> RoleDot.State {
