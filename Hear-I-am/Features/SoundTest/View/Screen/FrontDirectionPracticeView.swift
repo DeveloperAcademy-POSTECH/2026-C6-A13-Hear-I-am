@@ -60,6 +60,7 @@ struct FrontDirectionPracticeView: View {
         }
         .settingsScreen()
         .navigationTitle("정면 찾기").navigationBarTitleDisplayMode(.inline)
+        .readsAloud {["정면 찾기",title,instruction]+[secondaryTitle,primaryTitle].compactMap {$0.map {"\($0) 버튼"}}}
         .onAppear { visible = true; model.start() }
         .onDisappear { visible = false; model.close() }
         .onChange(of: scenePhase) { _, phase in
@@ -112,19 +113,25 @@ struct FrontGlow: View {
             let state=smoother.step(to:target,at:context.date,instant:reduceMotion)
             GeometryReader { geometry in
                 let w=geometry.size.width, h=geometry.size.height
-                let side=abs(state.x)
+                let side=abs(state.x), sign: CGFloat = state.x >= 0 ? 1 : -1
+                let leak=smoothstep(0.2,0.5,side), spread=smoothstep(0.25,1,side)
+                let bandInset: CGFloat = -60+62*leak
                 ZStack {
-                    // Body of the light: wider and flatter the further it moves to the edge.
-                    Ellipse().fill(state.color)
-                        .frame(width:w*(0.55+0.35*side+0.4*state.neutral),height:h*(0.11-0.03*side+0.2*state.neutral))
-                        .offset(x:state.x*w*0.42)
-                        .blur(radius:28)
-                    // Its spill on the screen edge, so a far turn reads as light leaking in from that side.
-                    Ellipse().fill(state.color.opacity(0.85*smoothstep(0.35,1,side)))
-                        .frame(width:w*0.5,height:h*(0.18+0.12*side))
-                        .offset(x:(state.x >= 0 ? 1 : -1)*w*0.52)
-                        .blur(radius:42)
-                }.frame(width:w,height:h).offset(y:h*0.04)
+                    // Before a front is set: the design's wide white glow low on the screen (Figma 457:13594).
+                    Ellipse().fill(Color.white.opacity(0.38*state.neutral))
+                        .frame(width:w*1.3,height:h*0.62).position(x:w/2,y:h*0.8).blur(radius:90)
+                    // The chosen front: a 165pt disc (Figma Ellipse 23) that drifts to the side the front is on
+                    // and softens as it goes, leaving the screen at a full turn.
+                    Circle().fill(state.color.opacity(1-state.neutral))
+                        .frame(width:165,height:165)
+                        .position(x:w/2+sign*side*1.14*(w/2),y:h/2+59.5)
+                        .blur(radius:8.4+13*side)
+                    // Light leaking in from that edge (Figma Vector 5·6), wider and taller the further the body has turned.
+                    Capsule().fill(state.color.opacity((1-state.neutral)*0.7*leak))
+                        .frame(width:92+86*spread,height:426+580*spread)
+                        .position(x:sign >= 0 ? w-bandInset : bandInset,y:h*0.55)
+                        .blur(radius:21)
+                }.frame(width:w,height:h)
                     .opacity(state.opacity)
             }
         }
