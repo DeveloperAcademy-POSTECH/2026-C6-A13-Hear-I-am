@@ -6,6 +6,6 @@ extension PreparationViewModel {
     /// Called from the confirmation alert. Scanning cannot be revisited afterwards.
     func confirmScan() {
         if session.canConfirmScan { scanConfirmed=true }
-        if scanConfirmed {advance()}
+        if scanConfirmed {session.coachingAllowed=false; advance()}
     }
 }

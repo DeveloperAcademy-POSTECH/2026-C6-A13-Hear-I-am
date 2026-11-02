@@ -7,6 +7,7 @@ struct HearRootView: View {
     @StateObject private var wake=VoiceWakeListener()
     @ObservedObject private var launch=VoiceLaunch.shared
     @ObservedObject private var gate=VoiceWakeGate.shared
+    @ObservedObject private var scanTransition=ScanTransition.shared
     @State private var showsLaunch=true
     @State private var role:HearRole?
     @State private var tab=0
@@ -16,13 +17,17 @@ struct HearRootView: View {
 
     var body: some View {
         Group {
-            if showsLaunch {HearLaunchView()}
-            else if let role {
+            if let role {
                 if role == .performer {
                     HomeView(library:library,wake:wake,start:{open(VoiceGuidanceLaunch())},changeRole:chooseRole,isPresented:guidance == nil)
                 } else {helperTabs}
-            } else {RoleSelectionView {role=$0;tab=0;openSiriRequest();syncWake()}}
+            } else {
+                // The role page plays the launch logo itself the first time (see RoleSelectionView.runLaunch).
+                RoleSelectionView(animatesLaunch:showsLaunch) {role=$0;tab=0;openSiriRequest();syncWake()}
+            }
         }
+        // Black over tabs and bars while the scan screen comes and goes (see ScanTransition).
+        .overlay {ScanVeil(on:scanTransition.veiled)}
         .fullScreenCover(item:$guidance,onDismiss:{openSiriRequest();syncWake()}) {request in
             GuidanceView(library:library,voiceExperiment:true,request:request.request,
                          stageID:request.stageID,mode:request.mode,helperPreparation:request.helperPreparation,
@@ -49,7 +54,8 @@ struct HearRootView: View {
         }
         .task {
             guard showsLaunch else {return}
-            try? await Task.sleep(for:.milliseconds(850))
+            // Long enough for the launch logo's loop, second draw-in and rise (it never repeats after that).
+            try? await Task.sleep(for:.seconds(RoleSelectionView.launchDuration))
             guard !Task.isCancelled else {return}
             showsLaunch=false
         }

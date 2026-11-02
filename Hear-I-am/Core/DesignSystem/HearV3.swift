@@ -31,3 +31,15 @@ struct V3PrimaryButtonStyle: ButtonStyle {
             .opacity(!isEnabled ? 0.4 : configuration.isPressed ? 0.7 : 1)
     }
 }
+
+extension View {
+    /// Liquid Glass on iOS 26 (the design's 「Liquid Glass - Regular」 fills); a thin material in the same shape before that.
+    @ViewBuilder func liquidGlass<S: Shape>(_ shape: S, tint: Color? = nil, interactive: Bool = false) -> some View {
+        if #available(iOS 26, *) {
+            let glass: Glass = tint.map {Glass.regular.tint($0)} ?? .regular
+            self.glassEffect(interactive ? glass.interactive() : glass, in: shape)
+        } else {
+            self.background(tint ?? .clear, in: shape).background(.ultraThinMaterial, in: shape)
+        }
+    }
+}

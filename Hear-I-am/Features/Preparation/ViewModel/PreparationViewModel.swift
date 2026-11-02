@@ -57,7 +57,10 @@ final class PreparationViewModel: ObservableObject {
     // Screen state
     @Published var step: PreparationStep = .scan
     @Published var highest: PreparationStep = .scan
-    @Published var intro: Int? = 0
+    /// The scan step's card waits for the system coaching (「Move iPhone to start」) to finish; `?` shows it any time.
+    @Published var intro: Int? = nil
+    private var scanIntroShown=false
+    @Published var selectedRoutePoint: Int?
     @Published var selectedCorner: Int?
     @Published var objectEditing=false
     @Published var confirmingRouteHeight=false
@@ -70,11 +73,17 @@ final class PreparationViewModel: ObservableObject {
     @Published var confirmingExit=false
     private var seen: Set<PreparationStep> = [.scan]
     private var sessionChanges: AnyCancellable?
+    private var coachingChanges: AnyCancellable?
 
     init(initialPlan: PerformancePlan? = nil) {
         self.selectedPlan=initialPlan
         if let initialPlan { self.scanName=initialPlan.name }
         sessionChanges=session.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }
+        coachingChanges=session.$coachingActive.dropFirst().receive(on:DispatchQueue.main).sink { [weak self] active in
+            guard let self, !active else { return }
+            showScanIntroOnce()
+        }
+        session.onCaptureEvent={ [weak self] in self?.cameraControlPressed() }
         session.onReset={ [weak self] in
             guard let self else { return }
             draft=PreparationDraft(); scanConfirmed=false; pendingObjectWorld=[]; editingObjectID=nil
@@ -119,7 +128,76 @@ final class PreparationViewModel: ObservableObject {
     // Lifecycle
     func appear() {
         session.showMesh=true
-        if session.supported {session.newScan()}
+        guard session.supported else { return }
+        session.newScan()
+        // 「Move iPhone to start」 opens every scan: held past the black transition for 3s at least, then until
+        // tracking is normal (8s at most). Its deactivation brings the intro card.
+        session.coachingForced=true
+        Task { @MainActor [weak self] in
+            let started=Date()
+            try? await Task.sleep(for:.seconds(ScanTransition.rotation+ScanTransition.fade+3))
+            // Hold on until the session has started and tracks normally, 10s at the most.
+            while let self, session.tracking != "normal", Date().timeIntervalSince(started) < 10 {
+                try? await Task.sleep(for:.seconds(0.25))
+            }
+            guard let self else { return }
+            session.coachingForced=false
+            try? await Task.sleep(for:.seconds(1.2))
+            showScanIntroOnce()
+        }
+    }
+    private func showScanIntroOnce() {
+        guard step == .scan, !scanIntroShown, supported else { return }
+        scanIntroShown=true; intro=0
+    }
+    /// The Camera Control button does what the step's + button does (Figma 452:11339 · 452:11746).
+    func cameraControlPressed() {
+        guard supported, intro == nil, !review, !choosingPlan, !editingDangerZones, !confirmingScan else { return }
+        switch step {
+        case .scan: break
+        case .boundary: if let next=nextCorner { captureCorner(next) }
+        case .objects: if objectEditing { addObjectVertex() } else if draft.area != nil { beginObject() }
+        case .route: addRoutePoint()
+        case .checkpoint:
+            if draft.checkpoint == nil { placeCheckpoint(0) } else if draft.secondCheckpoint == nil { placeCheckpoint(1) }
+        }
+    }
+    /// Steps that place points from the Camera Control button show the glow at its position.
+    var cameraControlActive: Bool { supported && step != .scan && intro == nil && !review }
+    /// The panel's ↺: clears the current step's input.
+    func resetStep() {
+        guard !busy else { return }
+        switch step {
+        case .scan: break
+        case .boundary:
+            draft.corners=Array(repeating:nil,count:4); draft.dangerZones=[]; selectedCorner=nil; synchronize()
+        case .objects:
+            if objectEditing { pendingObjectWorld=[]; facingEdge=nil; measureObject(); synchronize() }
+            else { for object in draft.objects { deleteObject(object.id) } }
+        case .route:
+            cancelRouteHeight()
+            while !draft.route.isEmpty { undoRoutePoint() }
+            selectedRoutePoint=nil
+        case .checkpoint:
+            draft.checkpoint=nil; draft.secondCheckpoint=nil; synchronize()
+        }
+    }
+    /// Removes one checkpoint from the panel; the second moves up when the first goes.
+    func removeCheckpoint(_ index: Int) {
+        guard !busy else { return }
+        if index == 0 { draft.checkpoint=draft.secondCheckpoint }
+        draft.secondCheckpoint=nil
+        synchronize()
+    }
+    func undoCheckpoint() {
+        guard !busy else { return }
+        if draft.secondCheckpoint != nil { draft.secondCheckpoint=nil } else { draft.checkpoint=nil }
+        synchronize()
+    }
+    /// Changes the facing edge of a registered chair or stairs from the panel's dropdown (452:11604).
+    func setFacingEdge(_ edge: Int?, of id: UUID) {
+        guard !busy, let i=draft.objects.firstIndex(where:{$0.id==id}) else { return }
+        draft.objects[i].facingEdge=edge; synchronize()
     }
     func disappear() { session.endSession() }
     func scenePhaseChanged(_ phase: ScenePhase) {
@@ -139,7 +217,8 @@ final class PreparationViewModel: ObservableObject {
         case .checkpoint: return draft.checkpoint != nil && draft.checkpointErrors.isEmpty
         }
     }
-    func canSelect(_ s: PreparationStep) -> Bool { !(busy || s == .scan || s > highest || objectEditing) }
+    /// After the scan is confirmed every later step is open, finished or not (the step bar moves freely).
+    func canSelect(_ s: PreparationStep) -> Bool { !(busy || s == .scan || !scanConfirmed || objectEditing) }
     func advance() {
         highest=max(highest,step.next); changeStep(step.next)
     }
@@ -157,10 +236,11 @@ final class PreparationViewModel: ObservableObject {
         }
     }
     func changeStep(_ value: PreparationStep) {
-        guard value > .scan, value <= highest, !busy else {return}
+        guard value > .scan, scanConfirmed, !busy else {return}
+        highest=max(highest,value)
         let changed=step != value
         confirmingRouteHeight=false; pendingRouteHeight=nil
-        step=value; review=false; selectedCorner=nil; guideCollapsed=false
+        step=value; review=false; selectedCorner=nil; guideCollapsed=false; selectedRoutePoint=nil
         if !seen.contains(value) {seen.insert(value); intro=0} else {intro=nil}
         // Objects are outlined on top of the scanned surface (10/18), so the mesh stays on through that step.
         if changed {session.showMesh = value <= .objects}

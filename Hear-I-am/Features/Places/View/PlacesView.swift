@@ -57,7 +57,7 @@ struct PlacesView: View {
                     }
                 }.suspendsVoiceWake()
             }
-            .fullScreenCover(isPresented:$model.scanPresented,onDismiss:{Task {await model.finishScan(library:library)}}) {
+            .scanCover(isPresented:$model.scanPresented,onDismiss:{Task {await model.finishScan(library:library)}}) {
                 PreparationView(library:library).suspendsVoiceWake()
             }
             .alert("확인이 필요해요",isPresented:Binding(get:{model.error != nil && model.sheet == nil},set:{if !$0 {model.error=nil}})) {Button("확인",role:.cancel) {model.error=nil}} message:{Text(model.error ?? "")}

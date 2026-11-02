@@ -71,12 +71,9 @@ struct GuidanceView: View {
             .background(model.phase.showsRouteCamera && model.isPractice ? Color.white : HearV3.canvas)
             .tint(model.phase.showsRouteCamera && model.isPractice ? Color.black : HearV3.text)
             .preferredColorScheme(model.phase.showsRouteCamera && model.isPractice ? .light : .dark)
-            .sheet(isPresented:$showingSettings,onDismiss:{model.endSettings()}) {
-                NavigationStack {
-                    HomeSettingsView()
-                        .toolbar {ToolbarItem(placement:.cancellationAction) {Button("닫기") {showingSettings=false}}}
-                }.suspendsVoiceWake()
-            }
+            // Settings push in, as in the design; the guidance resumes when the user comes back.
+            .navigationDestination(isPresented:$showingSettings) {HomeSettingsView().suspendsVoiceWake()}
+            .onChange(of:showingSettings) {_,shown in if !shown {model.endSettings()}}
             .alert("안내를 끝낼까요?",isPresented:$model.showExit) {
                 Button("안내 끝내기",role:.destructive) { close() }
                 Button("계속 사용하기",role:.cancel) { model.cancelExit() }
