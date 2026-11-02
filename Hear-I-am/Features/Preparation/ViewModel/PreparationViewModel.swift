@@ -58,8 +58,14 @@ final class PreparationViewModel: ObservableObject {
     @Published var step: PreparationStep = .scan
     @Published var highest: PreparationStep = .scan
     /// The scan step's card waits for the system coaching (「Move iPhone to start」) to finish; `?` shows it any time.
-    @Published var intro: Int? = nil
-    private var scanIntroShown=false
+    @Published var intro: Int? = nil {
+        // The scan itself starts with the card's 「시작하기」, after the coaching and the card (11/02).
+        didSet { if intro == nil, oldValue != nil, step == .scan { session.beginMeshScan() } }
+    }
+    @Published private(set) var scanIntroShown=false
+    /// The opening 「iPhone을 움직이세요」 runs until the intro card shows (at most about 13 s, see `appear`);
+    /// the controls behind it take no taps meanwhile (11/02).
+    var openingCoaching: Bool { supported && step == .scan && !scanIntroShown }
     @Published var selectedRoutePoint: Int?
     @Published var selectedCorner: Int?
     @Published var objectEditing=false
@@ -71,6 +77,8 @@ final class PreparationViewModel: ObservableObject {
     @Published var guideCollapsed=false
     @Published var confirmingScan=false
     @Published var confirmingExit=false
+    /// The more panel under the ⋯ button (452:12878).
+    @Published var showingMore=false
     private var seen: Set<PreparationStep> = [.scan]
     private var sessionChanges: AnyCancellable?
     private var coachingChanges: AnyCancellable?
@@ -129,6 +137,7 @@ final class PreparationViewModel: ObservableObject {
     func appear() {
         session.showMesh=true
         guard session.supported else { return }
+        session.meshHeld=true
         session.newScan()
         // 「Move iPhone to start」 opens every scan: held past the black transition for 3s at least, then until
         // tracking is normal (8s at most). Its deactivation brings the intro card.

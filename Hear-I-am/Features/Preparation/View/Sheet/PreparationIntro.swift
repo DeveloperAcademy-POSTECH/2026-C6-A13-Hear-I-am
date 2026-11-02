@@ -30,14 +30,16 @@ struct PreparationIntro: View {
                     Text(detail).font(.system(size:16,weight:.medium)).foregroundStyle(ScanChrome.secondary).lineSpacing(3)
                         .fixedSize(horizontal:false,vertical:true)
                 }
+                // The same two buttons only change their titles between pages, so 「시작하기」 does not pop in.
                 HStack(spacing:6) {
-                    if page == 0 {ScanCardButton(title:"다시보지 않기",primary:false) {show(nil)}}
-                    else {ScanCardButton(title:"이전으로",primary:false) {show(page-1)}}
+                    ScanCardButton(title:page == 0 ? "다시보지 않기" : "이전으로",primary:false) {show(page == 0 ? nil : page-1)}
                     ScanCardButton(title:last ? "시작하기" : "다음으로") {show(last ? nil : page+1)}
                 }
             }.frame(maxWidth:330,alignment:.leading)
         }.padding(28).frame(maxWidth:640).fixedSize(horizontal:false,vertical:true)
             .scanCard()
+            // A page change is shown at once, without the press animation carrying the new page in (11/02).
+            .transaction {$0.animation=nil;$0.disablesAnimations=true}
             .overlay(alignment:.topTrailing) {
                 Button {show(nil)} label: {
                     Image(systemName:"xmark").font(.system(size:17,weight:.semibold)).foregroundStyle(.white)

@@ -13,6 +13,7 @@ import HearIAmCore
             if voiceExperiment, voiceMode == .performance, phase == .starting {voicePerformanceInputClosed=true}
             run?.setRunning(phase == .guiding,uptime:ProcessInfo.processInfo.systemUptime);captureReplay(force:true);syncVoiceListening()
             if oldValue != phase {syncVoiceConversationLanguage()}
+            if oldValue != phase, voiceExperiment {VoiceLog.write("voice_phase","\(oldValue) -> \(phase)",screen:"guidance.\(phase)")}
         }
     }
     @Published var selected: ScanManifest?
@@ -85,6 +86,14 @@ import HearIAmCore
     var voiceConversationOpen=false
     var voiceConversationTimer: Task<Void,Never>?
     @Published var voiceInputError: String?
+    /// The conversation on the performer's voice screens (Figma 495:5096–5481): requests, replies and the cards found.
+    @Published var voiceChat: [VoiceChatEntry]=[]
+    /// The request from Home already shown as the first bubble, so handling it does not add it again.
+    var voiceChatSeededRequest: String?
+    /// The next lines read aloud already have a chat entry of their own (cards), so `read` adds no text for them.
+    var voiceChatSuppressNextLine=false
+    /// 실전용 was asked for by voice; it is held back for now, so 연습용 runs and the intro says so (IA 11/02).
+    var voiceModeFallback=false
     let voiceRecognition=VoiceRecognitionService()
     let listeningChime=VoiceListeningChime()
     var voiceSubscriptions=Set<AnyCancellable>()
@@ -233,6 +242,12 @@ import HearIAmCore
         if answering {keepVoiceConversation(120)}
         audioIssue=nil;instructionDone=false;currentInstruction=texts
         voiceNarrationInterruptible=interruptible
+        // What the app says appears as its line in the conversation, up to the walking guidance (Figma 495:5374).
+        let cardsShown=voiceChatSuppressNextLine
+        voiceChatSuppressNextLine=false
+        if voiceExperiment, voiceStartedAsHelper != true, !helperPreparation, !phase.showsRouteCamera, !cardsShown {
+            appendVoiceChat(.app(texts.joined(separator:" ")))
+        }
         let operation=generation
         voice.play(texts) { [weak self] finished in
             guard let self, finished, self.generation == operation, self.active else { return }
