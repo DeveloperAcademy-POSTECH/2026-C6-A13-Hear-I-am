@@ -30,22 +30,27 @@ struct PreparationToolGroup: View {
                     if model.objectEditing {
                         tool("xmark","기물 입력 취소") {model.cancelObject()}
                     } else {
-                        tool("shippingbox.fill","기물 추가, 등록한 기물 \(draft.objects.count)개",enabled:draft.area != nil) {model.beginObject()}
+                        // Figma 452:13124: the add-object symbol with the count in a 23pt chip at its top right.
+                        tool(ScanChrome.addObjectSymbol,"기물 추가, 등록한 기물 \(draft.objects.count)개",enabled:draft.area != nil) {model.beginObject()}
                             .overlay(alignment:.top) {
-                                Text("\(draft.objects.count)").font(.system(size:11,weight:.bold)).foregroundStyle(.white)
-                                    .frame(minWidth:20,minHeight:20).background(Color.black.opacity(0.6),in:Circle())
+                                Text("\(draft.objects.count)").font(.system(size:14)).foregroundStyle(.white)
+                                    .frame(minWidth:23,minHeight:23).background(Color.black.opacity(0.4),in:Circle())
                                     .offset(y:-30).accessibilityHidden(true)
                             }
                     }
                 }
             case .route:
+                // Figma 452:13145: undo, add a point, and the bin that clears the whole route.
                 undo(enabled:!draft.route.isEmpty && !model.busy) {model.undoRoutePoint()}
                 group {
                     tool("plus","\(draft.nextRoutePointLabel(at:model.session.aimPoint)) 지정",
                          enabled:!draft.routeFinished && draft.route.count<StageRoute.maxPointCount-1 && model.canPlacePoint && draft.area != nil) {model.addRoutePoint()}
                     tool("flag.checkered","도착점 지정",enabled:!draft.routeFinished && draft.route.count>=2 && model.canPlacePoint && draft.area != nil) {model.addRoutePoint(destination:true)}
+                    tool("trash","동선 전체 지우기",enabled:!draft.route.isEmpty && !model.busy) {model.resetStep()}
                 }
             case .checkpoint:
+                // Figma 452:13181 · 13178: undo and add.
+                undo(enabled:draft.checkpoint != nil && !model.busy) {model.undoCheckpoint()}
                 group {
                     let next: Int? = draft.checkpoint == nil ? 0 : (draft.secondCheckpoint == nil ? 1 : nil)
                     tool("plus",next.map {"확인점 \($0+1) 지정"} ?? "확인점 두 개 지정됨",enabled:next != nil && model.canPlacePoint && draft.area != nil) {

@@ -21,7 +21,10 @@ struct PreparationGuideCard: View {
                     ScrollView {
                         VStack(alignment:.leading,spacing:10) {
                             if model.step == .objects && model.objectEditing {objectForm}
-                            else {PreparationMiniMap(model:model,dark:true).frame(height:100)}
+                            else {
+                                PreparationMiniMap(model:model,selectedObject:model.step == .objects ? currentObject : nil,
+                                                   selectedPoint:model.step == .route ? currentRoutePoint : nil).frame(height:118)
+                            }
                             notes
                         }
                     }.frame(maxHeight:max(80,maxHeight-110))
@@ -29,7 +32,11 @@ struct PreparationGuideCard: View {
                 }.padding(.leading,6).padding(.trailing,22).padding(.vertical,19)
             }
         }.frame(width:model.guideCollapsed ? nil : 289)
-            .liquidGlass(RoundedRectangle(cornerRadius:34,style:.continuous),tint:model.guideCollapsed ? ScanChrome.buttonTint : ScanChrome.panelTint)
+            .background {
+                if !model.guideCollapsed {
+                    Color.clear.liquidGlass(RoundedRectangle(cornerRadius:34,style:.continuous),tint:ScanChrome.panelTint)
+                }
+            }
             .environment(\.colorScheme,.dark)
     }
 
@@ -54,14 +61,30 @@ struct PreparationGuideCard: View {
                     Text("등록한 기물 없음").font(.system(size:16,weight:.semibold))
                 } else {
                     let index=draft.objects.firstIndex {$0.id == currentObject} ?? 0
-                    dropdown("\(index+1)번 \(draft.objects[index].name)") {
+                    let object=draft.objects[index]
+                    dropdown("\(index+1)번 \(object.name)") {
                         ForEach(Array(draft.objects.enumerated()),id:\.element.id) {i,o in
                             Button("\(i+1)번 \(o.name) · \(o.kind.defaultName)\(o.height.map {" · \(Int(($0*100).rounded()))cm"} ?? "")") {selectedObject=o.id}
                         }
                     }
+                    // The edge a chair or stairs faces, as 「2→4」 (452:11604).
+                    if object.kind == .platform || object.kind == .stairs {
+                        let count=object.vertices.count
+                        dropdown(object.facingEdge.map {"\($0+1)→\(($0+1)%count+1)"} ?? "방향") {
+                            Button("선택 안 함") {model.setFacingEdge(nil,of:object.id)}
+                            ForEach(0..<count,id:\.self) {i in Button("변 \(i+1)→\((i+1)%count+1)") {model.setFacingEdge(i,of:object.id)}}
+                        }
+                    }
                 }
             case .route:
-                Text("경로 \(draft.route.count)/\(StageRoute.maxPointCount)점").font(.system(size:16,weight:.semibold))
+                if draft.route.isEmpty {
+                    Text("경로 0/\(StageRoute.maxPointCount)점").font(.system(size:16,weight:.semibold))
+                } else {
+                    let labels=draft.routePointLabels
+                    dropdown(labels.indices.contains(currentRoutePoint) ? labels[currentRoutePoint] : "P\(currentRoutePoint)") {
+                        ForEach(labels.indices,id:\.self) {i in Button(labels[i]) {model.selectedRoutePoint=i}}
+                    }
+                }
             case .checkpoint:
                 dropdown("확인점 \(selectedCheckpoint+1)") {
                     Button("확인점 1") {selectedCheckpoint=0}
@@ -71,7 +94,28 @@ struct PreparationGuideCard: View {
                 EmptyView()
             }
             Spacer(minLength:0)
+            // ↺ clears the step's input (452:13161).
+            Button {model.resetStep()} label: {
+                Image(systemName:"arrow.counterclockwise").font(.system(size:14,weight:.semibold)).foregroundStyle(.white)
+                    .frame(width:32,height:32).background(ScanChrome.panelTint,in:Circle())
+            }.buttonStyle(.plain).disabled(model.busy || !canReset).opacity(canReset ? 1 : 0.4)
+                .accessibilityLabel("\(model.step.title) 초기화")
         }
+    }
+    private var canReset: Bool {
+        let draft=model.draft
+        switch model.step {
+        case .scan: return false
+        case .boundary: return draft.corners.contains {$0 != nil}
+        case .objects: return model.objectEditing ? !model.pendingObjectWorld.isEmpty : !draft.objects.isEmpty
+        case .route: return !draft.route.isEmpty
+        case .checkpoint: return draft.checkpoint != nil
+        }
+    }
+    private var currentRoutePoint: Int {
+        let count=model.draft.route.count
+        guard count > 0 else {return 0}
+        return min(model.selectedRoutePoint ?? count-1,count-1)
     }
     private func dropdown<Items: View>(_ title: String, @ViewBuilder items: () -> Items) -> some View {
         Menu {items()} label: {
@@ -105,10 +149,19 @@ struct PreparationGuideCard: View {
             }
         case .checkpoint:
             let set=selectedCheckpoint == 0 ? draft.checkpoint != nil : draft.secondCheckpoint != nil
-            ScanCardButton(title:set ? "다시 찍기" : "지정하기",enabled:model.canPlacePoint && draft.area != nil && (selectedCheckpoint == 0 || draft.checkpoint != nil),compact:true) {
-                model.placeCheckpoint(selectedCheckpoint)
+            HStack(spacing:6) {
+                ScanCardButton(title:"삭제하기",primary:false,destructive:true,enabled:set && !model.busy,compact:true) {model.removeCheckpoint(selectedCheckpoint)}
+                ScanCardButton(title:set ? "수정하기" : "지정하기",enabled:model.canPlacePoint && draft.area != nil && (selectedCheckpoint == 0 || draft.checkpoint != nil),compact:true) {
+                    model.placeCheckpoint(selectedCheckpoint)
+                }
             }
-        case .scan,.route:
+        case .route:
+            // Only the newest point can go; earlier ones are reached by undoing back to them.
+            if !draft.route.isEmpty {
+                ScanCardButton(title:currentRoutePoint == draft.route.count-1 ? "삭제하기" : "마지막 점만 삭제할 수 있어요",primary:false,destructive:true,
+                               enabled:currentRoutePoint == draft.route.count-1 && !model.busy,compact:true) {model.undoRoutePoint()}
+            }
+        case .scan:
             EmptyView()
         }
     }

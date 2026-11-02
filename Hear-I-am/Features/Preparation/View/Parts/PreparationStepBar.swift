@@ -14,6 +14,12 @@ enum ScanChrome {
     static let danger=Color(red:159/255,green:50/255,blue:50/255)                   // #9F3232
     static let secondary=Color(red:235/255,green:235/255,blue:245/255).opacity(0.7)
     static let darkText=Color(red:38/255,green:38/255,blue:38/255)                  // #262626
+    static let alert=Color(red:44/255,green:44/255,blue:46/255)                     // dark alert card
+    static let accent=Color(red:10/255,green:132/255,blue:1)                        // #0A84FF
+    /// The design's add-object symbol (452:13124); older symbol sets fall back to the box.
+    static var addObjectSymbol: String {
+        UIImage(systemName:"homepod.and.homepod.mini.badge.plus.fill") != nil ? "homepod.and.homepod.mini.badge.plus.fill" : "shippingbox.fill"
+    }
 }
 
 /// A round glass button's face: back, help, more, camera and undo.
@@ -128,14 +134,18 @@ struct PreparationStepBar: View {
                         .padding(.horizontal,14).frame(height:30)
                         .background(current ? ScanChrome.selected : .clear,in:Capsule())
                 }.buttonStyle(.plain).disabled(!current && !model.canSelect(s))
+                    .transition(.opacity.combined(with:.scale(scale:0.6)))
                     .accessibilityLabel("\(s.rawValue+1)단계 \(s.title)\(model.isComplete(s) ? ", 완료" : "")\(current ? ", 현재 단계" : "")")
             }
         }.padding(.horizontal,9).frame(height:48)
             .liquidGlass(Capsule(),tint:ScanChrome.capsuleTint)
             .mask {
-                if expanded {Capsule()}
-                else {LinearGradient(stops:[.init(color:.black.opacity(0.35),location:0),.init(color:.black,location:0.25),.init(color:.black,location:0.75),.init(color:.black.opacity(0.35),location:1)],startPoint:.leading,endPoint:.trailing)}
+                // Folded, the neighbours fade at the capsule's ends; open, every step reads in full (452:11199).
+                LinearGradient(stops:[.init(color:.black.opacity(expanded ? 1 : 0.35),location:0),.init(color:.black,location:0.25),.init(color:.black,location:0.75),.init(color:.black.opacity(expanded ? 1 : 0.35),location:1)],startPoint:.leading,endPoint:.trailing)
             }
+            .animation(.snappy(duration:0.35),value:expanded)
+            .animation(.snappy(duration:0.35),value:model.step)
+            .accessibilityHint(expanded ? "단계를 눌러 이동" : "현재 단계를 누르면 모든 단계가 펼쳐져요")
     }
     private var visibleSteps: [PreparationStep] {
         guard !expanded else {return PreparationStep.allCases}

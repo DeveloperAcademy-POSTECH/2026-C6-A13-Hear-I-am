@@ -51,6 +51,16 @@ struct PreparationView: View {
                 Color.black.opacity(0.25)
                 PreparationIntro(step:model.step.rawValue,page:intro) {model.intro=$0}.padding(16)
             }
+            // The soft blue pulse over the Camera Control button (top edge, right of centre in this orientation),
+            // whenever that button places a point and on the card that explains it (452:11339).
+            if model.cameraControlActive || (model.step >= .objects && model.intro == 1) {
+                CameraControlGlow().frame(maxWidth:.infinity,maxHeight:.infinity,alignment:.top).allowsHitTesting(false)
+            }
+            if model.confirmingScan {
+                ScanConfirmCard(title:"공간 스캔을 확정할까요?",
+                                message:"공연장과 백스테이지가 충분히 포함됐는지 확인해주세요. 확정 후에는 스캔 단계로 돌아갈 수 없습니다.",
+                                cancel:"계속 스캔",confirm:"공간 확정",onCancel:{model.confirmingScan=false},onConfirm:{model.confirmingScan=false;model.confirmScan()})
+            }
             if !model.supported {
                 VStack(spacing:16) {
                     ContentUnavailableView("LiDAR 지원 iPhone이 필요해요",systemImage:"camera",description:Text("무대 준비는 실제 카메라와 LiDAR로 공간을 저장합니다. 시뮬레이터에서는 스캔할 수 없어요."))
@@ -93,10 +103,6 @@ struct PreparationView: View {
                 onSaved?(id)
                 close()
             }
-            .alert("공간 스캔을 확정할까요?",isPresented:$model.confirmingScan) {
-                Button("계속 스캔",role:.cancel) {}
-                Button("공간 확정") {model.confirmScan()}
-            } message:{Text("공연장과 백스테이지가 충분히 포함됐는지 확인해주세요. 확정 후에는 스캔 단계로 돌아갈 수 없습니다.")}
             .alert("이 위치를 경로점으로 추가할까요?",isPresented:$model.confirmingRouteHeight) {
                 Button("다시 선택",role:.cancel) {model.cancelRouteHeight()}
                 Button("이 위치로 추가") {model.confirmRouteHeight()}
@@ -118,5 +124,46 @@ struct PreparationView: View {
             var transaction=Transaction();transaction.disablesAnimations=true
             withTransaction(transaction) {dismiss()}
         }
+    }
+}
+
+/// The design's confirmation (452:11160) in dark colours: a 300pt card with the title, the message and two
+/// capsule buttons, the confirming one in the system blue.
+struct ScanConfirmCard: View {
+    let title: String
+    let message: String
+    let cancel: String
+    let confirm: String
+    let onCancel: () -> Void
+    let onConfirm: () -> Void
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.3).onTapGesture(perform:onCancel)
+            VStack(alignment:.leading,spacing:12) {
+                Text(title).font(.system(size:17,weight:.semibold)).foregroundStyle(.white)
+                Text(message).font(.system(size:15)).foregroundStyle(.white.opacity(0.8)).lineSpacing(3).fixedSize(horizontal:false,vertical:true)
+                HStack(spacing:10) {
+                    ScanCardButton(title:cancel,primary:false,action:onCancel)
+                    ScanCardButton(title:confirm,action:onConfirm)
+                }.padding(.top,8)
+            }.padding(20).frame(width:316)
+                .background(ScanChrome.alert.opacity(0.96),in:RoundedRectangle(cornerRadius:26,style:.continuous))
+                .environment(\.colorScheme,.dark)
+                .accessibilityAddTraits(.isModal)
+        }
+    }
+}
+
+/// Figma Ellipse 28: a #0088FF ellipse (134×60, blur 30, 86%) at the top edge over the Camera Control button,
+/// breathing so the eye finds it.
+struct CameraControlGlow: View {
+    @State private var bright=false
+    var body: some View {
+        GeometryReader { geometry in
+            Ellipse().fill(Color(red:0,green:136/255,blue:1).opacity(bright ? 0.86 : 0.35))
+                .frame(width:134,height:60).blur(radius:22)
+                .position(x:geometry.size.width*0.69,y:0)
+        }.ignoresSafeArea().accessibilityHidden(true)
+            .onAppear {withAnimation(.easeInOut(duration:1.1).repeatForever(autoreverses:true)) {bright=true}}
     }
 }
