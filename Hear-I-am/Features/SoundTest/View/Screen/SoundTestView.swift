@@ -154,15 +154,17 @@ struct SignalLessonView: View {
             VStack(spacing:5) {
                 Image(systemName:"safari").font(.system(size:46,weight:.regular)).foregroundStyle(.white).frame(width:58,height:58)
                 VStack(spacing:3) {
-                    Text("정면 찾기").font(.system(size:26,weight:.semibold)).foregroundStyle(.white)
-                    Text("방향 구별을 위해 연습을 해보아요").font(.system(size:16)).foregroundStyle(.white.opacity(0.8))
+                    Text("정면 찾기").font(.system(size:26,weight:.semibold)).tracking(-0.78).foregroundStyle(.white)
+                    Text("방향 구별을 위해 연습을 해보아요").font(.system(size:16)).tracking(-0.48).foregroundStyle(.white.opacity(0.8))
                 }.lineLimit(1).minimumScaleFactor(0.8)
-            }.frame(maxWidth:.infinity).frame(height:226)
+            }.padding(.top,41).frame(maxWidth:.infinity,maxHeight:.infinity,alignment:.top).frame(height:226)
                 .background {
                     ZStack {
-                        // Figma Ellipse 31: 191pt white discs at 64%, blurred 75, one past each corner.
-                        Circle().fill(Color.white.opacity(0.64)).frame(width:191,height:191).blur(radius:75).offset(x:-185+95-77,y:-113+95+112)
-                        Circle().fill(Color.white.opacity(0.64)).frame(width:191,height:191).blur(radius:75).offset(x:-185+95+290,y:-113+95-116)
+                        // Figma Ellipse 31 (191pt white disc at 64%, layer blur 75) past the bottom-left and top-right corners.
+                        // Drawn as the blurred disc's own falloff, measured from the design's render, instead of SwiftUI's blur,
+                        // which spreads the same values into a haze over the whole card.
+                        CardCornerGlow().offset(x:-185+95.5-77,y:-113+95.5+112)
+                        CardCornerGlow().offset(x:-185+95.5+290,y:-113+95.5-116)
                     }
                 }
                 .background(Color.white.opacity(0.05),in:RoundedRectangle(cornerRadius:34,style:.continuous))
@@ -200,6 +202,16 @@ struct SignalLessonView: View {
     /// The spoken copy says 「피원」 so speech reads it right; the screen shows P1.
     private var explanation: String {
         step == .arrival ? step.explanation.replacingOccurrences(of:"피원",with:"P1").replacingOccurrences(of:"피투",with:"P2") : step.explanation
+    }
+}
+
+private struct CardCornerGlow: View {
+    /// White alpha by distance from the disc's centre, binned from the design's render every 20pt (0.38 at the centre,
+    /// 0.09 at 140pt, 0.013 at 200pt, gone by 240pt).
+    private static let profile: [(CGFloat, Double)] = [(0,0.385),(40,0.37),(60,0.32),(80,0.255),(100,0.19),(120,0.133),(140,0.089),(160,0.052),(180,0.03),(200,0.013),(220,0.005),(240,0)]
+    private static let stops=profile.map {Gradient.Stop(color:.white.opacity($0.1),location:$0.0/240)}
+    var body: some View {
+        Circle().fill(RadialGradient(stops:Self.stops,center:.center,startRadius:0,endRadius:240)).frame(width:480,height:480)
     }
 }
 
