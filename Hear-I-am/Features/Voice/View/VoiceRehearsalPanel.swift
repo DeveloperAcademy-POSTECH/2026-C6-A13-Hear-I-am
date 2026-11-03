@@ -38,13 +38,12 @@ struct VoiceBloom: View {
                 ZStack {
                     ForEach(Array(Self.lights.enumerated()),id:\.offset) {index,light in
                         let phase=Double(index)*2.1
-                        // Sideways drift of up to 16% of the width, a breath of ±20% in size and a rise of up to 60pt,
-                        // each on its own 6–10 s period so the pattern never repeats exactly. The first version
-                        // took 20–37 s per cycle and looked still on the phone (11/03).
-                        let drift=sin(time*0.78+phase)*0.16
-                        let breath=1+0.2*sin(time*0.95+phase*1.7)
-                        let lift=(1-cos(time*0.66+phase))*30
-                        let glow=0.7+0.3*sin(time*1.05+phase*0.6)
+                        // Restless on purpose (11/03 「좀 더 요동치게」): a wide sway with a quicker wobble on top, a breath
+                        // of up to ±35%, a surge of up to 110pt and a flicker, on 3–5 s periods with 1–2 s ripples.
+                        let drift=sin(time*1.35+phase)*0.24+sin(time*3.1+phase*2.3)*0.06
+                        let breath=1+0.27*sin(time*1.7+phase*1.7)+0.08*sin(time*4.3+phase)
+                        let lift=(1-cos(time*1.2+phase))*45+abs(sin(time*2.6+phase*1.3))*20
+                        let glow=0.6+0.3*sin(time*2.1+phase*0.6)+0.1*sin(time*5.2+phase)
                         let radius=light.rx*w
                         Circle().fill(RadialGradient(stops:[
                             .init(color:light.color.opacity(light.alpha),location:0),

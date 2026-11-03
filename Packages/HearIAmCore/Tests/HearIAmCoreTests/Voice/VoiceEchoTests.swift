@@ -24,7 +24,11 @@ final class VoiceEchoTests: XCTestCase {
         XCTAssertTrue(VoiceEcho.isEcho("2번 테스트2", of: ["2번, 테스트2."]))
     }
     func testLeadingEchoIsStripped() {
-        XCTAssertEqual(VoiceEcho.strippingLeadingEcho("무엇을 머지 테스트 무대 선택해 줘", of: [greeting]), "머지 테스트 무대 선택해 줘")
+        XCTAssertEqual(VoiceEcho.strippingLeadingEcho("무엇을 할까요 머지 테스트 무대 선택해 줘", of: [greeting]), "머지 테스트 무대 선택해 줘")
+        // One word the question also holds is the user's own (11/03).
+        let home = "네, 무엇을 할까요? 무대를 스캔할까요, 저장된 공연으로 연습할까요?"
+        XCTAssertEqual(VoiceEcho.strippingLeadingEcho("저장된 무대 보여줘", of: [home]), "저장된 무대 보여줘")
+        XCTAssertEqual(VoiceEcho.strippingLeadingEcho("저장된 공연으로 머지 테스트", of: [home]), "머지 테스트")
         XCTAssertEqual(VoiceEcho.strippingLeadingEcho("네 무엇을 할까요", of: [greeting]), "")
         XCTAssertEqual(VoiceEcho.strippingLeadingEcho("연습", of: [greeting]), "연습")
         XCTAssertEqual(VoiceEcho.strippingLeadingEcho("Look at me", of: [greeting]), "Look at me")

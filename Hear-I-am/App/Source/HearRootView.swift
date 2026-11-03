@@ -41,7 +41,7 @@ struct HearRootView: View {
         .onAppear {
             wake.onRequest={text in
                 switch VoiceAppRequest.resolve(text) {
-                case .plans?: wake.answer(["공연 관리는 조력자 화면에서 사용할 수 있어요."],request:text) {openHelper(tab:1)}
+                case .plans?: wake.answer(VoiceAppRequest.plansHandoff,request:text) {openHelper(tab:1)}
                 case .scan?: wake.answer(VoiceAppRequest.scanAnswer,request:text) {openScan()}
                 case nil:open(VoiceGuidanceLaunch(request:VoiceAppRequest.isRehearsal(text) ? nil : text,heard:text))
                 }

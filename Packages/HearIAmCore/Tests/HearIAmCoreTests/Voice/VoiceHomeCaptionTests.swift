@@ -28,7 +28,7 @@ final class VoiceHomeCaptionTests: XCTestCase {
 
     func testLeadingNarrationIsRemovedButTheUsersRequestRemains() {
         var caption = VoiceHomeCaption()
-        caption.receivePartial("무엇을 머지 테스트 무대 선택해 줘", isAwake: true, isEnglish: false,
+        caption.receivePartial("무엇을 할까요 머지 테스트 무대 선택해 줘", isAwake: true, isEnglish: false,
                                overlappingNarration: true, spokenLines: [greeting])
         XCTAssertEqual(caption.transcript, "머지 테스트 무대 선택해 줘")
     }
