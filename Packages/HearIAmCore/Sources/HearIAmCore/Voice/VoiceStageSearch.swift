@@ -9,8 +9,43 @@ public enum VoiceStageMatch: Equatable, Sendable {
 
 public enum VoiceStageSearch {
     public static func normalized(_ text: String) -> String {
-        text.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "ko_KR"))
+        var text = text.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "ko_KR"))
             .filter { $0.isLetter || $0.isNumber }
+        // 「확인점 두개」 names the stage 「확인점 2개」 (11/03 device log): counted numbers are written as digits.
+        for (word, digit) in countWords { text = text.replacingOccurrences(of: word + "개", with: "\(digit)개") }
+        return text
+    }
+    private static let countWords = [("다섯", 5), ("여섯", 6), ("일곱", 7), ("여덟", 8), ("아홉", 9), ("한", 1), ("두", 2), ("세", 3), ("네", 4), ("열", 10)]
+
+    /// The name heard with one sound wrong, as 「확인 좀 2개」 or 「확인점 조개」 for 「확인점 2개」 (11/03).
+    /// Only names of four or more letters, and only when exactly one name comes that close.
+    static func nearlyNamed(_ request: String, names: [String]) -> Int? {
+        let close = names.indices.filter { index in
+            let name = Array(names[index])
+            guard name.count >= 4 else { return false }
+            let heard = Array(request)
+            let allowed = name.count >= 8 ? 2 : 1
+            for length in max(1, name.count - allowed)...(name.count + allowed) where length <= heard.count {
+                for start in 0...(heard.count - length) where distance(Array(heard[start..<start + length]), name) <= allowed {
+                    return true
+                }
+            }
+            return false
+        }
+        let distinct = Set(close.map { names[$0] })
+        return distinct.count == 1 && close.count == 1 ? close[0] : nil
+    }
+    private static func distance(_ a: [Character], _ b: [Character]) -> Int {
+        var row = Array(0...b.count)
+        for i in 1...max(a.count, 1) where !a.isEmpty {
+            var previous = row[0]; row[0] = i
+            for j in 1...max(b.count, 1) where !b.isEmpty {
+                let current = row[j]
+                row[j] = min(row[j] + 1, row[j - 1] + 1, previous + (a[i - 1] == b[j - 1] ? 0 : 1))
+                previous = current
+            }
+        }
+        return a.isEmpty ? b.count : row[b.count]
     }
 
     public static func resolve(_ text: String, names: [String], contexts: [[String]] = []) -> VoiceStageMatch {
@@ -44,6 +79,7 @@ public enum VoiceStageSearch {
                 }
                 return .results(query: text, indices: inside)
             }
+            if let near = nearlyNamed(request, names: names) { return .selected(near) }
         }
         if ["전체", "전체목록", "모든무대", "전체무대", "전체무대보여줘", "전체목록보여줘", "모든무대보여줘"].contains(request) {
             return .results(query: "전체", indices: Array(names.indices))
@@ -87,6 +123,27 @@ public enum VoiceStageSearch {
     }
 
     /// One-based ordinals always refer to the currently visible result list.
+    /// 「3번 무대 스캔」: a number followed by that item's own name picks it, even when several items share
+    /// the name (four stages called 「무대 스캔」, 11/03). A name that is not the numbered item's is no pick.
+    public static func numbered(_ text: String, names: [String]) -> Int? {
+        let request = normalized(text)
+        let ordinals = ["첫", "두", "세", "네", "다섯", "여섯", "일곱", "여덟", "아홉", "열"]
+        var number: Int?, rest = ""
+        if let match = request.range(of: #"^[0-9]+번(?:째)?"#, options: .regularExpression) {
+            number = Int(request[match].prefix(while: { $0.isNumber })); rest = String(request[match.upperBound...])
+        } else if let match = request.range(of: #"^(?:일|이|삼|사|오|육|칠|팔|구|십)번"#, options: .regularExpression) {
+            number = VoiceCommandParser.sinoKorean[String(request.prefix(1))]; rest = String(request[match.upperBound...])
+        } else if let index = ordinals.firstIndex(where: { request.hasPrefix($0 + "번째") }) {
+            number = index + 1; rest = String(request.dropFirst(ordinals[index].count + 2))
+        }
+        guard let number, names.indices.contains(number - 1) else { return nil }
+        for ending in ["을선택해줘", "를선택해줘", "선택해줘", "선택", "으로", "로", "이요", "요"] where rest.hasSuffix(ending) {
+            rest = String(rest.dropLast(ending.count)); break
+        }
+        let name = normalized(names[number - 1])
+        return rest.isEmpty || rest == "무대" || rest == "공연" || rest == name || (rest.count >= 2 && name.contains(rest)) ? number : nil
+    }
+
     public static func ordinal(_ text: String) -> Int? {
         let request=normalized(text)
         let words=["첫번째", "두번째", "세번째", "네번째", "다섯번째", "여섯번째", "일곱번째", "여덟번째", "아홉번째", "열번째"]

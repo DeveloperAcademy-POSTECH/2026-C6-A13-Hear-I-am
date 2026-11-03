@@ -22,6 +22,17 @@ public enum VoiceCommandParser {
         return parseExact(String(text[match.upperBound...]))
     }
 
+    /// Words that close the conversation: 「닫기」, 「종료」, 「나가기」. Dictation often hears 「닫기」 as
+    /// 「찾기」 or 「받기」 with 「닫기」 among the alternatives (11/03), so callers try those too.
+    public static func isClose(_ text: String) -> Bool {
+        let compact = text.lowercased().replacingOccurrences(of: #"[\s.!?。！？,~]"#, with: "", options: .regularExpression)
+        if closeWords.contains(compact) { return true }
+        return compact.count <= 8 && ["종료", "닫기", "닫아줘", "끝내줘", "나가기"].contains { compact.hasSuffix($0) }
+    }
+    private static let closeWords: Set<String> = ["닫기", "닫아", "닫아줘", "닫아주세요", "창닫기", "대화닫기", "나가기", "나가", "나갈래",
+                                                  "나가줘", "종료", "종료해", "종료해줘", "대화종료", "음성종료", "끝내기", "끝내줘", "그만할래",
+                                                  "close", "exit"]
+
     private static func parseExact(_ text: String) -> VoiceCommand? {
         let normalized=text.folding(options:[.caseInsensitive,.diacriticInsensitive],locale:Locale(identifier:"ko_KR"))
             .trimmingCharacters(in:.whitespacesAndNewlines)

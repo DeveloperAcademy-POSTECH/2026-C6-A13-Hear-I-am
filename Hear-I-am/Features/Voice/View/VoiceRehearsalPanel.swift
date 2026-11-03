@@ -38,12 +38,12 @@ struct VoiceBloom: View {
                 ZStack {
                     ForEach(Array(Self.lights.enumerated()),id:\.offset) {index,light in
                         let phase=Double(index)*2.1
-                        // Sideways drift of up to 7% of the width, a breath of ±12% in size and a rise of up to 28pt,
-                        // each on a different period so the pattern never repeats exactly.
-                        let drift=sin(time*0.17+phase)*0.07
-                        let breath=1+0.12*sin(time*0.31+phase*1.7)
-                        let lift=(1-cos(time*0.23+phase))*14
-                        let glow=0.82+0.18*sin(time*0.27+phase*0.6)
+                        // Restless on purpose (11/03 「좀 더 요동치게」): a wide sway with a quicker wobble on top, a breath
+                        // of up to ±35%, a surge of up to 110pt and a flicker, on 3–5 s periods with 1–2 s ripples.
+                        let drift=sin(time*1.35+phase)*0.24+sin(time*3.1+phase*2.3)*0.06
+                        let breath=1+0.27*sin(time*1.7+phase*1.7)+0.08*sin(time*4.3+phase)
+                        let lift=(1-cos(time*1.2+phase))*45+abs(sin(time*2.6+phase*1.3))*20
+                        let glow=0.6+0.3*sin(time*2.1+phase*0.6)+0.1*sin(time*5.2+phase)
                         let radius=light.rx*w
                         Circle().fill(RadialGradient(stops:[
                             .init(color:light.color.opacity(light.alpha),location:0),
@@ -114,7 +114,8 @@ struct VoiceChatMeta: View {
             Button {UIPasteboard.general.string=text} label: {Image(systemName:"doc.on.doc").frame(width:24,height:24)}
                 .accessibilityLabel("복사")
             if let onEdit {
-                Button(action:onEdit) {Image(systemName:"pencil").frame(width:24,height:24)}.accessibilityLabel("수정")
+                Button(action:onEdit) {Image(systemName:"pencil").frame(width:24,height:24).padding(6).contentShape(Rectangle())}
+                    .padding(-6).accessibilityLabel("수정")
             }
         }
         .font(.system(size:14)).foregroundStyle(VoiceStyle.meta).buttonStyle(.plain)
@@ -126,6 +127,11 @@ struct VoiceUserBubble: View {
     let text: String
     let date: Date
     var resend: ((String) -> Void)? = nil
+    var beginEdit: (() -> Void)? = nil
+    /// Off for the words still being spoken: they have no time, copy or edit yet.
+    var showsMeta=true
+    /// Words arriving while they are said appear letter by letter, as dictation types them (11/03).
+    var typing=false
     @State private var editing=false
     @State private var draft=""
     @FocusState private var focused: Bool
@@ -141,6 +147,9 @@ struct VoiceUserBubble: View {
                         Button(action:send) {Image(systemName:"arrow.up.circle.fill").font(.system(size:24))}
                             .buttonStyle(.plain).foregroundStyle(.white).accessibilityLabel("다시 보내기")
                     }
+                } else if typing {
+                    VoiceTypingText(text:text).font(.system(size:16,weight:.medium)).lineSpacing(3).foregroundStyle(.white)
+                        .fixedSize(horizontal:false,vertical:true)
                 } else {
                     Text(text).font(.system(size:16,weight:.medium)).lineSpacing(3).foregroundStyle(.white)
                         .fixedSize(horizontal:false,vertical:true)
@@ -149,15 +158,46 @@ struct VoiceUserBubble: View {
             .padding(.horizontal,17).padding(.vertical,13)
             .background(VoiceStyle.bubble,in:RoundedRectangle(cornerRadius:24,style:.continuous))
             .frame(maxWidth:274,alignment:.trailing)
-            VoiceChatMeta(date:date,text:text,onEdit:resend == nil ? nil : {draft=text;editing=true;focused=true}).padding(.horizontal,19)
+            if showsMeta {VoiceChatMeta(date:date,text:text,onEdit:resend == nil ? nil : startEditing).padding(.horizontal,19)}
         }
         .frame(maxWidth:.infinity,alignment:.trailing)
+    }
+    /// The field exists only after this update, so the keyboard is asked for on the next one; asking in the
+    /// same update left the bubble unfocused and nothing could be typed (11/03).
+    private func startEditing() {
+        draft=text;editing=true
+        beginEdit?()
+        DispatchQueue.main.async {focused=true}
     }
     private func send() {
         editing=false;focused=false
         let request=draft.trimmingCharacters(in:.whitespacesAndNewlines)
-        guard !request.isEmpty, request != text else {return}
+        guard !request.isEmpty else {return}
         resend?(request)
+    }
+}
+
+/// Text that catches up with what has been heard a letter at a time, so the words seem typed as spoken.
+/// A recognizer revision keeps the letters both versions share and types the rest.
+struct VoiceTypingText: View {
+    let text: String
+    @State private var shown=""
+    var body: some View {
+        Text(shown.isEmpty ? " " : shown)
+            .task(id:text) {
+                let target=Array(text)
+                var current=Array(shown)
+                let common=zip(current,target).prefix {$0 == $1}.count
+                current=Array(current.prefix(common))
+                shown=String(current)
+                while current.count < target.count {
+                    try? await Task.sleep(nanoseconds:22_000_000)
+                    if Task.isCancelled {return}
+                    current.append(target[current.count])
+                    shown=String(current)
+                }
+            }
+            .accessibilityLabel(text)
     }
 }
 
@@ -221,13 +261,17 @@ struct VoiceStageCards: View {
 
 /// The spinner line while the app works (495:5102).
 struct VoiceStatusRow: View {
-    let text: String
+    /// What the app is doing; without it only the moving logo shows, waiting for the answer.
+    let text: String?
+    /// Listening has stopped until the call: the logo stands still.
+    var idle=false
     var body: some View {
         HStack(spacing:4) {
-            VoiceLogoSpinner(size:35.5).opacity(0.4).frame(width:50,height:45)
-            Text(text).font(.system(size:16,weight:.medium)).foregroundStyle(VoiceStyle.status)
+            VoiceLogoSpinner(size:35.5,animating:!idle).opacity(0.4).frame(width:50,height:45)
+            if let text {Text(text).font(.system(size:16,weight:.medium)).foregroundStyle(VoiceStyle.status)}
         }
-        .accessibilityElement(children:.combine)
+        .accessibilityElement(children:.ignore)
+        .accessibilityLabel(text ?? "답변을 기다리고 있어요")
         .accessibilityIdentifier("voice.status")
     }
 }
@@ -238,6 +282,9 @@ struct VoiceStatusRow: View {
 struct VoiceConversationView: View {
     @ObservedObject var library: StageLibrary
     @ObservedObject var model: GuidanceViewModel
+    /// The last line the logo stopped waiting under: words that get no answer (noise read as speech) must
+    /// not leave it spinning for good.
+    @State private var unanswered: VoiceChatEntry.ID?
     var body: some View {
         ZStack(alignment:.top) {
             VoiceStyle.canvas.ignoresSafeArea()
@@ -250,24 +297,37 @@ struct VoiceConversationView: View {
                         // A plain stack: the lazy one guessed the height of rows off screen, so scrolling to the
                         // end stopped half way down until the screen was touched (11/02 device test).
                         VStack(alignment:.leading,spacing:24) {
-                            ForEach(model.voiceChat) {entry in row(entry)}
-                            if let status=model.voiceChatStatus {VoiceStatusRow(text:status)}
+                            ForEach(model.voiceChat) {entry in row(entry).id(entry.id)}
+                            // Like a messenger's typing dots: the moving logo sits under the last line while the app
+                            // works or has yet to answer the performer's words (11/03).
+                            if liveText {
+                                VoiceUserBubble(text:model.voiceLiveText,date:Date(),showsMeta:false,typing:true)
+                                    .accessibilityLabel("말하는 중: \(model.voiceLiveText)")
+                            }
+                            else if let status=model.voiceChatStatus {
+                                VoiceStatusRow(text:status,idle:status == GuidanceViewModel.voiceAsleepStatus)
+                            }
+                            else if awaitingAnswer || library.loading {VoiceStatusRow(text:nil)}
                             if model.phase == .selection, model.voiceChoosingMode,
                                model.voiceSelectionControlsVisible || model.voiceInputError != nil || model.audioIssue != nil {
                                 modeChoices
                             }
-                            if library.loading {ProgressView().tint(.white)}
                             Color.clear.frame(height:1).id("end")
                         }
                         .padding(.horizontal,16).padding(.top,32).padding(.bottom,48)
                     }
                     .scrollIndicators(.hidden).scrollDismissesKeyboard(.interactively)
+                    .task(id:model.voiceChat.last?.id) {
+                        let id=model.voiceChat.last?.id
+                        try? await Task.sleep(for:.seconds(12))
+                        if !Task.isCancelled {unanswered=id}
+                    }
                     // The conversation starts at the top and grows downward; only once it is longer than the
                     // screen does it scroll to keep the newest line in view. One scroll per change, after the
                     // new rows are laid out: a new line and the spinner changing together used to start two
                     // scrolls that stopped each other half way.
                     .onChange(of:scrollKey) {
-                        DispatchQueue.main.async {withAnimation(.easeOut(duration:0.25)) {proxy.scrollTo("end",anchor:.bottom)}}
+                        DispatchQueue.main.async {withAnimation(.easeOut(duration:0.25)) {scroll(proxy)}}
                     }
                     .onAppear {DispatchQueue.main.async {proxy.scrollTo("end",anchor:.bottom)}}
                 }
@@ -278,11 +338,29 @@ struct VoiceConversationView: View {
                 .frame(height:156).ignoresSafeArea(edges:.top).allowsHitTesting(false).accessibilityHidden(true)
         }
     }
+    /// New cards are shown from their top, under the words that asked for them; a long list scrolled to its
+    /// end hid the first performances (11/03). Anything else keeps the newest line in view.
+    private func scroll(_ proxy: ScrollViewProxy) {
+        let chat=model.voiceChat
+        if let last=chat.last, case .stages=last.kind {
+            proxy.scrollTo(chat.count > 1 ? chat[chat.count-2].id : last.id,anchor:.top)
+        } else {
+            proxy.scrollTo("end",anchor:.bottom)
+        }
+    }
     /// Changes whenever a line or the spinner line under the conversation changes.
-    private var scrollKey: String {"\(model.voiceChat.count)|\(model.voiceChatStatus ?? "")"}
+    private var scrollKey: String {"\(model.voiceChat.count)|\(model.voiceChatStatus ?? "")|\(awaitingAnswer)|\(liveText ? model.voiceLiveText : "")"}
+    /// The performer is speaking and some words have come through.
+    private var liveText: Bool {model.voiceTurnActive && !model.voiceLiveText.isEmpty}
+    /// The performer spoke last and nothing has answered yet.
+    private var awaitingAnswer: Bool {
+        guard let last=model.voiceChat.last, last.id != unanswered, case .user=last.kind else {return false}
+        return true
+    }
     @ViewBuilder private func row(_ entry: VoiceChatEntry) -> some View {
         switch entry.kind {
-        case .user(let text): VoiceUserBubble(text:text,date:entry.date) {model.submitTypedRequest($0)}
+        case .user(let text):
+            VoiceUserBubble(text:text,date:entry.date,resend:{model.submitTypedRequest($0,replacing:entry.id)},beginEdit:{model.beginVoiceEdit()})
         case .app(let text): VoiceAppLine(text:text,date:entry.date)
         case .stages(let text,let stages): VoiceStageCards(text:text,stages:stages,date:entry.date) {select($0)}
         }

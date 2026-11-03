@@ -10,15 +10,23 @@ struct GuidanceView: View {
     @StateObject private var model: GuidanceViewModel
     /// `request` is what the user already asked the voice agent on Home; it is handled first (#90).
     /// `stageID` and `mode` come from Siri (#91): the stage is chosen and the mode applied first.
-    init(library:StageLibrary,voiceExperiment:Bool = false,request:String? = nil,stageID:UUID? = nil,mode:VoiceUsageMode? = nil,helperPreparation:Bool = false,
-         openPlans:(() -> Void)? = nil,openScan:(() -> Void)? = nil) {
+    init(library:StageLibrary,voiceExperiment:Bool = false,request:String? = nil,heard:String? = nil,stageID:UUID? = nil,mode:VoiceUsageMode? = nil,helperPreparation:Bool = false,
+         openPlans:(() -> Void)? = nil,openScan:(() -> Void)? = nil,onClose:(() -> Void)? = nil) {
         self.library=library
+        self.onClose=onClose
         let model=GuidanceViewModel(voiceExperiment:voiceExperiment)
         model.voiceInitialRequest=request
         model.onOpenPlans=openPlans;model.onOpenScan=openScan
         model.voiceInitialStageID=stageID;model.voiceInitialMode=mode;model.helperPreparation=helperPreparation
+        // What was said on Home is on screen from the first frame, so the chat does not flash empty.
+        if voiceExperiment, !helperPreparation, let heard=heard ?? request, !heard.isEmpty {
+            model.voiceChat=[VoiceChatEntry(kind:.user(heard))]
+            model.voiceChatSeededRequest=request
+        }
         _model=StateObject(wrappedValue:model)
     }
+    /// Set when the conversation stands in Home's place instead of being presented; closing hands Home back.
+    private let onClose: (() -> Void)?
     @State private var showingSettings=false
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
@@ -104,7 +112,10 @@ struct GuidanceView: View {
         }
         // The design (495:5074–5481) has no light around the edge; the lights under the conversation move instead.
         .interactiveDismissDisabled()
-        .onAppear {ScreenOrientation.set(.portrait)}
+        .onAppear {
+            ScreenOrientation.set(.portrait)
+            model.onVoiceClose={[self] in model.phase == .completed ? saveAndClose() : close()}
+        }
         .task {
             await library.refresh()
             if model.voiceExperiment {
@@ -122,7 +133,10 @@ struct GuidanceView: View {
             else if value == .background || (model.phase != .selection && model.phase != .restoring) { model.setActive(false) }
         }
     }
-    private func close() { model.finish();dismiss() }
+    private func close() {
+        model.finish()
+        if let onClose {onClose()} else {dismiss()}
+    }
     private func saveAndClose() {
         model.saveRecord(to:library) { close() }
     }

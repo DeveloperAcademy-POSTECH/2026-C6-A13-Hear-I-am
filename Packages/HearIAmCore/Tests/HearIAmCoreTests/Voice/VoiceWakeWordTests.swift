@@ -26,4 +26,15 @@ final class VoiceWakeWordTests: XCTestCase {
         XCTAssertEqual(VoiceWakeWord.occurrences(in:"Here I am stop here I am"),2)
         XCTAssertEqual(VoiceWakeWord.occurrences(in:"hello there"),0)
     }
+    func testMissedCallsFromDeviceLog() {
+        // 11/03: each was followed by the same call seconds later.
+        for text in ["I am", "Sure I am", "Italian", "Hear I'm", "Here I'm"] {
+            XCTAssertTrue(VoiceWakeWord.matches(text), text)
+            XCTAssertEqual(VoiceWakeWord.request(in: text), "", text)
+        }
+        // Inside other words they are no call.
+        for text in ["I am going home", "Cuddle", "How are you", "Update", "Where are you", "Italian food"] {
+            XCTAssertFalse(VoiceWakeWord.matches(text), text)
+        }
+    }
 }

@@ -36,6 +36,9 @@ import AVFoundation
         converter.reset()
         if notify {callback?(false)}
     }
+    /// Held the moment the performer starts to speak, before a word is recognised; resumed if it was not them.
+    func pause() {player.pause()}
+    func resume() {if identifier != nil {player.play()}}
     func detach() {
         stop(notify:false)
         if let engine {engine.disconnectNodeOutput(player);engine.detach(player)}
