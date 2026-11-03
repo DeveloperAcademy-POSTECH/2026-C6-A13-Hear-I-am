@@ -54,6 +54,8 @@ import HearIAmCore
     private var speechDetected = false
     @Published private(set) var finalizing = false
     private var contextualStrings: [String] = []
+    /// The app's own words; a Korean result one sound away from one of them is corrected to it (11/03).
+    private var autocorrectLexicon: Set<String> = []
     /// Every candidate the recognizer gave for the last final result after the best one (#92).
     private(set) var lastAlternatives: [String] = []
     /// The app's own sentences taught to the recognizer once prepared; nil until then (#92).
@@ -161,6 +163,7 @@ import HearIAmCore
         }
         self.recognizer = recognizer
         self.contextualStrings = Array(contextualStrings.filter { !$0.isEmpty }.prefix(100))
+        autocorrectLexicon = VoiceAutocorrect.lexicon(vocabulary.map(\.text) + contextualStrings + VoiceVocabulary.phrases().map(\.text))
         #if DEBUG
         // Device diagnosis without rebuilding: turn off one #92 addition at a time.
         let diagnostics = ProcessInfo.processInfo.environment
@@ -318,6 +321,17 @@ import HearIAmCore
     /// Silences the app's voice at once without dropping the line, so it can go on if no words follow.
     func holdNarration(_ hold: Bool) { if hold { narration.pause() } else { narration.resume() } }
 
+    /// The words so far already make a whole command (「스캔」, 「3번」): the turn ends after a short beat
+    /// instead of the usual pause. More words re-arm the usual pause.
+    func finishSoon() {
+        guard let turnID, wantsListening, !finalizing, endpointTimer != nil else { return }
+        endpointTimer?.cancel()
+        endpointTimer = Task { @MainActor [weak self] in
+            do { try await Task.sleep(nanoseconds: 350_000_000) } catch { return }
+            self?.finishInput(turnID: turnID, reason: "complete")
+        }
+    }
+
     /// Starts listening afresh when the turn so far holds only the app's own voice (Home's greeting), so
     /// the performer's sentence is judged on its own and ends as soon as they stop.
     func restartIdleTurn() {
@@ -420,8 +434,9 @@ import HearIAmCore
 
     func receivedPartial(_ text: String, turnID: UUID) {
         guard self.turnID == turnID, wantsListening, turnInputConfirmed, engine?.isRunning == true, !finalizing else { return }
-        let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        var text = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
+        if !listensInEnglish { text = VoiceAutocorrect.correct(text, lexicon: autocorrectLexicon) }
         // Some recognizer routes provide text before the optional detection delegate callback.
         detectedSpeech(turnID: turnID)
         guard self.turnID == turnID else { return }
@@ -437,8 +452,9 @@ import HearIAmCore
         guard changed else { return }
         endpointTimer?.cancel()
         endpointTimer = Task { @MainActor [weak self] in
-            // 0.8 s of quiet ends the sentence; 1.1 s felt slow on the phone (11/03).
-            do { try await Task.sleep(nanoseconds: 800_000_000) } catch { return }
+            // 1.1 s of quiet ends the sentence. 0.8 s cut 「저장된 무대 보여줘」 before 「줘」 (11/03); a whole
+            // command such as 「스캔」 ends sooner through finishSoon().
+            do { try await Task.sleep(nanoseconds: 1_100_000_000) } catch { return }
             self?.finishInput(turnID: turnID, reason: "endpoint")
         }
     }
@@ -466,7 +482,9 @@ import HearIAmCore
 
     func receivedFinal(_ text: String, alternatives: [String] = [], turnID: UUID) {
         guard self.turnID == turnID, wantsListening else { return }
-        let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let heard = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let text = listensInEnglish ? heard : VoiceAutocorrect.correct(heard, lexicon: autocorrectLexicon)
+        if text != heard { VoiceLog.write("voice_autocorrect", "\(heard) -> \(text)", screen: "") }
         if !text.isEmpty { detectedSpeech(turnID: turnID) }
         guard self.turnID == turnID, wantsListening else { return }
         if text.isEmpty {

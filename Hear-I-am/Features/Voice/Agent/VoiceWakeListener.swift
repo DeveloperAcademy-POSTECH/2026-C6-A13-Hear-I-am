@@ -125,6 +125,9 @@ import HearIAmCore
         if awake, !recognition.listensInEnglish {
             let words=heardOverSpeech || speaking ? VoiceEcho.strippingLeadingEcho(text,of:spokenLines) : text
             let request=words.isEmpty || VoiceEcho.isEcho(words,of:spokenLines) ? nil : VoiceNoise.request(words)
+            // Marked before the agent is stopped: stopping ends its speech at once, and a turn not yet marked
+            // as the performer's was thrown away with 「저장된」 in it, leaving only 「보여줘」 (11/03).
+            if request != nil {userSpoke=true}
             if speaking {
                 heardOverSpeech=true
                 // The performer talking over the question cuts it, as a person would stop (11/03). One word
@@ -138,7 +141,7 @@ import HearIAmCore
                     VoiceLog.write("home_over_speech",text,screen:"home.awake")
                 }
             }
-            if request != nil {userSpoke=true}
+            if let request, VoiceAppRequest.resolve(request) != nil || VoiceAppRequest.isRehearsal(request) {recognition.finishSoon()}
             caption.receivePartial(text,isAwake:awake,isEnglish:recognition.listensInEnglish,
                                    overlappingNarration:heardOverSpeech,spokenLines:spokenLines)
             stayAwake(8);return
@@ -168,7 +171,8 @@ import HearIAmCore
         }
         // The question itself can come back through the microphone ahead of the answer.
         var request=text
-        if heardOverSpeech {
+        // A whole request in the question's own words (「저장된 공연으로 연습할래」) is the performer's, not echo.
+        if heardOverSpeech, VoiceAppRequest.resolve(text) == nil, !VoiceAppRequest.isRehearsal(text) {
             heardOverSpeech=false
             request=VoiceEcho.strippingLeadingEcho(text,of:spokenLines)
             if request.isEmpty {caption.clearRequest();VoiceLog.write("home_ignored","echo \(text)",screen:"home.awake");return}

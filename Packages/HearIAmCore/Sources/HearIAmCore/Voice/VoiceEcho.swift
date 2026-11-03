@@ -16,17 +16,19 @@ public enum VoiceEcho {
     }
 
     /// Drops the words at the start that the app itself was saying, keeping what the user added after
-    /// (「무엇을 머지 테스트 선택해 줘」 → 「머지 테스트 선택해 줘」). Empty when everything was echo.
+    /// (「무엇을 할까요 머지 테스트 선택해 줘」 → 「머지 테스트 선택해 줘」). Empty when everything was echo.
+    /// Only two or more words running on as the app said them count: one word may be the user's own, as
+    /// 「저장된」 in 「저장된 무대 보여줘」 over 「…저장된 공연으로 연습할까요?」 (cut to 「보여줘」 on 11/03).
     public static func strippingLeadingEcho(_ heard: String, of lines: [String]) -> String {
         let spoken = lines.map(VoiceStageSearch.normalized)
-        var parts = heard.split(whereSeparator: \.isWhitespace).map(String.init)
+        let parts = heard.split(whereSeparator: \.isWhitespace).map(String.init)
         guard parts.count > 1 else { return heard }
-        while let first = parts.first {
-            let word = VoiceStageSearch.normalized(first)
-            guard word.isEmpty || spoken.contains(where: { $0.contains(word) }) else { break }
-            parts.removeFirst()
+        var echoed = 0
+        for count in stride(from: parts.count, through: 2, by: -1) {
+            let run = VoiceStageSearch.normalized(parts.prefix(count).joined())
+            if !run.isEmpty, spoken.contains(where: { $0.contains(run) }) { echoed = count; break }
         }
-        return parts.joined(separator: " ")
+        return parts.dropFirst(echoed).joined(separator: " ")
     }
 
     private static func words(_ text: String) -> [String] {

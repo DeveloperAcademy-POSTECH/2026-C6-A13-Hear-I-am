@@ -436,6 +436,10 @@ extension GuidanceViewModel {
         var words=voiceTurnOverNarration ? VoiceEcho.strippingLeadingEcho(text,of:narrationLines) : text
         if let request=VoiceWakeWord.request(in:words) {words=request}
         voiceLiveText=VoiceNoise.request(words) ?? ""
+        let live=voiceLiveText
+        if !live.isEmpty, VoiceCommandParser.parse(live) != nil || VoiceStageSearch.ordinal(live) != nil || VoiceAppRequest.resolve(live) != nil {
+            voiceRecognition.finishSoon()
+        }
     }
     /// 「Hear I am」 heard in English: chime, pause any movement and take the next words in Korean.
     func voiceWoken() {
@@ -604,7 +608,10 @@ extension GuidanceViewModel {
         }
         let appRequest=namesChoice ? nil : VoiceAppRequest.resolve(text) ?? (voiceStages.isEmpty && VoiceIntentCopy.answer(text) == true ? .scan : nil)
         if phase == .selection, !started, let appRequest, let open=(appRequest == .plans ? onOpenPlans : onOpenScan) {
-            logSignal("voice_app_request","\(appRequest)");open();return
+            // Said and shown in the conversation first, then that screen opens, as on Home (11/03).
+            logSignal("voice_app_request","\(appRequest)")
+            read(appRequest == .plans ? VoiceAppRequest.plansHandoff : VoiceAppRequest.scanAnswer) {open()}
+            return
         }
         let parsed=VoiceCommandParser.parse(text)
         if parsed == .cancel, !started {voiceSelectionControlsVisible=false;cancelVoiceSelection();return}
