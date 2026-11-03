@@ -77,4 +77,12 @@ final class VoiceCommandParserTests: XCTestCase {
         XCTAssertNil(VoiceCommandParser.parse("https://example.com/p2"))
         XCTAssertNil(VoiceCommandParser.parse("P2로 안내하고 P3로 이동해줘"))
     }
+    func testCloseWords() {
+        for text in ["닫기", "닫아 줘", "종료", "음성 보이스 종료", "나가기", "대화 종료."] {
+            XCTAssertTrue(VoiceCommandParser.isClose(text), text)
+        }
+        for text in ["찾기", "받기", "확인점 2개", "다음", "실전용"] {
+            XCTAssertFalse(VoiceCommandParser.isClose(text), text)
+        }
+    }
 }

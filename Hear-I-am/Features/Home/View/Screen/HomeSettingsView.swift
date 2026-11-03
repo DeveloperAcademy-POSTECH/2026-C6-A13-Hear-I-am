@@ -11,7 +11,7 @@ struct HomeSettingsView: View {
     var changeRole:(()->Void)? = nil
     @State private var confirmsRoleChange=false
     @StateObject private var output=SoundOutputStatus()
-    @AppStorage(VoiceRecognitionService.analyzerKey) private var speechAnalyzer=false
+    @AppStorage(VoiceRecognitionService.analyzerKey) private var speechAnalyzer=true
     @AppStorage(SignalPlayer.directionDeadbandKey) private var directionDeadbandDegrees=DirectionTickGate.defaultDeadbandDegrees
     private var selectedDeadbandDegrees: Int {
         let minDeg=Double(DirectionTickGate.minConfigurableDeadbandDegrees)

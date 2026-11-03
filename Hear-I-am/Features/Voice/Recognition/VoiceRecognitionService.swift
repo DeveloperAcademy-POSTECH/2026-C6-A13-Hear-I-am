@@ -61,6 +61,7 @@ import HearIAmCore
     private var languageModelKey: String?
     /// Settings switch for trying the iOS 26 SpeechAnalyzer engine instead of SFSpeechRecognizer (#92).
     static let analyzerKey = "voice.engine.speechAnalyzer"
+    static var usesAnalyzer: Bool { (UserDefaults.standard.object(forKey: analyzerKey) as? Bool) ?? true }
     private var analyzerFormat: AVAudioFormat?
     private var analyzerTurn: VoiceAnalyzerCancelling?
     private var englishRecognizer: SFSpeechRecognizer?
@@ -170,12 +171,14 @@ import HearIAmCore
         #endif
         if !skipsLanguageModel { prepareLanguageModel(vocabulary) }
         analyzerFormat = nil
-        if UserDefaults.standard.bool(forKey: Self.analyzerKey), #available(iOS 26.0, *) {
+        // The iOS 26 engine is the default from 11/03: it lists Korean and gives words sooner. Settings can turn it off.
+        if Self.usesAnalyzer, #available(iOS 26.0, *) {
             // Falls back to SFSpeechRecognizer when the Korean model cannot be installed.
             analyzerFormat = await VoiceAnalyzerTurn.prepare(locale: recognizer.locale)
             guard sessionID == identifier else { return }
             trace("voice_engine_analyzer ready=\(self.analyzerFormat != nil)")
         }
+        VoiceLog.write("voice_engine", analyzerFormat != nil ? "speech_analyzer" : "sf_speech", screen: "")
         englishRecognizer = nil
         if listensForWakeWord, let english = SFSpeechRecognizer(locale: Locale(identifier: "en-US")),
            english.isAvailable, english.supportsOnDeviceRecognition {
@@ -269,6 +272,7 @@ import HearIAmCore
               engine?.isRunning == true, inputBridge.isReady,
               !inputBridge.isStalled(at: ProcessInfo.processInfo.systemUptime) else { return }
         turnInputConfirmed = true
+        VoiceLog.write("voice_turn_ready", "\(analyzerTurn != nil ? "analyzer" : (listensInEnglish ? "english" : "sf")) \(String(format: "%.2fs", ProcessInfo.processInfo.systemUptime - turnStartedAt))", screen: "")
         trace("voice_input_ready engine=\(self.engineID?.uuidString ?? "none") turn=\(turnID.uuidString) route=\(HearAudioSession.route)")
         isRecovering = false
         if recoveryReadyPending {
@@ -311,6 +315,19 @@ import HearIAmCore
         return true
     }
     func stopNarration() { narration.stop() }
+    /// Silences the app's voice at once without dropping the line, so it can go on if no words follow.
+    func holdNarration(_ hold: Bool) { if hold { narration.pause() } else { narration.resume() } }
+
+    /// Starts listening afresh when the turn so far holds only the app's own voice (Home's greeting), so
+    /// the performer's sentence is judged on its own and ends as soon as they stop.
+    func restartIdleTurn() {
+        // Nothing written yet may still be words on their way (11/03: 「스캔」 said over the greeting was
+        // thrown away with the turn). Only a turn that holds text, all of it the app's own, starts again.
+        guard wantsListening, turnID != nil, !finalizing, !retryScheduled, !isRecovering, !transcript.isEmpty else { return }
+        VoiceLog.write("voice_turn_fresh", transcript.prefix(60).description, screen: "")
+        retireTurn(); isListening = false
+        scheduleNextTurn(after: 0.05)
+    }
 
     /// Touch/back actions invalidate speech recorded for the previous choice screen.
     func discardPendingSpeech() {
@@ -382,7 +399,7 @@ import HearIAmCore
         taskLimitTimer = Task { @MainActor [weak self] in
             do { try await Task.sleep(nanoseconds: 48_000_000_000) } catch { return }
             guard let self, self.turnID == identifier else { return }
-            if self.speechDetected { self.finishInput(turnID: identifier) }
+            if self.speechDetected { self.finishInput(turnID: identifier, reason: "task_limit") }
             else {
                 self.retireTurn()
                 self.scheduleNextTurn(after: 0.3)
@@ -396,7 +413,7 @@ import HearIAmCore
         statusMessage = "듣고 있어요"
         speechLimitTimer = Task { @MainActor [weak self] in
             do { try await Task.sleep(nanoseconds: 12_000_000_000) } catch { return }
-            self?.finishInput(turnID: turnID)
+            self?.finishInput(turnID: turnID, reason: "speech_limit")
         }
         onSpeechDetected?()
     }
@@ -408,19 +425,29 @@ import HearIAmCore
         // Some recognizer routes provide text before the optional detection delegate callback.
         detectedSpeech(turnID: turnID)
         guard self.turnID == turnID else { return }
+        // The same words again are no new speech: on Home a repeated hypothesis kept the turn open until
+        // the 12 s limit, so every request took 13 s (11/03 device log).
+        if transcript.isEmpty {
+            VoiceLog.write("voice_first_words", "\(String(format: "%.2fs", ProcessInfo.processInfo.systemUptime - turnStartedAt)) \(text.prefix(40))", screen: "")
+        }
+        let changed = text != transcript || endpointTimer == nil
         transcript = text
         statusMessage = "듣고 있어요"
         onTranscript?(text)
+        guard changed else { return }
         endpointTimer?.cancel()
         endpointTimer = Task { @MainActor [weak self] in
-            do { try await Task.sleep(nanoseconds: 1_100_000_000) } catch { return }
-            self?.finishInput(turnID: turnID)
+            // 0.8 s of quiet ends the sentence; 1.1 s felt slow on the phone (11/03).
+            do { try await Task.sleep(nanoseconds: 800_000_000) } catch { return }
+            self?.finishInput(turnID: turnID, reason: "endpoint")
         }
     }
 
-    private func finishInput(turnID: UUID) {
+    private func finishInput(turnID: UUID, reason: String) {
         guard self.turnID == turnID, wantsListening, !finalizing else { return }
         finalizing = true
+        let seconds = String(format: "%.1fs", ProcessInfo.processInfo.systemUptime - turnStartedAt)
+        VoiceLog.write("voice_finish", "\(reason) \(seconds) \(transcript.prefix(60))", screen: "")
         inputVisualization.reset()
         microphoneTimer?.cancel(); microphoneTimer = nil
         isListening = false
@@ -519,6 +546,7 @@ import HearIAmCore
             failPermanently("음성 입력을 연결하지 못했어요. 화면 버튼으로 진행해주세요. 앱을 다시 열면 다시 들어요.")
             return
         }
+        VoiceLog.write("voice_recover", source, screen: "")
         retryScheduled = true
         recoveryReadyPending = true
         isRecovering = true
@@ -680,6 +708,7 @@ extension VoiceRecognitionService {
     }
     func analyzerFailed(_ error: Error, turnID: UUID) {
         let error = error as NSError
+        VoiceLog.write("voice_analyzer_failed", "\(error.domain) \(error.code)", screen: "")
         taskFinished(successfully: false, errorCode: error.code, errorDomain: error.domain, turnID: turnID)
     }
 }

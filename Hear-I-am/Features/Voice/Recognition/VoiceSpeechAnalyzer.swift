@@ -37,7 +37,10 @@ enum VoiceLanguageModelBuilder {
 /// text while speaking, one final text with alternatives after endAudio(), or an error.
 @available(iOS 26.0, *)
 final class VoiceAnalyzerTurn: VoiceAudioSink, VoiceAnalyzerCancelling, @unchecked Sendable {
-    private static let reporting: Set<SpeechTranscriber.ReportingOption> = [.volatileResults, .alternativeTranscriptions]
+    /// Without `.fastResults` the transcriber held its words until about 11.4 s of audio had passed, on the
+    /// phone and on a Mac alike (11/03): a request showed 11.6 s after listening began and could not cut
+    /// the app's speech. With it, words come about 0.2 s after they are said; the final text is unchanged.
+    private static let reporting: Set<SpeechTranscriber.ReportingOption> = [.volatileResults, .alternativeTranscriptions, .fastResults]
     private let lock = NSLock()
     private let analyzer: SpeechAnalyzer
     private let continuation: AsyncStream<AnalyzerInput>.Continuation

@@ -18,7 +18,10 @@ final class VoiceAppRequestTests: XCTestCase {
         XCTAssertEqual(VoiceAppRequest.resolve("사전 저장된 공연 스캔할 때 볼래"), .plans)
     }
     func testHomeChoiceAnswers() {
-        for text in ["스캔", "무대 스캔할게", "스캔할래요"] { XCTAssertEqual(VoiceAppRequest.resolve(text), .scan, text) }
+        for text in ["3번 무대 스캔", "3번 무대스캔", "세번째 무대 스캔", "삼번 무대 스캔", "무대 스캔 2번"] {
+            XCTAssertNil(VoiceAppRequest.resolve(text), text)
+        }
+        for text in ["스캔", "무대 스캔할게", "스캔할래요", "스캔 스캔.", "스캔 스캔 해 줘", "새 무대 스캔", "스캔 스캔 스킨", "스캔. 스캔하자.", "스캔 스캔 하자"] { XCTAssertEqual(VoiceAppRequest.resolve(text), .scan, text) }
         for text in ["연습", "연습할게요", "공연 연습", "저장된 공연으로 연습할게", "네 연습할래"] {
             XCTAssertTrue(VoiceAppRequest.isRehearsal(text), text)
             XCTAssertNil(VoiceAppRequest.resolve(text), text)

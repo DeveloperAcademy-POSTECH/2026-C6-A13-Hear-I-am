@@ -5,6 +5,8 @@ import HearIAmCore
 /// Scan first, then classify the exact saved ID. No scan-ID difference guessing is needed.
 struct HelperScanHomeView:View {
     @ObservedObject var library:StageLibrary
+    /// Set when the performer asked for a scan by voice: the scan itself opens, not this tab's start page (11/03).
+    @Binding var startNow:Bool
     let onShowPerformance:(UUID)->Void
     @State private var scanning=false
     @State private var settings=false
@@ -61,6 +63,8 @@ struct HelperScanHomeView:View {
                     HomeSettingsView(role:.helper,changeRole:changeRole).suspendsVoiceWake()
                 }
         }.v3Screen()
+            .onAppear {startRequestedScan()}
+            .onChange(of:startNow) {startRequestedScan()}
             .scanCover(isPresented:$scanning,onDismiss:finishScan) {
                 PreparationView(library:library,onSaved:{id in savedID=id}).suspendsVoiceWake()
             }
@@ -73,6 +77,11 @@ struct HelperScanHomeView:View {
                 Button("iPhone 설정 열기") {if let url=URL(string:UIApplication.openSettingsURLString) {UIApplication.shared.open(url)}}
                 Button("취소",role:.cancel) {}
             } message:{Text("무대를 스캔하려면 iPhone 설정에서 Hear I am의 카메라 접근을 허용해주세요.")}
+    }
+    private func startRequestedScan() {
+        guard startNow else {return}
+        startNow=false
+        startScan()
     }
     private func startScan() {
         guard !requestingCamera else {return}

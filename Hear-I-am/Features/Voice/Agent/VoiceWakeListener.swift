@@ -32,6 +32,14 @@ import HearIAmCore
     private var answerID: UUID?
     /// The conversation was opened with the orb rather than the call, so it waits longer for the request.
     private var openedByTap=false
+    /// What the performer asked and what the agent answered on Home, shown as the chat before another
+    /// screen opens (「스캔하자」 → the scan answer, 11/03).
+    @Published private(set) var answerRequest: String?
+    @Published private(set) var answerLines: [String]=[]
+    private var narrationHeld=false
+    /// The performer's own words, beyond the agent's echo, have been heard since the agent last spoke.
+    private var userSpoke=false
+    private var loggedOverSpeech=false
 
     init() {
         // Speak through the recognizer's engine so its echo cancellation hears the user over the greeting.
@@ -42,6 +50,8 @@ import HearIAmCore
         speech.onText={ [weak self] text in self?.caption.updateNarration(text) }
         speech.onSpeaking={ [weak self] value in self?.speaking=value }
         recognition.onTranscript={ [weak self] text in self?.heardPartial(text) }
+        // Sound over the question holds it at once; it goes on if no words follow (11/03).
+        recognition.onSpeechDetected={ [weak self] in self?.holdNarration() }
         recognition.onFinal={ [weak self] text in self?.heardFinal(text) }
         recognition.onRecoverableError={ [weak self] _ in self?.caption.clearRequest() }
         recognition.$finalizing.assign(to:&$confirmingInput)
@@ -113,7 +123,22 @@ import HearIAmCore
         guard active else {return}
         // Someone is still talking to the agent; it must not fall asleep in the middle of the request.
         if awake, !recognition.listensInEnglish {
-            if speaking {heardOverSpeech=true}
+            let words=heardOverSpeech || speaking ? VoiceEcho.strippingLeadingEcho(text,of:spokenLines) : text
+            let request=words.isEmpty || VoiceEcho.isEcho(words,of:spokenLines) ? nil : VoiceNoise.request(words)
+            if speaking {
+                heardOverSpeech=true
+                // The performer talking over the question cuts it, as a person would stop (11/03). One word
+                // the question also holds (「스캔」, 「연습」) counts once their voice has held the question.
+                if let request, narrationHeld || request.contains(" ") || !spokenLines.joined().contains(request) {
+                    VoiceLog.write("home_barge_in",request,screen:"home.awake")
+                    narrationHeld=false
+                    speech.stop()
+                } else if !loggedOverSpeech {
+                    loggedOverSpeech=true
+                    VoiceLog.write("home_over_speech",text,screen:"home.awake")
+                }
+            }
+            if request != nil {userSpoke=true}
             caption.receivePartial(text,isAwake:awake,isEnglish:recognition.listensInEnglish,
                                    overlappingNarration:heardOverSpeech,spokenLines:spokenLines)
             stayAwake(8);return
@@ -126,8 +151,8 @@ import HearIAmCore
 
     private func heardFinal(_ text:String,typed:Bool=false) {
         guard active || typed else {return}
-        // Room noise transcribed as punctuation only is no call and no request.
-        guard text.contains(where:{$0.isLetter || $0.isNumber}) else {caption.clearRequest();return}
+        // Room noise (「.」, 「아.」, 「그」) is no call and no request; fillers around real words are dropped.
+        guard let text=VoiceNoise.request(text) else {caption.clearRequest();return}
         VoiceLog.write(recognition.listensInEnglish ? "home_heard_english" : "home_heard",([text]+recognition.lastAlternatives.filter {$0 != text}).joined(separator:" | "),screen:awake ? "home.awake" : "home.asleep")
         // The call may sit in a lower recognition candidate (#92).
         let call=([text]+recognition.lastAlternatives).lazy.compactMap(VoiceWakeWord.request(in:)).first
@@ -137,6 +162,10 @@ import HearIAmCore
             return
         }
         guard awake, !recognition.listensInEnglish else {return}
+        // 「닫기」 closes the conversation; dictation often writes it 「찾기」 or 「받기」 (11/03).
+        if VoiceCommandParser.isClose(text) || (text.count <= 4 && VoiceCommandParser.parse(text) == nil && recognition.lastAlternatives.contains(where:VoiceCommandParser.isClose)) {
+            VoiceLog.write("home_close",text,screen:"home.awake");sleep(reason:"voice close");return
+        }
         // The question itself can come back through the microphone ahead of the answer.
         var request=text
         if heardOverSpeech {
@@ -153,7 +182,7 @@ import HearIAmCore
     #endif
 
     private func wake() {
-        caption.reset()
+        caption.reset();answerRequest=nil;answerLines=[]
         awake=true;openedByTap=false
         speech.stop()
         recognition.listenInEnglish(false)
@@ -164,35 +193,62 @@ import HearIAmCore
     private func greet() {
         caption.clearRequest()
         stayAwake(60)
-        spokenLines=[Self.greeting];heardOverSpeech=false
-        // Opened by hand the performer has yet to think of the request, so the quiet allowed is longer.
-        let quiet: Double = openedByTap ? 15 : 8
-        speech.play([Self.greeting]) { [weak self] _ in self?.stayAwake(quiet) }
+        spokenLines=[Self.greeting];heardOverSpeech=false;userSpoke=false;loggedOverSpeech=false
+        speech.play([Self.greeting]) { [weak self] _ in self?.afterSpeaking() }
     }
 
     private func hand(_ request:String) {
-        stop()
+        // A scan or plans request heard slightly wrong may be right in a lower candidate (「스캔 스캔 스킨」).
+        var request=request
+        if VoiceAppRequest.resolve(request) == nil,
+           let other=recognition.lastAlternatives.map({VoiceWakeWord.request(in:$0) ?? $0}).first(where:{VoiceAppRequest.resolve($0) != nil}) {
+            VoiceLog.write("home_alternative","\(request) -> \(other)",screen:"home.awake");request=other
+        }
+        // The microphone keeps running: an answer on Home plays through it, and restarting it here left
+        // the scan answer unheard (11/03). Opening guidance stops it from the root view.
+        sleep(reason:"handed")
         onRequest?(request)
+    }
+    private func holdNarration() {
+        guard awake, speaking, !narrationHeld, !recognition.listensInEnglish else {return}
+        narrationHeld=true
+        recognition.holdNarration(true)
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds:1_300_000_000)
+            guard let self, self.narrationHeld else {return}
+            self.narrationHeld=false
+            if self.speaking {self.recognition.holdNarration(false)}
+        }
     }
 
     /// Answers a request on the spot instead of opening guidance. The conversation stays open for a
     /// follow-up, as after the greeting, then goes back to waiting for the call. `then` runs once the
     /// answer has been said, unless the agent was closed first.
-    func answer(_ lines:[String],then next:(() -> Void)? = nil) {
+    func answer(_ lines:[String],request:String? = nil,then next:(() -> Void)? = nil) {
         caption.reset()
+        answerRequest=request;answerLines=lines
         awake=true
         // Handing the request over left the recognizer in English; a follow-up comes in Korean.
         recognition.listenInEnglish(false)
         start()
         stayAwake(60)
         let id=UUID();answerID=id
-        spokenLines=lines;heardOverSpeech=false
+        spokenLines=lines;heardOverSpeech=false;userSpoke=false;loggedOverSpeech=false
         speech.play(lines) { [weak self] _ in
             guard let self else {return}
-            self.stayAwake(8)
+            self.afterSpeaking()
             guard self.answerID == id else {return}
             self.answerID=nil;next?()
         }
+    }
+
+    /// The agent finished speaking. A turn that heard only its voice starts again, so the request is
+    /// timed from the performer's own words (13 s on 11/03, whatever they said).
+    private func afterSpeaking() {
+        stayAwake(10)
+        guard awake, !userSpoke, !recognition.listensInEnglish else {return}
+        heardOverSpeech=false;caption.clearRequest()
+        recognition.restartIdleTurn()
     }
 
     /// A tap closes the agent and goes back to waiting for 「Hear I am」.
@@ -214,8 +270,8 @@ import HearIAmCore
         sleepTask?.cancel();sleepTask=nil;answerID=nil
         if speaking {speech.stop()}
         if awake {VoiceLog.write("home_slept",reason,screen:"home.awake")}
-        awake=false;openedByTap=false
-        caption.reset()
+        awake=false;openedByTap=false;narrationHeld=false
+        caption.reset();answerRequest=nil;answerLines=[]
         if active {recognition.listenInEnglish(true)}
     }
 }
