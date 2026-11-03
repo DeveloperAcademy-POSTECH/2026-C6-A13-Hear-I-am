@@ -23,10 +23,12 @@ extension GuidanceViewModel {
     }
     var voiceShouldListen: Bool { voiceCanOfferInput && voiceListeningEnabled }
     /// True after 「히얼아이엠」 until the conversation has been quiet for a while (#90).
+    /// Ten seconds after the last words, the performer's or the app's, listening stops and 「Hear I am」
+    /// is needed again on the same screen (11/03). The app's own questions open it again.
     var voiceAwake: Bool {
-        if voiceConversationOpen && Self.voiceFlowPhases.contains(phase) {return true}
-        return voiceConversationDeadline.map {ProcessInfo.processInfo.systemUptime < $0} ?? false
+        voiceConversationDeadline.map {ProcessInfo.processInfo.systemUptime < $0} ?? false
     }
+    static let voiceAsleepStatus="‘Hear I am’ 하고 부르면 이어서 들을게요"
     /// Steps taken one after another, where an open conversation carries over to the next screen.
     /// Walking guidance is not one: there the call is needed each time, since the performer's and
     /// other people's voices mix with the app's own sound.
@@ -38,7 +40,7 @@ extension GuidanceViewModel {
     }
     /// The listening animation shows only while the app is actually taking requests.
     var voiceShowsListening: Bool { voiceShouldListen && voiceRecognition.isListening && (voiceAwake || voiceTurnActive) }
-    func keepVoiceConversation(_ seconds:Double = 8) {
+    func keepVoiceConversation(_ seconds:Double = 10) {
         voiceConversationOpen=true
         voiceConversationDeadline=ProcessInfo.processInfo.systemUptime+seconds
         voiceRecognition.listenInEnglish(false)
@@ -99,20 +101,11 @@ extension GuidanceViewModel {
                     self.handleVoiceCommand(request)
                 }
             } else if self.voiceInitialPromptPending {
-                self.voiceInitialPromptPending=false
                 let operation=self.generation
                 Task { @MainActor [weak self] in
                     try? await Task.sleep(nanoseconds:250_000_000)
-                    guard let self, self.generation == operation, self.voiceShouldListen,
-                          self.phase == .selection, !self.voiceChoosingMode, !self.voiceTurnActive else {return}
-                    if let id=self.voiceInitialStageID, let item=self.voiceStages.first(where:{$0.id == id}) {
-                        self.voiceInitialStageID=nil
-                        self.select(item)
-                        if let mode=self.voiceInitialMode, self.selected?.id == id {self.selectVoiceMode(mode)}
-                        self.voiceInitialMode=nil
-                    }
-                    else if let request=self.voiceInitialRequest {self.voiceInitialRequest=nil;self.handleVoiceCommand(request)}
-                    else {self.selectionDescription(empty:self.voiceStages.isEmpty)}
+                    guard let self, self.generation == operation else {return}
+                    self.runVoiceInitialRequest()
                 }
             } else if self.voiceReplayAfterRecovery {
                 self.voiceReplayAfterRecovery=false
@@ -121,6 +114,7 @@ extension GuidanceViewModel {
                     try? await Task.sleep(nanoseconds:250_000_000)
                     guard let self, self.generation == operation, self.voiceShouldListen, !self.voiceTurnActive, !self.speaking else {return}
                     self.logSignal("voice_replay","after_recovery")
+                    self.voiceChatSuppressNextLine=true
                     self.read(lines,interruptible:interruptible)
                 }
             }
@@ -148,8 +142,26 @@ extension GuidanceViewModel {
         voiceReadyChimePending=true
         // The request made on Home opens the conversation as its first bubble (Figma 495:5096).
         if let request=voiceInitialRequest, voiceChat.isEmpty {voiceChatSeededRequest=request;appendVoiceChat(.user(request))}
+        else if case .user(let text)?=voiceChat.first?.kind, voiceChat.count == 1 {VoiceLog.write("chat_user",text,screen:"guidance.\(phase)")}
         keepVoiceConversation(30)
         syncVoiceListening()
+        // What was asked on Home is answered at once. Waiting for the microphone to come back first kept
+        // the performer waiting 1–3 s with nothing new on screen (11/03 device log); a line cut by that
+        // restart is said again once listening is back (onRecoveryReady).
+        DispatchQueue.main.async { [weak self] in self?.runVoiceInitialRequest() }
+    }
+    /// The request, stage or bare 「연습」 brought from Home or Siri, handled once.
+    func runVoiceInitialRequest() {
+        guard voiceInitialPromptPending, voiceShouldListen, phase == .selection, !voiceChoosingMode, !voiceTurnActive else {return}
+        voiceInitialPromptPending=false
+        if let id=voiceInitialStageID, let item=voiceStages.first(where:{$0.id == id}) {
+            voiceInitialStageID=nil
+            select(item)
+            if let mode=voiceInitialMode, selected?.id == id {selectVoiceMode(mode)}
+            voiceInitialMode=nil
+        }
+        else if let request=voiceInitialRequest {voiceInitialRequest=nil;handleVoiceCommand(request)}
+        else {selectionDescription(empty:voiceStages.isEmpty)}
     }
 
     // MARK: Conversation (Figma 495:5074–5481)
@@ -174,6 +186,7 @@ extension GuidanceViewModel {
         }
         if voicePendingRequest != nil {return "요청을 확인하고 있어요"}
         if voiceTurnActive {return "듣고 있어요"}
+        if voiceShouldListen, !voiceAwake, !speaking, !phase.showsRouteCamera {return Self.voiceAsleepStatus}
         return nil
     }
     /// The cards the list is read from; the spoken list is not repeated as text under them.
@@ -199,15 +212,30 @@ extension GuidanceViewModel {
         }
         appendVoiceChat(.stages(text,cards));voiceChatSuppressNextLine=true
     }
-    /// A bubble edited by hand is sent again as if it had been heard (the pencil on Figma 495:5096).
-    func submitTypedRequest(_ text:String) {
+    /// The pencil on a bubble (Figma 495:5096): the app stops talking and the conversation stays open while
+    /// the performer types.
+    func beginVoiceEdit() {
+        generation=UUID();voice.stop();instructionDone=true
+        keepVoiceConversation(120)
+    }
+    /// A bubble edited by hand is answered as if it had been said. The last bubble is corrected where it
+    /// is; an older one is asked again at the end. Typed words are the performer's own, so neither the
+    /// call, the app's speech nor the echo filter can drop them (11/03: an edit was never carried out).
+    func submitTypedRequest(_ text:String, replacing id:UUID? = nil) {
         let request=text.trimmingCharacters(in:.whitespacesAndNewlines)
         guard voiceExperiment, !request.isEmpty else {return}
         generation=UUID();voice.stop();instructionDone=true
         keepVoiceConversation()
-        guard voiceShouldListen else {
-            appendVoiceChat(.user(request));read(["지금은 요청을 받을 수 없어요. 마이크가 켜지면 다시 말씀해주세요."]);return
+        let lastUser=voiceChat.lastIndex {if case .user=$0.kind {return true};return false}
+        if let id, let index=lastUser, voiceChat[index].id == id, index == voiceChat.count-1 {
+            voiceChat[index]=VoiceChatEntry(id:id,kind:.user(request))
+        } else {
+            appendVoiceChat(.user(request))
         }
+        VoiceLog.write("chat_typed",request,screen:"guidance.\(phase)")
+        guard voiceShouldListen else {read(["지금은 요청을 받을 수 없어요. 마이크가 켜지면 다시 말씀해주세요."]);return}
+        voiceChatSeededRequest=request
+        voiceTurnActive=true;voiceTurnOverNarration=false
         handleVoiceCommand(request)
     }
     /// Where the next point lies against the body's heading, for the front-finding light on the walking screen.
@@ -383,14 +411,15 @@ extension GuidanceViewModel {
     /// Speech heard while the conversation is closed belongs to someone else until it contains the call.
     func voicePartial(_ text:String) {
         guard voiceShouldListen else {return}
-        // While the app speaks, the user may cut in with a request this screen can act on (11/01). Other
-        // words, noise and the app's own voice coming back do not stop it. A single word that is in the line
-        // being read may be the start of that line's echo, so it waits for the final text.
+        // While the app speaks, anything the performer says cuts it and is answered at once, as in a talk
+        // with a person (11/03). Noise and the app's own voice coming back do not stop it. A single word that
+        // is in the line being read may be the start of that line's echo, so it waits for the next word.
         if speaking, voiceAwake, !voiceTurnActive {
             guard let request=voiceBargeInRequest(text) else {return}
             let single = !request.contains(" ")
-            if single, VoiceStageSearch.normalized(spokenText).contains(VoiceStageSearch.normalized(request)) {return}
+            if !voiceNarrationHeld, single, VoiceStageSearch.normalized(spokenText).contains(VoiceStageSearch.normalized(request)) {return}
             voiceSpeechDetected(overNarration:true)
+            showVoiceLiveText(text)
             return
         }
         if !voiceTurnActive {
@@ -399,6 +428,14 @@ extension GuidanceViewModel {
             keepVoiceConversation()
             voiceSpeechDetected()
         }
+        if voiceTurnActive {showVoiceLiveText(text)}
+    }
+    /// Like dictation or Siri, the words appear in the bubble while they are said; the final text replaces
+    /// them. The app's own voice, the call and noise are left out.
+    func showVoiceLiveText(_ text:String) {
+        var words=voiceTurnOverNarration ? VoiceEcho.strippingLeadingEcho(text,of:narrationLines) : text
+        if let request=VoiceWakeWord.request(in:words) {words=request}
+        voiceLiveText=VoiceNoise.request(words) ?? ""
     }
     /// 「Hear I am」 heard in English: chime, pause any movement and take the next words in Korean.
     func voiceWoken() {
@@ -413,24 +450,13 @@ extension GuidanceViewModel {
         listeningChime.play()
         logSignal("voice_wake","english")
     }
-    /// What was heard over the app's speech, without the app's own words at the start, when it is a request
-    /// this screen can act on at once. Only such a request cuts the app's speech; nil leaves it talking.
+    /// What was heard over the app's speech, without the app's own words at the start. Any words of the
+    /// performer's cut the app's speech and get an answer; until 11/03 only requests this screen could act
+    /// on did, and everything else was dropped while the app talked. Noise and echo return nil.
     func voiceBargeInRequest(_ text:String) -> String? {
         let request=VoiceEcho.strippingLeadingEcho(text,of:narrationLines)
         guard !request.isEmpty, !VoiceEcho.isEcho(request,of:narrationLines) else {return nil}
-        if VoiceWakeWord.request(in:request) != nil {return request}
-        if pendingVoiceIntent != nil, VoiceIntentCopy.answer(request) != nil {return request}
-        if VoiceCommandParser.parse(request) != nil {return request}
-        if phase == .selection, !started, VoiceAppRequest.resolve(request) != nil {return request}
-        if phase == .selection, !voiceChoosingMode {
-            if VoiceStageSearch.ordinal(request) != nil {return request}
-            switch VoiceStageSearch.resolve(request,names:voiceStages.map(\.name),contexts:voiceStages.map {voiceStagePaths[$0.id] ?? []}) {
-            case .selected: return request
-            case .results(_,let indices) where !indices.isEmpty: return request
-            default: break
-            }
-        }
-        return nil
+        return VoiceNoise.request(request)
     }
     /// The lines the app is saying or has just said, for telling its own voice from the user's.
     var narrationLines: [String] {[spokenText,previousSpokenText]}
@@ -440,8 +466,12 @@ extension GuidanceViewModel {
         // Sound alone over the app's speech may be its own voice or someone nearby; the words decide
         // (voicePartial). The words are kept, not discarded: dropping them was why a request over the
         // app's speech was never heard (11/01).
-        if speaking && !overNarration {return}
+        // Sound over the app's speech holds its voice at once, as a person stops when interrupted; the
+        // first words then decide (voicePartial). If none come, the line goes on.
+        if speaking && !overNarration {holdVoiceNarration();return}
+        voiceNarrationHeld=false
         voiceTurnOverNarration=overNarration
+        voiceLiveText=""
         // Invalidate delayed narration callbacks before cutting the speech already playing.
         generation=UUID();voice.stop();instructionDone=true
         voiceTurnActive=true;voiceInitialPromptPending=false
@@ -454,8 +484,25 @@ extension GuidanceViewModel {
         listeningChime.play()
         logSignal("voice_listening","speech_detected")
     }
+    private func holdVoiceNarration() {
+        guard !voiceNarrationHeld else {return}
+        voiceNarrationHeld=true
+        voiceRecognition.holdNarration(true)
+        logSignal("voice_hold","speech")
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds:1_300_000_000)
+            guard let self, self.voiceNarrationHeld, !self.voiceTurnActive else {return}
+            self.voiceNarrationHeld=false
+            self.voiceRecognition.holdNarration(false)
+            self.logSignal("voice_hold","resume")
+        }
+    }
     func voiceInputRecovering(_ message:String) {
         guard voiceShouldListen else {return}
+        // The line cut by the restart (「어떤 공연을 준비할까요?」 right after Home, 11/03) is said again
+        // once listening is back; its text is already in the conversation.
+        if !instructionDone, !currentInstruction.isEmpty {voiceReplayAfterRecovery=true}
+        voiceNarrationHeld=false
         generation=UUID();voice.stop();instructionDone=true
         voiceTurnActive=false
         if phase == .guiding || phase == .starting {
@@ -495,10 +542,11 @@ extension GuidanceViewModel {
         let accepted=voiceTurnActive || voiceAwake
         let wasTurn=voiceTurnActive
         voiceTurnActive=false
-        // Room noise comes back as 「.」 or 「아.」 (11/02 library test); without a letter or digit it is no request.
-        guard text.contains(where:{$0.isLetter || $0.isNumber}) else {logSignal("voice_ignored","noise \(text)");return}
+        // Room noise comes back as 「.」, 「아.」 or 「이 .」 (11/02–03 device tests); it is no request, and the
+        // fillers around real words are dropped (「이 . 계속」 is 「계속」).
+        guard let cleaned=VoiceNoise.request(text) else {logSignal("voice_ignored","noise \(text)");return}
         let heard=text
-        var text=text
+        var text=cleaned
         if speaking, voiceAwake, !wasTurn {
             // The whole request came before its words cut in (voicePartial): the same rule decides here.
             guard let request=voiceBargeInRequest(text) else {logSignal("voice_ignored","while_speaking \(text)");return}
@@ -532,6 +580,10 @@ extension GuidanceViewModel {
         }
         keepVoiceConversation()
         logSignal("voice_command",text)
+        // 「닫기」, often heard as 「찾기」·「받기」 with 「닫기」 among the alternatives (11/03).
+        if VoiceCommandParser.isClose(text) || (text.count <= 4 && VoiceCommandParser.parse(text) == nil && alternatives.contains(where:VoiceCommandParser.isClose)) {
+            logSignal("voice_close",text);onVoiceClose?();return
+        }
         // The request becomes the performer's bubble; the one brought from Home is already there.
         if voiceChatSeededRequest == heard {voiceChatSeededRequest=nil}
         else if !phase.showsRouteCamera {appendVoiceChat(.user(text))}
@@ -545,7 +597,12 @@ extension GuidanceViewModel {
         }
         // Pre-saved plans and new scans live in other tabs; those tabs answer instead. With nothing saved
         // the stage list offers a scan, so 「응」 opens it.
-        let appRequest=VoiceAppRequest.resolve(text) ?? (voiceStages.isEmpty && VoiceIntentCopy.answer(text) == true ? .scan : nil)
+        // A name on screen wins over a new scan: a performance may itself be called 「무대 스캔」 (11/03).
+        let heardName=VoiceStageSearch.normalized(text)
+        let namesChoice=voiceSelectionNames.contains {name in
+            let name=VoiceStageSearch.normalized(name);return name.count >= 2 && heardName.contains(name)
+        }
+        let appRequest=namesChoice ? nil : VoiceAppRequest.resolve(text) ?? (voiceStages.isEmpty && VoiceIntentCopy.answer(text) == true ? .scan : nil)
         if phase == .selection, !started, let appRequest, let open=(appRequest == .plans ? onOpenPlans : onOpenScan) {
             logSignal("voice_app_request","\(appRequest)");open();return
         }
@@ -569,14 +626,16 @@ extension GuidanceViewModel {
     private func resolveVoiceIntent(_ text:String) -> Bool {
         #if canImport(FoundationModels)
         guard #available(iOS 26.0, *), AppleIntelligenceVoiceIntentResolver.isAvailable else {return false}
-        let screen=voiceScreen, began=ProcessInfo.processInfo.systemUptime, operation=generation
+        // Not tied to `generation`: the microphone restarting right after Home changed it and the answer to
+        // 「스캔 스캔 스킨」 was dropped without a word (11/03). A newer request or closing still drops it.
+        let screen=voiceScreen, began=ProcessInfo.processInfo.systemUptime
         // 「삐원으로 가」 reaches the model as 「P1으로 가」; the model reads numbers from sound poorly.
         let request=VoicePointSpelling.normalized(text)
         if request != text {logSignal("voice_point_spelling","\(text) -> \(request)")}
         voicePendingRequest=text
         Task { [weak self] in
             var decision=await AppleIntelligenceVoiceIntentResolver().resolve(request,screen:screen)
-            guard let self, self.generation == operation, self.voiceShouldListen, self.voicePendingRequest == text, self.voiceScreen == screen else {return}
+            guard let self, self.voiceShouldListen, self.voicePendingRequest == text, self.voiceScreen == screen else {return}
             self.voicePendingRequest=nil
             let seconds=String(format:"%.2fs",ProcessInfo.processInfo.systemUptime-began)
             let guessed: VoiceCommand? = {switch decision {case .command(let c),.confirm(let c): return c; case .none: return nil}}()
@@ -651,7 +710,9 @@ extension GuidanceViewModel {
             }
     }
     private func selectStageWithVoice(_ text:String) -> Bool {
-        if let ordinal=VoiceStageSearch.ordinal(text) {selectVisibleVoiceItem(ordinal);return true}
+        if let ordinal=VoiceStageSearch.ordinal(text) ?? VoiceStageSearch.numbered(text,names:voiceSelectionNames) {
+            selectVisibleVoiceItem(ordinal);return true
+        }
         if showsVoicePerformances {
             let choices=voicePerformanceChoices
             if case .selected(let index)=VoiceStageSearch.resolve(text,names:choices.map(\.name)) {
