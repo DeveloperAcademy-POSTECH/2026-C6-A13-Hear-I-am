@@ -18,7 +18,7 @@ struct VoiceChatEntry: Identifiable {
         /// A line of text followed by the cards it is about (Figma 495:5160).
         case stages(String,[VoiceChatStage])
     }
-    let id=UUID()
+    var id=UUID()
     let kind: Kind
     let date=Date()
 }

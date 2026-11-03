@@ -5,6 +5,8 @@ import SwiftUI
 struct VoiceGuidanceLaunch: Identifiable {
     let id=UUID()
     var request: String?
+    /// The words heard on Home, shown as the first bubble even when they only meant 「연습할래」.
+    var heard: String?
     var stageID: UUID?
     var mode: VoiceUsageMode?
     var helperPreparation=false

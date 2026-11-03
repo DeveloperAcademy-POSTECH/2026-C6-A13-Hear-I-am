@@ -65,10 +65,21 @@ struct HomeView: View {
 
     /// 495:5074 until the performer speaks, then 495:5096: the words as a bubble over the spinner line.
     @ViewBuilder private var awakeContent:some View {
-        if hasRequest {
+        if !wake.answerLines.isEmpty {
+            // A request Home answers itself (스캔, 공연 관리): the words, then the answer, before that screen opens.
             ScrollView {
                 VStack(alignment:.leading,spacing:24) {
-                    VoiceUserBubble(text:wake.caption.transcript,date:heardAt)
+                    if let request=wake.answerRequest {VoiceUserBubble(text:request,date:heardAt)}
+                    VoiceAppLine(text:wake.answerLines.joined(separator:" "),date:Date())
+                }
+                .padding(.horizontal,16).padding(.top,32).padding(.bottom,48)
+            }
+            .scrollIndicators(.hidden)
+            .frame(maxWidth:.infinity,maxHeight:.infinity,alignment:.top)
+        } else if hasRequest {
+            ScrollView {
+                VStack(alignment:.leading,spacing:24) {
+                    VoiceUserBubble(text:wake.caption.transcript,date:heardAt,showsMeta:!wake.listening || wake.confirmingInput,typing:true)
                     VoiceStatusRow(text:wake.confirmingInput ? "말씀하신 공연을 찾고 있어요" : "듣고 있어요")
                 }
                 .padding(.horizontal,16).padding(.top,32).padding(.bottom,48)

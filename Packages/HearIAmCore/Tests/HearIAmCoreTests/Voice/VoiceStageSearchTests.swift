@@ -66,4 +66,24 @@ final class VoiceStageSearchTests: XCTestCase {
         XCTAssertTrue(VoiceStageSearch.mentions("두 번째 거", number: 2, name: "333"))
         XCTAssertFalse(VoiceStageSearch.mentions("열람", number: 2, name: "333"))
     }
+    func testNamesHeardSlightlyWrong() {
+        let names=["333", "4444", "머지테스트", "무대 스캔", "확인점 2개", "음성테스트1"]
+        // 11/03 device log: the same stage said four ways.
+        for text in ["확인점 두개", "확인 점 2개", "확인 좀 2개 연습 할래", "확인점 조개"] {
+            XCTAssertEqual(VoiceStageSearch.resolve(text, names: names), .selected(4), text)
+        }
+        // Too far from any name, or close to two at once, is not a guess.
+        XCTAssertEqual(VoiceStageSearch.resolve("오늘 날씨 어때", names: names), .results(query: "오늘날씨어때", indices: []))
+        XCTAssertNil(VoiceStageSearch.nearlyNamed("음성테스트2", names: ["음성테스트1", "음성테스트3"].map(VoiceStageSearch.normalized)))
+    }
+    func testNumberWithName() {
+        let same=["무대 스캔", "무대 스캔", "무대 스캔", "무대 스캔"]
+        XCTAssertEqual(VoiceStageSearch.numbered("3번 무대 스캔", names: same), 3)
+        XCTAssertEqual(VoiceStageSearch.numbered("3번 무대스캔으로", names: same), 3)
+        XCTAssertEqual(VoiceStageSearch.numbered("세번째 무대 스캔", names: same), 3)
+        XCTAssertEqual(VoiceStageSearch.numbered("삼번 무대", names: same), 3)
+        XCTAssertNil(VoiceStageSearch.numbered("7번 무대 스캔", names: same))
+        XCTAssertNil(VoiceStageSearch.numbered("2번 머지테스트", names: ["머지테스트", "무대 스캔"]))
+        XCTAssertNil(VoiceStageSearch.numbered("무대 스캔", names: same))
+    }
 }

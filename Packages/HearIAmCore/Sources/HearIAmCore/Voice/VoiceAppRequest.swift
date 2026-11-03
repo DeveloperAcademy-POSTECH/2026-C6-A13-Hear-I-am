@@ -7,9 +7,23 @@ public enum VoiceAppRequest: Equatable, Sendable {
 
     public static func resolve(_ text: String) -> VoiceAppRequest? {
         let compact = compacted(text)
+        // 「3번 무대 스캔」 picks the third item of a list whose names hold 「무대 스캔」 (11/03): a number
+        // points at something on screen, never at a new scan.
+        if compact.range(of: #"[0-9]|(?:첫|두|세|네|다섯|여섯|일곱|여덟|아홉|열)번째|(?:일|이|삼|사|오|육|칠|팔|구|십)번"#, options: .regularExpression) != nil { return nil }
         if planWords.contains(where: compact.contains) { return .plans }
-        if compact == "스캔" || compact == "스캔이요" { return .scan }
-        return scanWords.contains(where: compact.contains) ? .scan : nil
+        // The bare answer, said once or twice over (「스캔 스캔」, 11/03 device test).
+        if compact.range(of: #"^(?:네|응)?(?:새|새로)?(?:무대)?(?:스캔)+(?:이요|요|할게|할래|할래요|하자|해|해줘|해주세요|하기|시작)?$"#, options: .regularExpression) != nil { return .scan }
+        if scanWords.contains(where: compact.contains) { return .scan }
+        // Every word sounds like 「스캔」 or goes with it: 「스캔 스캔 스킨」 was 「스캔 스캔」 (11/03 device log).
+        let words = text.lowercased().replacingOccurrences(of: #"[.!?。！？,~]"#, with: " ", options: .regularExpression)
+            .split(whereSeparator: \.isWhitespace).map(String.init)
+        let scanLike = #"^(?:스캔|스킨|스켄|스캠|스케|스캐|스팸|스펜|스탠|스캣)(?:이요|요|할게|할래|하자|해|해줘|하기|핑)?$"#
+        let fits = words.allSatisfy { word in
+            word.range(of: scanLike, options: .regularExpression) != nil || ["네", "응", "새", "새로", "무대", "하자", "해줘", "해", "시작"].contains(word)
+        }
+        // 「스캔」 said alone was written 「스팸」 (11/03); a lone sound-alike counts, as nothing else is asked that way.
+        let alone = words.count == 1 && words[0].range(of: scanLike, options: .regularExpression) != nil
+        return !words.isEmpty && fits && (alone || words.contains { $0.hasPrefix("스캔") }) ? .scan : nil
     }
 
     /// Home asks first whether to scan a stage or rehearse with a saved performance (10/31). This is the
@@ -38,6 +52,8 @@ public enum VoiceAppRequest: Equatable, Sendable {
                 "사전 저장은 무대를 스캔할 때 참고하는 도면이에요. 안내에 쓰려면 먼저 그 무대를 스캔해야 해요."]
     }
 
+    /// Said before the helper's performance management opens.
+    public static let plansHandoff = ["공연 관리는 조력자 화면에서 사용할 수 있어요."]
     /// Said before the scan screen opens; that screen stops listening, so this is the last thing heard.
     public static let scanAnswer = ["새 무대 스캔을 열게요. 스캔은 조력자가 화면 버튼으로 진행해요."]
     /// Guidance offers a scan when nothing is saved; 「응」 then opens it.

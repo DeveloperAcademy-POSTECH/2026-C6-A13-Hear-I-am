@@ -62,6 +62,10 @@ import HearIAmCore
     var voiceNarrationInterruptible=false
     /// A line cut by the audio restart on opening, to be said again once listening is back.
     var voiceReplayAfterRecovery=false
+    /// The app's voice is held because the performer may be starting to speak (11/03).
+    var voiceNarrationHeld=false
+    /// 「닫기」 said in the conversation; the screen closes itself.
+    var onVoiceClose: (() -> Void)?
     /// The line before the one now speaking; recognition lags, so an echo may be of either (11/01).
     var previousSpokenText=""
     /// The request being heard began while the app was speaking, so its start may be the app's own voice.
@@ -88,6 +92,8 @@ import HearIAmCore
     @Published var voiceInputError: String?
     /// The conversation on the performer's voice screens (Figma 495:5096–5481): requests, replies and the cards found.
     @Published var voiceChat: [VoiceChatEntry]=[]
+    /// The words of the turn still being spoken, typed into a bubble as they are heard (11/03).
+    @Published var voiceLiveText=""
     /// The request from Home already shown as the first bubble, so handling it does not add it again.
     var voiceChatSeededRequest: String?
     /// The next lines read aloud already have a chat entry of their own (cards), so `read` adds no text for them.
@@ -238,7 +244,8 @@ import HearIAmCore
             voiceRecognition.discardPendingSpeech();voiceTurnActive=false
         }
         // A reply or question keeps the voice conversation open until it has been heard (#90).
-        let answering=voiceExperiment && voiceAwake && phase != .guiding && phase != .starting
+        let answering=voiceExperiment && phase != .guiding && phase != .starting
+            && (voiceAwake || (Self.voiceFlowPhases.contains(phase) && voiceStartedAsHelper != true))
         if answering {keepVoiceConversation(120)}
         audioIssue=nil;instructionDone=false;currentInstruction=texts
         voiceNarrationInterruptible=interruptible
