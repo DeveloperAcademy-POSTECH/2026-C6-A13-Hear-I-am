@@ -28,12 +28,11 @@ struct ReferencePlanCanvas: View {
                 let area = CGRect(origin: .zero, size: size)
                 context.fill(Path(roundedRect: area, cornerRadius: editing ? 18 : 24), with: .color(HearV3.raised))
                 if editing {
-                    for x in 0...24 {
-                        for y in 0...16 {
-                            let p = project(.init(Double(x) / 2, Double(y) / 2))
-                            context.fill(Path(ellipseIn: CGRect(x: p.x - 0.8, y: p.y - 0.8, width: 1.6, height: 1.6)), with: .color(.white.opacity(0.12)))
-                        }
-                    }
+                    // The texture and its crop are the design's static grid; all objects and routes remain data-driven.
+                    var grid = context
+                    grid.opacity = 0.5
+                    grid.draw(Image("ReferencePlanGrid"), in: CGRect(x: -size.width * 0.3891, y: -size.height * 0.6288,
+                                                                   width: size.width * 1.8243, height: size.height * 4.8))
                 } else {
                     var grid = Path()
                     for x in 0...12 { grid.move(to: project(.init(Double(x), 0))); grid.addLine(to: project(.init(Double(x), 8))) }
