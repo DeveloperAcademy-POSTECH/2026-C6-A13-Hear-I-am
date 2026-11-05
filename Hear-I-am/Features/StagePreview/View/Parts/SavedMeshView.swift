@@ -17,7 +17,7 @@ struct SavedMeshView: UIViewRepresentable {
     let scan: LoadedScan
     @ObservedObject var model: SavedStagePreviewModel
     var photoViewpoint: ScanPhoto? = nil
-    func makeCoordinator() -> ReplaySceneController { ReplaySceneController(scan:scan,cleanSurfaces:model.cleanSurfaces) }
+    func makeCoordinator() -> ReplaySceneController { ReplaySceneController(scan:scan,cleanSurfaces:model.cleanSurfaces,immersive:model.immersive) }
     func makeUIView(context: Context) -> SCNView {
         let view=ReplaySCNView()
         let controller=context.coordinator
@@ -33,8 +33,14 @@ struct SavedMeshView: UIViewRepresentable {
         view.addGestureRecognizer(UITapGestureRecognizer(target:controller,action:#selector(ReplaySceneController.tapped(_:))))
         return view
     }
+    static func dismantleUIView(_ view: SCNView, coordinator: ReplaySceneController) {
+        coordinator.stopProjectionUpdates()
+        (view as? ReplaySCNView)?.onLayout=nil
+        view.scene=nil
+    }
     func updateUIView(_ view: SCNView, context: Context) {
         context.coordinator.onSelect={model.select($0)}
+        context.coordinator.onPhotoProjection={model.photoAnchor=$0}
         context.coordinator.update(display:model.display,wireframe:model.wireframe,showPhotos:model.photoPinsVisible,
                                    selection:model.selection,cameraMode:model.cameraMode,revision:model.cameraRevision,photoViewpoint:photoViewpoint)
     }
