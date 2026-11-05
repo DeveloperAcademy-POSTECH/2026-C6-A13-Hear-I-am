@@ -121,11 +121,12 @@ struct PerformanceFolderRow: View {
         formatter.dateFormat = "yy.MM.dd"
         return formatter
     }()
+    static func dateLabel(_ date: Date) -> String { dateFormatter.string(from: date) }
     var body: some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
                 Text(name).font(.body.weight(.medium)).lineLimit(2)
-                Text(Self.dateFormatter.string(from: date))
+                Text(Self.dateLabel(date))
                     .font(.caption).foregroundStyle(.secondary)
             }.frame(maxWidth: .infinity, alignment: .leading)
             Text("\(count)").font(.caption).monospacedDigit().padding(5)
