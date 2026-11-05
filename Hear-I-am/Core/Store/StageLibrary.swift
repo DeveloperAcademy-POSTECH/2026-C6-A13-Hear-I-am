@@ -19,8 +19,8 @@ import HearIAmCore
     private let pinURL: URL
     private var refreshTask: Task<Void, Never>?
     var groups: (pinned: [ScanManifest], recent: [ScanManifest]) { pins.groups(records) }
-    init() {
-        let docs=FileManager.default.urls(for:.documentDirectory,in:.userDomainMask)[0]
+    init(root: URL? = nil) {
+        let docs=root ?? FileManager.default.urls(for:.documentDirectory,in:.userDomainMask)[0]
         catalogStore=PerformanceCatalogStore(root:docs.appendingPathComponent("Performances",isDirectory:true))
         legacyPlacesStore=PlaceFolderStore(root:docs.appendingPathComponent("PlaceFolders",isDirectory:true))
         scans=ScanStore(root:docs.appendingPathComponent("Scans",isDirectory:true))
