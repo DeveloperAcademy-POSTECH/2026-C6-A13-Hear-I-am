@@ -5,15 +5,18 @@ public struct PerformancePlan: Codable, Equatable, Identifiable, Sendable {
     public var id = UUID()
     public var name = "새 공연 동선"
     public var updatedAt = Date()
+    /// Reference scenes may contain only props or an unfinished sketch. They never authorize a scanned route.
+    public var isReferenceOnly = false
     public private(set) var points: [FloorPoint] = []
     public private(set) var finished = false
     public var objects: [StageObstacle] = []
     public private(set) var pointSettings: [PerformancePlanPointSettings] = []
     public var objectFacings: [UUID: StageFacing] = [:]
-    enum CodingKeys: String, CodingKey {case id,name,updatedAt,points,finished,objects,pointSettings,objectFacings}
+    enum CodingKeys: String, CodingKey {case id,name,updatedAt,isReferenceOnly,points,finished,objects,pointSettings,objectFacings}
     public init(from decoder: Decoder) throws {
         let c=try decoder.container(keyedBy:CodingKeys.self)
         id=try c.decode(UUID.self,forKey:.id);name=try c.decode(String.self,forKey:.name)
+        isReferenceOnly=try c.decodeIfPresent(Bool.self,forKey:.isReferenceOnly) ?? false
         updatedAt=try c.decode(Date.self,forKey:.updatedAt);points=try c.decode([FloorPoint].self,forKey:.points)
         finished=try c.decode(Bool.self,forKey:.finished);objects=try c.decode([StageObstacle].self,forKey:.objects)
         pointSettings=try c.decodeIfPresent([PerformancePlanPointSettings].self,forKey:.pointSettings) ?? Array(repeating:.init(),count:points.count)
@@ -30,12 +33,12 @@ public struct PerformancePlan: Codable, Equatable, Identifiable, Sendable {
         guard !finished, points.count < StageRoute.maxPointCount, point.valid, (-3...15).contains(point.x), (-1...9).contains(point.y) else {
             throw LabError.invalid("경로를 편집하려면 최신 점을 삭제해주세요. 시작점 제외 최대 20점(도착점 포함)까지 가능합니다.")
         }
-        if points.count == 1, !Self.area.contains(point, margin: 0.01) {
+        if !isReferenceOnly, points.count == 1, !Self.area.contains(point, margin: 0.01) {
             throw LabError.invalid("첫 내부 지점 P1은 무대 안에 지정해주세요.")
         }
         // The current last point can be outside as a prospective destination;
         // adding another point would turn it into an interior waypoint.
-        if points.count >= 2, let last = points.last, !Self.area.contains(last, margin: 0.01) {
+        if !isReferenceOnly, points.count >= 2, let last = points.last, !Self.area.contains(last, margin: 0.01) {
             throw LabError.invalid("무대 밖의 마지막 점은 도착점으로 완료하거나 삭제해주세요.")
         }
         if let last = points.last, last.distance(to: point) < 0.05 { throw LabError.invalid("서로 다른 위치를 선택해주세요.") }
@@ -48,11 +51,35 @@ public struct PerformancePlan: Codable, Equatable, Identifiable, Sendable {
         if !pointSettings.isEmpty {pointSettings[pointSettings.count-1].holdSeconds=0}
     }
     public mutating func finishRoute() throws {
+        if isReferenceOnly { completeReference(); return }
         guard points.count >= 3 else { throw LabError.invalid("출발점·내부 지점·도착점, 최소 3점이 필요합니다.") }
         let candidate = try StageRoute(area: Self.area, points: points, obstacles: objects, allowsOutsideEndpoints: true)
         let errors = candidate.conflicts(boundaryMargin: 0.01, obstacleClearance: 0.15)
         guard errors.isEmpty else { throw LabError.invalid(errors.joined(separator: "\n")) }
         finished = true
+    }
+    public mutating func completeReference() {
+        isReferenceOnly=true
+        finished=points.count>=2
+    }
+    public mutating func removePoint(at index: Int) {
+        guard points.indices.contains(index) else {return}
+        points.remove(at:index);pointSettings.remove(at:index)
+        if !pointSettings.isEmpty {
+            pointSettings[0].holdSeconds=0
+            pointSettings[pointSettings.count-1].holdSeconds=0
+        }
+        if isReferenceOnly {finished=finished && points.count>=2} else {finished=false}
+    }
+    public mutating func movePoint(at index: Int, to point: FloorPoint) throws {
+        guard points.indices.contains(index),point.valid,(-3...15).contains(point.x),(-1...9).contains(point.y) else {
+            throw LabError.invalid("지점을 동선 영역 안으로 옮겨주세요.")
+        }
+        let neighbors=[index-1,index+1].filter {points.indices.contains($0)}
+        guard neighbors.allSatisfy({points[$0].distance(to:point)>=0.05}) else {throw LabError.invalid("서로 다른 위치를 선택해주세요.")}
+        var candidate=self;candidate.points[index]=point
+        if !isReferenceOnly && finished {try candidate.validate()}
+        self=candidate
     }
     public mutating func addObject(at p: FloorPoint, platform: Bool) throws {
         let vertices = platform
@@ -102,12 +129,19 @@ public struct PerformancePlan: Codable, Equatable, Identifiable, Sendable {
     }
     public mutating func removeObject(_ id: UUID) {objects.removeAll {$0.id==id};objectFacings.removeValue(forKey:id)}
     public func validate() throws {
+        guard !name.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty,name.count<=80 else {throw LabError.invalid("씬 이름은 1~80자로 입력해주세요.")}
+        guard points.count<=StageRoute.maxPointCount,points.allSatisfy({$0.valid && (-3...15).contains($0.x) && (-1...9).contains($0.y)}) else {
+            throw LabError.invalid("동선 지점의 위치와 개수를 확인해주세요.")
+        }
+        guard Set(objects.map(\.id)).count==objects.count else {throw LabError.invalid("기물 식별자가 중복됩니다.")}
+        for object in objects {try object.validate()}
         guard pointSettings.count==points.count else {throw LabError.invalid("지점 설정 개수가 맞지 않습니다.")}
         for (index,setting) in pointSettings.enumerated() {
             try setting.validate()
             guard setting.holdSeconds==0 || (index>0 && index<points.count-1) else {throw LabError.invalid("대기 시간은 중간 지점에만 설정할 수 있어요.")}
         }
         guard objectFacings.keys.allSatisfy({id in objects.contains {$0.id==id && $0.isStep}}) else {throw LabError.invalid("의자 방향 설정을 확인해주세요.")}
+        if isReferenceOnly {return}
         guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, name.count <= 80, finished else { throw LabError.invalid("이름을 입력하고 경로를 완료해주세요.") }
         let route = try StageRoute(area: Self.area, points: points, obstacles: objects, allowsOutsideEndpoints: true)
         let errors = route.conflicts(boundaryMargin: 0.01, obstacleClearance: 0.15)

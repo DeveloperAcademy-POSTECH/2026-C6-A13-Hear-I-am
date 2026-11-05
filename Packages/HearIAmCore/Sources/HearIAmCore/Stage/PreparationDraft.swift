@@ -95,6 +95,7 @@ public struct PreparationDraft: Sendable {
     }
     /// Projects a schematic 12×8 PerformancePlan proportionally onto the captured stage area.
     public mutating func applyPlan(_ plan: PerformancePlan) throws {
+        guard !plan.isReferenceOnly else {throw LabError.invalid("참고용 씬은 실제 무대 동선으로 복사할 수 없어요.")}
         guard let area else { throw LabError.invalid("무대의 네 모서리를 먼저 지정해주세요.") }
         try plan.validate()
         let sx = area.width / PerformancePlan.width

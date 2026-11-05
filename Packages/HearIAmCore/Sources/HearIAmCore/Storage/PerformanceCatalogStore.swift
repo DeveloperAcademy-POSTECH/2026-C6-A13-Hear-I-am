@@ -35,7 +35,7 @@ public actor PerformanceCatalogStore {
         folder.updatedAt=Date()
         if let i=value.performances.firstIndex(where:{$0.id==folder.id}) {
             // Dedicated tag/plan methods own those fields to avoid lost updates from an older form.
-            folder.venues=value.performances[i].venues;folder.defaultPlanID=value.performances[i].defaultPlanID
+            folder.venues=value.performances[i].venues;folder.referencePlanIDs=value.performances[i].referencePlanIDs
             value.performances[i]=folder
         } else {value.performances.append(folder)}
         return try commit(value)
@@ -48,7 +48,10 @@ public actor PerformanceCatalogStore {
     public func upsertVenue(_ tag: PerformanceVenueTag, in performanceID: UUID) throws -> PerformanceCatalog {
         var value=try ready(),tag=tag;tag.name=tag.name.trimmingCharacters(in:.whitespacesAndNewlines)
         guard let i=value.performances.firstIndex(where:{$0.id==performanceID}) else {throw LabError.invalid("공연을 찾을 수 없어요.")}
-        if let j=value.performances[i].venues.firstIndex(where:{$0.id==tag.id}) {value.performances[i].venues[j]=tag}
+        if let j=value.performances[i].venues.firstIndex(where:{$0.id==tag.id}) {
+            let existing=value.performances[i].venues[j]
+            value.performances[i].venues[j]=PerformanceVenueTag(id:tag.id,name:tag.name,createdAt:existing.createdAt,updatedAt:Date())
+        }
         else {value.performances[i].venues.append(tag)}
         value.performances[i].updatedAt=Date()
         return try commit(value)
@@ -67,11 +70,34 @@ public actor PerformanceCatalogStore {
         var value=try ready()
         if let performanceID {
             guard let folder=value.performances.first(where:{$0.id==performanceID}),
-                  venueID==nil || folder.venues.contains(where:{$0.id==venueID}) else {throw LabError.invalid("옮길 공연과 공연장 태그를 다시 선택해주세요.")}
+                  venueID==nil || folder.venues.contains(where:{$0.id==venueID}) else {throw LabError.invalid("옮길 공연과 공연·연습 공간를 다시 선택해주세요.")}
             for id in scanIDs {value.assignments[id] = .init(performanceID:performanceID,venueID:venueID,legacyPath:value.assignments[id]?.legacyPath ?? [])}
         } else {
             guard venueID==nil else {throw LabError.invalid("공연을 먼저 선택해주세요.")}
             for id in scanIDs {value.assignments.removeValue(forKey:id)}
+        }
+        return try commit(value)
+    }
+    /// Adds a scene without replacing existing ones; updating the same ID preserves its position.
+    public func addReferencePlan(_ planID: UUID, for performanceID: UUID) throws -> PerformanceCatalog {
+        var value=try ready()
+        guard let i=value.performances.firstIndex(where:{$0.id==performanceID}) else {throw LabError.invalid("공연을 찾을 수 없어요.")}
+        if !value.performances[i].referencePlanIDs.contains(planID) {value.performances[i].referencePlanIDs.append(planID)}
+        value.performances[i].updatedAt=Date()
+        return try commit(value)
+    }
+    public func removeReferencePlan(_ planID: UUID, from performanceID: UUID) throws -> PerformanceCatalog {
+        var value=try ready()
+        guard let i=value.performances.firstIndex(where:{$0.id==performanceID}) else {throw LabError.invalid("공연을 찾을 수 없어요.")}
+        value.performances[i].referencePlanIDs.removeAll {$0==planID}
+        value.performances[i].updatedAt=Date()
+        return try commit(value)
+    }
+    public func removePlanReferences(_ planID: UUID) throws -> PerformanceCatalog {
+        var value=try ready()
+        for i in value.performances.indices where value.performances[i].referencePlanIDs.contains(planID) {
+            value.performances[i].referencePlanIDs.removeAll {$0==planID}
+            value.performances[i].updatedAt=Date()
         }
         return try commit(value)
     }
