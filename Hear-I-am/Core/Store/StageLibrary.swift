@@ -79,7 +79,13 @@ import HearIAmCore
         try JSONEncoder().encode(pins).write(to:pinURL,options:.atomic)
     }
     func deletePlan(_ id: UUID) async throws {
+        let previous=plans.first {$0.id==id}
         try await planStore.delete(id)
+        do {catalog=try await catalogStore.removePlanReferences(id)}
+        catch {
+            if let previous {try? await planStore.save(previous)}
+            throw error
+        }
         plans.removeAll {$0.id == id}
     }
     func savePlan(_ value: PerformancePlan) async throws {
@@ -121,7 +127,7 @@ extension StageLibrary {
         return catalog.performances.first {$0.id==performanceID}!.venues.first {$0.id==tag.id}!
     }
     func renameVenue(_ id: UUID, in performanceID: UUID, to name: String) async throws {
-        guard catalog.performances.first(where:{$0.id==performanceID})?.venues.contains(where:{$0.id==id})==true else {throw LabError.invalid("공연장 태그를 찾을 수 없어요.")}
+        guard catalog.performances.first(where:{$0.id==performanceID})?.venues.contains(where:{$0.id==id})==true else {throw LabError.invalid("공연·연습 공간을 찾을 수 없어요.")}
         catalog=try await catalogStore.upsertVenue(.init(id:id,name:name),in:performanceID)
     }
     func deleteVenue(_ id: UUID, in performanceID: UUID) async throws {catalog=try await catalogStore.deleteVenue(id,in:performanceID)}
@@ -129,22 +135,42 @@ extension StageLibrary {
         guard Set(scanIDs).isSubset(of:Set(records.map(\.id))) else {throw LabError.invalid("저장한 무대를 다시 불러와주세요.")}
         catalog=try await catalogStore.assign(scanIDs,to:performanceID,venueID:venueID)
     }
+    func referencePlans(for performanceID: UUID) -> [PerformancePlan] {
+        guard let folder=catalog.performances.first(where:{$0.id==performanceID}) else {return []}
+        let byID=Dictionary(uniqueKeysWithValues:plans.map {($0.id,$0)})
+        return folder.referencePlanIDs.compactMap {byID[$0]}
+    }
     func referencePlan(for performanceID: UUID) -> PerformancePlan {
-        let folder=catalog.performances.first {$0.id==performanceID}
-        if let id=folder?.defaultPlanID,let plan=plans.first(where:{$0.id==id}) {return plan}
-        var plan=PerformancePlan();plan.name=folder?.name ?? "기본 동선";return plan
+        if let plan=referencePlans(for:performanceID).first {return plan}
+        var plan=PerformancePlan();plan.name="1번 씬";plan.isReferenceOnly=true;return plan
     }
     func savePerformancePlan(_ value: PerformancePlan, for performanceID: UUID) async throws {
         guard catalog.performances.contains(where:{$0.id==performanceID}) else {throw LabError.invalid("공연을 찾을 수 없어요.")}
         let previous=plans.first {$0.id==value.id}
         var plan=value;plan.updatedAt=Date();plan.name=plan.name.trimmingCharacters(in:.whitespacesAndNewlines)
+        plan.isReferenceOnly=true
         try await planStore.save(plan)
-        do {catalog=try await catalogStore.setDefaultPlan(plan.id,for:performanceID)}
+        do {catalog=try await catalogStore.addReferencePlan(plan.id,for:performanceID)}
         catch {
             // Keep the preceding plan if the metadata transaction fails.
             if let previous {try? await planStore.save(previous)} else {try? await planStore.delete(plan.id)}
             throw error
         }
         plans.removeAll {$0.id==plan.id};plans.append(plan);plans.sort {$0.updatedAt>$1.updatedAt}
+    }
+    func removePerformancePlan(id: UUID, from performanceID: UUID) async throws {
+        guard let folder=catalog.performances.first(where:{$0.id==performanceID}),folder.referencePlanIDs.contains(id) else {
+            throw LabError.invalid("삭제할 씬을 다시 선택해주세요.")
+        }
+        let shared=catalog.performances.contains {$0.id != performanceID && $0.referencePlanIDs.contains(id)}
+        let previous=plans.first {$0.id==id}
+        // A shared legacy plan remains available to its other performance folders.
+        if !shared {try await planStore.delete(id)}
+        do {catalog=try await catalogStore.removeReferencePlan(id,from:performanceID)}
+        catch {
+            if !shared,let previous {try? await planStore.save(previous)}
+            throw error
+        }
+        if !shared {plans.removeAll {$0.id==id}}
     }
 }
