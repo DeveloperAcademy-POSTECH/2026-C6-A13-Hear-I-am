@@ -101,6 +101,48 @@ final class PerformanceScenesTests: XCTestCase {
         XCTAssertFalse(draft.routeFinished)
     }
 
+    func testObjectOnlyReferenceSceneProjectsWithoutRequiringRoutePoints() throws {
+        var plan=PerformancePlan();plan.isReferenceOnly=true
+        try plan.addObject(at:.init(6,4),platform:true)
+        var draft=PreparationDraft()
+        draft.corners=[.init(0,0,0),.init(6,0,0),.init(6,0,-4),.init(0,0,-4)]
+        let reference=try draft.reference(for:plan)
+        XCTAssertTrue(reference.points.isEmpty)
+        XCTAssertEqual(reference.objects.count,1)
+        XCTAssertTrue(draft.route.isEmpty);XCTAssertTrue(draft.objects.isEmpty)
+    }
+
+    func testReferenceSelectionKeepsPerformanceScopeAndUnassignedLegacyPlansReachable() {
+        var first=PerformancePlan(),second=PerformancePlan(),foreign=PerformancePlan(),legacy=PerformancePlan()
+        first.name="1번 씬";second.name="2번 씬";foreign.name="다른 공연 씬";legacy.name="이전 독립 동선"
+        let own=PerformanceFolder(name:"Lion King",referencePlanIDs:[first.id,second.id])
+        let other=PerformanceFolder(name:"다른 공연",referencePlanIDs:[foreign.id])
+        var catalog=PerformanceCatalog();catalog.performances=[own,other]
+        // Disk order is most recently edited first; the selected performance keeps its scene order.
+        let all=[foreign,second,legacy,first]
+        XCTAssertEqual(catalog.referencePlans(among:all,for:own.id).map(\.id),[first.id,second.id])
+        XCTAssertEqual(catalog.referencePlans(among:all,for:other.id).map(\.id),[foreign.id])
+        XCTAssertEqual(catalog.referencePlans(among:all,for:nil),all)
+        XCTAssertTrue(catalog.referencePlans(among:all,for:UUID()).isEmpty)
+    }
+
+    func testRetryingAnAlreadyRemovedScenePreservesOtherPlansAndAssignments() async throws {
+        let root=directory();defer {try? FileManager.default.removeItem(at:root)}
+        let store=PerformanceCatalogStore(root:root)
+        _ = try await store.migrateIfNeeded(scans:[],plans:[],places:.init())
+        let folder=PerformanceFolder(name:"공연"),keep=UUID(),remove=UUID(),scan=UUID()
+        _ = try await store.upsert(folder)
+        _ = try await store.assign([scan],to:folder.id)
+        _ = try await store.addReferencePlan(keep,for:folder.id)
+        _ = try await store.addReferencePlan(remove,for:folder.id)
+        let once=try await store.removeReferencePlan(remove,from:folder.id)
+        let retry=try await store.removeReferencePlan(remove,from:folder.id)
+        let neverSaved=try await store.removeReferencePlan(UUID(),from:folder.id)
+        XCTAssertEqual(once,retry);XCTAssertEqual(retry,neverSaved)
+        XCTAssertEqual(retry.performances.first?.referencePlanIDs,[keep])
+        XCTAssertEqual(retry.assignments[scan]?.performanceID,folder.id)
+    }
+
     func testMovingAndRemovingReferencePointsKeepsTheirSettingsTogether() throws {
         var plan=PerformancePlan();plan.isReferenceOnly=true
         try plan.append(.init(1,1));try plan.append(.init(4,3));try plan.append(.init(8,4))

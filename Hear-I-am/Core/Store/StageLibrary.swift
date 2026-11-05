@@ -135,10 +135,8 @@ extension StageLibrary {
         guard Set(scanIDs).isSubset(of:Set(records.map(\.id))) else {throw LabError.invalid("저장한 무대를 다시 불러와주세요.")}
         catalog=try await catalogStore.assign(scanIDs,to:performanceID,venueID:venueID)
     }
-    func referencePlans(for performanceID: UUID) -> [PerformancePlan] {
-        guard let folder=catalog.performances.first(where:{$0.id==performanceID}) else {return []}
-        let byID=Dictionary(uniqueKeysWithValues:plans.map {($0.id,$0)})
-        return folder.referencePlanIDs.compactMap {byID[$0]}
+    func referencePlans(for performanceID: UUID?) -> [PerformancePlan] {
+        catalog.referencePlans(among:plans,for:performanceID)
     }
     func referencePlan(for performanceID: UUID) -> PerformancePlan {
         if let plan=referencePlans(for:performanceID).first {return plan}
@@ -159,9 +157,12 @@ extension StageLibrary {
         plans.removeAll {$0.id==plan.id};plans.append(plan);plans.sort {$0.updatedAt>$1.updatedAt}
     }
     func removePerformancePlan(id: UUID, from performanceID: UUID) async throws {
-        guard let folder=catalog.performances.first(where:{$0.id==performanceID}),folder.referencePlanIDs.contains(id) else {
-            throw LabError.invalid("삭제할 씬을 다시 선택해주세요.")
+        guard let folder=catalog.performances.first(where:{$0.id==performanceID}) else {
+            throw LabError.invalid("공연을 찾을 수 없어요.")
         }
+        // A multi-scene save can be retried after an earlier deletion already succeeded.
+        // Never delete an independent plan that is not linked to this performance.
+        guard folder.referencePlanIDs.contains(id) else {return}
         let shared=catalog.performances.contains {$0.id != performanceID && $0.referencePlanIDs.contains(id)}
         let previous=plans.first {$0.id==id}
         // A shared legacy plan remains available to its other performance folders.
