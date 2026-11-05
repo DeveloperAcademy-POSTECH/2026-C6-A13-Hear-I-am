@@ -200,8 +200,10 @@ struct ReferenceSceneEditorView: View {
         let p = FloorPoint(min(11.3, max(0.7, point.x)), min(7.3, max(0.7, point.y)))
         let prop = tool == .prop
         edit { plan in
-            let count = plan.objects.filter { $0.isStep == prop }.count + 1
-            let name = "\(prop ? "기물" : "세트") \(count)"
+            var number = plan.objects.filter { $0.isStep == prop }.count + 1
+            let prefix = prop ? "기물" : "세트"
+            while plan.objects.contains(where: { $0.name == "\(prefix) \(number)" }) { number += 1 }
+            let name = "\(prefix) \(number)"
             let vertices = [FloorPoint(p.x - 0.6, p.y - 0.5), FloorPoint(p.x + 0.6, p.y - 0.5), FloorPoint(p.x + 0.6, p.y + 0.5), FloorPoint(p.x - 0.6, p.y + 0.5)]
             let object = try StageObstacle(name: name, kind: prop ? .platform : .other, passage: prop ? .passable : .prohibited, vertices: vertices)
             plan.objects.append(object); selectedObject = object.id
@@ -247,7 +249,13 @@ struct ReferenceSceneEditorView: View {
         Task {
             do {
                 for var plan in scenes { plan.completeReference(); try await library.savePerformancePlan(plan, for: performanceID) }
-                for id in removedSceneIDs { try await library.removePerformancePlan(id: id, from: performanceID) }
+                for id in removedSceneIDs {
+                    // An unsaved scene can be added and removed in the same editing session.
+                    // Also allow retry after an earlier deletion in this batch already succeeded.
+                    if library.catalog.performances.first(where: { $0.id == performanceID })?.referencePlanIDs.contains(id) == true {
+                        try await library.removePerformancePlan(id: id, from: performanceID)
+                    }
+                }
                 dirty = false; dismiss()
             } catch { message = "저장하지 못한 씬이 있어요. 편집 내용은 유지됩니다. \(error.localizedDescription)" }
             saving = false
