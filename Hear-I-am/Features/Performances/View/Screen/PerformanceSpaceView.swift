@@ -68,7 +68,7 @@ struct PerformanceSpaceView: View {
                     perform {try await library.deleteStage(id);selectedScanID=nil}
                 }.disabled(working)
             } message: {Text("선택한 장면의 스캔과 사진이 삭제됩니다. 같은 공간의 다른 장면은 유지됩니다.")}
-            .alert("저장하지 못했어요",isPresented:Binding(get:{error != nil},set:{if !$0 {error=nil}})) {
+            .alert("작업을 완료하지 못했어요",isPresented:Binding(get:{error != nil},set:{if !$0 {error=nil}})) {
                 Button("확인",role:.cancel) {error=nil}
             } message: {Text(error ?? "")}
             .onDisappear {Task {await library.refresh()}}
@@ -78,7 +78,7 @@ struct PerformanceSpaceView: View {
         Menu {
             Section(spaceName) {
                 if records.isEmpty {Text("아직 저장된 장면이 없어요")}
-                ForEach(records) {scan in
+                ForEach(records,id:\.id) {scan in
                     Button {
                         selectedScanID=scan.id
                     } label: {
@@ -93,7 +93,7 @@ struct PerformanceSpaceView: View {
                 Image(systemName:"movieclapper")
                 Text(record?.name ?? "빈 폴더").lineLimit(1)
                 Image(systemName:"chevron.down").font(.caption2.weight(.semibold))
-            }.font(.caption.weight(.semibold)).padding(.horizontal,14).frame(height:44)
+            }.font(.caption.weight(.semibold)).padding(.horizontal,14).frame(minWidth:170,minHeight:44)
                 .background(.ultraThinMaterial,in:Capsule())
                 .overlay(Capsule().stroke(.white.opacity(0.20),lineWidth:0.5))
         }.accessibilityLabel("\(spaceName), \(record?.name ?? "빈 폴더"), 저장된 장면 선택")
@@ -104,18 +104,18 @@ struct PerformanceSpaceView: View {
             HearV3.canvas.ignoresSafeArea()
             VStack(spacing:24) {
                 Image(systemName:"viewfinder").font(.system(size:44,weight:.light))
-                Text("아직 스캔된\n동선이 없어요").font(.title3.weight(.semibold)).multilineTextAlignment(.center)
+                Text("아직 스캔된\n동선이 없어요").font(.title2.weight(.semibold)).multilineTextAlignment(.center)
                 Button {scanning=true} label: {
                     Label("스캔하러 가기",systemImage:"viewfinder")
                         .frame(maxWidth:260)
-                }.buttonStyle(V3PrimaryButtonStyle())
+                }.buttonStyle(V3PrimaryButtonStyle()).frame(maxWidth:260)
                     .accessibilityIdentifier("performance.space.scan")
             }.foregroundStyle(HearV3.secondary).padding(.horizontal,36)
         }.overlay(alignment:.bottom) {
             HStack {
-                Button {} label: {Image(systemName:"photo.on.rectangle")}.disabled(true)
+                Button {} label: {Image(systemName:"photo.on.rectangle")}.disabled(true).accessibilityLabel("저장된 사진 없음")
                 Spacer()
-                Button {} label: {Image(systemName:"timer")}.disabled(true)
+                Button {} label: {Image(systemName:"timer")}.disabled(true).accessibilityLabel("설정할 경로점 없음")
             }.buttonStyle(.bordered).buttonBorderShape(.circle).controlSize(.large)
                 .padding(.horizontal,24).padding(.bottom,8)
         }

@@ -13,7 +13,12 @@ struct SavedPhotoImage: View {
     var body: some View {
         Group {
             if let image {
-                if fill {Image(uiImage:image).resizable().scaledToFill()}
+                if fill {
+                    GeometryReader {geometry in
+                        Image(uiImage:image).resizable().scaledToFill()
+                            .frame(width:geometry.size.width,height:geometry.size.height).clipped()
+                    }
+                }
                 else {Image(uiImage:image).resizable().scaledToFit()}
             }
             else if failed {Label("사진을 불러올 수 없어요",systemImage:"photo.badge.exclamationmark").font(.caption).padding()}
