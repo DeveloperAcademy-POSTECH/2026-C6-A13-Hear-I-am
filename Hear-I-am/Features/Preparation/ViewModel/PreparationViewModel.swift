@@ -83,9 +83,10 @@ final class PreparationViewModel: ObservableObject {
     private var sessionChanges: AnyCancellable?
     private var coachingChanges: AnyCancellable?
 
-    init(initialPlan: PerformancePlan? = nil) {
+    init(initialPlan: PerformancePlan? = nil, initialName: String = "") {
         self.selectedPlan=initialPlan
-        if let initialPlan { self.scanName=initialPlan.name }
+        if !initialName.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty { self.scanName=initialName }
+        else if let initialPlan { self.scanName=initialPlan.name }
         sessionChanges=session.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }
         coachingChanges=session.$coachingActive.dropFirst().receive(on:DispatchQueue.main).sink { [weak self] active in
             guard let self, !active else { return }

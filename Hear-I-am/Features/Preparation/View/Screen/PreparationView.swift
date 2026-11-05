@@ -6,16 +6,21 @@ struct PreparationView: View {
     @ObservedObject var library: StageLibrary
     @StateObject private var model: PreparationViewModel
     private let onSaved: ((UUID) -> Void)?
+    private let performanceID: UUID?
+    private var availablePlans: [PerformancePlan] {
+        library.referencePlans(for: performanceID)
+    }
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
     /// Black until the window has turned to landscape; black again while it turns back (see `ScanTransition`).
     @State private var veiled=true
     @State private var closing=false
     @State private var showingSettings=false
-    init(library: StageLibrary, initialPlan: PerformancePlan? = nil, onSaved: ((UUID) -> Void)? = nil) {
+    init(library: StageLibrary, initialPlan: PerformancePlan? = nil, performanceID: UUID? = nil, sceneName: String = "", onSaved: ((UUID) -> Void)? = nil) {
         self.library=library
         self.onSaved=onSaved
-        _model=StateObject(wrappedValue:PreparationViewModel(initialPlan:initialPlan))
+        self.performanceID=performanceID
+        _model=StateObject(wrappedValue:PreparationViewModel(initialPlan:initialPlan, initialName:sceneName))
     }
     var body: some View {
         GeometryReader { safe in
@@ -35,7 +40,7 @@ struct PreparationView: View {
                     PreparationStepBar(model:model) {if model.exitNeedsConfirmation {model.confirmingExit=true} else {close()}}
                     Spacer(minLength:8)
                     ZStack(alignment:.bottom) {
-                        PreparationToolGroup(model:model,hasPlans:!library.plans.isEmpty)
+                        PreparationToolGroup(model:model,hasPlans:!availablePlans.isEmpty)
                         HStack(alignment:.bottom) {
                             PreparationPhotoControls(model:model)
                             Spacer()
@@ -86,7 +91,7 @@ struct PreparationView: View {
                 }.padding(28).scanCard()
             }
             if model.choosingPlan {
-                PreparationPlanPicker(plans:library.plans,initialID:model.selectedPlan?.id,onConfirm:{model.selectReferencePlan($0)},onCancel:{model.choosingPlan=false})
+                PreparationPlanPicker(plans:availablePlans,initialID:model.selectedPlan?.id,onConfirm:{model.selectReferencePlan($0)},onCancel:{model.choosingPlan=false})
             }
             if model.review {PreparationReviewCard(model:model)}
             if model.isSaving {
