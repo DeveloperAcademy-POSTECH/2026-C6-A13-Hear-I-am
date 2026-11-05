@@ -67,13 +67,13 @@ struct ReferenceSceneEditorView: View {
                         Menu {
                             Button("씬 이름 변경", systemImage: "pencil") { if let plan = current { renameText = plan.name; renameTarget = .scene(plan.id) } }
                             Button("새 씬 추가", systemImage: "plus") { addScene() }
-                            if scenes.count > 1 { Button("현재 씬 삭제", systemImage: "trash", role: .destructive) { deletingScene = true } }
+                            Button("현재 씬 삭제", systemImage: "trash", role: .destructive) { deletingScene = true }
                         } label: { Image(systemName: "ellipsis") }.accessibilityLabel("씬 관리").disabled(saving || current == nil)
                     }
                 }
                 .safeAreaInset(edge: .bottom) {
                     Button(saving ? "저장 중…" : "저장하기", action: save)
-                        .buttonStyle(V3PrimaryButtonStyle()).disabled(saving || scenes.isEmpty)
+                        .buttonStyle(V3PrimaryButtonStyle()).disabled(saving || (scenes.isEmpty && removedSceneIDs.isEmpty))
                         .padding(.horizontal, 16).padding(.vertical, 12).background(HearV3.canvas.opacity(0.95))
                         .accessibilityIdentifier("performance.scenes.save")
                 }
@@ -180,8 +180,10 @@ struct ReferenceSceneEditorView: View {
         withAnimation { selectedID = plan.id }
     }
     private func removeScene() {
-        guard let index = selectedIndex, scenes.count > 1 else { return }
-        removedSceneIDs.insert(scenes[index].id); scenes.remove(at: index); selectedID = scenes[min(index, scenes.count - 1)].id; dirty = true
+        guard let index = selectedIndex else { return }
+        removedSceneIDs.insert(scenes[index].id); scenes.remove(at: index)
+        selectedID = scenes.isEmpty ? addPageID : scenes[min(index, scenes.count - 1)].id
+        dirty = true
     }
     private func tap(_ point: FloorPoint) {
         guard let plan = current else { return }
