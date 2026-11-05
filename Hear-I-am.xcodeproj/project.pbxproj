@@ -154,6 +154,12 @@
 		4F18D9BB965C58A6F195AA68 /* HelperScanHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 035AD5FF8E6708BC58AE97AB /* HelperScanHomeView.swift */; };
 		1C02C217DC70C12AE3B89B70 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 2FE25071A0B95163D391C2C2 /* Localizable.strings */; };
 		0FEA08BF4742948167225F5D /* HomeVoiceAtmosphere.swift in Sources */ = {isa = PBXBuildFile; fileRef = F58DC67D887BB308A5A25BBA /* HomeVoiceAtmosphere.swift */; };
+		4DFCA09ADF092DF86A6D84A8 /* PerformanceSpaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B42A3F832D61E3273819497 /* PerformanceSpaceView.swift */; };
+		89631C5687F841FBC741B6B4 /* ReferencePlanCanvas.swift in Sources */ = {isa = PBXBuildFile; fileRef = F27B3E7AD4FFFC83BA4652B3 /* ReferencePlanCanvas.swift */; };
+		295A51C9FA2A13F2D07DFDF1 /* ReferenceSceneEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24E587EAFDF957143034DC02 /* ReferenceSceneEditorView.swift */; };
+		1DD7731E5A75BF0892AF586F /* ScanPreparationFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB9FABF945FBE096046A461B /* ScanPreparationFlow.swift */; };
+		C453B7FB064C6BE72043DAEF /* ImmersiveSavedStagePreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC568433189B3DC925C88615 /* ImmersiveSavedStagePreview.swift */; };
+		9C103E490A91DA0824D04EE3 /* PerformanceScenesPreviewHarness.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6718E453691DF18CEA375623 /* PerformanceScenesPreviewHarness.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -307,6 +313,12 @@
 		310A3ECE06831B3760022F16 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = "../en.lproj/Localizable.strings"; sourceTree = "<group>"; };
 		542D66527B02A78545104566 /* ko */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ko; path = "../ko.lproj/Localizable.strings"; sourceTree = "<group>"; };
 		F58DC67D887BB308A5A25BBA /* HomeVoiceAtmosphere.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeVoiceAtmosphere.swift; sourceTree = "<group>"; };
+		5B42A3F832D61E3273819497 /* PerformanceSpaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PerformanceSpaceView.swift"; sourceTree = "<group>"; };
+		F27B3E7AD4FFFC83BA4652B3 /* ReferencePlanCanvas.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ReferencePlanCanvas.swift"; sourceTree = "<group>"; };
+		24E587EAFDF957143034DC02 /* ReferenceSceneEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ReferenceSceneEditorView.swift"; sourceTree = "<group>"; };
+		DB9FABF945FBE096046A461B /* ScanPreparationFlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ScanPreparationFlow.swift"; sourceTree = "<group>"; };
+		EC568433189B3DC925C88615 /* ImmersiveSavedStagePreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ImmersiveSavedStagePreview.swift"; sourceTree = "<group>"; };
+		6718E453691DF18CEA375623 /* PerformanceScenesPreviewHarness.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PerformanceScenesPreviewHarness.swift"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -377,6 +389,7 @@
 		1A403DE3977C73E9C31667E2 /* Screen */ = {
 			isa = PBXGroup;
 			children = (
+				DB9FABF945FBE096046A461B /* ScanPreparationFlow.swift */,
 				C340F1B860A25307924F2BD3 /* PreparationView.swift */,
 				035AD5FF8E6708BC58AE97AB /* HelperScanHomeView.swift */,
 			);
@@ -650,6 +663,7 @@
 		870FD69CE211DBBD2115FEA9 /* Screen */ = {
 			isa = PBXGroup;
 			children = (
+				24E587EAFDF957143034DC02 /* ReferenceSceneEditorView.swift */,
 				F1224A12D197323A7A538F47 /* PlanEditorView.swift */,
 				FDB6273190FA1ACD948CD2D7 /* PlanLibraryView.swift */,
 			);
@@ -659,6 +673,7 @@
 		89E7C50756D0A5B015FB8859 /* Screen */ = {
 			isa = PBXGroup;
 			children = (
+				EC568433189B3DC925C88615 /* ImmersiveSavedStagePreview.swift */,
 				1EF1BCF0313E05CBD607C81C /* SavedStagePreview.swift */,
 			);
 			path = Screen;
@@ -732,6 +747,7 @@
 		98BA9D99C2ED8215123111DE /* Parts */ = {
 			isa = PBXGroup;
 			children = (
+				F27B3E7AD4FFFC83BA4652B3 /* ReferencePlanCanvas.swift */,
 				42B08A291AC63802A9B7E5D3 /* PlanCard.swift */,
 				CE3C9616808248A6D0664732 /* PlanEditorTools.swift */,
 			);
@@ -1010,6 +1026,7 @@
 		6F298E5F443CE5A78FBE180E /* Performances */ = {
 			isa = PBXGroup;
 			children = (
+				B1828FC91A89849C574181C9 /* Preview */,
 				69A4527E698024D4F54CA81E /* View */,
 			);
 			path = "Performances";
@@ -1028,6 +1045,7 @@
 		C592110C59D7EFE5FAD88D69 /* Screen */ = {
 			isa = PBXGroup;
 			children = (
+				5B42A3F832D61E3273819497 /* PerformanceSpaceView.swift */,
 				4BE625ACF1545A48F491C411 /* PerformanceTagManagementView.swift */,
 				A708458A6F2778528ABCD685 /* PerformanceDetailView.swift */,
 				ED57B6EF0D43F112A09ECCA0 /* PerformanceLibraryView.swift */,
@@ -1073,6 +1091,14 @@
 				3066BB303909034804A5D8FA /* RoleSelectionView.swift */,
 			);
 			path = "Screen";
+			sourceTree = "<group>";
+		};
+		B1828FC91A89849C574181C9 /* Preview */ = {
+			isa = PBXGroup;
+			children = (
+				6718E453691DF18CEA375623 /* PerformanceScenesPreviewHarness.swift */,
+			);
+			path = Preview;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -1155,6 +1181,12 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				9C103E490A91DA0824D04EE3 /* PerformanceScenesPreviewHarness.swift in Sources */,
+				C453B7FB064C6BE72043DAEF /* ImmersiveSavedStagePreview.swift in Sources */,
+				1DD7731E5A75BF0892AF586F /* ScanPreparationFlow.swift in Sources */,
+				295A51C9FA2A13F2D07DFDF1 /* ReferenceSceneEditorView.swift in Sources */,
+				89631C5687F841FBC741B6B4 /* ReferencePlanCanvas.swift in Sources */,
+				4DFCA09ADF092DF86A6D84A8 /* PerformanceSpaceView.swift in Sources */,
 				4F18D9BB965C58A6F195AA68 /* HelperScanHomeView.swift in Sources */,
 				175CA93E520860A1BDED09A4 /* PerformanceTagManagementView.swift in Sources */,
 				01F5C97632973220BB178EC4 /* StageClassificationView.swift in Sources */,

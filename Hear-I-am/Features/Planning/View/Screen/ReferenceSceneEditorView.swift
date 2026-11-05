@@ -143,7 +143,7 @@ struct ReferenceSceneEditorView: View {
     private var objectRows: some View {
         VStack(spacing: 8) {
             if visibleObjects.isEmpty {
-                Text("무대를 누르거나 추가 버튼으로\n\(tool.rawValue)을 배치해주세요.").font(.subheadline).multilineTextAlignment(.center)
+                Text("무대를 누르거나 추가 버튼으로\n\(tool == .prop ? "기물을" : "세트를") 배치해주세요.").font(.subheadline).multilineTextAlignment(.center)
                     .foregroundStyle(.secondary).frame(maxWidth: .infinity, minHeight: 110)
             } else {
                 ForEach(visibleObjects) { object in
