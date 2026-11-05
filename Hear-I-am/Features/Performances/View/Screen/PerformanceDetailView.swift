@@ -5,100 +5,169 @@ struct PerformanceDetailView: View {
     @ObservedObject var library: StageLibrary
     let performanceID: UUID
     let onStartGuidance: (UUID) -> Void
-    @State private var venue: PerformanceVenueFilter = .all
-    @State private var editing=false
-    @State private var editingPlan: PerformancePlan?
-    @State private var linking=false
-    @State private var deleting=false
-    @State private var error:String?
-    @State private var busy=false
+    @State private var editing = false
+    @State private var editingScenes = false
+    @State private var selectedSceneID: UUID?
+    @State private var linking = false
+    @State private var deleting = false
+    @State private var creatingSpace = false
+    @State private var renamingSpace: PerformanceVenueTag?
+    @State private var deletingSpace: PerformanceVenueTag?
+    @State private var spaceName = ""
+    @State private var query = ""
+    @State private var error: String?
+    @State private var busy = false
     @Environment(\.dismiss) private var dismiss
-    private var folder: PerformanceFolder? {library.performanceFolders.first {$0.id==performanceID}}
-    private var scans:[ScanManifest] {
-        switch venue {
-        case .all: return library.scans(in:performanceID)
-        case .unassigned: return library.scans(in:performanceID,includeAllVenues:false)
-        case .venue(let id): return library.scans(in:performanceID,venueID:id,includeAllVenues:false)
-        }
+    private var folder: PerformanceFolder? { library.performanceFolders.first { $0.id == performanceID } }
+    private var plans: [PerformancePlan] { library.referencePlans(for: performanceID) }
+    private var spaces: [PerformanceVenueTag] {
+        (folder?.venues ?? []).filter { query.isEmpty || $0.name.localizedStandardContains(query) }
+            .sorted { $0.updatedAt > $1.updatedAt }
     }
+    private var unfiled: [ScanManifest] { library.scans(in: performanceID, includeAllVenues: false) }
+
     var body: some View {
         ScrollView {
             if let folder {
-                VStack(alignment:.leading,spacing:26) {
-                    VStack(alignment:.leading,spacing:6) {
-                        Text(folder.name).font(.title.bold()).accessibilityAddTraits(.isHeader)
-                        if !folder.notes.isEmpty {Text(folder.notes).font(.subheadline).foregroundStyle(HearV3.secondary)}
+                VStack(alignment: .leading, spacing: 32) {
+                    if !folder.notes.isEmpty {
+                        Text(folder.notes).font(.subheadline).foregroundStyle(.secondary).padding(.horizontal, 20)
                     }
-                    VStack(alignment:.leading,spacing:12) {
+                    referenceSection
+                    VStack(spacing: 16) {
                         HStack {
-                            Text("기본 동선").font(.title2.bold());Spacer()
-                            Button(folder.defaultPlanID == nil ? "설정" : "편집") {editingPlan=library.referencePlan(for:performanceID)}
-                                .buttonStyle(.bordered).buttonBorderShape(.capsule).controlSize(.large)
-                        }
-                        if let planID=folder.defaultPlanID,let plan=library.plans.first(where:{$0.id==planID}) {
-                            VStack(alignment:.leading,spacing:12) {
-                                HStack {
-                                    Text("\(plan.points.count)지점 · 기물 \(plan.objects.count)개").font(.caption).foregroundStyle(HearV3.secondary)
-                                    Spacer();Text("설정됨").font(.caption).foregroundStyle(HearV3.accent).padding(.horizontal,9).padding(.vertical,5).background(HearV3.accent.opacity(0.15),in:Capsule())
-                                }
-                                StageMap(points:plan.points,finished:plan.finished,objects:plan.objects,v3Style:true,objectFacings:plan.objectFacings).frame(height:190)
-                                Text("공연장에 맞추기 전, 기준이 되는 동선이에요.").font(.caption).foregroundStyle(HearV3.secondary)
-                            }.v3Card()
+                            Text("공연 및 연습 공간").font(.title3.weight(.semibold)).accessibilityAddTraits(.isHeader)
+                            Spacer()
+                            Button { spaceName = ""; creatingSpace = true } label: { Label("추가하기", systemImage: "plus").font(.subheadline) }
+                                .buttonStyle(.bordered).buttonBorderShape(.capsule).accessibilityIdentifier("performance.space.create")
+                        }.padding(.horizontal, 4)
+                        PerformanceSearchField(text: $query, prompt: "공연 및 연습 공간 검색")
+                        if spaces.isEmpty {
+                            VStack(spacing: 20) {
+                                Image(systemName: "folder").font(.system(size: 52, weight: .light))
+                                Text(query.isEmpty ? "공간을\n추가해주세요" : "검색한 공간이\n없습니다").font(.title3.weight(.medium)).multilineTextAlignment(.center)
+                            }.foregroundStyle(.secondary).frame(maxWidth: .infinity, minHeight: 210)
                         } else {
-                            VStack(alignment:.leading,spacing:12) {
-                                Label("아직 기본 동선이 없어요",systemImage:"map").font(.headline)
-                                Text("공연에 사용할 경로와 기물 배치를 먼저 그려볼 수 있어요.").font(.subheadline).foregroundStyle(HearV3.secondary)
-                                Button("기본 동선 설정") {editingPlan=library.referencePlan(for:performanceID)}.buttonStyle(.bordered)
-                            }.v3Card()
-                        }
-                    }
-                    VStack(alignment:.leading,spacing:14) {
-                        HStack {Text("공연장별 무대").font(.title2.bold());Spacer();Button("연결") {linking=true}.buttonStyle(.bordered).buttonBorderShape(.capsule).controlSize(.large)}
-                        ScrollView(.horizontal,showsIndicators:false) {
-                            HStack(spacing:8) {
-                                venueChip("전체",.all)
-                                ForEach(folder.venues) {tag in venueChip(tag.name,.venue(tag.id))}
-                                venueChip("미지정",.unassigned)
-                            }
-                        }
-                        if scans.isEmpty {
-                            ContentUnavailableView("연결된 무대가 없어요",systemImage:"building.2",description:Text("스캔한 무대를 이 공연에 연결해주세요."))
-                        } else {
-                            LazyVStack(spacing:12) {
-                                ForEach(scans,id:\.id) {scan in
-                                    PerformanceStageCard(record:scan,venueName:library.catalog.venue(for:scan.id)?.name ?? "공연장 미지정",library:library,onStartGuidance:onStartGuidance)
+                            LazyVStack(spacing: 6) {
+                                ForEach(spaces) { space in
+                                    NavigationLink {
+                                        PerformanceSpaceView(library: library, performanceID: performanceID, venueID: space.id, onStartGuidance: onStartGuidance)
+                                    } label: {
+                                        PerformanceFolderRow(name: space.name, date: space.updatedAt,
+                                                             count: library.scans(in: performanceID, venueID: space.id, includeAllVenues: false).count)
+                                    }.buttonStyle(.plain).accessibilityIdentifier("performance.space.\(space.id.uuidString)")
+                                        .contextMenu {
+                                            Button("이름 변경", systemImage: "pencil") { spaceName = space.name; renamingSpace = space }
+                                            Button("공간 폴더 삭제", systemImage: "trash", role: .destructive) { deletingSpace = space }
+                                        }
                                 }
                             }
                         }
-                        NavigationLink {
-                            PerformanceTagManagementView(library:library,performanceID:performanceID,onStartGuidance:onStartGuidance)
-                        } label: {Text("공연장 태그 관리").font(.headline).frame(maxWidth:.infinity,minHeight:48).background(HearV3.raised,in:Capsule())}.buttonStyle(.plain)
-                    }
-                }.padding(20)
-            } else {ContentUnavailableView("공연을 찾을 수 없어요",systemImage:"folder.badge.questionmark")}
-        }.v3Screen().navigationTitle("공연 관리").navigationBarTitleDisplayMode(.inline)
-            .toolbar {ToolbarItem(placement:.topBarTrailing) {
-                Menu {Button("공연 정보 수정",systemImage:"pencil") {editing=true};Button("공연 폴더 삭제",systemImage:"trash",role:.destructive) {deleting=true}} label:{Image(systemName:"ellipsis")}.accessibilityLabel("공연 관리 메뉴").disabled(busy)
-            }}
-            .sheet(isPresented:$editing) {if let folder {PerformanceEditorSheet(library:library,folder:folder) {_ in}.suspendsVoiceWake()}}
-            .sheet(isPresented:$linking) {PerformanceLinkStagesView(library:library,performanceID:performanceID).suspendsVoiceWake()}
-            .fullScreenCover(item:$editingPlan) {plan in PlanEditorView(initial:plan,library:library,performanceID:performanceID).suspendsVoiceWake()}
-            .confirmationDialog("공연 폴더를 삭제할까요?",isPresented:$deleting,titleVisibility:.visible) {
-                Button("공연 폴더 삭제",role:.destructive) {deleteFolder()};Button("취소",role:.cancel) {}
-            } message:{Text("연결된 무대는 미분류로 보관합니다. 스캔, 사진과 안내 기록은 삭제하지 않아요.")}
-            .alert("변경하지 못했어요",isPresented:Binding(get:{error != nil},set:{if !$0 {error=nil}})) {Button("확인",role:.cancel) {error=nil}} message:{Text(error ?? "")}
-            .onChange(of:folder?.venues.map(\.id)) {_,ids in if case .venue(let id)=venue,ids?.contains(id) != true {venue = .all}}
+                        if !unfiled.isEmpty && query.isEmpty {
+                            NavigationLink {
+                                PerformanceSpaceView(library: library, performanceID: performanceID, venueID: nil, onStartGuidance: onStartGuidance)
+                            } label: {
+                                HStack { Label("공간 미지정", systemImage: "tray"); Spacer(); Text("\(unfiled.count)"); Image(systemName: "chevron.right") }
+                                    .font(.subheadline).padding(20).background(HearV3.surface, in: RoundedRectangle(cornerRadius: 16))
+                            }.buttonStyle(.plain)
+                        }
+                    }.padding(.horizontal, 16)
+                }.padding(.top, 28).padding(.bottom, 24)
+            } else { ContentUnavailableView("공연을 찾을 수 없어요", systemImage: "folder.badge.questionmark") }
+        }.v3Screen().navigationTitle(folder?.name ?? "공연 관리").navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Button("공연 정보 수정", systemImage: "pencil") { editing = true }
+                        Button("저장된 스캔 연결", systemImage: "link") { linking = true }
+                        Button("공연 폴더 삭제", systemImage: "trash", role: .destructive) { deleting = true }
+                    } label: { Image(systemName: "ellipsis") }.accessibilityLabel("공연 관리 메뉴").disabled(busy)
+                }
+            }
+            .sheet(isPresented: $editing) { if let folder { PerformanceEditorSheet(library: library, folder: folder) { _ in }.suspendsVoiceWake() } }
+            .sheet(isPresented: $linking) { PerformanceLinkStagesView(library: library, performanceID: performanceID).suspendsVoiceWake() }
+            .fullScreenCover(isPresented: $editingScenes) {
+                ReferenceSceneEditorView(library: library, performanceID: performanceID, initialSceneID: selectedSceneID).suspendsVoiceWake()
+            }
+            .alert("공연 및 연습 공간", isPresented: $creatingSpace) {
+                TextField("예: 효자 아트홀", text: $spaceName)
+                Button("추가") { saveSpace() }.disabled(spaceName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                Button("취소", role: .cancel) { }
+            } message: { Text("이 공간에 여러 장면의 스캔 파일을 모을 수 있어요.") }
+            .alert("공간 이름 변경", isPresented: Binding(get: { renamingSpace != nil }, set: { if !$0 { renamingSpace = nil } })) {
+                TextField("공간 이름", text: $spaceName)
+                Button("저장") { let id = renamingSpace?.id; saveSpace(id: id) }.disabled(spaceName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                Button("취소", role: .cancel) { renamingSpace = nil }
+            }
+            .confirmationDialog("공간 폴더를 삭제할까요?", isPresented: Binding(get: { deletingSpace != nil }, set: { if !$0 { deletingSpace = nil } }), titleVisibility: .visible) {
+                if let space = deletingSpace { Button("공간 폴더 삭제", role: .destructive) { deleteSpace(space.id) } }
+                Button("취소", role: .cancel) { deletingSpace = nil }
+            } message: { Text("스캔과 사진은 삭제하지 않고 이 공연의 ‘공간 미지정’에 보관해요.") }
+            .confirmationDialog("공연 폴더를 삭제할까요?", isPresented: $deleting, titleVisibility: .visible) {
+                Button("공연 폴더 삭제", role: .destructive) { deleteFolder() }; Button("취소", role: .cancel) { }
+            } message: { Text("스캔, 사진과 안내 기록은 삭제하지 않고 미분류로 보관해요.") }
+            .onChange(of: plans.map(\.id)) { _, ids in
+                if let selectedSceneID, !ids.contains(selectedSceneID) { self.selectedSceneID = ids.first }
+            }
+            .alert("변경하지 못했어요", isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
+                Button("확인", role: .cancel) { error = nil }
+            } message: { Text(error ?? "") }
     }
-    private func venueChip(_ title:String,_ value:PerformanceVenueFilter) -> some View {
-        Button {venue=value} label:{Text(title).font(.subheadline.weight(.medium)).padding(.horizontal,16).frame(minHeight:48).background(venue==value ? HearV3.text : HearV3.raised,in:Capsule()).foregroundStyle(venue==value ? HearV3.canvas : HearV3.text)}.buttonStyle(.plain).accessibilityAddTraits(venue==value ? .isSelected : [])
+    private var referenceSection: some View {
+        VStack(spacing: 16) {
+            HStack {
+                Text("기본 동선").font(.title3.weight(.semibold)).accessibilityAddTraits(.isHeader)
+                Spacer()
+                Button { editingScenes = true } label: { Label("편집", systemImage: "pencil").font(.subheadline) }
+                    .buttonStyle(.bordered).buttonBorderShape(.capsule).accessibilityIdentifier("performance.scenes.edit")
+            }.padding(.horizontal, 20)
+            if plans.isEmpty {
+                Button { editingScenes = true } label: {
+                    VStack(spacing: 20) {
+                        Image(systemName: "point.topleft.down.to.point.bottomright.curvepath").font(.system(size: 44, weight: .light))
+                        Text("기본동선을\n추가해주세요").font(.title3.weight(.medium)).multilineTextAlignment(.center)
+                    }.foregroundStyle(.secondary).frame(maxWidth: .infinity, minHeight: 200)
+                        .background(HearV3.surface, in: RoundedRectangle(cornerRadius: 24))
+                }.buttonStyle(.plain).padding(.horizontal, 16)
+            } else {
+                GeometryReader { geometry in
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        LazyHStack(spacing: 10) {
+                            ForEach(plans) { plan in
+                                Button { selectedSceneID = plan.id; editingScenes = true } label: {
+                                    ReferenceSceneCard(plan: plan).frame(width: geometry.size.width - 36)
+                                }.buttonStyle(.plain).id(plan.id).accessibilityLabel("\(plan.name), 참고 동선 편집")
+                            }
+                        }.scrollTargetLayout()
+                    }.contentMargins(.horizontal, 16, for: .scrollContent).scrollTargetBehavior(.viewAligned)
+                        .scrollPosition(id: $selectedSceneID)
+                }.frame(height: 210)
+                HStack(spacing: 6) {
+                    ForEach(plans) { plan in
+                        Circle().fill((selectedSceneID ?? plans.first?.id) == plan.id ? HearV3.text : HearV3.secondary.opacity(0.4)).frame(width: 6, height: 6)
+                    }
+                }.accessibilityLabel("참고 동선 \(plans.count)개")
+            }
+        }
+    }
+    private func saveSpace(id: UUID? = nil) {
+        guard !busy else { return }; busy = true
+        let name = spaceName
+        Task {
+            do { if let id { try await library.renameVenue(id, in: performanceID, to: name) } else { _ = try await library.createVenue(name: name, in: performanceID) } }
+            catch { self.error = error.localizedDescription }
+            renamingSpace = nil; busy = false
+        }
+    }
+    private func deleteSpace(_ id: UUID) {
+        busy = true
+        Task { do { try await library.deleteVenue(id, in: performanceID) } catch { self.error = error.localizedDescription }; deletingSpace = nil; busy = false }
     }
     private func deleteFolder() {
-        busy=true
-        Task {do {try await library.deletePerformance(performanceID);dismiss()} catch {self.error=error.localizedDescription};busy=false}
+        busy = true
+        Task { do { try await library.deletePerformance(performanceID); dismiss() } catch { self.error = error.localizedDescription }; busy = false }
     }
 }
-
-enum PerformanceVenueFilter: Hashable {case all,unassigned,venue(UUID)}
 
 /// Pick existing durable scans before assigning them to this performance.
 struct PerformanceLinkStagesView: View {
