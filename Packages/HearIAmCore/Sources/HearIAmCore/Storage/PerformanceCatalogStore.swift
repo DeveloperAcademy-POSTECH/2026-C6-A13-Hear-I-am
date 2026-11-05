@@ -70,7 +70,7 @@ public actor PerformanceCatalogStore {
         var value=try ready()
         if let performanceID {
             guard let folder=value.performances.first(where:{$0.id==performanceID}),
-                  venueID==nil || folder.venues.contains(where:{$0.id==venueID}) else {throw LabError.invalid("옮길 공연과 공연·연습 공간를 다시 선택해주세요.")}
+                  venueID==nil || folder.venues.contains(where:{$0.id==venueID}) else {throw LabError.invalid("옮길 공연과 공연·연습 공간을 다시 선택해주세요.")}
             for id in scanIDs {value.assignments[id] = .init(performanceID:performanceID,venueID:venueID,legacyPath:value.assignments[id]?.legacyPath ?? [])}
         } else {
             guard venueID==nil else {throw LabError.invalid("공연을 먼저 선택해주세요.")}
@@ -89,6 +89,7 @@ public actor PerformanceCatalogStore {
     public func removeReferencePlan(_ planID: UUID, from performanceID: UUID) throws -> PerformanceCatalog {
         var value=try ready()
         guard let i=value.performances.firstIndex(where:{$0.id==performanceID}) else {throw LabError.invalid("공연을 찾을 수 없어요.")}
+        guard value.performances[i].referencePlanIDs.contains(planID) else {return value}
         value.performances[i].referencePlanIDs.removeAll {$0==planID}
         value.performances[i].updatedAt=Date()
         return try commit(value)

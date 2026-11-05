@@ -102,6 +102,12 @@ public struct PerformanceCatalog: Codable, Equatable, Sendable {
         guard let assignment=assignments[scanID], let id=assignment.venueID else {return nil}
         return folder(for:scanID)?.venues.first {$0.id==id}
     }
+    /// A chosen performance exposes only its scenes. No selection keeps legacy independent plans reachable.
+    public func referencePlans(among plans: [PerformancePlan], for performanceID: UUID?) -> [PerformancePlan] {
+        guard let performanceID else {return plans}
+        guard let folder=performances.first(where:{$0.id==performanceID}) else {return []}
+        return folder.referencePlanIDs.compactMap {id in plans.first {$0.id==id}}
+    }
     public func validate() throws {
         guard version==1 else {throw LabError.invalid("지원하지 않는 공연 보관함 버전입니다.")}
         guard Set(performances.map(\.id)).count==performances.count else {throw LabError.invalid("공연 식별자가 중복됩니다.")}
