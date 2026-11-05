@@ -51,6 +51,9 @@ struct StageClassificationView: View {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("닫기", systemImage: "chevron.left") { dismiss() }.labelStyle(.iconOnly).disabled(busy)
                     }
+                    ToolbarItem(placement: .primaryAction) {
+                        Menu { Button("저장 위치 초기화") { performanceID = nil; venueID = nil } } label: { Image(systemName: "ellipsis") }.disabled(busy)
+                    }
                 }
                 .safeAreaInset(edge: .bottom) {
                     Button(busy ? "저장 중…" : "저장하기", action: apply)
@@ -131,7 +134,7 @@ struct StageInformationFields: View {
         HStack {
             VStack(alignment: .leading, spacing: 5) {
                 Text(name).font(.headline).foregroundStyle(date == nil ? HearV3.secondary : HearV3.text)
-                if let date { Text(date, format: .dateTime.year(.twoDigits).month(.twoDigits).day(.twoDigits)).font(.footnote).foregroundStyle(HearV3.secondary) }
+                if let date { Text(PerformanceFolderRow.dateLabel(date)).font(.footnote).foregroundStyle(HearV3.secondary) }
             }
             Spacer(); Image(systemName: "chevron.right").font(.body.weight(.semibold))
         }.padding(.horizontal, 16).padding(.vertical, 14).frame(minHeight: 70)
