@@ -20,6 +20,7 @@ struct ImmersiveSavedStagePreview: View {
         model.display = .clean;model.immersive=true;model.showCleanPhotoPins=true
         model.selection = record.route?.points.isEmpty == false ? .point(0) : nil
         _model=StateObject(wrappedValue:model)
+        _closedPhotoID=State(initialValue:record.photos.first {$0.routePointIndex==0}?.id)
         self.scanSelector=scanSelector;self.onNewScan=onNewScan;self.onStartGuidance=onStartGuidance
         self.onRename=onRename;self.onDelete=onDelete
     }
@@ -46,7 +47,7 @@ struct ImmersiveSavedStagePreview: View {
                     }
                 } else {ProgressView("공간을 불러오는 중이에요")}
             }.ignoresSafeArea()
-                .overlay(alignment:.bottom) { if model.loaded != nil { bottomControls.padding(.horizontal,24).padding(.bottom,8) } }
+                .overlay(alignment:.bottom) { if model.loaded != nil { bottomControls(width:geometry.size.width-48).padding(.horizontal,24).padding(.bottom,8) } }
         }
         .background(HearV3.canvas).foregroundStyle(HearV3.text).tint(HearV3.text)
         .preferredColorScheme(.dark)
@@ -56,7 +57,7 @@ struct ImmersiveSavedStagePreview: View {
         .toolbar {
             ToolbarItem(placement:.principal) {
                 if let scanSelector {scanSelector}
-                else {Label(model.record.name,systemImage:"movieclapper").font(.caption.weight(.semibold)).lineLimit(1)}
+                else {Label(model.record.name,systemImage:"movieclapper").labelStyle(.titleAndIcon).font(.caption.weight(.semibold)).lineLimit(1)}
             }
             ToolbarItem(placement:.topBarTrailing) {
                 Menu {
@@ -97,7 +98,7 @@ struct ImmersiveSavedStagePreview: View {
         }
     }
 
-    private var bottomControls: some View {
+    private func bottomControls(width: CGFloat) -> some View {
         VStack(alignment:.leading,spacing:10) {
             if let route=model.loaded?.manifest.route,!route.points.isEmpty {
                 Button {openPointSettings()} label: {
@@ -105,6 +106,7 @@ struct ImmersiveSavedStagePreview: View {
                         .padding(.horizontal,14).padding(.vertical,5)
                 }.buttonStyle(.plain).background(.thinMaterial,in:Capsule())
                     .overlay(Capsule().stroke(.white.opacity(0.20),lineWidth:0.5))
+                    .offset(x:CGFloat(model.activePointIndex)/CGFloat(max(route.points.count-1,1))*max(width-58,0))
                     .accessibilityHint("바라볼 방향과 도착 후 대기 시간을 설정합니다.")
                 ScrollViewReader { proxy in
                     ScrollView(.horizontal,showsIndicators:false) {
@@ -115,7 +117,7 @@ struct ImmersiveSavedStagePreview: View {
                                         if index==0 {Image(systemName:"mappin").font(.body)}
                                         else if index==route.points.count-1 {Image(systemName:"flag.pattern.checkered").font(.body)}
                                         else {Circle().fill(index==model.activePointIndex ? .white : .white.opacity(0.40)).frame(width:index==model.activePointIndex ? 12 : 7,height:index==model.activePointIndex ? 12 : 7)}
-                                    }.frame(width:40,height:44)
+                                    }.frame(width:max(40,(width-6)/CGFloat(route.points.count)),height:44)
                                         .foregroundStyle(index==model.activePointIndex ? .white : .white.opacity(0.4))
                                         .background(index==model.activePointIndex && (index==0 || index==route.points.count-1) ? .white.opacity(0.16) : .clear,in:Circle())
                                 }.buttonStyle(.plain).id(index)
@@ -178,7 +180,7 @@ struct ImmersiveSavedStagePreview: View {
             }.navigationTitle("현장 사진").navigationBarTitleDisplayMode(.inline)
                 .toolbar {ToolbarItem(placement:.confirmationAction) {Button("닫기",systemImage:"xmark") {gallery=false}}}
                 .background(HearV3.canvas.opacity(0.55))
-        }.presentationDetents([.large]).presentationDragIndicator(.visible)
+        }.tint(HearV3.text).presentationDetents([.large]).presentationDragIndicator(.visible)
             .presentationBackground(.ultraThinMaterial).preferredColorScheme(.dark)
     }
 
@@ -205,6 +207,7 @@ struct ImmersiveSavedStagePreview: View {
                             Text("초").foregroundStyle(.secondary)
                         }
                         Text("0초는 바로 안내 · 최대 3600초. 설정한 방향을 맞춘 뒤 기다려요.").font(.footnote).foregroundStyle(.secondary)
+                        if model.enteredHoldSeconds==nil {Text("0~3600 사이의 정수를 입력해주세요.").font(.footnote).foregroundStyle(.red)}
                     }
                 }
                 if let error=model.holdSaveError {Text(error).foregroundStyle(.red)}
@@ -219,6 +222,6 @@ struct ImmersiveSavedStagePreview: View {
                         }.disabled(model.savingHold || model.enteredHoldSeconds==nil)
                     }
                 }
-        }.presentationDetents([.medium,.large]).presentationDragIndicator(.visible).preferredColorScheme(.dark)
+        }.tint(HearV3.text).presentationDetents([.medium,.large]).presentationDragIndicator(.visible).preferredColorScheme(.dark)
     }
 }

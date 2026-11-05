@@ -19,6 +19,16 @@ final class ReplaySceneController: NSObject {
     private var projectionPhoto: ScanPhoto?
     private var projectionLink: CADisplayLink?
     private var previousPhotoProjection: CGPoint?
+    private var previousUpdate: RenderState?
+    private struct RenderState: Equatable {
+        let display: ReplayDisplay
+        let wireframe: Bool
+        let showPhotos: Bool
+        let selection: ReplaySelection?
+        let camera: ReplayCamera
+        let revision: Int
+        let photoID: UUID?
+    }
     private var builtCleanSurfaces=false
     private var scanBounds=(min:SCNVector3Zero,max:SCNVector3Zero)
     let selectionOverlay=SCNNode(), scanAnnotations=SCNNode(), routeNodes=SCNNode()
@@ -181,6 +191,11 @@ final class ReplaySceneController: NSObject {
         if hypot(dx,dz)>0.001 {person.eulerAngles.y=Float(atan2(dx,dz))}
     }
     func update(display: ReplayDisplay, wireframe: Bool, showPhotos: Bool, selection: ReplaySelection?, cameraMode: ReplayCamera, revision: Int, photoViewpoint: ScanPhoto? = nil) {
+        let state=RenderState(display:display,wireframe:wireframe,showPhotos:showPhotos,selection:selection,
+                              camera:cameraMode,revision:revision,photoID:photoViewpoint?.id)
+        // Projected SwiftUI photo cards update during orbit; that must not rebuild 3D overlays.
+        guard state != previousUpdate else {return}
+        previousUpdate=state
         let viewpointChanged=self.photoViewpoint?.id != photoViewpoint?.id
         self.photoViewpoint=photoViewpoint
         let firstPerson=photoViewpoint != nil
@@ -280,6 +295,7 @@ final class ReplaySceneController: NSObject {
         alterMaterials(in:floor) {$0.multiply.contents=UIColor(red:0.55,green:0.65,blue:0.69,alpha:1)}
         alterMaterials(in:objects) {$0.multiply.contents=UIColor(red:0.56,green:0.68,blue:0.72,alpha:1)}
         // The boundary comes from the saved registered area; no fabricated stage mesh.
+        cleanAnnotations.childNodes.dropFirst().forEach {$0.isHidden=true}
         if let boundary=cleanAnnotations.childNodes.first {
             alterMaterials(in:boundary) { material in
                 material.diffuse.contents=UIColor(red:0.18,green:0.70,blue:0.73,alpha:1)
