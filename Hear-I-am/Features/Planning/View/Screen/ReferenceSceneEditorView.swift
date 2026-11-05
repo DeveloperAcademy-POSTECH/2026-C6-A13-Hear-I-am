@@ -58,7 +58,7 @@ struct ReferenceSceneEditorView: View {
                         else { objectRows }
                     }
                 }.padding(.top, 16).padding(.bottom, 24)
-            }.v3Screen().navigationTitle("기본 동선 설정").navigationBarTitleDisplayMode(.inline)
+            }.scrollDisabled(dragBaseline != nil).v3Screen().navigationTitle("기본 동선 설정").navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button { if dirty { confirmExit = true } else { dismiss() } } label: { Image(systemName: "chevron.backward") }.accessibilityLabel("나가기").disabled(saving)
@@ -211,14 +211,15 @@ struct ReferenceSceneEditorView: View {
     }
     private func drag(from start: FloorPoint, to end: FloorPoint) {
         guard let index = selectedIndex else { return }
-        if dragBaseline == nil { dragBaseline = scenes[index] }
-        guard var plan = dragBaseline else { return }
+        var plan = dragBaseline ?? scenes[index]
         do {
             if tool == .route {
                 guard let pointIndex = plan.points.indices.min(by: { plan.points[$0].distance(to: start) < plan.points[$1].distance(to: start) }), plan.points[pointIndex].distance(to: start) < 0.6 else { return }
+                if dragBaseline == nil { dragBaseline = plan }
                 try plan.movePoint(at: pointIndex, to: end)
             } else {
                 guard let object = plan.objects.last(where: { $0.contains(start) || ($0.id == selectedObject && $0.vertices.contains(where: { $0.distance(to: start) < 0.7 })) }) else { return }
+                if dragBaseline == nil { dragBaseline = plan }
                 selectedObject = object.id
                 let xs = object.vertices.map(\.x), ys = object.vertices.map(\.y)
                 let center = FloorPoint((xs.min()! + xs.max()!) / 2, (ys.min()! + ys.max()!) / 2)
