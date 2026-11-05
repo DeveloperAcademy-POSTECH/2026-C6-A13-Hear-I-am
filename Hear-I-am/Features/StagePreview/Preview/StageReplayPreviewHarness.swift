@@ -120,6 +120,11 @@ struct StageReplayPreviewHarness: View {
               view.backgroundColor != ReplaySurfaceFactory.background else {
             throw LabError.invalid("몰입형 다시보기 재질·저장 데이터 격리 검증 실패")
         }
+        var photoCaptions=[String]()
+        scene.photos.enumerateChildNodes {node,_ in
+            if let text=node.geometry as? SCNText,let value=text.string as? String {photoCaptions.append(value)}
+        }
+        guard photoCaptions.contains("사진 1") else {throw LabError.invalid("사진 위치 라벨 보존 검증 실패")}
         scene.stopProjectionUpdates()
         let editor=SavedStagePreviewModel(record:scan.manifest,store:store)
         await editor.load();editor.select(.point(1))

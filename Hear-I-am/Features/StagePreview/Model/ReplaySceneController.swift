@@ -281,7 +281,10 @@ final class ReplaySceneController: NSObject {
     /// must never inherit the folder viewer's lighting or change the stored geometry.
     private func alterMaterials(in root: SCNNode, _ change: (SCNMaterial) -> Void) {
         func update(_ node: SCNNode) {
-            guard let source=node.geometry, let geometry=source.copy() as? SCNGeometry else {return}
+            guard let source=node.geometry else {return}
+            // SCNText.copy() can drop its string. Captions already have a readable constant
+            // material, so keep their immutable geometry instead of making an empty copy.
+            guard !(source is SCNText),let geometry=source.copy() as? SCNGeometry else {return}
             geometry.materials=source.materials.map { original in
                 let copy=original.copy() as! SCNMaterial
                 change(copy)
