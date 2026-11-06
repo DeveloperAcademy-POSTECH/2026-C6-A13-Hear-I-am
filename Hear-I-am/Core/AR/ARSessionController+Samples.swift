@@ -7,14 +7,19 @@ extension ARSessionController {
         guard incoming==token, active, mode == .scanning || mode == .restoring else { return }
         let wasVerified=gate.verified
         let previousStability=gate.normalSince
-        guard gate.observe(time:sample.time,normal:sample.normal && sample.world.valid && sample.forward.valid,anchorsPresent:referenceAnchorsPresent(sample)) else { return }
+        let anchorsPresent=referenceAnchorsPresent(sample)
+        guard gate.observe(time:sample.time,normal:sample.normal && sample.world.valid && sample.forward.valid,anchorsPresent:wasVerified || alignment != nil || anchorsPresent) else { return }
         latest=sample
-        if !measuredCheckpoints.isEmpty && previousStability != gate.normalSince {
+        if alignment == nil && !measuredCheckpoints.isEmpty && previousStability != gate.normalSince {
             clearAlignment()
             status="추적이 변경됐어요. 확인점 1번부터 다시 확인해주세요."
         }
         if tracking != sample.tracking { event("tracking",detail:sample.tracking) }
-        if wasVerified && !gate.verified { invalidateWear("추적 제한 · 두 확인점 재확인 필요") }
+        if wasVerified && !gate.verified { invalidateWear("추적 제한 · 위치 재확인 중") }
+        if alignment != nil && !gate.verified && gate.canVerify(now:sample.time) {
+            _=gate.verify(error:alignment?.residual ?? 0,tolerance:checkpointTolerance,now:sample.time)
+            event("tracking_auto_recovered")
+        }
         if sample.time-lastUI >= 0.05 {
             lastUI=sample.time; tracking=sample.tracking; mapping=sample.mapping
             ready=gate.isReady(now:now,validation:restorationValidation); canVerify=gate.canVerify(now:now)
