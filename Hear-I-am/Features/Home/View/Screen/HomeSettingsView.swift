@@ -1,71 +1,67 @@
 import SwiftUI
-import AVFoundation
-import Speech
-import CoreMotion
 import HearIAmCore
 
-/// Pushed from Home. Settings and its children share Home's navigation stack (Figma 「설정」 457:14420).
-/// Rows the design does not show yet (역할 · 방향 허용 각도 · 받아쓰기 엔진 · 음성으로 사용하기) stay, in the same style.
+/// Settings and its children share Home's navigation stack.
 struct HomeSettingsView: View {
-    var role:HearRole = .performer
-    var changeRole:(()->Void)? = nil
-    @State private var confirmsRoleChange=false
     @StateObject private var output=SoundOutputStatus()
-    @AppStorage(VoiceRecognitionService.analyzerKey) private var speechAnalyzer=true
-    private var version: String {Bundle.main.object(forInfoDictionaryKey:"CFBundleShortVersionString") as? String ?? ""}
+    @Environment(\.scenePhase) private var scenePhase
+    private var version: String {
+        Bundle.main.object(forInfoDictionaryKey:"CFBundleShortVersionString") as? String ?? "확인할 수 없음"
+    }
     var body: some View {
         ScrollView {
             VStack(spacing:0) {
                 SettingsHeroCard().padding(.top,15).padding(.bottom,27)
                 section("소리") {
-                    NavigationLink { SoundOutputView() } label: {SettingsRowLabel(title:"소리 출력",value:output.name)}
-                        .buttonStyle(.plain).accessibilityIdentifier("settings.output")
+                    NavigationLink {SoundOutputView()} label: {
+                        SettingsRowLabel(title:"소리 출력",value:output.name,adaptsToDynamicType:true)
+                    }.buttonStyle(.plain).accessibilityIdentifier("settings.output")
                 }
                 section("사용 도움말") {
-                    NavigationLink {V3UsageHelpView()} label: {SettingsRowLabel(title:"착용과 안내 준비")}.buttonStyle(.plain)
+                    NavigationLink {V3UsageHelpView()} label: {
+                        SettingsRowLabel(title:"착용과 안내준비",adaptsToDynamicType:true)
+                    }.buttonStyle(.plain).accessibilityIdentifier("settings.help.wearing")
                     SettingsDivider()
-                    SettingsRowLabel(title:"소리가 들리지 않을 때",value:"준비 중",accessory:.none)
+                    NavigationLink {V3SoundHelpView()} label: {
+                        SettingsRowLabel(title:"소리가 들리지 않을 때",adaptsToDynamicType:true)
+                    }.buttonStyle(.plain).accessibilityIdentifier("settings.help.sound")
                     SettingsDivider()
-                    NavigationLink {V3VoiceHelpView()} label: {SettingsRowLabel(title:"음성으로 사용하기")}.buttonStyle(.plain)
-                }
-                section("음성 인식") {
-                    Toggle(isOn:$speechAnalyzer) {
-                        VStack(alignment:.leading,spacing:4) {
-                            Text("새 받아쓰기 엔진 (시험)").foregroundStyle(.white)
-                            Text("iOS 26의 새 음성 인식을 써요. 다음에 음성 입력을 시작할 때부터 적용돼요.").font(.subheadline).foregroundStyle(SettingsStyle.secondary)
-                        }
-                    }.tint(.green).padding(.horizontal,SettingsStyle.rowInset).padding(.vertical,11).accessibilityIdentifier("settings.speechAnalyzer")
+                    NavigationLink {V3VoiceHelpView()} label: {
+                        SettingsRowLabel(title:"음성으로 앱 사용하기",adaptsToDynamicType:true)
+                    }.buttonStyle(.plain).accessibilityIdentifier("settings.help.voice")
+                    SettingsDivider()
+                    Link(destination:SettingsLinks.support) {
+                        SettingsRowLabel(title:"문의 및 오류 신고",accessory:.externalLink,adaptsToDynamicType:true)
+                    }.buttonStyle(.plain).accessibilityHint("문의 및 오류 신고 양식을 브라우저에서 열어요")
+                        .accessibilityIdentifier("settings.support")
                 }
                 section("앱 관리") {
-                    NavigationLink {V3PermissionView()} label: {SettingsRowLabel(title:"권한 상태")}.buttonStyle(.plain)
+                    NavigationLink {V3PermissionView()} label: {
+                        SettingsRowLabel(title:"앱 접근 권한",adaptsToDynamicType:true)
+                    }.buttonStyle(.plain).accessibilityIdentifier("settings.permissions")
                     SettingsDivider()
-                    SettingsRowLabel(title:"앱 정보",value:"Hear I am \(version)",accessory:.none)
-                    if changeRole != nil {
-                        SettingsDivider()
-                        Button {confirmsRoleChange=true} label: {SettingsRowLabel(title:"사용 역할",value:role.title)}
-                            .buttonStyle(.plain).accessibilityIdentifier("settings.role")
-                    }
+                    SettingsRowLabel(title:"앱 버전",value:version,accessory:.none,adaptsToDynamicType:true)
+                        .accessibilityElement(children:.combine).accessibilityIdentifier("settings.version")
+                    SettingsDivider()
+                    Link(destination:SettingsLinks.privacy) {
+                        SettingsRowLabel(title:"개인정보 처리방침",accessory:.externalLink,adaptsToDynamicType:true)
+                    }.buttonStyle(.plain).accessibilityHint("개인정보 처리방침을 브라우저에서 열어요")
+                        .accessibilityIdentifier("settings.privacy")
                 }
             }.padding(.horizontal,20).padding(.bottom,24)
         }.settingsScreen()
             .navigationTitle("설정").navigationBarTitleDisplayMode(.inline)
-            .confirmationDialog("사용 역할을 바꿀까요?",isPresented:$confirmsRoleChange,titleVisibility:.visible) {
-                Button("역할 다시 선택") {changeRole?()}
-                Button("취소",role:.cancel) {}
-            } message: {Text("저장한 공연과 기록은 유지돼요.")}
             .toolbar(.visible,for:.navigationBar)
             .readsAloud {readAloudLines}
             .onAppear {output.refresh()}
+            .onChange(of:scenePhase) {_,phase in if phase == .active {output.refresh()}}
     }
-    /// Everything on the page, top to bottom, for the read-aloud button.
     private var readAloudLines: [String] {
-        var lines=["설정","안내 신호 익히기","조력자와 하나씩 들어보세요","바로가기 버튼",
-                   "소리","소리 출력, \(output.name)",
-                   "사용 도움말","착용과 안내 준비","소리가 들리지 않을 때, 준비 중","음성으로 사용하기",
-                   "음성 인식","새 받아쓰기 엔진 시험, \(speechAnalyzer ? "켜짐" : "꺼짐")","iOS 26의 새 음성 인식을 써요. 다음에 음성 입력을 시작할 때부터 적용돼요.",
-                   "앱 관리","권한 상태","앱 정보, Hear I am \(version)"]
-        if changeRole != nil {lines.append("사용 역할, \(role.title)")}
-        return lines
+        ["설정","안내 신호 익히기","조력자와 하나씩 들어보세요","바로가기 버튼",
+         "소리","소리 출력, \(output.name)",
+         "사용 도움말","착용과 안내준비","소리가 들리지 않을 때","음성으로 앱 사용하기",
+         "문의 및 오류 신고, 외부 웹 페이지 열기",
+         "앱 관리","앱 접근 권한","앱 버전, \(version)","개인정보 처리방침, 외부 웹 페이지 열기"]
     }
     private func section<Content: View>(_ title: String, @ViewBuilder _ content: () -> Content) -> some View {
         VStack(spacing:0) {
@@ -73,6 +69,12 @@ struct HomeSettingsView: View {
             SettingsGroup {content()}
         }.padding(.bottom,24)
     }
+}
+
+/// Public destinations shared by the settings links.
+enum SettingsLinks {
+    static let support=URL(string:"https://docs.google.com/forms/d/e/1FAIpQLSe7ZGjEtVlTH_JErX9-SHIASTyxf8JJCadpgt1ne4meMmrYzg/viewform?usp=publish-editor")!
+    static let privacy=URL(string:"https://xrpjwk8.github.io/heariam-help/privacy/")!
 }
 
 /// 「안내 신호 익히기」 card with the design's moving background (Liquid Metal + Light rays, see SettingsHeroShader.metal).

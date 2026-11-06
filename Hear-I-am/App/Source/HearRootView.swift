@@ -26,7 +26,7 @@ struct HearRootView: View {
                     if let request=guidance, !request.helperPreparation {
                         guidanceView(request).id(request.id)
                     } else {
-                        HomeView(library:library,wake:wake,start:{open(VoiceGuidanceLaunch())},changeRole:chooseRole,isPresented:guidance == nil)
+                        HomeView(library:library,wake:wake,start:{open(VoiceGuidanceLaunch())},isPresented:guidance == nil)
                     }
                 } else {helperTabs}
             } else {

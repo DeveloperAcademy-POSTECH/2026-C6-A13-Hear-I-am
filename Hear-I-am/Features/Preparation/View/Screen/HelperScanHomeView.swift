@@ -47,7 +47,7 @@ struct HelperScanHomeView:View {
             }.v3Screen().navigationTitle("스캔").toolbar(.hidden,for:.navigationBar)
                 // The destination must sit inside the stack; outside it the button does nothing.
                 .navigationDestination(isPresented:$settings) {
-                    HomeSettingsView(role:.helper,changeRole:changeRole).suspendsVoiceWake()
+                    HomeSettingsView().suspendsVoiceWake()
                 }
         }.v3Screen()
             .onAppear {startRequestedScan()}

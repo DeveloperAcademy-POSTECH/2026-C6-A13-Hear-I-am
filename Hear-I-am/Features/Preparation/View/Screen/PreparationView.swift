@@ -104,7 +104,7 @@ struct PreparationView: View {
             .ignoresSafeArea()
         }.background(.black).preferredColorScheme(.light)
             .overlay {ScanVeil(on:veiled)}
-            .sheet(isPresented:$showingSettings) {NavigationStack {HomeSettingsView(role:.helper)}}
+            .sheet(isPresented:$showingSettings) {NavigationStack {HomeSettingsView()}}
             .sheet(isPresented:$model.showingPhotos) {PreparationPhotosSheet(model:model)}
             .onAppear {
                 ScreenOrientation.set(.landscape); model.appear()
