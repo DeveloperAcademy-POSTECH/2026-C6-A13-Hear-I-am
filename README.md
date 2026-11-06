@@ -8,9 +8,9 @@ LiDAR로 스캔한 무대에 동선을 저장해 두면, 허리에 찬 iPhone이
 
 | 역할 | 팀원 |
 |---|---|
-| PM | 톰 · 우상영 ([wsysangyoung2730-debug](https://github.com/wsysangyoung2730-debug)) |
+| PM | 톰 · 우상영 |
 | Designer | 쿄조 · 조원경 / 클레어 · 김경민 |
-| Developer | 나나 · 김나영 ([na0k1m](https://github.com/na0k1m)) / 제이스 · 김재원 ([xrpjwk8](https://github.com/xrpjwk8)) / 이안 · 김지원 ([G1G1M](https://github.com/G1G1M)) |
+| Developer | 나나 · 김나영 / 제이스 · 김재원 / 이안 · 김지원 |
 
 ## 앱 흐름
 
