@@ -1,98 +1,134 @@
 import SwiftUI
-import AVFoundation
-import Speech
-import CoreMotion
 
 struct V3UsageHelpView: View {
+    @ScaledMetric(relativeTo: .title2) private var headingSize: CGFloat = 24
+
+    private let title = "착용과 안내준비"
+    private let heading = "몸 앞에 안정적으로 고정해요"
+    private let beltDescription = "러닝밴드를 허리에 착용하고, 휴대폰을 몸 앞쪽에 세로로 단단히 고정해주세요."
+    private let handheldDescription = "임시로 배꼽 앞에 휴대폰을 세로로 들고, 위치와 방향을 일정하게 유지해주세요."
+    private let cameraHeading = "후면 카메라는 몸이 향한 방향으로"
+    private let cameraDescription = "카메라가 밴드나 옷에 가려지지 않게 해주세요."
+    private let positionDescription = "착용 위치를 바꿨다면 안내를 멈추고 위치와 방향을 다시 확인해주세요."
+
     var body: some View {
-        List {
-            Section("몸에 맞춰 준비해요") {
-                Label("iPhone을 허리 앞쪽에 단단히 고정해주세요.",systemImage:"iphone")
-                Label("후면 카메라가 바깥쪽을 향하고 가려지지 않게 해주세요.",systemImage:"camera")
-                Label("사용할 이어폰이나 스피커로 시험 소리를 들어주세요.",systemImage:"speaker.wave.2")
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                Text(heading)
+                    .font(.system(size: headingSize, weight: .bold))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityAddTraits(.isHeader)
+
+                WearingHelpCard(
+                    title: "러닝밴드가 있어요",
+                    image: "WearingBeltPortrait",
+                    description: beltDescription
+                )
+
+                WearingHelpCard(
+                    title: "러닝밴드가 없어요",
+                    image: "WearingHandheldPortrait",
+                    description: handheldDescription
+                )
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(cameraHeading)
+                        .font(.body.weight(.medium))
+                        .accessibilityAddTraits(.isHeader)
+                    Text(cameraDescription)
+                        .font(.subheadline)
+                        .foregroundStyle(.white.opacity(0.6))
+                }
+                .fixedSize(horizontal: false, vertical: true)
+
+                Text(positionDescription)
+                    .font(.subheadline)
+                    .foregroundStyle(.white.opacity(0.6))
+                    .lineSpacing(4)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                NavigationLink {
+                    SoundOutputView()
+                } label: {
+                    SettingsHelpCapsuleLabel(title: "소리 확인하기")
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("settings.help.wearing.sound")
             }
-            Section("연습과 실전") {
-                Text("연습용은 저장한 공간을 제자리에서 둘러보며 찾고, 착용한 현재 위치에서 P1으로 안내해요.")
-                Text("실전용은 조력자와 공간·확인점 두 곳·출발 위치를 확인한 뒤 안내를 시작해요.")
-            }
-            Section("착용 위치를 바꿨다면") {
-                Text("먼저 안내를 일시정지하고, 휴대폰 고정과 현재 위치·몸 방향을 다시 확인해주세요.")
-            }
-            NavigationLink("소리 확인하기") {SoundOutputView()}
-        }.navigationTitle("착용과 안내 준비").navigationBarTitleDisplayMode(.inline).v3Screen()
-            .readsAloud {
-                ["착용과 안내 준비","몸에 맞춰 준비해요","iPhone을 허리 앞쪽에 단단히 고정해주세요.","후면 카메라가 바깥쪽을 향하고 가려지지 않게 해주세요.",
-                 "사용할 이어폰이나 스피커로 시험 소리를 들어주세요.","연습과 실전",
-                 "연습용은 저장한 공간을 제자리에서 둘러보며 찾고, 착용한 현재 위치에서 피원으로 안내해요.",
-                 "실전용은 조력자와 공간·확인점 두 곳·출발 위치를 확인한 뒤 안내를 시작해요.","착용 위치를 바꿨다면",
-                 "먼저 안내를 일시정지하고, 휴대폰 고정과 현재 위치·몸 방향을 다시 확인해주세요.","소리 확인하기"]
-            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 24)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .foregroundStyle(.white)
+        .navigationTitle(title)
+        .navigationBarTitleDisplayMode(.inline)
+        .settingsScreen()
+        .accessibilityIdentifier("settings.help.wearing")
+        .readsAloud {
+            [title, heading,
+             "러닝밴드가 있어요", beltDescription,
+             "러닝밴드가 없어요", handheldDescription,
+             cameraHeading, cameraDescription, positionDescription,
+             "소리 확인하기 버튼"]
+        }
     }
 }
 
-struct V3VoiceHelpView: View {
+private struct WearingHelpCard: View {
+    let title: String
+    let image: String
+    let description: String
+    @ScaledMetric(relativeTo: .headline) private var titleSize: CGFloat = 18
+
     var body: some View {
-        List {
-            Section("부르고, 듣고, 말해요") {
-                Label("“Hear I am”을 부르거나 홈의 흰 원을 눌러요.",systemImage:"mic")
-                Text("공연 이름이나 공연장 이름을 한국어로 말해주세요. 준비 대화에서는 다시 부르지 않고 답할 수 있어요.")
+        SettingsGroup {
+            VStack(alignment: .leading, spacing: 12) {
+                Text(title)
+                    .font(.system(size: titleSize, weight: .medium))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityAddTraits(.isHeader)
+
+                Color.clear
+                    .aspectRatio(330.0 / 230.0, contentMode: .fit)
+                    .overlay {
+                        Image(image)
+                            .resizable()
+                            .scaledToFill()
+                    }
+                    .clipped()
+                    .accessibilityHidden(true)
+
+                Text(description)
+                    .font(.body)
+                    .lineSpacing(4)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            Section("연습 중 요청") {
-                Text("“Hear I am”을 부른 뒤 “잠깐 멈춰”, “계속”, “P1으로 돌아가”처럼 요청해요. 돌아갈 수 있는 지점은 이미 지나온 경로 안에서 확인해요.")
-            }
-            Section("실전에서는 마이크가 꺼져요") {
-                Text("안내가 시작되면 호출어를 듣지 않아요. 화면의 일시정지 버튼을 사용해주세요.")
-            }
-            Section("음성 사용이 어려울 때") {
-                Text("화면의 목록과 버튼으로 진행할 수 있어요. VoiceOver를 사용하면 항목을 선택한 뒤 두 번 탭해주세요.")
-            }
-        }.navigationTitle("음성으로 사용하기").navigationBarTitleDisplayMode(.inline).v3Screen()
-            .readsAloud {
-                ["음성으로 사용하기","부르고, 듣고, 말해요","히어 아이 엠을 부르거나 홈의 흰 원을 눌러요.",
-                 "공연 이름이나 공연장 이름을 한국어로 말해주세요. 준비 대화에서는 다시 부르지 않고 답할 수 있어요.","연습 중 요청",
-                 "히어 아이 엠을 부른 뒤 잠깐 멈춰, 계속, 피원으로 돌아가처럼 요청해요. 돌아갈 수 있는 지점은 이미 지나온 경로 안에서 확인해요.",
-                 "실전에서는 마이크가 꺼져요","안내가 시작되면 호출어를 듣지 않아요. 화면의 일시정지 버튼을 사용해주세요.",
-                 "음성 사용이 어려울 때","화면의 목록과 버튼으로 진행할 수 있어요. 보이스오버를 사용하면 항목을 선택한 뒤 두 번 탭해주세요."]
-            }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 }
 
-struct V3PermissionView: View {
-    @Environment(\.scenePhase) private var scenePhase
-    @Environment(\.openURL) private var openURL
-    @State private var revision=0
+/// A settings capsule that grows with the help page’s text size.
+struct SettingsHelpCapsuleLabel: View {
+    let title: String
+
     var body: some View {
-        List {
-            Section("필요한 권한을 확인해요") {
-                permission("카메라",symbol:"camera",status:status(AVCaptureDevice.authorizationStatus(for:.video)),detail:"저장한 무대와 현재 공간을 맞춰요.")
-                permission("마이크",symbol:"mic",status:status(AVCaptureDevice.authorizationStatus(for:.audio)),detail:"호출어와 요청을 들어요.")
-                permission("음성 인식",symbol:"waveform",status:speechStatus,detail:"기기의 음성 인식으로 한국어 요청을 처리해요.")
-                permission("움직임",symbol:"figure.walk",status:motionStatus,detail:"방향 찾기 연습에서 기기의 움직임을 사용해요.")
-            }
-            Section {
-                Button("iPhone 설정 열기") {if let url=URL(string:UIApplication.openSettingsURLString) {openURL(url)}}
-            } footer: {Text("마이크 권한이 없어도 조력자의 공연 관리와 버튼 조작은 사용할 수 있어요.")}
-        }.id(revision).navigationTitle("권한 상태").navigationBarTitleDisplayMode(.inline).v3Screen()
-            .readsAloud {
-                ["권한 상태","필요한 권한을 확인해요",
-                 "카메라, \(status(AVCaptureDevice.authorizationStatus(for:.video))). 저장한 무대와 현재 공간을 맞춰요.",
-                 "마이크, \(status(AVCaptureDevice.authorizationStatus(for:.audio))). 호출어와 요청을 들어요.",
-                 "음성 인식, \(speechStatus). 기기의 음성 인식으로 한국어 요청을 처리해요.",
-                 "움직임, \(motionStatus). 방향 찾기 연습에서 기기의 움직임을 사용해요.",
-                 "iPhone 설정 열기 버튼","마이크 권한이 없어도 조력자의 공연 관리와 버튼 조작은 사용할 수 있어요."]
-            }
-            .onChange(of:scenePhase) {_,phase in if phase == .active {revision += 1}}
+        Text(title)
+            .font(.headline)
+            .multilineTextAlignment(.center)
+            .fixedSize(horizontal: false, vertical: true)
+            .foregroundStyle(SettingsStyle.darkText)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 12)
+            .frame(maxWidth: .infinity, minHeight: SettingsStyle.buttonHeight)
+            .background(.white, in: Capsule())
+            .contentShape(Capsule())
     }
-    private func permission(_ title:String,symbol:String,status:String,detail:String) -> some View {
-        Label {VStack(alignment:.leading,spacing:6) {Text("\(title) · \(status)").font(.headline);Text(detail).font(.subheadline).foregroundStyle(.secondary)}} icon: {Image(systemName:symbol)}.padding(.vertical,6)
-    }
-    private func status(_ value:AVAuthorizationStatus)->String {
-        switch value {case .authorized:return "허용됨";case .notDetermined:return "사용할 때 요청";case .denied:return "허용 필요";case .restricted:return "사용 제한";@unknown default:return "확인 필요"}
-    }
-    private var speechStatus:String {
-        switch SFSpeechRecognizer.authorizationStatus() {case .authorized:return "허용됨";case .notDetermined:return "사용할 때 요청";case .denied:return "허용 필요";case .restricted:return "사용 제한";@unknown default:return "확인 필요"}
-    }
-    private var motionStatus:String {
-        switch CMMotionActivityManager.authorizationStatus() {case .authorized:return "허용됨";case .notDetermined:return "사용할 때 요청";case .denied:return "허용 필요";case .restricted:return "사용 제한";@unknown default:return "확인 필요"}
+}
+
+#Preview {
+    NavigationStack {
+        V3UsageHelpView()
     }
 }
