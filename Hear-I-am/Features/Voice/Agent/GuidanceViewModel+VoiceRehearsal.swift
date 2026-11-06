@@ -78,7 +78,8 @@ extension GuidanceViewModel {
         voiceRecognition.onRecoverableError={ [weak self] message in self?.voiceInputRecovering(message) }
         voiceRecognition.onRecoveryReady={ [weak self] in
             // Stop any system-synthesizer fallback spoken while the engine was being restarted.
-            guard let self else {return}
+            // After the last point nothing is listened to, so a restart must not cut the closing line.
+            guard let self, !self.voiceHoldsOutputUntilClose else {return}
             // The line cut here (the first 「공연 찾기…」 on opening, 11/01) is said again once listening is back.
             if !self.instructionDone, !self.currentInstruction.isEmpty {self.voiceReplayAfterRecovery=true}
             self.generation=UUID();self.voice.stop();self.instructionDone=true
@@ -368,8 +369,16 @@ extension GuidanceViewModel {
         showVoiceChatCards(stages:items,text:"\(title)\n공연장 이름이나 무대 번호를 말씀해주세요.")
         read([title]+names+["공연장 이름이나 무대 번호를 말해주세요."],interruptible:true)
     }
+    /// After the last point the microphone stays on, unheard, until the screen closes. Releasing it there
+    /// switched the audio session from the voice-processing output (call volume) to playback (media
+    /// volume): the final ding was cut, poses stalled 0.6 s, and the closing lines came out much quieter
+    /// (11/06, both runs). Nothing said in these phases is acted on: every handler checks voiceShouldListen.
+    var voiceHoldsOutputUntilClose: Bool {
+        voiceExperiment && active && voiceRecognitionRequested && [.finishing,.completed].contains(phase)
+    }
     func syncVoiceListening() {
         guard voiceExperiment else {return}
+        if !voiceShouldListen, voiceHoldsOutputUntilClose {voiceTurnActive=false;return}
         guard voiceShouldListen else {
             voiceInputTask?.cancel();voiceInputTask=nil
             voiceRecognitionRequested=false
@@ -531,6 +540,8 @@ extension GuidanceViewModel {
     }
     func voiceInputFailed(_ error:String) {
         guard !isSettingsPresented else {return}
+        // The microphone only kept the audio path for the closing lines: let it go without cutting them.
+        if voiceHoldsOutputUntilClose {voiceRecognitionRequested=false;voiceRecognition.stop();return}
         stopVoiceExperiment()
         voiceRecognitionRequested=false;voiceTurnActive=false
         voiceListeningEnabled=false;voiceInputError=error
