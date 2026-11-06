@@ -6,6 +6,7 @@ extension GuidanceViewModel {
 
     func restore(voiceIntroduction: String? = nil) {
         guard let selected, active, !tracking.busy, phase != .selection || canAdvanceInstruction else { return }
+        clearTrackingRecovery()
         invalidateTasks();departureReady=false;departureGate.reset();readyAnnounced=false;lastPoseTime=nil
         tracking.endSession();tracking.setActive(true);tracking.errorMessage=nil
         message="저장한 공연장 위치를 확인하고 있어요."

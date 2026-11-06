@@ -6,6 +6,7 @@ extension GuidanceViewModel {
     /// Keeps the current target and asks the wearer to verify the checkpoint again.
     func interrupt(_ reason: String, announce: Bool = true) {
         if phase == .completed { return }
+        clearTrackingRecovery()
         invalidateTasks()
         if phase == .finishing { message="종료 음성이 중단됐어요. 다시 들은 뒤 종료해주세요.";return }
         if phase == .selection { return }
