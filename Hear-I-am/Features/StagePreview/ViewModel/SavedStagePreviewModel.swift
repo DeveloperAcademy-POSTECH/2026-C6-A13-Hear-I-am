@@ -6,6 +6,11 @@ final class SavedStagePreviewModel: ObservableObject {
     @Published var loaded: LoadedScan?
     private(set) var cleanSurfaces: [ReplaySurfaceMesh]=[]
     @Published var error: String?
+    /// Set only for the folder viewer; legacy inspection and photo comparison keep their rendering.
+    var immersive = false
+    @Published var photoAnchor: CGPoint?
+    @Published var activePointIndex = 0
+    @Published var selectionRevision = 0
     @Published var wireframe=false
     @Published var display: ReplayDisplay = .scan
     @Published var cameraMode: ReplayCamera = .overview
@@ -77,7 +82,8 @@ final class SavedStagePreviewModel: ObservableObject {
     }
     func select(_ value: ReplaySelection) {
         guard !savingHold else { return }
-        selection=value;photoCardCollapsed=display == .clean
+        selection=value;selectionRevision+=1;photoCardCollapsed=display == .clean
+        if case .point(let index)=value { activePointIndex=index }
         if case .photo=value {photoPinsVisible=true;photoCardCollapsed=false}
         // Selecting a marker updates its details without moving the user's camera.
     }
