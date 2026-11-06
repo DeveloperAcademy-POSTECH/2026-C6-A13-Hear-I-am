@@ -6,11 +6,21 @@ LiDAR로 스캔한 무대에 동선을 저장해 두면, 허리에 찬 iPhone이
 
 ## 팀
 
-| 역할 | 팀원 |
-|---|---|
-| PM | 톰 · 우상영 |
-| Designer | 쿄조 · 조원경 / 클레어 · 김경민 |
-| Developer | 나나 · 김나영 / 제이스 · 김재원 / 이안 · 김지원 |
+<table>
+  <tr>
+    <th colspan="1" align="center"><br>🧭&nbsp; PM<br><br></th>
+    <th colspan="2" align="center"><br>🎨&nbsp; Designer<br><br></th>
+    <th colspan="3" align="center"><br>💻&nbsp; Developer<br><br></th>
+  </tr>
+  <tr>
+    <td align="center" width="160"><br><h3>TOM</h3>(우상영)<br><br></td>
+    <td align="center" width="160"><br><h3>KYEOZO</h3>(조원경)<br><br></td>
+    <td align="center" width="160"><br><h3>CLAIRE</h3>(김경민)<br><br></td>
+    <td align="center" width="160"><br><h3>NANA</h3>(김나영)<br><br></td>
+    <td align="center" width="160"><br><h3>JACE</h3>(김재원)<br><br></td>
+    <td align="center" width="160"><br><h3>IAN</h3>(김지원)<br><br></td>
+  </tr>
+</table>
 
 ## 앱 흐름
 
