@@ -38,7 +38,7 @@ struct GuidanceRecordsView: View {
                         }.disabled(isRefreshing)
                             .accessibilityLabel("기록 새로고침")
                             .accessibilityIdentifier("records.refresh")
-                        NavigationLink {HomeSettingsView(role:.helper,changeRole:changeRole)} label: {
+                        NavigationLink {HomeSettingsView()} label: {
                             Image(systemName:"gearshape").frame(minWidth:44,minHeight:44)
                         }.accessibilityLabel("설정")
                             .accessibilityIdentifier("records.settings")
