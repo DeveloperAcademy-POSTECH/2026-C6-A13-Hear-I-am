@@ -117,15 +117,43 @@ extension ARSessionController {
         gate.invalidate(); invalidateWear("오디오 중단 · 두 확인점 재확인 필요")
         event("audio_interrupted")
     }
-    /// Revokes checkpoint verification; the wearer must verify the checkpoint again.
+    /// Revokes current readiness on transient tracking loss, while preserving any completed checkpoint alignment
+    /// within the same session so guidance can automatically resume once tracking recovers (#115).
     func invalidateWear(_ message: String) {
-        clearAlignment(); ready=false; position=nil; heading=nil; guidancePoseTime=nil; status=message
-        if purpose == .guidance {renderer.referenceLayer.isHidden=true}
+        ready=false; position=nil; heading=nil; guidancePoseTime=nil; status=message
+        if alignment == nil {
+            clearAlignment()
+            if purpose == .guidance {renderer.referenceLayer.isHidden=true}
+        }
+    }
+    /// Restarts AR world-map relocalization in the background when tracking cannot recover within the grace window (#115).
+    /// Switches validation to `.relocalization` so guidance resumes automatically without helper intervention.
+    func relocalizeInPlace() {
+        guard let item=manifest, active, !busy else { return }
+        event("auto_relocalize_start")
+        clearAlignment()
+        restorationValidation = .relocalization
+        gate.invalidate()
+        ready=false; canVerify=false; position=nil; heading=nil; guidancePoseTime=nil
+        let operation=token
+        Task {
+            guard let loaded=try? await store.load(item.id),
+                  token == operation, active,
+                  let map=try? NSKeyedUnarchiver.unarchivedObject(ofClass:ARWorldMap.self,from:loaded.worldMap) else { return }
+            mode = .restoring
+            restoreStarted=now
+            startSession(map:map)
+            status="공간 자동 재복원 중 · 몸을 천천히 좌우로 돌려주세요"
+        }
     }
     func tick() {
         let was=gate.verified; gate.expire(now:now)
-        if !measuredCheckpoints.isEmpty && checkpointStableSince != gate.normalSince { clearAlignment() }
-        if was && !gate.verified { invalidateWear("센서 표본 만료 · 두 확인점 재확인 필요"); event("sample_expired") }
+        if alignment == nil && !measuredCheckpoints.isEmpty && checkpointStableSince != gate.normalSince { clearAlignment() }
+        if was && !gate.verified { invalidateWear("센서 표본 만료 · 위치 재확인 중"); event("sample_expired") }
+        if alignment != nil && !gate.verified && gate.canVerify(now:now) {
+            _=gate.verify(error:alignment?.residual ?? 0,tolerance:checkpointTolerance,now:now)
+            event("tracking_auto_recovered")
+        }
         canVerify=gate.canVerify(now:now); ready=gate.isReady(now:now,validation:restorationValidation)
         if let latest, now-latest.time>0.5 { canSave=false }
         if purpose == .preparation { updateAim() }

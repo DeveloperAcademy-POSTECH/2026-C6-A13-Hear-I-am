@@ -295,6 +295,21 @@ import HearIAmCore
         approachGuide=nil
         escape=nil;quietUntil=nil;signals.setWarning(nil);signals.setWarningQuiet(false)
     }
+    /// 3-stage automatic tracking recovery (#115):
+    /// Stage 1 (0–1.5s): silent grace window keeping the current phase and signals steady.
+    /// Stage 2 (1.5–6.0s): keeps the AR session alive, pauses direction ticks, and announces self-recovery prompt.
+    /// Stage 3 (>6.0s): triggers background world-map relocalization (`relocalizeInPlace`) and auto-resumes when ready.
+    static let trackingGraceSeconds=1.5
+    static let trackingRelocalizeSeconds=6.0
+    var trackingLostSince: Double?
+    var trackingLossAnnounced=false
+    var trackingAutoRelocalized=false
+    var trackingResumePhase: GuidancePhase?
+
+    func clearTrackingRecovery() {
+        trackingLostSince=nil; trackingLossAnnounced=false; trackingAutoRelocalized=false; trackingResumePhase=nil
+    }
+
     /// A pose no older than 0.5 s from a verified session, or nil.
     func freshPose() -> (point: FloorPoint, heading: Double, time: Double)? {
         guard tracking.ready, let p=tracking.position, let heading=tracking.heading, let time=tracking.guidancePoseTime,
@@ -308,18 +323,26 @@ import HearIAmCore
         guard !showExit else { return }
         if phase == .restoring { tickRestoring();return }
         if phase == .checkpoint { tickCheckpoint();return }
-        if [.wear,.departure,.starting,.guiding,.paused,.approaching].contains(phase), !tracking.ready {
-            interrupt("위치 추적이 끊겼어요. \(recoveryInstruction)");return
+        let now=ProcessInfo.processInfo.systemUptime
+        if [.wear,.departure,.starting,.guiding,.paused,.approaching].contains(phase) {
+            if !tracking.ready {
+                handleTrackingLoss(now:now)
+                return
+            } else if trackingLostSince != nil {
+                recoverFromTrackingLoss()
+            }
+        } else if phase == .interrupted, trackingLostSince != nil, tracking.ready {
+            recoverFromTrackingLoss()
         }
         if let p=tracking.position, let time=tracking.guidancePoseTime,
-           ProcessInfo.processInfo.systemUptime-time >= 0, ProcessInfo.processInfo.systemUptime-time <= 0.5,
+           now-time >= 0, now-time <= 0.5,
            let first=selected?.route?.points.first {
             startDistance=FloorPoint(p.x,p.y).distance(to:first)
         } else { startDistance=nil }
         guard let pose=freshPose() else {
-            if phase == .approaching { interrupt("현재 위치와 방향을 확인할 수 없어요. \(recoveryInstruction)");return }
+            if phase == .approaching { handleTrackingLoss(now:now);return }
             if phase == .departure { departureReady=false;departureGate.reset();readyAnnounced=false }
-            if phase == .guiding || phase == .starting { if tracking.heading == nil { interrupt("몸이 향한 방향을 확인할 수 없어요. 착용 방향을 다시 확인해주세요.") } }
+            if phase == .guiding || phase == .starting { if tracking.heading == nil { handleTrackingLoss(now:now) } }
             return
         }
         guard pose.time != lastPoseTime else { return }
@@ -330,6 +353,49 @@ import HearIAmCore
         if phase == .paused, escape != nil, let guide { tickEscape(pose:pose,guide:guide);return }
         guard phase == .guiding, let guide else { return }
         tickGuiding(pose:pose,guide:guide)
+    }
+
+    private func handleTrackingLoss(now: Double) {
+        if trackingLostSince == nil {
+            trackingLostSince=now
+            trackingResumePhase=phase
+            tracking.event("tracking_grace_started",detail:"phase=\(phase)")
+        }
+        let elapsed=now-(trackingLostSince ?? now)
+        // Stage 1 (0 ~ 1.5s): silent grace window.
+        guard elapsed >= Self.trackingGraceSeconds else { return }
+        // Stage 2 (1.5 ~ 6.0s): hold guidance signals and prompt the performer to slowly turn left/right.
+        if !trackingLossAnnounced {
+            trackingLossAnnounced=true
+            signals.stopDirection();signals.setWarning(nil)
+            let prompt="위치 확인 중입니다. 몸을 천천히 좌우로 천천히 돌려보세요."
+            message=prompt
+            tracking.event("tracking_self_recovery_prompt",detail:String(format:"elapsed=%.1fs phase=%@",elapsed,"\(phase)"))
+            if active { read([prompt]) }
+        }
+        // Stage 3 (> 6.0s): automatic world-map relocalization without helper checkpoint intervention.
+        if elapsed >= Self.trackingRelocalizeSeconds, !trackingAutoRelocalized {
+            trackingAutoRelocalized=true
+            tracking.relocalizeInPlace()
+        }
+    }
+
+    private func recoverFromTrackingLoss() {
+        let wasAnnounced=trackingLossAnnounced
+        let resumePhase=trackingResumePhase ?? phase
+        clearTrackingRecovery()
+        lastPoseTime=nil
+        tracking.event("tracking_recovered_resume",detail:"phase=\(resumePhase) announced=\(wasAnnounced)")
+        if phase == .interrupted {
+            phase = resumePhase == .starting ? .guiding : resumePhase
+        } else if phase == .starting {
+            phase = .guiding
+        }
+        if phase == .guiding || phase == .approaching {
+            resetSignals()
+            announceNextSide=true
+            if let guide { announceStepHint=guide.route.step(at:guide.targetIndex) != nil }
+        }
     }
 }
 
