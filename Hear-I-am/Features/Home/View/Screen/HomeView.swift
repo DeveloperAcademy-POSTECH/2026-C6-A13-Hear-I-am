@@ -8,7 +8,6 @@ struct HomeView: View {
     @ObservedObject var library:StageLibrary
     @ObservedObject var wake:VoiceWakeListener
     let start:()->Void
-    var changeRole:(()->Void)? = nil
     var isPresented=true
     @State private var showingSettings=false
     @State private var isVisible=false
@@ -53,7 +52,7 @@ struct HomeView: View {
                 }
             }
             .navigationDestination(isPresented:$showingSettings) {
-                HomeSettingsView(role:.performer,changeRole:changeRole).suspendsVoiceWake()
+                HomeSettingsView().suspendsVoiceWake()
             }
             .onAppear {isVisible=true}
             .onDisappear {isVisible=false}
