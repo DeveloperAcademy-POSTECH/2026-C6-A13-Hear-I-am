@@ -16,9 +16,13 @@ struct StageReplayPreviewHarness: View {
         NavigationStack {
             if let record {
                 let args=ProcessInfo.processInfo.arguments
-                SavedStagePreview(record:record,store:store,camera:args.contains("--replay-top") ? .overhead : .overview,
-                                  display:args.contains("--replay-clean") ? .clean : .scan,
-                                  selection:args.contains("--replay-object") ? .object(chairID) : args.contains("--replay-photo") ? record.photos.first.map {.photo($0.id)} : .point(args.contains("--replay-middle") ? 1 : 0))
+                if args.contains("--replay-immersive") {
+                    ImmersiveSavedStagePreview(record:record,store:store)
+                } else {
+                    SavedStagePreview(record:record,store:store,camera:args.contains("--replay-top") ? .overhead : .overview,
+                                      display:args.contains("--replay-clean") ? .clean : .scan,
+                                      selection:args.contains("--replay-object") ? .object(chairID) : args.contains("--replay-photo") ? record.photos.first.map {.photo($0.id)} : .point(args.contains("--replay-middle") ? 1 : 0))
+                }
             } else if let error {Text(error)}
             else {ProgressView().task {await makeFixture()}}
         }.tint(.hearGreen)
@@ -98,9 +102,44 @@ struct StageReplayPreviewHarness: View {
                 try verifyCameraPresets(loaded,cleanSurfaces:model.cleanSurfaces)
                 try await verifyLegacyAndZeroHeights(loaded)
                 try verifyPhotoComparison(loaded,cleanSurfaces:model.cleanSurfaces)
+                try await verifyImmersiveIsolation(loaded,cleanSurfaces:model.cleanSurfaces)
                 print("REPLAY_QA_OK: oak asset, clean surroundings, raw restoration, camera round trips, photo capture, saved route heights, orbit limits, camera reset, clean markers, bundled models, calibrated photos, frustum and first-person comparison")
             }
         } catch {record=nil;self.error=error.localizedDescription;print("REPLAY_QA_FAILED: \(error.localizedDescription)")}
+    }
+    /// The new scene mode must not mutate globally shared assets or the independently saved route.
+    private func verifyImmersiveIsolation(_ scan: LoadedScan,cleanSurfaces: [ReplaySurfaceMesh]) async throws {
+        let originalFloor=ReplaySurfaceFactory.wood.multiply.contents as? UIColor
+        let scene=ReplaySceneController(scan:scan,cleanSurfaces:cleanSurfaces,immersive:true)
+        let view=SCNView(frame:CGRect(x:0,y:0,width:402,height:874));view.scene=scene.scene;scene.view=view
+        scene.update(display:.clean,wireframe:false,showPhotos:true,selection:.point(1),cameraMode:.overview,revision:0)
+        defer {scene.stopProjectionUpdates()}
+        guard scene.scan.manifest.id==scan.manifest.id, scene.scan.manifest.route==scan.manifest.route, scene.mesh.isHidden, !scene.surroundings.isHidden,
+              !scene.cleanRouteNodes.isHidden, !scene.photos.isHidden,
+              (ReplaySurfaceFactory.wood.multiply.contents as? UIColor)==originalFloor,
+              view.backgroundColor != ReplaySurfaceFactory.background else {
+            throw LabError.invalid("몰입형 다시보기 재질·저장 데이터 격리 검증 실패")
+        }
+        var photoCaptions=[String]()
+        scene.photos.enumerateChildNodes {node,_ in
+            if let text=node.geometry as? SCNText,let value=text.string as? String {photoCaptions.append(value)}
+        }
+        guard photoCaptions.contains("사진 1") else {throw LabError.invalid("사진 위치 라벨 보존 검증 실패")}
+        scene.stopProjectionUpdates()
+        let editor=SavedStagePreviewModel(record:scan.manifest,store:store)
+        await editor.load();editor.select(.point(1))
+        editor.pointFacing = .east;editor.holdSecondsText="3"
+        await editor.savePointSettings()
+        guard editor.holdSaveError==nil, let stored=try await store.load(scan.manifest.id).manifest.route,
+              stored.facing(at:1) == .east,stored.holdSeconds(at:1)==3,
+              stored.points==scan.manifest.route?.points,stored.obstacles==scan.manifest.route?.obstacles else {
+            throw LabError.invalid("다시보기 지점 방향·대기 시간 저장 검증 실패")
+        }
+        if let photo=scan.manifest.photos.first {
+            editor.select(.photo(photo.id))
+            guard editor.activePointIndex==1 else {throw LabError.invalid("사진 선택 후 경로점 유지 검증 실패")}
+        }
+        print("IMMERSIVE_REPLAY_QA_OK: material isolation, saved geometry, point settings persistence, photo/point selection")
     }
     private func verifyPhotoProjection(_ photo: ScanPhoto) throws {
         let pose=ReplayPhotoCamera(photo),p=photo.projection!.upright

@@ -10,12 +10,6 @@ struct HelperScanHomeView:View {
     let onShowPerformance:(UUID)->Void
     @State private var scanning=false
     @State private var settings=false
-    @State private var cameraDenied=false
-    @State private var requestingCamera=false
-    @State private var savedID:UUID?
-    @State private var classification:SavedScanClassification?
-    @State private var openAfterClassification:UUID?
-    @State private var refreshFailed=false
     @Environment(\.hearChangeRole) private var changeRole
     var body:some View {
         NavigationStack {
@@ -39,8 +33,8 @@ struct HelperScanHomeView:View {
                         .accessibilityHidden(true).padding(.bottom,24)
                     ScanStepsRow().padding(.horizontal,4).padding(.bottom,28)
                     Button {startScan()} label: {
-                        Label(requestingCamera ? "카메라 확인 중…" : "스캔 시작하기",systemImage:"viewfinder")
-                    }.buttonStyle(V3PrimaryButtonStyle()).disabled(requestingCamera).accessibilityIdentifier("scan.start")
+                        Label("스캔 시작하기",systemImage:"viewfinder")
+                    }.buttonStyle(V3PrimaryButtonStyle()).accessibilityIdentifier("scan.start")
                     Text("충분한 밝기와 이동할 공간을 확인해주세요.").font(.system(size:13)).foregroundStyle(HearV3.secondary)
                         .frame(maxWidth:.infinity).padding(.top,14)
                     NavigationLink {
@@ -49,13 +43,6 @@ struct HelperScanHomeView:View {
                         Text("스캔 방법 자세히 보기").font(.system(size:15,weight:.semibold)).underline()
                             .frame(maxWidth:.infinity,minHeight:44)
                     }.buttonStyle(.plain).padding(.top,6)
-                    if refreshFailed {
-                        VStack(alignment:.leading,spacing:12) {
-                            Text("무대는 저장됐지만 목록을 다시 불러와야 해요.").font(.headline)
-                            Text("스캔을 다시 하지 않아도 돼요. 저장된 무대를 불러와 분류를 이어가세요.").font(.subheadline).foregroundStyle(HearV3.secondary)
-                            Button("저장한 무대 다시 불러오기") {finishScan()}.buttonStyle(.bordered)
-                        }.v3Card().padding(.top,20)
-                    }
                 }.padding(.horizontal,20).padding(.top,12).padding(.bottom,24)
             }.v3Screen().navigationTitle("스캔").toolbar(.hidden,for:.navigationBar)
                 // The destination must sit inside the stack; outside it the button does nothing.
@@ -65,45 +52,21 @@ struct HelperScanHomeView:View {
         }.v3Screen()
             .onAppear {startRequestedScan()}
             .onChange(of:startNow) {startRequestedScan()}
-            .scanCover(isPresented:$scanning,onDismiss:finishScan) {
-                PreparationView(library:library,onSaved:{id in savedID=id}).suspendsVoiceWake()
+            .fullScreenCover(isPresented:$scanning) {
+                ScanPreparationFlow(library:library) {id in
+                    if let performanceID=library.catalog.assignments[id]?.performanceID {
+                        onShowPerformance(performanceID)
+                    }
+                }.suspendsVoiceWake()
             }
-            .sheet(item:$classification,onDismiss:{
-                if let id=openAfterClassification {openAfterClassification=nil;onShowPerformance(id)}
-            }) {saved in
-                StageClassificationView(library:library,scanIDs:[saved.id],wasJustSaved:true,opensPerformanceOnCompletion:true) {id in openAfterClassification=id}.suspendsVoiceWake()
-            }
-            .alert("카메라 접근이 필요해요",isPresented:$cameraDenied) {
-                Button("iPhone 설정 열기") {if let url=URL(string:UIApplication.openSettingsURLString) {UIApplication.shared.open(url)}}
-                Button("취소",role:.cancel) {}
-            } message:{Text("무대를 스캔하려면 iPhone 설정에서 Hear I am의 카메라 접근을 허용해주세요.")}
     }
     private func startRequestedScan() {
         guard startNow else {return}
         startNow=false
         startScan()
     }
-    private func startScan() {
-        guard !requestingCamera else {return}
-        switch AVCaptureDevice.authorizationStatus(for:.video) {
-        case .authorized:savedID=nil;scanning=true
-        case .notDetermined:
-            requestingCamera=true
-            Task {let granted=await AVCaptureDevice.requestAccess(for:.video);requestingCamera=false;if granted {savedID=nil;scanning=true} else {cameraDenied=true}}
-        default:cameraDenied=true
-        }
-    }
-    private func finishScan() {
-        guard let id=savedID else {return}
-        Task {
-            await library.refresh()
-            if library.records.contains(where:{$0.id==id}) {refreshFailed=false;classification=SavedScanClassification(id:id);savedID=nil}
-            else {refreshFailed=true}
-        }
-    }
+    private func startScan() { scanning=true }
 }
-
-private struct SavedScanClassification:Identifiable {let id:UUID}
 
 private struct ScanPreparationTip:View {
     let symbol:String
@@ -129,7 +92,7 @@ private struct ScanPreparationHelpView:View {
                 ScanPreparationTip(symbol:"photo",title:"필요한 곳은 사진으로 남기기",detail:"여러 위치에서 사진을 남기고 나중에 비교해요.").v3Card()
                 VStack(alignment:.leading,spacing:8) {
                     Text("저장할 공연은 나중에 골라도 돼요").font(.headline)
-                    Text("스캔과 경로 준비를 마치면 무대를 먼저 저장해요. 그다음 공연 폴더와 공연장 태그로 정리할 수 있어요.").font(.subheadline).foregroundStyle(HearV3.secondary)
+                    Text("스캔 전이나 후에 공연과 연습 공간을 선택할 수 있어요. 공연을 먼저 고르면 그 공연의 씬 동선을 참고할 수 있어요.").font(.subheadline).foregroundStyle(HearV3.secondary)
                 }.v3Card()
             }.padding(20)
         }.v3Screen().navigationTitle("스캔 준비").navigationBarTitleDisplayMode(.inline)

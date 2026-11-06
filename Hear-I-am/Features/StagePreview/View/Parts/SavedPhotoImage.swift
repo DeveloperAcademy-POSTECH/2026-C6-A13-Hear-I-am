@@ -7,11 +7,20 @@ struct SavedPhotoImage: View {
     let scanID: UUID
     let photo: ScanPhoto
     var thumbnail=true
+    var fill=false
     @State private var image: UIImage?
     @State private var failed=false
     var body: some View {
         Group {
-            if let image {Image(uiImage:image).resizable().scaledToFit()}
+            if let image {
+                if fill {
+                    GeometryReader {geometry in
+                        Image(uiImage:image).resizable().scaledToFill()
+                            .frame(width:geometry.size.width,height:geometry.size.height).clipped()
+                    }
+                }
+                else {Image(uiImage:image).resizable().scaledToFit()}
+            }
             else if failed {Label("사진을 불러올 수 없어요",systemImage:"photo.badge.exclamationmark").font(.caption).padding()}
             else {ProgressView().padding()}
         }.task(id:"\(photo.id)-\(thumbnail)") {

@@ -14,6 +14,21 @@ final class ReplaySceneController: NSObject {
     let person=SCNNode(), scanPerson=ReplayModelFactory.person(), cleanPerson=ReplayModelFactory.cleanPerson()
     let surroundings=SCNNode(), key=SCNNode(), ambient=SCNNode()
     private let cleanSurfaces: [ReplaySurfaceMesh]
+    private let immersive: Bool
+    var onPhotoProjection: ((CGPoint?) -> Void)?
+    private var projectionPhoto: ScanPhoto?
+    private var projectionLink: CADisplayLink?
+    private var previousPhotoProjection: CGPoint?
+    private var previousUpdate: RenderState?
+    private struct RenderState: Equatable {
+        let display: ReplayDisplay
+        let wireframe: Bool
+        let showPhotos: Bool
+        let selection: ReplaySelection?
+        let camera: ReplayCamera
+        let revision: Int
+        let photoID: UUID?
+    }
     private var builtCleanSurfaces=false
     private var scanBounds=(min:SCNVector3Zero,max:SCNVector3Zero)
     let selectionOverlay=SCNNode(), scanAnnotations=SCNNode(), routeNodes=SCNNode()
@@ -29,8 +44,8 @@ final class ReplaySceneController: NSObject {
     private(set) var photoViewpoint: ScanPhoto?
     let hazards=SCNNode()
     weak var view: SCNView?
-    init(scan: LoadedScan, cleanSurfaces: [ReplaySurfaceMesh]) {
-        self.scan=scan;self.cleanSurfaces=cleanSurfaces; super.init()
+    init(scan: LoadedScan, cleanSurfaces: [ReplaySurfaceMesh], immersive: Bool = false) {
+        self.scan=scan;self.cleanSurfaces=cleanSurfaces;self.immersive=immersive; super.init()
         scene.rootNode.addChildNode(mesh); scene.rootNode.addChildNode(stage)
         scene.rootNode.addChildNode(photos); scene.rootNode.addChildNode(camera)
         for part in scan.meshes {
@@ -52,6 +67,7 @@ final class ReplaySceneController: NSObject {
         scene.rootNode.addChildNode(hazards)
         buildStage()
         buildPhotos()
+        if immersive { applyImmersiveStyle() }
         for (index,p) in [scan.manifest.checkpoint,scan.manifest.secondCheckpoint].compactMap({$0}).enumerated() {
             scanAnnotations.addChildNode(ReplayModelFactory.part(SCNSphere(radius:0.07),.init(p.x,p.y+0.06,p.z),color:.systemYellow))
             scanAnnotations.addChildNode(ReplayModelFactory.caption("확인점 \(index+1)",at:.init(p.x,p.y+0.18,p.z)))
@@ -129,7 +145,7 @@ final class ReplaySceneController: NSObject {
                 marker=ReplayModelFactory.startMarker(heading:Float(atan2(next.x-p.x,-(next.y-p.y))))
             } else if index==route.points.count-1 {
                 marker=ReplayModelFactory.arrivalMarker()
-            } else {marker=ReplayModelFactory.waypoint(index+1)}
+            } else {marker=ReplayModelFactory.waypoint(immersive ? index : index+1)}
             marker.position=SCNVector3(p.x,height+0.015,-p.y)
             selectable(marker,.point(index));cleanMarkers[index]=marker;cleanRouteNodes.addChildNode(marker)
             if index==0 || index==route.points.count-1 {
@@ -175,6 +191,11 @@ final class ReplaySceneController: NSObject {
         if hypot(dx,dz)>0.001 {person.eulerAngles.y=Float(atan2(dx,dz))}
     }
     func update(display: ReplayDisplay, wireframe: Bool, showPhotos: Bool, selection: ReplaySelection?, cameraMode: ReplayCamera, revision: Int, photoViewpoint: ScanPhoto? = nil) {
+        let state=RenderState(display:display,wireframe:wireframe,showPhotos:showPhotos,selection:selection,
+                              camera:cameraMode,revision:revision,photoID:photoViewpoint?.id)
+        // Projected SwiftUI photo cards update during orbit; that must not rebuild 3D overlays.
+        guard state != previousUpdate else {return}
+        previousUpdate=state
         let viewpointChanged=self.photoViewpoint?.id != photoViewpoint?.id
         self.photoViewpoint=photoViewpoint
         let firstPerson=photoViewpoint != nil
@@ -185,6 +206,7 @@ final class ReplaySceneController: NSObject {
             for part in cleanSurfaces {
                 for node in ReplaySurfaceFactory.nodes(part) {surroundings.addChildNode(node)}
             }
+            if immersive { tintImmersiveSurroundings() }
             builtCleanSurfaces=true
         }
         mesh.isHidden = !raw
@@ -197,12 +219,21 @@ final class ReplaySceneController: NSObject {
         cleanRouteNodes.isHidden=raw
         scanPerson.isHidden = !raw
         cleanPerson.isHidden=raw
-        ambient.light?.intensity=raw ? 650 : 800
-        key.light?.intensity=raw ? 900 : 650
+        ambient.light?.intensity=immersive && !raw ? 390 : raw ? 650 : 800
+        key.light?.intensity=immersive && !raw ? 780 : raw ? 900 : 650
         key.light?.castsShadow = !raw
-        view?.backgroundColor=raw ? UIColor(white:0.10,alpha:1) : ReplaySurfaceFactory.background
+        view?.backgroundColor=immersive ? UIColor(red:0.065,green:0.09,blue:0.10,alpha:1) : raw ? UIColor(white:0.10,alpha:1) : ReplaySurfaceFactory.background
         routeNodes.enumerateChildNodes {node,_ in node.geometry?.firstMaterial?.diffuse.contents=UIColor.systemGreen}
         photos.isHidden = !showPhotos || firstPerson
+        if immersive {
+            switch selection {
+            case .photo(let id): projectionPhoto=scan.manifest.photos.first {$0.id==id}
+            case .point(let index): projectionPhoto=scan.manifest.photos.first {$0.routePointIndex==index}
+            case .object(let id): projectionPhoto=scan.manifest.photos.first {$0.objectID==id}
+            case nil: projectionPhoto=nil
+            }
+            startProjectionUpdates()
+        }
         for node in mesh.childNodes {node.geometry?.firstMaterial?.fillMode=wireframe ? .lines : .fill}
         selectionOverlay.childNodes.forEach {$0.removeFromParentNode()}
         scene.rootNode.childNodes.filter {$0.name=="photo-direction"}.forEach {$0.removeFromParentNode()}
@@ -246,6 +277,72 @@ final class ReplaySceneController: NSObject {
         self.revision=revision
         reframe()
     }
+    /// All materials are copied before tinting: the old inspection view and photo renderer
+    /// must never inherit the folder viewer's lighting or change the stored geometry.
+    private func alterMaterials(in root: SCNNode, _ change: (SCNMaterial) -> Void) {
+        func update(_ node: SCNNode) {
+            guard let source=node.geometry else {return}
+            // SCNText.copy() can drop its string. Captions already have a readable constant
+            // material, so keep their immutable geometry instead of making an empty copy.
+            guard !(source is SCNText),let geometry=source.copy() as? SCNGeometry else {return}
+            geometry.materials=source.materials.map { original in
+                let copy=original.copy() as! SCNMaterial
+                change(copy)
+                return copy
+            }
+            node.geometry=geometry
+        }
+        update(root);root.enumerateChildNodes {node,_ in update(node)}
+    }
+    private func applyImmersiveStyle() {
+        alterMaterials(in:floor) {$0.multiply.contents=UIColor(red:0.55,green:0.65,blue:0.69,alpha:1)}
+        alterMaterials(in:objects) {$0.multiply.contents=UIColor(red:0.56,green:0.68,blue:0.72,alpha:1)}
+        // The boundary comes from the saved registered area; no fabricated stage mesh.
+        cleanAnnotations.childNodes.dropFirst().forEach {$0.isHidden=true}
+        if let boundary=cleanAnnotations.childNodes.first {
+            alterMaterials(in:boundary) { material in
+                material.diffuse.contents=UIColor(red:0.18,green:0.70,blue:0.73,alpha:1)
+                material.lightingModel = .constant
+            }
+        }
+        for (index,marker) in cleanMarkers where index>0 && index<(scan.manifest.route?.points.count ?? 0)-1 {
+            for part in marker.childNodes where part.geometry is SCNCylinder {
+                alterMaterials(in:part) {$0.diffuse.contents=UIColor(red:0.10,green:0.65,blue:0.62,alpha:1)}
+            }
+        }
+        alterMaterials(in:photos) { material in
+            material.multiply.contents=UIColor(red:0.55,green:0.93,blue:0.94,alpha:1)
+        }
+        key.light?.color=UIColor(red:0.77,green:0.89,blue:0.95,alpha:1)
+        ambient.light?.color=UIColor(red:0.55,green:0.68,blue:0.74,alpha:1)
+    }
+    private func tintImmersiveSurroundings() {
+        alterMaterials(in:surroundings) { material in
+            material.multiply.contents=UIColor(red:0.36,green:0.48,blue:0.55,alpha:1)
+        }
+    }
+    private func startProjectionUpdates() {
+        guard projectionLink==nil else {return}
+        let link=CADisplayLink(target:ReplayProjectionTarget(self),selector:#selector(ReplayProjectionTarget.tick))
+        link.preferredFrameRateRange=CAFrameRateRange(minimum:10,maximum:20,preferred:15)
+        link.add(to:.main,forMode:.common)
+        projectionLink=link
+    }
+    func stopProjectionUpdates() {
+        projectionLink?.invalidate();projectionLink=nil
+        onPhotoProjection=nil
+    }
+    fileprivate func projectSelectedPhoto() {
+        guard let view,view.window != nil,let photo=projectionPhoto else {
+            if previousPhotoProjection != nil {previousPhotoProjection=nil;onPhotoProjection?(nil)}
+            return
+        }
+        let p=photo.position
+        let point=view.projectPoint(.init(p.x,p.y+0.12,p.z))
+        let visible=point.z>=0 && point.z<=1 && point.x>=0 && point.y>=0 && point.x<=Float(view.bounds.width) && point.y<=Float(view.bounds.height)
+        let projected=visible ? CGPoint(x:CGFloat(point.x)/max(view.bounds.width,1),y:CGFloat(point.y)/max(view.bounds.height,1)) : nil
+        if projected != previousPhotoProjection {previousPhotoProjection=projected;onPhotoProjection?(projected)}
+    }
     func reframe() {
         if let photo=photoViewpoint {framePhoto(photo)} else {frame(lastMode)}
     }
@@ -267,7 +364,7 @@ final class ReplaySceneController: NSObject {
         camera.camera?.fieldOfView=55;camera.camera?.projectionDirection = .vertical
         view.allowsCameraControl=true
         var points=[SCNVector3]()
-        if mode == .overview || scan.manifest.route == nil {
+        if (mode == .overview && !immersive) || scan.manifest.route == nil {
             // Both overviews include the surrounding scan, not only the registered stage.
             let bounds=scanBounds
             for x in [bounds.min.x,bounds.max.x] {
@@ -332,7 +429,7 @@ final class ReplaySceneController: NSObject {
                     }
                 }
             }
-            camera.simdPosition=center+axis*(distance*1.08)
+            camera.simdPosition=center+axis*(distance * (immersive ? 0.95 : 1.08))
             camera.look(at:SCNVector3(center),up:SCNVector3(0,1,0),localFront:SCNVector3(0,0,-1))
         }
         controls.worldUp=SCNVector3(0,1,0)
@@ -411,4 +508,11 @@ struct ReplayPhotoCamera {
         geometry.firstMaterial=material;root.addChildNode(SCNNode(geometry:geometry))
         return root
     }
+}
+
+/// A weak display-link target prevents a view/controller retain cycle while tracking manual orbit.
+@MainActor private final class ReplayProjectionTarget: NSObject {
+    weak var controller: ReplaySceneController?
+    init(_ controller: ReplaySceneController) {self.controller=controller}
+    @objc func tick() {controller?.projectSelectedPhoto()}
 }
