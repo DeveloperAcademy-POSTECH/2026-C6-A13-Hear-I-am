@@ -5,31 +5,31 @@ final class FrontDirectionPracticeTests: XCTestCase {
     func testReferenceDoesNotImmediatelyCompleteUntilUserTurnsAway() {
         var practice = FrontDirectionPractice()
         XCTAssertTrue(practice.setReference(0))
-        for (index, heading) in [0.0, 4, -7, 12, 20].enumerated() {
+        for (index, heading) in [0.0, 4, -7, 12, 20, 40].enumerated() {
             XCTAssertNil(practice.update(heading: heading, time: Double(index)))
             XCTAssertEqual(practice.phase, .turnAway)
         }
-        let cue = practice.update(heading: 40, time: 5)
+        let cue = practice.update(heading: 50, time: 6)
         XCTAssertEqual(cue?.toRight, false) // Turned right: target is to the left.
         XCTAssertEqual(practice.phase, .finding)
-        XCTAssertNil(practice.update(heading: 11, time: 6))
+        XCTAssertNil(practice.update(heading: 11, time: 7))
         XCTAssertEqual(practice.phase, .completed)
         XCTAssertTrue(practice.completedOnce)
-        XCTAssertNil(practice.update(heading: 20, time: 7)) // Sway inside the departure band keeps the result.
+        XCTAssertNil(practice.update(heading: 20, time: 8)) // Sway inside the departure band keeps the result.
         XCTAssertEqual(practice.phase, .completed)
-        XCTAssertNotNil(practice.update(heading: 60, time: 8)) // Turning away again starts the next trial by itself.
+        XCTAssertNotNil(practice.update(heading: 60, time: 9)) // Turning away again starts the next trial by itself.
         XCTAssertEqual(practice.phase, .finding)
-        XCTAssertNil(practice.update(heading: 5, time: 9))
+        XCTAssertNil(practice.update(heading: 5, time: 10))
         XCTAssertEqual(practice.phase, .completed)
     }
     func testBothDirectionsAndWraparoundUseShortestReturn() {
         var practice = FrontDirectionPractice()
         practice.setReference(170)
-        XCTAssertEqual(practice.update(heading: -150, time: 1)?.toRight, false)
-        XCTAssertEqual(practice.bearing!, -40, accuracy: 0.001)
+        XCTAssertEqual(practice.update(heading: -140, time: 1)?.toRight, false)
+        XCTAssertEqual(practice.bearing!, -50, accuracy: 0.001)
         practice.setReference(-170)
-        XCTAssertEqual(practice.update(heading: 150, time: 2)?.toRight, true)
-        XCTAssertEqual(practice.bearing!, 40, accuracy: 0.001)
+        XCTAssertEqual(practice.update(heading: 140, time: 2)?.toRight, true)
+        XCTAssertEqual(practice.bearing!, 50, accuracy: 0.001)
     }
     func testFeedbackIsIdenticalToShippingGateWhileFinding() {
         var practice = FrontDirectionPractice(deadbandDegrees: 18)
@@ -58,24 +58,24 @@ final class FrontDirectionPracticeTests: XCTestCase {
         for invalid in [nil, Double.nan, Double.infinity] as [Double?] {
             var practice = FrontDirectionPractice()
             practice.setReference(0)
-            _ = practice.update(heading: 45, time: 1)
+            _ = practice.update(heading: 50, time: 1)
             XCTAssertNil(practice.update(heading: invalid, time: 2))
             XCTAssertNil(practice.referenceHeading)
             XCTAssertEqual(practice.phase, .needsReference)
         }
         var practice = FrontDirectionPractice()
         practice.setReference(0)
-        _ = practice.update(heading: 45, time: 10)
+        _ = practice.update(heading: 50, time: 10)
         XCTAssertNil(practice.update(heading: 0, time: 9))
         XCTAssertEqual(practice.phase, .needsReference)
         XCTAssertFalse(practice.setReference(.nan))
     }
     func testResetRequiresNewReferenceAfterSensorRestart() {
         var practice = FrontDirectionPractice()
-        practice.setReference(45)
+        practice.setReference(50)
         _ = practice.update(heading: 0, time: 1)
         practice.reset()
-        XCTAssertNil(practice.update(heading: 45, time: 2))
+        XCTAssertNil(practice.update(heading: 50, time: 2))
         XCTAssertEqual(practice.phase, .needsReference)
         practice.repeatExercise()
         XCTAssertNil(practice.referenceHeading)
