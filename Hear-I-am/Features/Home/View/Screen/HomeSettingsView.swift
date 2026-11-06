@@ -39,7 +39,8 @@ struct HomeSettingsView: View {
                 section("앱 관리") {
                     NavigationLink {V3PermissionView()} label: {SettingsRowLabel(title:"권한 상태")}.buttonStyle(.plain)
                     SettingsDivider()
-                    SettingsRowLabel(title:"앱 정보",value:"Hear I am \(version)",accessory:.none)
+                    NavigationLink {AppInfoView()} label: {SettingsRowLabel(title:"앱 정보",value:"Hear I am \(version)")}
+                        .buttonStyle(.plain).accessibilityIdentifier("settings.appInfo")
                     if changeRole != nil {
                         SettingsDivider()
                         Button {confirmsRoleChange=true} label: {SettingsRowLabel(title:"사용 역할",value:role.title)}
