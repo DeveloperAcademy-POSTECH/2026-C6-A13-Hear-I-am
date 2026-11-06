@@ -185,7 +185,7 @@ struct OutputDeviceRow: View {
     @State private var picker=RoutePicker()
     var body: some View {
         Button {picker.present()} label: {
-            SettingsRowLabel(title:"출력 기기",value:output.name,accessory:.chevronDown)
+            SettingsRowLabel(title:"출력 기기",value:output.name,accessory:.chevronDown,adaptsToDynamicType:true)
         }.buttonStyle(.plain)
             // The system picker draws its AirPlay glyph past a 1pt frame, so it is clipped away; the row stays the only visible control.
             .background(RoutePickerHost(picker:picker).frame(width:1,height:1).clipped().opacity(0.01).accessibilityHidden(true))
@@ -283,25 +283,6 @@ extension View {
     }
 }
 
-/// What is connected, read from the current audio route. iOS gives apps the port type and its name
-/// only, so the model is guessed from the name; colour and battery are not available to apps.
-enum OutputDeviceKind: Equatable {
-    case iPhone, airPods, airPodsMax, headphones
-
-    init(port: AVAudioSessionPortDescription?) {
-        guard let port else {self = .iPhone; return}
-        let name=port.portName.lowercased().replacingOccurrences(of:" ",with:"")
-        let bluetooth=[.bluetoothA2DP,.bluetoothHFP,.bluetoothLE].contains(port.portType)
-        switch port.portType {
-        case .builtInSpeaker, .builtInReceiver: self = .iPhone
-        default:
-            if name.contains("max") || name.contains("맥스") {self = .airPodsMax}
-            else if name.contains("pods") || name.contains("에어팟") || name.contains("pro") || bluetooth {self = .airPods}
-            else {self = .headphones}
-        }
-    }
-}
-
 /// The connected device drawn at the design's 150pt and tilting with the phone, so it reads as an object
 /// (Figma 457:13480 · 13846 · 13950). It springs in again whenever the device changes.
 struct OutputDeviceHero: View {
@@ -314,24 +295,39 @@ struct OutputDeviceHero: View {
             Group {
                 switch output.kind {
                 case .iPhone: device("DeviceIPhone",size:150)
-                // Wired headsets are drawn as AirPods Max: the design has only the three pictures.
-                case .airPodsMax, .headphones: device("DeviceAirPodsMax",size:160)
+                case .airPodsMax: device("DeviceAirPodsMax",size:160)
+                case .headphones: genericDevice("headphones")
+                case .externalAudio: genericDevice("speaker.wave.2")
                 case .airPods:
                     HStack(spacing:18) {device("DeviceAirPods",size:140);device("DeviceAirPodsCase",size:120)}
                 }
             }.frame(height:162).scaleEffect(appeared ? 1 : 0.86).opacity(appeared ? 1 : 0)
-            Text(output.name).font(.system(size:17,weight:.semibold)).foregroundStyle(.white).lineLimit(1)
-        }.padding(.top,32).frame(maxWidth:.infinity,minHeight:275,maxHeight:275,alignment:.top)
-            .accessibilityElement(children:.ignore).accessibilityLabel("연결된 기기, \(output.name)")
+            Text(output.name).font(.body.weight(.semibold)).foregroundStyle(.white)
+                .multilineTextAlignment(.center).fixedSize(horizontal:false,vertical:true)
+        }.padding(.top,32).padding(.bottom,24)
+            .frame(maxWidth:.infinity,minHeight:275,alignment:.top)
+            .accessibilityElement(children:.ignore).accessibilityLabel("출력 기기, \(output.name)")
+            .accessibilityIdentifier("output.deviceHero")
             .onAppear {
                 if !reduceMotion {tilt.start()}
-                withAnimation(.spring(response:0.6,dampingFraction:0.75)) {appeared=true}
+                revealDevice()
             }
             .onDisappear {tilt.stop();appeared=false}
-            .onChange(of:output.kind) {_,_ in
-                appeared=false
-                withAnimation(.spring(response:0.6,dampingFraction:0.75)) {appeared=true}
+            .onChange(of:output.kind) {_,_ in revealDevice()}
+            .onChange(of:reduceMotion) {_,reduced in
+                if reduced {tilt.stop()} else {tilt.start()}
             }
+    }
+    private func revealDevice() {
+        if reduceMotion {appeared=true}
+        else {
+            appeared=false
+            withAnimation(.spring(response:0.6,dampingFraction:0.75)) {appeared=true}
+        }
+    }
+    private func genericDevice(_ symbol: String) -> some View {
+        Image(systemName:symbol).font(.system(size:88,weight:.light)).foregroundStyle(.white)
+            .frame(width:160,height:160).accessibilityHidden(true)
     }
     private func device(_ name: String, size: CGFloat) -> some View {
         Image(name).resizable().scaledToFit().frame(width:size,height:size)

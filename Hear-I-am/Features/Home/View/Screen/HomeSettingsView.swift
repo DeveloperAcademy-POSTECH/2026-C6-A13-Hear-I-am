@@ -149,36 +149,3 @@ struct SoundOutputView: View {
             .accessibilityIdentifier(speaker ? "output.speaker" : "output.auto")
     }
 }
-
-/// Read-only route information; opening settings never changes the user's audio session.
-@MainActor final class SoundOutputStatus: ObservableObject {
-    @Published private(set) var name="소리 출력 확인"
-    @Published private(set) var detail="시험 소리를 재생해 출력 기기를 확인하세요."
-    @Published private(set) var symbol="speaker.wave.2"
-    @Published private(set) var kind: OutputDeviceKind = .iPhone
-    private var observer: NSObjectProtocol?
-    init() {
-        refresh()
-        observer=NotificationCenter.default.addObserver(forName:AVAudioSession.routeChangeNotification,object:nil,queue:.main) { [weak self] _ in
-            Task { @MainActor in self?.refresh() }
-        }
-    }
-    deinit { if let observer {NotificationCenter.default.removeObserver(observer)} }
-    func refresh() {
-        let ports=AVAudioSession.sharedInstance().currentRoute.outputs
-        kind=OutputDeviceKind(port:ports.first)
-        guard !ports.isEmpty else {
-            name="소리 출력 확인";detail="시험 소리를 재생해 출력 기기를 확인하세요.";symbol="speaker.wave.2";return
-        }
-        name=ports.map { port in
-            switch port.portType {
-            case .builtInSpeaker: return "iPhone 스피커"
-            case .builtInReceiver: return "iPhone 수화부"
-            default: return port.portName
-            }
-        }.joined(separator:", ")
-        let headphones=ports.contains { [.headphones,.bluetoothA2DP,.bluetoothHFP,.bluetoothLE].contains($0.portType) }
-        symbol=headphones ? "headphones" : "speaker.wave.2"
-        detail=headphones ? "이어폰으로 소리를 재생해요." : "현재 소리가 나오는 기기예요."
-    }
-}
