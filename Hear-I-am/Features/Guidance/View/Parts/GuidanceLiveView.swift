@@ -117,7 +117,7 @@ struct GuidanceV3PreviewHarness: View {
 /// camera keeps tracking behind the canvas; nothing of it is shown.
 struct VoicePracticeGuidanceView: View {
     @ObservedObject var model: GuidanceViewModel
-    @AppStorage(SignalPlayer.directionDeadbandKey) private var deadband=DirectionTickGate.defaultDeadbandDegrees
+    private let deadband=DirectionTickGate.defaultDeadbandDegrees
     private var walking: Bool {model.phase == .guiding && model.arrivedName == nil && model.guide?.facingPointIndex == nil && model.performanceHoldRemaining == 0}
     private var cue: GuidanceCue? {walking ? model.cue : nil}
 

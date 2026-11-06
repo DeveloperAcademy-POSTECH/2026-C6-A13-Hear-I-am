@@ -18,7 +18,7 @@ public struct DirectionTickGate: Sendable {
     public static let minConfigurableDeadbandDegrees = 15
     public static let maxConfigurableDeadbandDegrees = 90
     public static let deadbandPresets: [Int] = [15, 20, 25, 30, 45]
-    public static let defaultDeadbandDegrees = 15.0
+    public static let defaultDeadbandDegrees = 30.0
     public static let minInterval = 0.14
     public static let maxInterval = 0.70
 

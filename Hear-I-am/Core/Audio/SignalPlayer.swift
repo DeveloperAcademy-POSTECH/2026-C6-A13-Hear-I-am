@@ -30,21 +30,8 @@ import HearIAmCore
         get { UserDefaults.standard.string(forKey:directionModeKey).flatMap(DirectionSignalMode.init(rawValue:)) ?? .both }
         set { UserDefaults.standard.set(newValue.rawValue,forKey:directionModeKey) }
     }
-    static let directionDeadbandKey="signal.directionDeadbandDegrees"
-    /// Deadband angle (±n°) inside which direction ticks stay silent (#44).
-    static var directionDeadbandDegrees: Double {
-        get {
-            let v=UserDefaults.standard.double(forKey:directionDeadbandKey)
-            let minDeg=Double(DirectionTickGate.minConfigurableDeadbandDegrees)
-            let maxDeg=Double(DirectionTickGate.maxConfigurableDeadbandDegrees)
-            return v >= minDeg && v <= maxDeg ? v : DirectionTickGate.defaultDeadbandDegrees
-        }
-        set {
-            let minDeg=Double(DirectionTickGate.minConfigurableDeadbandDegrees)
-            let maxDeg=Double(DirectionTickGate.maxConfigurableDeadbandDegrees)
-            UserDefaults.standard.set(max(minDeg,min(maxDeg,newValue)),forKey:directionDeadbandKey)
-        }
-    }
+    /// Deadband angle (±30°) inside which direction ticks stay silent (#44, #115).
+    static let directionDeadbandDegrees = DirectionTickGate.defaultDeadbandDegrees
     private(set) var speechActive=false
     /// A long-running warning is softened so it does not drown the performance.
     private(set) var warningQuiet=false
