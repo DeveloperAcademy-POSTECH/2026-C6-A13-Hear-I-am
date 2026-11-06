@@ -50,29 +50,60 @@ struct SettingsDivider: View {
 
 /// Title, optional detail line, trailing value and an accessory: 52pt single-line rows, 68pt with a detail line.
 struct SettingsRowLabel: View {
-    enum Accessory { case none, chevron, chevronDown, checkmark, play, stop }
+    enum Accessory { case none, chevron, chevronDown, checkmark, play, stop, externalLink }
     let title: String
     var detail: String?=nil
     var value: String?=nil
     var accessory: Accessory = .chevron
+    /// Keep the confirmed tutorial layout; new settings rows can grow for larger text and device names.
+    var adaptsToDynamicType=false
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     var body: some View {
         HStack(spacing:8) {
-            VStack(alignment:.leading,spacing:4) {
-                Text(title).font(.system(size:17)).foregroundStyle(.white).lineLimit(1)
-                if let detail {Text(detail).font(.system(size:15)).foregroundStyle(SettingsStyle.secondary).lineLimit(1)}
-            }.frame(maxWidth:.infinity,alignment:.leading)
-            if let value {Text(value).font(.system(size:17)).foregroundStyle(SettingsStyle.secondary).lineLimit(1).minimumScaleFactor(0.8)}
-            switch accessory {
-            case .none: EmptyView()
-            case .chevron: Image(systemName:"chevron.right").font(.system(size:14,weight:.semibold)).foregroundStyle(SettingsStyle.secondary.opacity(0.5))
-            case .chevronDown: Image(systemName:"chevron.down").font(.system(size:14,weight:.medium)).foregroundStyle(SettingsStyle.secondary)
-            case .checkmark: Image(systemName:"checkmark").font(.system(size:17,weight:.semibold)).foregroundStyle(.white)
-            case .play: Image(systemName:"play.fill").font(.system(size:17)).foregroundStyle(.white)
-            case .stop: Image(systemName:"stop.fill").font(.system(size:17)).foregroundStyle(.white)
+            if adaptsToDynamicType && dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment:.leading,spacing:6) {titleLabel;valueLabel}
+                    .frame(maxWidth:.infinity,alignment:.leading)
+            } else {
+                titleLabel.frame(maxWidth:.infinity,alignment:.leading)
+                valueLabel
             }
+            accessoryImage.accessibilityHidden(true)
         }.padding(.horizontal,SettingsStyle.rowInset)
+            .padding(.vertical,adaptsToDynamicType ? 12 : 0)
             .frame(maxWidth:.infinity,minHeight:detail == nil ? SettingsStyle.rowHeight : SettingsStyle.tallRowHeight,alignment:.leading)
             .contentShape(Rectangle())
+    }
+    private var titleLabel: some View {
+        VStack(alignment:.leading,spacing:4) {
+            Text(title).font(adaptsToDynamicType ? .body : .system(size:17)).foregroundStyle(.white)
+                .lineLimit(adaptsToDynamicType ? nil : 1)
+                .fixedSize(horizontal:false,vertical:adaptsToDynamicType)
+            if let detail {
+                Text(detail).font(adaptsToDynamicType ? .subheadline : .system(size:15)).foregroundStyle(SettingsStyle.secondary)
+                    .lineLimit(adaptsToDynamicType ? nil : 1)
+                    .fixedSize(horizontal:false,vertical:adaptsToDynamicType)
+            }
+        }
+    }
+    @ViewBuilder private var valueLabel: some View {
+        if let value {
+            Text(value).font(adaptsToDynamicType ? .body : .system(size:17)).foregroundStyle(SettingsStyle.secondary)
+                .lineLimit(adaptsToDynamicType ? nil : 1)
+                .minimumScaleFactor(adaptsToDynamicType ? 1 : 0.8)
+                .fixedSize(horizontal:false,vertical:adaptsToDynamicType)
+        }
+    }
+    @ViewBuilder private var accessoryImage: some View {
+        switch accessory {
+        case .none: EmptyView()
+        case .chevron: Image(systemName:"chevron.right").font(.system(size:14,weight:.semibold)).foregroundStyle(SettingsStyle.secondary.opacity(0.5))
+        case .chevronDown: Image(systemName:"chevron.down").font(.system(size:14,weight:.medium)).foregroundStyle(SettingsStyle.secondary)
+        case .checkmark: Image(systemName:"checkmark").font(.system(size:17,weight:.semibold)).foregroundStyle(.white)
+        case .play: Image(systemName:"play.fill").font(.system(size:17)).foregroundStyle(.white)
+        case .stop: Image(systemName:"stop.fill").font(.system(size:17)).foregroundStyle(.white)
+        case .externalLink: Image(systemName:"arrow.up.right.square").font(.system(size:18)).foregroundStyle(.white)
+        }
     }
 }
 
