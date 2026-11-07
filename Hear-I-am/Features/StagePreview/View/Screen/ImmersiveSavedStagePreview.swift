@@ -128,9 +128,11 @@ struct ImmersiveSavedStagePreview: View {
     /// Photo pins, camera views, scene rename and scan deletion.
     private var moreMenu: some View {
         Menu {
-            Toggle(isOn:Binding(get:{model.photoPinsVisible},set:{model.photoPinsVisible=$0})) {
-                Label("사진 위치 표시",systemImage:"photo.badge.magnifyingglass")
+            Button {model.photoPinsVisible.toggle()} label: {
+                Label(model.photoPinsVisible ? "사진 위치 표시 ✓" : "사진 위치 표시",systemImage:"photo.badge.magnifyingglass")
             }
+            .accessibilityLabel("사진 위치 표시")
+            .accessibilityValue(model.photoPinsVisible ? "표시 중" : "숨김")
             Section {
                 Button("시점 초기화",systemImage:"arrow.counterclockwise") {model.setCamera(.overview)}
                 Button("동선 위에서 보기",systemImage:"eye") {model.setCamera(.overhead)}
