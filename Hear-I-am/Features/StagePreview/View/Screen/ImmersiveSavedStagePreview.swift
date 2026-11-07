@@ -10,6 +10,7 @@ struct ImmersiveSavedStagePreview: View {
     let onRename: (() -> Void)?
     let onDelete: (() -> Void)?
     @State private var gallery = false
+    @State private var galleryDetent=PresentationDetent.height(190)
     @State private var pointSettings = false
     @State private var closedPhotoID: UUID?
 
@@ -51,32 +52,12 @@ struct ImmersiveSavedStagePreview: View {
         }
         .background(HearV3.canvas).foregroundStyle(HearV3.text).tint(HearV3.text)
         .preferredColorScheme(.dark)
-        .navigationTitle("").navigationBarTitleDisplayMode(.inline)
-        .toolbarBackground(.hidden,for:.navigationBar)
         .toolbar(.hidden,for:.tabBar)
-        .toolbar {
-            ToolbarItem(placement:.principal) {
-                if let scanSelector {scanSelector}
-                else {Label(model.record.name,systemImage:"movieclapper").labelStyle(.titleAndIcon).font(.caption.weight(.semibold)).lineLimit(1)}
-            }
-            ToolbarItem(placement:.topBarTrailing) {
-                Menu {
-                    if let onStartGuidance {
-                        Button("안내 시작",systemImage:"arrow.up.right") {onStartGuidance(model.record.id)}
-                            .disabled(!model.record.supportsAlignment || model.loaded?.manifest.route == nil)
-                    }
-                    Button("지점 방향·대기 시간",systemImage:"timer") {openPointSettings()}
-                        .disabled(model.loaded?.manifest.route?.points.isEmpty != false)
-                    Button("시점 초기화",systemImage:"arrow.counterclockwise") {model.setCamera(.overview)}
-                    Button("동선을 위에서 보기",systemImage:"square.3.layers.3d.down.right") {model.setCamera(.overhead)}
-                    Toggle("사진 위치 표시",isOn:Binding(get:{model.photoPinsVisible},set:{model.photoPinsVisible=$0}))
-                    if let onNewScan {Button("새 장면 스캔",systemImage:"viewfinder",action:onNewScan)}
-                    if let onRename {Button("장면 이름 변경",systemImage:"pencil",action:onRename)}
-                    if let onDelete {Button("스캔 파일 삭제",systemImage:"trash",role:.destructive,action:onDelete)}
-                } label: {Image(systemName:"ellipsis")}
-                    .accessibilityLabel("무대 메뉴")
-            }
-        }
+        // Figma 971:33671: back, the scene picker and ⋯ in the shared top row.
+        .hearTopBar(center:{
+            if let scanSelector {scanSelector}
+            else {Label(model.record.name,systemImage:"movieclapper").labelStyle(.titleAndIcon).font(.caption.weight(.semibold)).lineLimit(1)}
+        }) {HearBackButton()} trailing: {moreMenu}
         .task {
             await model.load()
             #if DEBUG
@@ -96,6 +77,34 @@ struct ImmersiveSavedStagePreview: View {
                     .suspendsVoiceWake()
             }
         }
+    }
+
+    /// 971:34557: photo pins, the two camera views and rename, then deleting this scan. Starting guidance, the
+    /// point settings and a new scan are not in the design but stay, in their own section.
+    private var moreMenu: some View {
+        Menu {
+            Toggle(isOn:Binding(get:{model.photoPinsVisible},set:{model.photoPinsVisible=$0})) {
+                Label("사진 위치 표시",systemImage:"photo.badge.magnifyingglass")
+            }
+            Section {
+                Button("시점 초기화",systemImage:"arrow.counterclockwise") {model.setCamera(.overview)}
+                Button("동선 위에서 보기",systemImage:"eye") {model.setCamera(.overhead)}
+                if let onRename {Button("장면 이름 변경",systemImage:"pencil",action:onRename)}
+            }
+            Section {
+                if let onStartGuidance {
+                    Button("안내 시작",systemImage:"arrow.up.right") {onStartGuidance(model.record.id)}
+                        .disabled(!model.record.supportsAlignment || model.loaded?.manifest.route == nil)
+                }
+                Button("지점 설정",systemImage:"timer") {openPointSettings()}
+                    .disabled(model.loaded?.manifest.route?.points.isEmpty != false)
+                if let onNewScan {Button("새 장면 스캔",systemImage:"viewfinder",action:onNewScan)}
+            }
+            if let onDelete {
+                Section {Button("현재 스캔 파일 삭제",systemImage:"trash",role:.destructive,action:onDelete)}
+            }
+        } label: {HearTopButtonLabel(systemImage:"ellipsis")}
+            .buttonStyle(.plain).accessibilityLabel("무대 메뉴")
     }
 
     private func bottomControls(width: CGFloat) -> some View {
@@ -130,21 +139,25 @@ struct ImmersiveSavedStagePreview: View {
                         .onChange(of:model.activePointIndex) {_,index in withAnimation {proxy.scrollTo(index,anchor:.center)}}
                 }
             }
+            // 971:34370: the photos and the point settings as 48pt glass circles, the two 36pt arrows between.
             HStack {
-                Button {gallery=true} label: {Image(systemName:"photo.on.rectangle")}
-                    .accessibilityLabel("저장된 현장 사진")
+                ScanCircleButton(systemImage:"photo.on.rectangle",label:"저장된 현장 사진",size:48) {gallery=true}
                 Spacer()
                 if let route=model.loaded?.manifest.route,!route.points.isEmpty {
-                    Button {model.select(.point(max(model.activePointIndex-1,0)))} label: {Image(systemName:"chevron.left")}
-                        .disabled(model.activePointIndex==0).accessibilityLabel("이전 지점")
-                    Button {model.select(.point(min(model.activePointIndex+1,route.points.count-1)))} label: {Image(systemName:"chevron.right")}
-                        .disabled(model.activePointIndex>=route.points.count-1).accessibilityLabel("다음 지점")
+                    HStack(spacing:12) {
+                        ScanCircleButton(systemImage:"chevron.left",label:"이전 지점",size:36,enabled:model.activePointIndex>0) {
+                            model.select(.point(max(model.activePointIndex-1,0)))
+                        }
+                        ScanCircleButton(systemImage:"chevron.right",label:"다음 지점",size:36,enabled:model.activePointIndex<route.points.count-1) {
+                            model.select(.point(min(model.activePointIndex+1,route.points.count-1)))
+                        }
+                    }
                 }
                 Spacer()
-                Button {openPointSettings()} label: {Image(systemName:"timer")}
-                    .disabled(model.loaded?.manifest.route?.points.isEmpty != false)
-                    .accessibilityLabel("선택 지점 방향과 대기 시간")
-            }.buttonStyle(.bordered).buttonBorderShape(.circle).controlSize(.large)
+                ScanCircleButton(systemImage:"timer",label:"선택 지점 설정",size:48,enabled:model.loaded?.manifest.route?.points.isEmpty == false) {
+                    openPointSettings()
+                }
+            }
         }
     }
 
@@ -162,26 +175,45 @@ struct ImmersiveSavedStagePreview: View {
             }
     }
 
+    /// 971:34288: a low sheet, 「현장사진」 and one row of photos; pulled up, 「전체 이미지」 in three columns (971:34319).
     private var photoGallery: some View {
-        NavigationStack {
-            ScrollView {
-                if let scan=model.loaded,!scan.manifest.photos.isEmpty {
-                    LazyVGrid(columns:[GridItem(.adaptive(minimum:105),spacing:4)],spacing:4) {
-                        ForEach(scan.manifest.photos) {photo in
-                            Button {gallery=false;model.select(.photo(photo.id))} label: {
-                                SavedPhotoImage(store:model.store,scanID:scan.manifest.id,photo:photo,fill:true)
-                                    .frame(height:100).frame(maxWidth:.infinity)
-                                    .clipShape(RoundedRectangle(cornerRadius:12))
-                            }.buttonStyle(.plain)
-                                .accessibilityLabel("사진 \((scan.manifest.photos.firstIndex(of:photo) ?? 0)+1) 촬영 위치 보기")
+        let full=galleryDetent == .large
+        return VStack(alignment:.leading,spacing:14) {
+            HStack {
+                Text(full ? "전체 이미지" : "현장사진").font(HearFont.pretendard(.semibold,size:22)).foregroundStyle(.white)
+                    .accessibilityAddTraits(.isHeader)
+                Spacer()
+                if full {ScanCircleButton(systemImage:"xmark",label:"닫기") {gallery=false}}
+            }.frame(height:44)
+            if let scan=model.loaded,!scan.manifest.photos.isEmpty {
+                if full {
+                    ScrollView {
+                        LazyVGrid(columns:Array(repeating:GridItem(.flexible(),spacing:8),count:3),spacing:8) {
+                            ForEach(scan.manifest.photos) {photo in galleryTile(photo,scan:scan).aspectRatio(1.36,contentMode:.fit)}
                         }
-                    }.padding(.horizontal,16).padding(.top,20)
-                } else {ContentUnavailableView("저장된 사진이 없어요",systemImage:"photo.on.rectangle")}
-            }.navigationTitle("현장 사진").navigationBarTitleDisplayMode(.inline)
-                .toolbar {ToolbarItem(placement:.confirmationAction) {Button("닫기",systemImage:"xmark") {gallery=false}}}
-                .background(HearV3.canvas.opacity(0.55))
-        }.tint(HearV3.text).presentationDetents([.large]).presentationDragIndicator(.visible)
-            .presentationBackground(.ultraThinMaterial).preferredColorScheme(.dark)
+                    }.scrollIndicators(.hidden)
+                } else {
+                    ScrollView(.horizontal) {
+                        LazyHStack(spacing:8) {
+                            ForEach(scan.manifest.photos) {photo in galleryTile(photo,scan:scan).frame(width:110,height:84)}
+                        }
+                    }.scrollIndicators(.hidden).frame(height:84)
+                }
+            } else {
+                Text("저장된 사진이 없어요").font(.subheadline).foregroundStyle(HearV3.secondary)
+            }
+            Spacer(minLength:0)
+        }.padding(.horizontal,20).padding(.top,full ? 20 : 14)
+            .presentationDetents([.height(190),.large],selection:$galleryDetent).presentationDragIndicator(.visible)
+            .presentationBackground(Color(red:17/255,green:17/255,blue:17/255)).presentationBackgroundInteraction(.enabled(upThrough:.height(190)))
+            .preferredColorScheme(.dark)
+    }
+    private func galleryTile(_ photo: ScanPhoto,scan: LoadedScan) -> some View {
+        Button {gallery=false;model.select(.photo(photo.id))} label: {
+            Color.clear.overlay {SavedPhotoImage(store:model.store,scanID:scan.manifest.id,photo:photo,fill:true)}
+                .clipShape(RoundedRectangle(cornerRadius:6,style:.continuous))
+        }.buttonStyle(.plain)
+            .accessibilityLabel("사진 \((scan.manifest.photos.firstIndex(of:photo) ?? 0)+1) 촬영 위치 보기")
     }
 
     private func openPointSettings() {
@@ -189,39 +221,64 @@ struct ImmersiveSavedStagePreview: View {
         model.select(.point(min(model.activePointIndex,route.points.count-1)))
         pointSettings=true
     }
+    /// 971:33834: 「n번 지점 설정」, a switch for waiting before the next move, 5 · 10 · 20 s and − value + , then
+    /// 「지점 설정 저장」. The facing direction is not in the design but stays as one row under it.
     private var pointSettingsSheet: some View {
-        NavigationStack {
-            Form {
-                Section("도착 후 바라볼 방향") {
-                    Picker("방향",selection:$model.pointFacing) {
-                        Text("지정 안 함").tag(StageFacing?.none)
-                        ForEach(StageFacing.allCases,id:\.self) {Text($0.label).tag(Optional($0))}
-                    }
-                    Text("무대 앞을 북쪽으로, 앞을 바라봤을 때 오른쪽을 동쪽으로 정해요.").font(.footnote).foregroundStyle(.secondary)
+        let seconds=model.enteredHoldSeconds ?? 0
+        let waits=Binding(get:{seconds>0},set:{model.holdSecondsText=$0 ? "10" : "0"})
+        return VStack(alignment:.leading,spacing:0) {
+            HStack(alignment:.top) {
+                VStack(alignment:.leading,spacing:4) {
+                    Text("\(model.activePointIndex+1)번 지점 설정").font(HearFont.pretendard(.semibold,size:22)).foregroundStyle(.white)
+                    Text(model.selectionTitle).font(HearFont.pretendard(.regular,size:14)).foregroundStyle(HearV3.secondary)
                 }
-                if model.canEditPointHold {
-                    Section("도착 후 다음 지점 안내 대기") {
-                        HStack {
-                            TextField("0",text:$model.holdSecondsText).keyboardType(.numberPad)
-                                .accessibilityLabel("도착 후 안내 대기 시간")
-                            Text("초").foregroundStyle(.secondary)
+                Spacer()
+                ScanCircleButton(systemImage:"xmark",label:"닫기",enabled:!model.savingHold) {pointSettings=false}
+            }
+            if model.canEditPointHold {
+                Toggle(isOn:waits) {
+                    Text("다음 이동 전 대기").font(HearFont.pretendard(.regular,size:15)).foregroundStyle(.white)
+                }.tint(.white).padding(.top,14)
+                if seconds>0 {
+                    HStack(spacing:8) {
+                        ForEach([5,10,20],id:\.self) {value in
+                            Button {model.holdSecondsText=String(value)} label: {
+                                Text("\(value)초").font(HearFont.pretendard(.medium,size:15))
+                                    .foregroundStyle(seconds==value ? .black : .white)
+                                    .padding(.horizontal,14).frame(height:32)
+                                    .background(seconds==value ? Color.white : Color.white.opacity(0.1),in:Capsule())
+                            }.buttonStyle(.plain)
                         }
-                        Text("0초는 바로 안내 · 최대 3600초. 설정한 방향을 맞춘 뒤 기다려요.").font(.footnote).foregroundStyle(.secondary)
-                        if model.enteredHoldSeconds==nil {Text("0~3600 사이의 정수를 입력해주세요.").font(.footnote).foregroundStyle(.red)}
-                    }
+                    }.padding(.top,16)
+                    HStack {
+                        ScanCircleButton(systemImage:"minus",label:"5초 줄이기",size:48,enabled:seconds>5) {model.holdSecondsText=String(max(seconds-5,5))}
+                        Spacer()
+                        Text("\(seconds)초").font(HearFont.pretendard(.semibold,size:28)).foregroundStyle(.white).monospacedDigit()
+                        Spacer()
+                        ScanCircleButton(systemImage:"plus",label:"5초 늘리기",size:48,enabled:seconds<3600) {model.holdSecondsText=String(min(seconds+5,3600))}
+                    }.padding(.top,20)
                 }
-                if let error=model.holdSaveError {Text(error).foregroundStyle(.red)}
-                if model.savingHold {ProgressView("저장 중…")}
-            }.disabled(model.savingHold)
-                .navigationTitle(model.selectionTitle).navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement:.cancellationAction) {Button("닫기",systemImage:"xmark") {pointSettings=false}.disabled(model.savingHold)}
-                    ToolbarItem(placement:.confirmationAction) {
-                        Button("저장",systemImage:"checkmark") {
-                            Task {await model.savePointSettings();if model.holdSaveError==nil {pointSettings=false}}
-                        }.disabled(model.savingHold || model.enteredHoldSeconds==nil)
-                    }
-                }
-        }.tint(HearV3.text).presentationDetents([.medium,.large]).presentationDragIndicator(.visible).preferredColorScheme(.dark)
+            }
+            HStack {
+                Text("도착 후 바라볼 방향").font(HearFont.pretendard(.regular,size:15)).foregroundStyle(.white)
+                Spacer()
+                Picker("방향",selection:$model.pointFacing) {
+                    Text("지정 안 함").tag(StageFacing?.none)
+                    ForEach(StageFacing.allCases,id:\.self) {Text($0.label).tag(Optional($0))}
+                }.tint(HearV3.secondary)
+            }.padding(.top,18)
+            if let error=model.holdSaveError {Text(error).font(.footnote).foregroundStyle(.red).padding(.top,8)}
+            Spacer(minLength:16)
+            Button {
+                Task {await model.savePointSettings();if model.holdSaveError==nil {pointSettings=false}}
+            } label: {
+                Group {if model.savingHold {ProgressView()} else {Text("지점 설정 저장")}}
+                    .font(HearFont.pretendard(.semibold,size:17)).foregroundStyle(.black)
+                    .frame(maxWidth:.infinity).frame(height:50).background(.white,in:Capsule())
+            }.buttonStyle(.plain).disabled(model.savingHold || model.enteredHoldSeconds==nil)
+        }.padding(.horizontal,24).padding(.top,24).padding(.bottom,12)
+            .disabled(model.savingHold)
+            .presentationDetents([.height(model.canEditPointHold ? 400 : 240)]).presentationDragIndicator(.visible)
+            .presentationBackground(Color(red:17/255,green:17/255,blue:17/255)).preferredColorScheme(.dark)
     }
 }
