@@ -29,24 +29,22 @@ struct PerformanceDetailView: View {
     var body: some View {
         ScrollView {
             if let folder {
+                // Figma 971:32296 · 971:32413: 기본 동선 and 공연 및 연습 공간 under the title bar, no description line.
                 VStack(alignment: .leading, spacing: 32) {
-                    if !folder.notes.isEmpty {
-                        Text(folder.notes).font(.subheadline).foregroundStyle(.secondary).padding(.horizontal, 20)
-                    }
                     referenceSection
                     VStack(spacing: 16) {
                         HStack {
-                            Text("공연 및 연습 공간").font(.title3.weight(.semibold)).accessibilityAddTraits(.isHeader)
+                            PerformanceSectionTitle(text: "공연 및 연습 공간")
                             Spacer()
-                            Button { spaceName = ""; creatingSpace = true } label: { Label("추가하기", systemImage: "plus").font(.subheadline) }
-                                .buttonStyle(.bordered).buttonBorderShape(.capsule).accessibilityIdentifier("performance.space.create")
+                            Button { spaceName = ""; creatingSpace = true } label: { PerformanceOutlineButtonLabel(title: "추가하기", systemImage: "plus") }
+                                .buttonStyle(.plain).accessibilityIdentifier("performance.space.create")
                         }.padding(.horizontal, 4)
                         PerformanceSearchField(text: $query, prompt: "공연 및 연습 공간 검색")
                         if spaces.isEmpty {
                             VStack(spacing: 20) {
                                 Image(systemName: "folder").font(.system(size: 52, weight: .light))
-                                Text(query.isEmpty ? "공간을\n추가해주세요" : "검색한 공간이\n없습니다").font(.title3.weight(.medium)).multilineTextAlignment(.center)
-                            }.foregroundStyle(.secondary).frame(maxWidth: .infinity, minHeight: 210)
+                                Text(query.isEmpty ? "공간을\n추가해주세요" : "검색한 공간이\n없습니다").font(HearFont.pretendard(.semibold, size: 20)).multilineTextAlignment(.center)
+                            }.foregroundStyle(HearV3.secondary).frame(maxWidth: .infinity, minHeight: 230)
                         } else {
                             LazyVStack(spacing: 6) {
                                 ForEach(spaces) { space in
@@ -74,15 +72,15 @@ struct PerformanceDetailView: View {
                     }.padding(.horizontal, 16)
                 }.padding(.top, 28).padding(.bottom, 24)
             } else { ContentUnavailableView("공연을 찾을 수 없어요", systemImage: "folder.badge.questionmark") }
-        }.v3Screen().navigationTitle(folder?.name ?? "공연 관리").navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Menu {
-                        Button("공연 정보 수정", systemImage: "pencil") { editing = true }
-                        Button("저장된 스캔 연결", systemImage: "link") { linking = true }
-                        Button("공연 폴더 삭제", systemImage: "trash", role: .destructive) { deleting = true }
-                    } label: { Image(systemName: "ellipsis") }.accessibilityLabel("공연 관리 메뉴").disabled(busy)
-                }
+        }.v3Screen()
+            .hearTopBar(folder?.name ?? "공연 관리") { HearBackButton() } trailing: {
+                // 971:36544: edit and delete; linking saved scans stays between them.
+                Menu {
+                    Button("공연 정보 수정", systemImage: "pencil") { editing = true }
+                    Button("저장된 스캔 연결", systemImage: "link") { linking = true }
+                    Button("공연 폴더 삭제", systemImage: "trash", role: .destructive) { deleting = true }
+                } label: { HearTopButtonLabel(systemImage: "ellipsis") }
+                    .buttonStyle(.plain).accessibilityLabel("공연 관리 메뉴").disabled(busy)
             }
             .sheet(isPresented: $editing) { if let folder { PerformanceEditorSheet(library: library, folder: folder) { _ in }.suspendsVoiceWake() } }
             .sheet(isPresented: $linking) { PerformanceLinkStagesView(library: library, performanceID: performanceID).suspendsVoiceWake() }
@@ -103,9 +101,12 @@ struct PerformanceDetailView: View {
                 if let space = deletingSpace { Button("공간 폴더 삭제", role: .destructive) { deleteSpace(space.id) } }
                 Button("취소", role: .cancel) { deletingSpace = nil }
             } message: { Text("스캔과 사진은 삭제하지 않고 이 공연의 ‘공간 미지정’에 보관해요.") }
-            .confirmationDialog("공연 폴더를 삭제할까요?", isPresented: $deleting, titleVisibility: .visible) {
-                Button("공연 폴더 삭제", role: .destructive) { deleteFolder() }; Button("취소", role: .cancel) { }
-            } message: { Text("스캔, 사진과 안내 기록은 삭제하지 않고 미분류로 보관해요.") }
+            // 971:36590: an alert over the page. The message says what really goes: the folder, its scenes and
+            // spaces; the scans themselves stay, unfiled.
+            .alert("‘\(folder?.name ?? "")’ 공연 폴더를 삭제할까요?", isPresented: $deleting) {
+                Button("취소", role: .cancel) { }
+                Button("삭제", role: .destructive) { deleteFolder() }
+            } message: { Text("기본 동선과 공연 및 연습 공간이 함께 삭제돼요. 스캔한 무대와 사진은 미분류로 남아요.") }
             .onChange(of: plans.map(\.id)) { _, ids in
                 if let selectedSceneID, !ids.contains(selectedSceneID) { self.selectedSceneID = ids.first }
             }
@@ -116,18 +117,18 @@ struct PerformanceDetailView: View {
     private var referenceSection: some View {
         VStack(spacing: 16) {
             HStack {
-                Text("기본 동선").font(.title3.weight(.semibold)).accessibilityAddTraits(.isHeader)
+                PerformanceSectionTitle(text: "기본 동선")
                 Spacer()
-                Button { editingScenes = true } label: { Label("편집", systemImage: "pencil").font(.subheadline) }
-                    .buttonStyle(.bordered).buttonBorderShape(.capsule).accessibilityIdentifier("performance.scenes.edit")
+                Button { editingScenes = true } label: { PerformanceOutlineButtonLabel(title: "편집", systemImage: "pencil") }
+                    .buttonStyle(.plain).accessibilityIdentifier("performance.scenes.edit")
             }.padding(.horizontal, 20)
             if plans.isEmpty {
                 Button { editingScenes = true } label: {
                     VStack(spacing: 20) {
-                        Image(systemName: "point.topleft.down.to.point.bottomright.curvepath").font(.system(size: 44, weight: .light))
-                        Text("기본동선을\n추가해주세요").font(.title3.weight(.medium)).multilineTextAlignment(.center)
-                    }.foregroundStyle(.secondary).frame(maxWidth: .infinity, minHeight: 200)
-                        .background(HearV3.surface, in: RoundedRectangle(cornerRadius: 24))
+                        Image(systemName: "point.bottomleft.forward.to.point.topright.scurvepath").font(.system(size: 44, weight: .light))
+                        Text("기본동선을\n추가해주세요").font(HearFont.pretendard(.semibold, size: 20)).multilineTextAlignment(.center)
+                    }.foregroundStyle(HearV3.secondary).frame(maxWidth: .infinity, minHeight: 200)
+                        .background(HearV3.surface, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
                 }.buttonStyle(.plain).padding(.horizontal, 16)
             } else {
                 GeometryReader { geometry in
@@ -166,6 +167,29 @@ struct PerformanceDetailView: View {
     private func deleteFolder() {
         busy = true
         Task { do { try await library.deletePerformance(performanceID); dismiss() } catch { self.error = error.localizedDescription }; busy = false }
+    }
+}
+
+/// A section heading on the performance pages (Figma 971:32296): Pretendard SemiBold 20.
+struct PerformanceSectionTitle: View {
+    let text: String
+    var body: some View {
+        Text(text).font(HearFont.pretendard(.semibold, size: 20)).foregroundStyle(.white).accessibilityAddTraits(.isHeader)
+    }
+}
+
+/// The small outlined capsule beside a heading, 「✎ 편집」 and 「+ 추가하기」 (971:32296).
+struct PerformanceOutlineButtonLabel: View {
+    let title: String
+    let systemImage: String
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: systemImage).font(.system(size: 13, weight: .medium))
+            Text(title).font(HearFont.pretendard(.medium, size: 14))
+        }.foregroundStyle(.white).padding(.horizontal, 12).frame(height: 32)
+            .background(.black, in: Capsule())
+            .overlay(Capsule().strokeBorder(.white.opacity(0.25), lineWidth: 1))
+            .contentShape(Capsule())
     }
 }
 
