@@ -81,13 +81,16 @@ struct PreparationControls: View {
                     if let plan=model.selectedPlan {model.selectReferencePlan(plan)} else {model.advance()}
                 }
             case .objects:
-                // While an object is drawn this registers it; otherwise it ends the step, with or without objects.
-                if model.objectEditing {
+                // While an object's points are being placed this registers it. With no point placed it ends the
+                // step: 「건너뛰기」 while no object is registered, 「지정 완료」 once one is (11/07).
+                if model.objectEditing && !model.pendingObjectWorld.isEmpty {
                     ScanPrimaryButton(title:"지정 완료",enabled:model.pendingObjectWorld.count>=3) {model.commitObject()}
                         .accessibilityHint("그린 기물을 등록해요")
                 } else {
-                    ScanPrimaryButton(title:"지정 완료",enabled:draft.objectErrors.isEmpty) {model.advance()}
-                        .accessibilityHint(draft.objects.isEmpty ? "기물 없이 다음 단계로 넘어가요" : "기물 단계를 마쳐요")
+                    ScanPrimaryButton(title:draft.objects.isEmpty ? "건너뛰기" : "지정 완료",enabled:draft.objectErrors.isEmpty && !model.busy) {
+                        if model.objectEditing {model.cancelObject()}
+                        model.advance()
+                    }.accessibilityHint(draft.objects.isEmpty ? "기물 없이 다음 단계로 넘어가요" : "기물 단계를 마쳐요")
                 }
             case .route:
                 ScanPrimaryButton(title:"지정 완료",enabled:draft.routeFinished ? draft.routeErrors.isEmpty : draft.route.count>=2) {model.finishRoute()}
