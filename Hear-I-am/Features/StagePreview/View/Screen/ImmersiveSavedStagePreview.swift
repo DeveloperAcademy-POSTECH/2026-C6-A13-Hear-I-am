@@ -5,8 +5,6 @@ import HearIAmCore
 struct ImmersiveSavedStagePreview: View {
     @StateObject private var model: SavedStagePreviewModel
     let scanSelector: AnyView?
-    let onNewScan: (() -> Void)?
-    let onStartGuidance: ((UUID) -> Void)?
     let onRename: (() -> Void)?
     let onDelete: (() -> Void)?
     @State private var gallery = false
@@ -22,13 +20,12 @@ struct ImmersiveSavedStagePreview: View {
     @State private var settingsHeight: CGFloat=240
 
     init(record: ScanManifest, store: ScanStore, scanSelector: AnyView? = nil,
-         onNewScan: (() -> Void)? = nil, onStartGuidance: ((UUID) -> Void)? = nil,
          onRename: (() -> Void)? = nil, onDelete: (() -> Void)? = nil) {
         let model=SavedStagePreviewModel(record:record,store:store)
         model.display = .clean;model.immersive=true;model.showCleanPhotoPins=true
         model.selection = record.route?.points.isEmpty == false ? .point(0) : nil
         _model=StateObject(wrappedValue:model)
-        self.scanSelector=scanSelector;self.onNewScan=onNewScan;self.onStartGuidance=onStartGuidance
+        self.scanSelector=scanSelector
         self.onRename=onRename;self.onDelete=onDelete
     }
 
@@ -128,8 +125,7 @@ struct ImmersiveSavedStagePreview: View {
         }
     }
 
-    /// 971:34557: photo pins, the two camera views and rename, then deleting this scan. Starting guidance, the
-    /// point settings and a new scan are not in the design but stay, in their own section.
+    /// Photo pins, camera views, scene rename and scan deletion.
     private var moreMenu: some View {
         Menu {
             Toggle(isOn:Binding(get:{model.photoPinsVisible},set:{model.photoPinsVisible=$0})) {
@@ -139,15 +135,6 @@ struct ImmersiveSavedStagePreview: View {
                 Button("시점 초기화",systemImage:"arrow.counterclockwise") {model.setCamera(.overview)}
                 Button("동선 위에서 보기",systemImage:"eye") {model.setCamera(.overhead)}
                 if let onRename {Button("장면 이름 변경",systemImage:"pencil",action:onRename)}
-            }
-            Section {
-                if let onStartGuidance {
-                    Button("안내 시작",systemImage:"arrow.up.right") {onStartGuidance(model.record.id)}
-                        .disabled(!model.record.supportsAlignment || model.loaded?.manifest.route == nil)
-                }
-                Button("지점 설정",systemImage:"timer") {openPointSettings()}
-                    .disabled(model.loaded?.manifest.route?.points.isEmpty != false)
-                if let onNewScan {Button("새 장면 스캔",systemImage:"viewfinder",action:onNewScan)}
             }
             if let onDelete {
                 Section {Button("현재 스캔 파일 삭제",systemImage:"trash",role:.destructive,action:onDelete)}
