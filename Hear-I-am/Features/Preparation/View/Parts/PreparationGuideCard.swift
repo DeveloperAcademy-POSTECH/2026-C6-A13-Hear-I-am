@@ -26,9 +26,13 @@ struct PreparationGuideCard: View {
         // unfolded it comes back as one piece, glass and contents together (452:11526). A sideways swipe
         // anywhere on it folds or unfolds it, following the finger; a tap on the handle still works (11/07).
         HStack(spacing:0) {
-            Button {withAnimation(.snappy(duration:0.35)) {model.guideCollapsed.toggle()}} label: {
-                Capsule().fill(.white).frame(width:4,height:34).frame(width:22,height:64).contentShape(Rectangle())
-            }.buttonStyle(.plain).accessibilityLabel(model.guideCollapsed ? "평면도 펼치기" : "평면도 접기")
+            // A tap, not a Button: a drag that began on a Button never reached the panel's swipe, and folded, the
+            // handle is all that shows, so the panel could be pushed away but not pulled back (11/07).
+            Capsule().fill(.white).frame(width:4,height:34).frame(width:22,height:64).contentShape(Rectangle())
+                .onTapGesture {withAnimation(.snappy(duration:0.35)) {model.guideCollapsed.toggle()}}
+                .accessibilityElement().accessibilityAddTraits(.isButton)
+                .accessibilityLabel(model.guideCollapsed ? "평면도 펼치기" : "평면도 접기")
+                .accessibilityAction {withAnimation(.snappy(duration:0.35)) {model.guideCollapsed.toggle()}}
             VStack(spacing:10) {
                 header
                 ScrollView {
@@ -50,6 +54,11 @@ struct PreparationGuideCard: View {
             }
             // The whole panel, its clear gaps included, takes the swipe.
             .contentShape(RoundedRectangle(cornerRadius:34,style:.continuous))
+            // Folded, the 24pt strip is narrow for a thumb at the screen's edge: a clear 30pt more to its left
+            // also catches the pull.
+            .background(alignment:.leading) {
+                if model.guideCollapsed {Color.clear.frame(width:30).frame(maxHeight:.infinity).contentShape(Rectangle()).offset(x:-30)}
+            }
             .simultaneousGesture(swipe)
             .offset(x:min(max((model.guideCollapsed ? Self.foldedOffset : 0)+drag.x,0),Self.foldedOffset))
             .environment(\.colorScheme,.dark)
