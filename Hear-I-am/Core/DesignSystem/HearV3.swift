@@ -43,3 +43,64 @@ extension View {
         }
     }
 }
+
+// MARK: - The one top row
+
+/// The top row of every portrait page (11/07): 44pt round buttons 14pt under the status bar and 18pt in from
+/// the sides, where the role page keeps its settings button, with the title centred between them. Pages use it
+/// through `hearTopBar` instead of the navigation bar, which would sit 14pt higher.
+struct HearTopBar<Leading: View, Trailing: View>: View {
+    let title: String?
+    let leading: Leading
+    let trailing: Trailing
+    var body: some View {
+        HStack(spacing:8) {
+            HStack(spacing:8) {leading}
+            Spacer(minLength:8)
+            HStack(spacing:8) {trailing}
+        }.frame(height:44)
+            .overlay {
+                if let title {
+                    Text(title).font(.headline).foregroundStyle(.white).lineLimit(1).minimumScaleFactor(0.8)
+                        .readAloudTarget(title).padding(.horizontal,60).accessibilityAddTraits(.isHeader)
+                }
+            }
+            .padding(.horizontal,18).padding(.top,14).padding(.bottom,8)
+            // Content scrolling up fades out under the buttons, as it did under the system bar.
+            .background(LinearGradient(colors:[.black,.black.opacity(0)],startPoint:.top,endPoint:.bottom).ignoresSafeArea(edges:.top))
+    }
+}
+
+/// A 44pt round top-row button face: dark glass, or white with a black symbol for the page's main action.
+struct HearTopButtonLabel: View {
+    let systemImage: String
+    var prominent=false
+    var body: some View {
+        if prominent {
+            Image(systemName:systemImage).font(.system(size:17,weight:.semibold)).foregroundStyle(.black)
+                .frame(width:44,height:44).liquidGlass(Circle(),tint:.white,interactive:true).contentShape(Circle())
+        } else {
+            ScanCircleLabel(systemImage:systemImage)
+        }
+    }
+}
+
+/// The top row's back button: closes the page it sits on.
+struct HearBackButton: View {
+    var enabled=true
+    @Environment(\.dismiss) private var dismiss
+    var body: some View {
+        Button {dismiss()} label: {HearTopButtonLabel(systemImage:"chevron.left")}
+            .buttonStyle(.plain).disabled(!enabled).opacity(enabled ? 1 : 0.45)
+            .accessibilityLabel("뒤로").accessibilityIdentifier("top.back")
+    }
+}
+
+extension View {
+    /// Puts `HearTopBar` over the page in place of the navigation bar.
+    func hearTopBar<Leading: View, Trailing: View>(_ title: String?, @ViewBuilder leading: () -> Leading,
+                                                    @ViewBuilder trailing: () -> Trailing) -> some View {
+        toolbar(.hidden,for:.navigationBar)
+            .safeAreaInset(edge:.top,spacing:0) {HearTopBar(title:title,leading:leading(),trailing:trailing())}
+    }
+}

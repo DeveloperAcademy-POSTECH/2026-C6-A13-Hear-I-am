@@ -64,16 +64,13 @@ struct PerformanceLibraryView: View {
                         }.buttonStyle(.plain)
                     }
                 }.padding(.horizontal, 16).padding(.top, 28).padding(.bottom, 24)
-            }.v3Screen().navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .topBarLeading) {
-                        Button { changeRole?() } label: { Image(systemName: "house") }.accessibilityLabel("역할 선택으로 돌아가기")
-                    }
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button { creating = true } label: { Image(systemName: "plus") }
-                            .buttonStyle(.borderedProminent).tint(HearV3.text).foregroundStyle(HearV3.canvas)
-                            .accessibilityLabel("새 공연 만들기").accessibilityIdentifier("performance.create")
-                    }
+            }.v3Screen()
+                .hearTopBar(nil) {
+                    Button { changeRole?() } label: { HearTopButtonLabel(systemImage: "house") }
+                        .buttonStyle(.plain).accessibilityLabel("역할 선택으로 돌아가기")
+                } trailing: {
+                    Button { creating = true } label: { HearTopButtonLabel(systemImage: "plus", prominent: true) }
+                        .buttonStyle(.plain).accessibilityLabel("새 공연 만들기").accessibilityIdentifier("performance.create")
                 }
                 .navigationDestination(for: UUID.self) { id in
                     PerformanceDetailView(library: library, performanceID: id, onStartGuidance: onStartGuidance)
