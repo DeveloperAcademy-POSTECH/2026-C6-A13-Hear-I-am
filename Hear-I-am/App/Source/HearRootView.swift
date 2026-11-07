@@ -86,11 +86,11 @@ struct HearRootView: View {
     private var helperTabs: some View {
         TabView(selection:$tab) {
             HelperScanHomeView(library:library,startNow:$scanRequested) {id in selectedPerformanceID=id;tab=1}
-                .tabItem {Label("스캔",systemImage:"camera")}.tag(0)
+                .tabItem {HelperTab.label("스캔",systemImage:"viewfinder")}.tag(0)
             PerformanceLibraryView(library:library,selectedPerformanceID:$selectedPerformanceID) {stageID in
                 open(VoiceGuidanceLaunch(stageID:stageID,mode:.performance,helperPreparation:true))
-            }.tabItem {Label("공연 관리",systemImage:"folder")}.tag(1)
-            GuidanceRecordsView(library:library).tabItem {Label("기록",systemImage:"clock")}.tag(2)
+            }.tabItem {HelperTab.label("공연 관리",systemImage:"folder")}.tag(1)
+            GuidanceRecordsView(library:library).tabItem {HelperTab.label("기록",systemImage:"clock")}.tag(2)
         }.tint(HearV3.text).preferredColorScheme(.dark)
             .environment(\.hearChangeRole,chooseRole)
     }
@@ -109,6 +109,14 @@ struct HearRootView: View {
     private func syncWake() {
         if !showsLaunch,role == .performer,scenePhase == .active,guidance == nil,gate.open {wake.start()}
         else {wake.stop()}
+    }
+}
+
+/// The helper's tab bar items (Figma 971:24154): outline symbols in every state. The system tab bar would
+/// switch a selected item to its filled symbol; the design keeps the outline and marks the selection with the bar's own highlight.
+enum HelperTab {
+    static func label(_ title:String,systemImage:String) -> some View {
+        Label(title,systemImage:systemImage).environment(\.symbolVariants,.none)
     }
 }
 

@@ -24,9 +24,28 @@ struct PerformanceScenesPreviewHarness: View {
     }
     @ViewBuilder private var screen: some View {
         switch mode {
-        case "scan-before": ScanPreparationFlow(library: library) { _ in }
+        case "scan-before": NavigationStack { ScanPreparationFlow(library: library) { _ in } }
         case "scan-after":
             if let savedID { StageClassificationView(library: library, scanIDs: [savedID], wasJustSaved: true) { _ in } }
+        case "settings": SettingsPushPreview { HomeSettingsView() }
+        case "settings-wear": SettingsPushPreview { V3UsageHelpView() }
+        case "settings-voice": SettingsPushPreview { V3VoiceHelpView() }
+        case "settings-permission": SettingsPushPreview { V3PermissionView() }
+        case "settings-tutorial": SettingsPushPreview { SoundTestView() }
+        case "settings-lesson": SettingsPushPreview { SignalLessonView(step: .direction) }
+        case "guide-panel", "guide-panel-folded":
+            ScanLandscapePreview { GuidePanelPreview(folded: mode == "guide-panel-folded") }
+        case let mode where mode.hasPrefix("intro-"):
+            // 「intro-<step>-<page>」: one how-to card over grey, turned to landscape.
+            let parts = mode.split(separator: "-").compactMap { Int($0) }
+            ScanLandscapePreview { PreparationIntro(step: parts.first ?? 1, page: parts.last ?? 0) { _ in } }
+        case "scan-screen": PreparationView(library: library)
+        case "scan-home": HelperScanHomeView(library: library, startNow: .constant(false)) { _ in }
+        // As when the performer asks for a scan by voice: the scan tab opens straight onto the information page.
+        case "scan-home-voice": HelperScanHomeView(library: library, startNow: .constant(true)) { _ in }
+        case "scan-pick-performance": NavigationStack { PerformanceChoiceSheet(library: library, selection: performanceID) { _ in } }
+        case "scan-pick-venue":
+            if let performanceID { NavigationStack { VenueChoiceSheet(library: library, performanceID: performanceID, selection: venueID) { _ in } } }
         case "create": PerformanceEditorSheet(library: library) { _ in }
         case "editor":
             if let performanceID { ReferenceSceneEditorView(library: library, performanceID: performanceID) }
@@ -36,9 +55,9 @@ struct PerformanceScenesPreviewHarness: View {
             if let performanceID { NavigationStack { PerformanceDetailView(library: library, performanceID: performanceID, onStartGuidance: { _ in }) } }
         default:
             TabView(selection: .constant(1)) {
-                Text("스캔").tabItem { Label("스캔", systemImage: "viewfinder") }.tag(0)
-                PerformanceLibraryView(library: library, selectedPerformanceID: .constant(nil), onStartGuidance: { _ in }).tabItem { Label("공연 관리", systemImage: "folder") }.tag(1)
-                Text("기록").tabItem { Label("기록", systemImage: "clock") }.tag(2)
+                Text("스캔").tabItem { HelperTab.label("스캔", systemImage: "viewfinder") }.tag(0)
+                PerformanceLibraryView(library: library, selectedPerformanceID: .constant(nil), onStartGuidance: { _ in }).tabItem { HelperTab.label("공연 관리", systemImage: "folder") }.tag(1)
+                Text("기록").tabItem { HelperTab.label("기록", systemImage: "clock") }.tag(2)
             }
         }
     }
@@ -76,4 +95,45 @@ struct PerformanceScenesPreviewHarness: View {
     }
 }
 
+#endif
+
+#if DEBUG
+/// Draws a landscape scan overlay inside the portrait simulator, turned a quarter, at the 874×402 design size.
+private struct ScanLandscapePreview<Content: View>: View {
+    @ViewBuilder let content: Content
+    var body: some View {
+        ZStack { Color(white: 0.55); content }
+            .frame(width: 874, height: 402).clipShape(RoundedRectangle(cornerRadius: 34))
+            .rotationEffect(.degrees(90)).frame(maxWidth: .infinity, maxHeight: .infinity).background(.black).ignoresSafeArea()
+    }
+}
+#endif
+
+#if DEBUG
+/// The scan screen's right panel and bottom tools on the boundary step, as placed in PreparationView.
+private struct GuidePanelPreview: View {
+    let folded: Bool
+    @StateObject private var model = PreparationViewModel()
+    var body: some View {
+        ZStack {
+            PreparationToolGroup(model: model).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom).padding(.bottom, 14)
+            PreparationGuideCard(model: model, maxHeight: 252)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
+                .padding(.trailing, -PreparationGuideCard.bleed).padding(.top, 70).padding(.bottom, 80)
+            Rectangle().fill(.red).frame(width: 1).frame(maxHeight: .infinity)
+        }.onAppear { model.step = .boundary; model.guideCollapsed = folded }
+    }
+}
+#endif
+
+#if DEBUG
+/// Settings as it is reached from the role page: pushed onto a stack, with the back button.
+private struct SettingsPushPreview<Page: View>: View {
+    @ViewBuilder let page: Page
+    @State private var pushed = false
+    var body: some View {
+        NavigationStack { Color.black.navigationDestination(isPresented: $pushed) { page } }
+            .task { try? await Task.sleep(for: .seconds(0.5)); pushed = true }
+    }
+}
 #endif

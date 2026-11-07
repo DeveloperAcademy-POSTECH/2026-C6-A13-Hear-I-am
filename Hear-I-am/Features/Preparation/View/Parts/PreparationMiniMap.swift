@@ -20,7 +20,7 @@ struct PreparationMiniMap: View {
                      activeCorner:boundary ? model.nextCorner : nil,
                      selectedObject:selectedObject,selectedPoint:selectedPoint,
                      aim:placing ? area.flatMap {a in model.session.aimPoint.map(a.floor)} : nil,aimBlocked:model.aimBlocked,
-                     reference:model.visiblePlanReference)
+                     reference:model.visiblePlanReference,tight:style != .review)
     }
 }
 
@@ -56,6 +56,8 @@ struct ScanStageMap: View {
     var reference: StagePlanReference?
     /// The intro cards after the boundary step show the corners already fixed, in grey (452:12291 · 11746).
     var dimCorners=false
+    /// Narrower margins, for the side panel where the stage should fill the space (Figma 971:15599).
+    var tight=false
 
     static let green=Color(red:48/255,green:209/255,blue:88/255)
     static let mint=Color(red:0,green:200/255,blue:179/255)
@@ -70,9 +72,10 @@ struct ScanStageMap: View {
         GeometryReader { geometry in
             let all=points+(reference?.points ?? [])
             let xs=all.map(\.x), ys=all.map(\.y)
-            let b=(min(-width*0.1,(xs.min() ?? 0)-0.4),max(width*1.1,(xs.max() ?? width)+0.4),min(-depth*0.12,(ys.min() ?? 0)-0.4),max(depth*1.12,(ys.max() ?? depth)+0.4))
+            let m=tight ? 0.06 : 0.1, n=tight ? 0.06 : 0.12
+            let b=(min(-width*m,(xs.min() ?? 0)-0.4),max(width*(1+m),(xs.max() ?? width)+0.4),min(-depth*n,(ys.min() ?? 0)-0.4),max(depth*(1+n),(ys.max() ?? depth)+0.4))
             let labelRoom: CGFloat = showsLabel ? 22 : 0
-            let inset: CGFloat = 8
+            let inset: CGFloat = tight ? 4 : 8
             let scale=min((geometry.size.width-inset*2)/(b.1-b.0),(geometry.size.height-inset*2-labelRoom)/(b.3-b.2))
             let ox=(geometry.size.width-(b.1-b.0)*scale)/2
             let oy=(geometry.size.height-labelRoom-(b.3-b.2)*scale)/2
