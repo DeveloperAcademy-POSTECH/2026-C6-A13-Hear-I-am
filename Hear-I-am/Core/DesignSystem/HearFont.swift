@@ -6,7 +6,7 @@ import SwiftUI
 /// launch instead of through Info.plist, because the Info.plist is generated from build settings.
 enum HearFont {
     enum Pretendard: String {
-        case medium="Pretendard-Medium", semibold="Pretendard-SemiBold", bold="Pretendard-Bold"
+        case regular="Pretendard-Regular", medium="Pretendard-Medium", semibold="Pretendard-SemiBold", bold="Pretendard-Bold"
     }
     static let suitExtraLight="SUIT-ExtraLight"
 

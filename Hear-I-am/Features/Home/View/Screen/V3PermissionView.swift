@@ -3,71 +3,44 @@ import AVFoundation
 import Speech
 import CoreMotion
 
+/// 「권한 상태」 (Figma 971:23466): each permission with its state and use, then 「iPhone 설정 열기」, which
+/// opens this app's page in the Settings app (971:23465).
 struct V3PermissionView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.openURL) private var openURL
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @ScaledMetric(relativeTo: .title2) private var headingSize: CGFloat = 22
     @State private var permissions = AppPermission.readCurrent()
+    private let title = "권한 상태"
+    private let note = "마이크 권한이 없어도 조력자의 공연 관리와 버튼 조작은 사용할 수 있어요."
+    private var sections: [SettingsInfo] {
+        [SettingsInfo(title: "필요한 권한을 확인해요", rows: permissions.map {
+            .init(icon: $0.icon, text: "\($0.title) · \($0.status)", detail: $0.detail)
+        })]
+    }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                Text("사용 중인 권한을 확인해요")
-                    .font(.system(size: headingSize, weight: .bold))
-                    .foregroundStyle(.white)
+        SettingsInfoPage(sections: sections) {
+            VStack(alignment: .leading, spacing: 8) {
+                Button(action: openAppSettings) {
+                    SettingsPlainCapsuleLabel(title: "iPhone 설정 열기")
+                }
+                .buttonStyle(.plain)
+                .readAloudTarget("아이폰 설정 열기 버튼")
+                .accessibilityHint("설정 앱에서 Hear I am의 접근 권한을 확인하고 변경해요")
+                .accessibilityIdentifier("settings.permissions.openSettings")
+                Text(note)
+                    .font(.system(size: 13))
+                    .foregroundStyle(.white.opacity(0.85))
                     .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityAddTraits(.isHeader)
-
-                SettingsGroup {
-                    ForEach(Array(permissions.enumerated()), id: \.element.id) { index, permission in
-                        permissionRow(permission)
-                        if index < permissions.count - 1 {
-                            SettingsDivider()
-                        }
-                    }
-                }
-
-                VStack(alignment: .leading, spacing: 16) {
-                    Text("권한은 iPhone 설정에서 변경할 수 있어요.")
-                        .font(.subheadline)
-                        .foregroundStyle(SettingsStyle.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    Button(action: openAppSettings) {
-                        Text("iPhone 설정 열기")
-                            .font(.body.weight(.semibold))
-                            .foregroundStyle(SettingsStyle.darkText)
-                            .multilineTextAlignment(.center)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .padding(.horizontal, 20)
-                            .padding(.vertical, 14)
-                            .frame(maxWidth: .infinity, minHeight: SettingsStyle.buttonHeight)
-                            .background(.white, in: Capsule())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityHint("설정 앱에서 Hear I am의 접근 권한을 확인하고 변경해요")
-                    .accessibilityIdentifier("settings.permissions.openSettings")
-
-                    Text("마이크와 음성 인식은 말로 요청할 때 사용해요.")
-                        .font(.footnote)
-                        .foregroundStyle(SettingsStyle.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+                    .readAloudTarget(note)
+                    .padding(.horizontal, 16)
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 24)
-            .padding(.bottom, 32)
+            .padding(.top, 8)
         }
-        .navigationTitle("앱 접근 권한")
+        .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
         .settingsScreen()
-        .readsAloud {
-            ["앱 접근 권한", "사용 중인 권한을 확인해요"]
-            + permissions.map { "\($0.title), \($0.status). \($0.detail)." }
-            + ["권한은 아이폰 설정에서 변경할 수 있어요.",
-               "아이폰 설정 열기 버튼",
-               "마이크와 음성 인식은 말로 요청할 때 사용해요."]
+        .readsAloud(title: title) {
+            [title] + SettingsInfo.lines(sections) + ["아이폰 설정 열기 버튼", note]
         }
         .onAppear(perform: refreshPermissions)
         .onChange(of: scenePhase) { _, phase in
@@ -77,44 +50,11 @@ struct V3PermissionView: View {
         }
     }
 
-    private func permissionRow(_ permission: AppPermission) -> some View {
-        HStack(alignment: .center, spacing: 12) {
-            VStack(alignment: .leading, spacing: 5) {
-                Text(permission.title)
-                    .font(.body)
-                    .foregroundStyle(.white)
-                Text(permission.detail)
-                    .font(.footnote)
-                    .foregroundStyle(SettingsStyle.secondary)
-                if dynamicTypeSize.isAccessibilitySize {
-                    Text(permission.status)
-                        .font(.body)
-                        .foregroundStyle(SettingsStyle.secondary)
-                }
-            }
-            .fixedSize(horizontal: false, vertical: true)
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            if !dynamicTypeSize.isAccessibilitySize {
-                Text(permission.status)
-                    .font(.body)
-                    .foregroundStyle(SettingsStyle.secondary)
-                    .fixedSize(horizontal: true, vertical: false)
-            }
-        }
-        .padding(.horizontal, SettingsStyle.rowInset)
-        .padding(.vertical, 18)
-        .frame(maxWidth: .infinity, minHeight: 82, alignment: .leading)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(permission.title), \(permission.detail)")
-        .accessibilityValue(permission.status)
-        .accessibilityIdentifier("settings.permissions.\(permission.id)")
-    }
-
     private func refreshPermissions() {
         permissions = AppPermission.readCurrent()
     }
 
+    /// The app's own page in the Settings app, where each permission can be turned on or off.
     private func openAppSettings() {
         guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
         openURL(url)
@@ -123,6 +63,7 @@ struct V3PermissionView: View {
 
 private struct AppPermission: Identifiable {
     let id: String
+    let icon: String
     let title: String
     let detail: String
     let status: String
@@ -130,17 +71,17 @@ private struct AppPermission: Identifiable {
     // Reading authorization statuses does not present system permission requests.
     static func readCurrent() -> [AppPermission] {
         [
-            AppPermission(id: "camera", title: "카메라",
-                          detail: "무대 스캔과 위치 확인",
+            AppPermission(id: "camera", icon: "camera", title: "카메라",
+                          detail: "저장한 무대와 현재 공간을 맞춰요.",
                           status: captureStatus(AVCaptureDevice.authorizationStatus(for: .video))),
-            AppPermission(id: "microphone", title: "마이크",
-                          detail: "음성 요청 듣기",
+            AppPermission(id: "microphone", icon: "mic", title: "마이크",
+                          detail: "호출어와 요청을 들어요.",
                           status: captureStatus(AVCaptureDevice.authorizationStatus(for: .audio))),
-            AppPermission(id: "speech", title: "음성 인식",
-                          detail: "말한 내용을 명령으로 이해하기",
+            AppPermission(id: "speech", icon: "waveform", title: "음성 인식",
+                          detail: "기기의 음성 인식으로 한국어 요청을 처리해요.",
                           status: speechStatus),
-            AppPermission(id: "motion", title: "동작 및 피트니스",
-                          detail: "기기의 움직임 확인",
+            AppPermission(id: "motion", icon: "figure.walk", title: "움직임",
+                          detail: "방향 찾기 연습에서 기기의 움직임을 사용해요.",
                           status: motionStatus)
         ]
     }
