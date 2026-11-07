@@ -53,6 +53,8 @@ struct HearTopBar<Leading: View, Trailing: View>: View {
     let title: String?
     /// A control in the title's place, such as the scene picker on a space page.
     var center: AnyView?=nil
+    /// On a sheet the row sits 25pt under the sheet's top edge, below the grabber, on the sheet's own glass.
+    var sheet=false
     let leading: Leading
     let trailing: Trailing
     var body: some View {
@@ -68,9 +70,11 @@ struct HearTopBar<Leading: View, Trailing: View>: View {
                         .readAloudTarget(title).padding(.horizontal,60).accessibilityAddTraits(.isHeader)
                 }
             }
-            .padding(.horizontal,18).padding(.top,14).padding(.bottom,8)
+            .padding(.horizontal,18).padding(.top,sheet ? 25 : 14).padding(.bottom,8)
             // Content scrolling up fades out under the buttons, as it did under the system bar.
-            .background(LinearGradient(colors:[.black,.black.opacity(0)],startPoint:.top,endPoint:.bottom).ignoresSafeArea(edges:.top))
+            .background {
+                if !sheet {LinearGradient(colors:[.black,.black.opacity(0)],startPoint:.top,endPoint:.bottom).ignoresSafeArea(edges:.top)}
+            }
     }
 }
 
@@ -101,15 +105,41 @@ struct HearBackButton: View {
 
 extension View {
     /// Puts `HearTopBar` over the page in place of the navigation bar.
-    func hearTopBar<Leading: View, Trailing: View>(_ title: String?, @ViewBuilder leading: () -> Leading,
+    func hearTopBar<Leading: View, Trailing: View>(_ title: String?, sheet: Bool=false, @ViewBuilder leading: () -> Leading,
                                                     @ViewBuilder trailing: () -> Trailing) -> some View {
         toolbar(.hidden,for:.navigationBar)
-            .safeAreaInset(edge:.top,spacing:0) {HearTopBar(title:title,leading:leading(),trailing:trailing())}
+            .safeAreaInset(edge:.top,spacing:0) {HearTopBar(title:title,sheet:sheet,leading:leading(),trailing:trailing())}
+    }
+    /// Lets a navigation stack inside a sheet show the sheet's own surface (iOS 18 and later).
+    @ViewBuilder func clearNavigationBackground() -> some View {
+        if #available(iOS 18, *) {containerBackground(.clear,for:.navigation)} else {self}
+    }
+    /// A page shown as a sheet (Figma 971:32062): it must read as a layer over the page, not as another page. The
+    /// sheet keeps its 42pt corners, grabber and a lit rim on the dark glass, and its content paints no background.
+    func hearSheet(_ detents: Set<PresentationDetent> = [.large]) -> some View {
+        foregroundStyle(HearV3.text).tint(HearV3.text).scrollContentBackground(.hidden)
+            .clearNavigationBackground()
+            .presentationDetents(detents).presentationDragIndicator(.visible)
+            .presentationCornerRadius(42).presentationBackground {HearSheetBackground()}
+            .preferredColorScheme(.dark)
     }
     /// The same row with a control in the middle instead of a title.
     func hearTopBar<Center: View, Leading: View, Trailing: View>(@ViewBuilder center: () -> Center, @ViewBuilder leading: () -> Leading,
                                                                   @ViewBuilder trailing: () -> Trailing) -> some View {
         toolbar(.hidden,for:.navigationBar)
             .safeAreaInset(edge:.top,spacing:0) {HearTopBar(title:nil,center:AnyView(center()),leading:leading(),trailing:trailing())}
+    }
+}
+
+/// The sheet surface: near-black glass a step lighter than the page, brightening toward the lower right, with the
+/// light catching its top-left rim.
+struct HearSheetBackground: View {
+    var body: some View {
+        LinearGradient(colors:[Color(white:0.075),Color(white:0.13)],startPoint:.topLeading,endPoint:.bottomTrailing)
+            .overlay {
+                RoundedRectangle(cornerRadius:42,style:.continuous)
+                    .strokeBorder(LinearGradient(colors:[.white.opacity(0.32),.white.opacity(0.05),.white.opacity(0.12)],
+                                                 startPoint:.topLeading,endPoint:.bottomTrailing),lineWidth:1)
+            }.ignoresSafeArea()
     }
 }
