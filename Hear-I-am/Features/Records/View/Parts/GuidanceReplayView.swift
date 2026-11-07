@@ -14,7 +14,7 @@ struct GuidanceReplayView: View {
     @State private var scrubStart=0.0
     @State private var trackWidth: CGFloat=0
     @GestureState private var dragging=false
-    private static let barSpring=Animation.spring(duration:0.35,bounce:0.25)
+    private static let barSpring=Animation.spring(duration:0.42,bounce:0.18)
     let sceneChip: AnyView
     let onDelete: (() -> Void)?
     private let timer=Timer.publish(every:1.0/60,on:.main,in:.common).autoconnect()
@@ -29,9 +29,13 @@ struct GuidanceReplayView: View {
                 .accessibilityLabel("저장된 경로와 실제로 걸은 길을 다시 보는 3D 화면. 한 손가락으로 돌리고 두 손가락으로 옮기거나 확대해요.")
         }
         .overlay(alignment:.bottom) {
-            HStack(spacing:8) {
-                timeline
-                speakerButton
+            glassGroup {
+                HStack(alignment:.bottom,spacing:8) {
+                    timeline
+                    if !scrubbing {
+                        speakerButton.transition(.scale(scale:0.2,anchor:.leading).combined(with:.opacity))
+                    }
+                }
             }.padding(.horizontal,16)
         }
         .hearTopBar(center:{sceneChip}) {HearBackButton()} trailing: {moreMenu}
@@ -55,31 +59,35 @@ struct GuidanceReplayView: View {
 
     // MARK: Bottom bar
 
-    /// The Photos video bar (Figma 971:31085 · 971:31135): play/pause and a thin track in one glass capsule. Nothing
-    /// moves sideways under the finger: touching the track only thickens it in place with a spring and fades the
-    /// elapsed and remaining time in above its two ends. Dragging moves the play head by exactly how far the finger
-    /// went, from where it was, and stops anywhere; passing an arrival dot gives a light tick in the hand.
+    /// The Photos video bar (Figma 971:31085 · 971:31135): play/pause and a thin track in one glass capsule. Touching
+    /// the track runs one spring: the play button shrinks away, the bar stretches over the speaker's place as the
+    /// speaker shrinks out, grows a little taller, the track thickens and the elapsed and remaining time rise in
+    /// above it. Letting go runs it back. Dragging moves the play head by how far the finger went, from where it
+    /// was, and stops anywhere; passing an arrival dot gives a light tick in the hand.
     private var timeline: some View {
-        HStack(spacing:10) {
-            Button {
-                if player.isPlaying {player.pause();speech.stop()} else {player.play()}
-            } label: {
-                Image(systemName:player.isPlaying ? "pause.fill" : "play.fill").font(.system(size:17,weight:.semibold))
-                    .foregroundStyle(.white).contentTransition(.symbolEffect(.replace))
-                    .frame(width:44,height:44).contentShape(Rectangle())
-            }.buttonStyle(.plain).disabled(player.replay.duration<=0)
-                .accessibilityLabel(player.isPlaying ? "일시정지" : "재생")
-            track
-                .overlay(alignment:.center) {
+        HStack(spacing:12) {
+            if !scrubbing {
+                Button {
+                    if player.isPlaying {player.pause();speech.stop()} else {player.play()}
+                } label: {
+                    Image(systemName:player.isPlaying ? "pause.fill" : "play.fill").font(.system(size:17,weight:.semibold))
+                        .foregroundStyle(.white).contentTransition(.symbolEffect(.replace))
+                        .frame(width:44,height:44).contentShape(Rectangle())
+                }.buttonStyle(.plain).disabled(player.replay.duration<=0)
+                    .accessibilityLabel(player.isPlaying ? "일시정지" : "재생")
+                    .transition(.scale(scale:0.2,anchor:.leading).combined(with:.opacity))
+            }
+            VStack(spacing:7) {
+                if scrubbing {
                     HStack {
                         Text(Self.clock(player.time))
                         Spacer()
                         Text("−"+Self.clock(player.replay.duration-player.time))
                     }.font(.system(size:11)).monospacedDigit().foregroundStyle(Color(red:235/255,green:235/255,blue:245/255).opacity(0.7))
-                        .offset(y:scrubbing ? -14 : -10).opacity(scrubbing ? 1 : 0)
-                        .allowsHitTesting(false).accessibilityHidden(true)
+                        .transition(.opacity.combined(with:.offset(y:6)))
                 }
-                .frame(maxWidth:.infinity,maxHeight:.infinity).contentShape(Rectangle())
+                track
+            }.frame(maxWidth:.infinity,maxHeight:.infinity).contentShape(Rectangle())
                 .gesture(DragGesture(minimumDistance:0)
                     .updating($dragging) {_,state,_ in state=true}
                     .onChanged {value in
@@ -106,27 +114,36 @@ struct GuidanceReplayView: View {
                     @unknown default: break
                     }
                 }
-        }.padding(.leading,8).padding(.trailing,16).frame(height:50)
-            // Not interactive: interactive glass swells under a touch, which pushed the bar into the speaker.
+        }.padding(.leading,scrubbing ? 24 : 10).padding(.trailing,scrubbing ? 24 : 22)
+            .frame(height:scrubbing ? 64 : 50)
+            // Not interactive: interactive glass swells under a touch on its own, out of step with this spring.
             .liquidGlass(Capsule(),tint:.white.opacity(0.05),interactive:false)
     }
     /// The played part in white over the whole length at 18%, with a dot under it at every arrival (971:31743):
-    /// bright once passed, dim ahead. The track grows from its middle, so its centre line never moves.
+    /// bright once passed, dim ahead. Nothing is filled at the start. The dots take part in the layout, so the
+    /// track and its dots sit centred in the capsule together.
     private var track: some View {
         let duration=max(player.replay.duration,0.001)
         let height: CGFloat=scrubbing ? 8 : 4
+        let played=trackWidth*min(1,max(0,player.time/duration))
         return ZStack(alignment:.leading) {
             Capsule().fill(.white.opacity(scrubbing ? 0.24 : 0.18))
-            Capsule().fill(.white.opacity(0.9)).frame(width:max(height,trackWidth*min(1,player.time/duration)))
+            Capsule().fill(.white.opacity(0.9)).frame(width:played).opacity(played>0.5 ? 1 : 0)
                 .transaction {$0.animation=scrubbing ? $0.animation : nil}
-        }.frame(height:height).frame(height:8)
+        }.frame(height:height)
             .onGeometryChange(for:CGFloat.self) {$0.size.width} action: {trackWidth=$0}
-            .overlay(alignment:.topLeading) {
+            .overlay(alignment:.bottomLeading) {
                 ForEach(tickTimes,id:\.self) {time in
-                    Circle().fill(.white.opacity(time<=player.time ? 0.8 : 0.35)).frame(width:4,height:4)
-                        .offset(x:trackWidth*time/duration-2,y:14)
+                    Circle().fill(.white.opacity(time<=player.time && player.time>0 ? 0.8 : 0.35)).frame(width:4,height:4)
+                        .offset(x:trackWidth*time/duration-2,y:9)
                 }
             }
+            .padding(.bottom,9)
+    }
+    /// On iOS 26 the bar and the speaker share one glass container. Resting 8 pt apart they stay two shapes; the
+    /// shrinking speaker comes within 4 pt and melts into the stretching bar, and drips back out on release.
+    @ViewBuilder private func glassGroup(@ViewBuilder _ content: () -> some View) -> some View {
+        if #available(iOS 26, *) {GlassEffectContainer(spacing:4) {content()}} else {content()}
     }
     /// How many arrival dots the play head has passed; a change while scrubbing ticks the haptic.
     private var passedTicks: Int {tickTimes.filter {$0<=player.time}.count}
