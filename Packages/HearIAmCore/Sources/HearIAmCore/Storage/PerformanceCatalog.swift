@@ -85,6 +85,17 @@ public struct PerformanceAssignment: Codable, Equatable, Sendable {
     }
 }
 
+/// IDs retained across source-file cleanup retries. No scan contents are stored here.
+public struct LegacyPlaceSynchronization: Codable, Equatable, Sendable {
+    public var id: UUID = UUID()
+    public var revision: UInt64 = 0
+    public var managedPlaceIDs: Set<UUID> = []
+    public var managedScanIDs: Set<UUID> = []
+    public var renamedPlaceNames: [UUID: String] = [:]
+    public var venuePlaceIDs: [UUID: Set<UUID>] = [:]
+    public init() {}
+}
+
 /// Classification only. Deleting folders or tags never deletes a scan, map, plan or record.
 public struct PerformanceCatalog: Codable, Equatable, Sendable {
     public var version = 1
@@ -93,6 +104,8 @@ public struct PerformanceCatalog: Codable, Equatable, Sendable {
     public var assignments: [UUID: PerformanceAssignment] = [:]
     /// Preserve addresses, photos, empty subfolders and favorites that do not fit the new hierarchy.
     public var legacyPlaces: PlaceFolderIndex?
+    /// Optional for catalogs saved before #137; initialized before the next metadata transaction.
+    public var legacySynchronization: LegacyPlaceSynchronization?
     public init() {}
     public func folder(for scanID: UUID) -> PerformanceFolder? {
         guard let assignment=assignments[scanID] else {return nil}
@@ -125,7 +138,82 @@ public struct PerformanceCatalog: Codable, Equatable, Sendable {
             }
         }
         try legacyPlaces?.validate()
+        if let synchronization=legacySynchronization {
+            guard let legacyPlaces,
+                  Set(legacyPlaces.places.map(\.id)).isSubset(of:synchronization.managedPlaceIDs),
+                  Set(legacyPlaces.assignments.keys).union(legacyPlaces.favoriteScans).isSubset(of:synchronization.managedScanIDs),
+                  synchronization.venuePlaceIDs.values.allSatisfy({$0.isSubset(of:synchronization.managedPlaceIDs)}),
+                  Set(synchronization.renamedPlaceNames.keys).isSubset(of:synchronization.managedPlaceIDs) else {
+                throw LabError.invalid("이전 장소 자료의 정리 상태를 확인해주세요.")
+            }
+        }
     }
+    /// Preserve every imported ID, including empty places. Only explicit operations retire a place.
+    mutating func prepareLegacySynchronization() {
+        guard let places=legacyPlaces else {return}
+        if legacySynchronization == nil {
+            var state=LegacyPlaceSynchronization()
+            // Reimporting an archive after the catalog was removed must advance its existing
+            // synchronization stream, not create an incompatible second identity.
+            if let id=places.performanceSynchronizationID {
+                state.id=id;state.revision=places.performanceSynchronizationRevision ?? 0
+            }
+            state.managedPlaceIDs=Set(places.places.map(\.id))
+            state.managedScanIDs=Set(places.assignments.keys).union(places.favoriteScans)
+            for scanID in assignments.keys {
+                if let venue=venue(for:scanID), let placeID=places.destination(for:scanID)?.placeID,
+                   let place=places.places.first(where:{$0.id==placeID}),
+                   PlaceSearch.normalized(venue.name)==PlaceSearch.normalized(place.name) {
+                    state.venuePlaceIDs[venue.id,default:[]].insert(placeID)
+                }
+            }
+            legacySynchronization=state
+        }
+    }
+
+    mutating func detachLegacyAssignments(_ scanIDs: Set<UUID>, deletingScans: Bool = false) {
+        prepareLegacySynchronization()
+        for id in scanIDs {
+            assignments[id]?.legacyPath=[]
+            legacyPlaces?.assignments.removeValue(forKey:id)
+            if deletingScans {legacyPlaces?.favoriteScans.remove(id)}
+        }
+    }
+
+    /// Deleting a classification does not delete archived place data or photographs.
+    mutating func retireLegacyVenues(_ venueIDs: Set<UUID>) {
+        prepareLegacySynchronization()
+        for id in venueIDs {legacySynchronization?.venuePlaceIDs.removeValue(forKey:id)}
+    }
+
+    mutating func renameLegacyVenue(_ venueID: UUID, in performanceID: UUID, to name: String) {
+        prepareLegacySynchronization()
+        guard var state=legacySynchronization, var places=legacyPlaces else {
+            for id in assignments.keys where assignments[id]?.performanceID==performanceID && assignments[id]?.venueID==venueID {
+                assignments[id]?.legacyPath=[]
+            }
+            return
+        }
+        let scanIDs=Set(assignments.keys.filter {assignments[$0]?.performanceID==performanceID && assignments[$0]?.venueID==venueID})
+        let linked=state.venuePlaceIDs[venueID] ?? []
+        let otherOwners=state.venuePlaceIDs.filter {$0.key != venueID}.values.reduce(into:Set<UUID>()) {$0.formUnion($1)}
+            .union(places.assignments.filter {!scanIDs.contains($0.key)}.values.map(\.placeID))
+        let shared=linked.intersection(otherOwners)
+        // Renaming one V3 space must not rename a source still used by another performance.
+        for i in places.places.indices where linked.contains(places.places[i].id) && !shared.contains(places.places[i].id) {
+            places.places[i].name=name
+            state.renamedPlaceNames[places.places[i].id]=name
+        }
+        for id in scanIDs {
+            if let placeID=places.assignments[id]?.placeID, shared.contains(placeID) {
+                places.assignments.removeValue(forKey:id)
+            }
+            assignments[id]?.legacyPath=places.destination(for:id)==nil ? [] : places.path(for:id)
+        }
+        state.venuePlaceIDs[venueID]=linked.subtracting(shared)
+        legacyPlaces=places;legacySynchronization=state
+    }
+
     static func validateNames(_ names: [String], label: String) throws {
         guard names.allSatisfy({!$0.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty && $0.count<=80}) else {
             throw LabError.invalid("\(label) 이름은 1~80자로 입력해주세요.")
@@ -165,6 +253,7 @@ public struct PerformanceCatalog: Codable, Equatable, Sendable {
             }
         }
         result.migrationCompleted=true
+        result.prepareLegacySynchronization()
         try result.validate()
         return result
     }
