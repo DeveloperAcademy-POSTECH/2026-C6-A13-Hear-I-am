@@ -219,8 +219,8 @@ final class ReplaySceneController: NSObject {
         cleanRouteNodes.isHidden=raw
         scanPerson.isHidden = !raw
         cleanPerson.isHidden=raw
-        ambient.light?.intensity=immersive && !raw ? 390 : raw ? 650 : 800
-        key.light?.intensity=immersive && !raw ? 780 : raw ? 900 : 650
+        ambient.light?.intensity=immersive && !raw ? 580 : raw ? 650 : 800
+        key.light?.intensity=immersive && !raw ? 900 : raw ? 900 : 650
         key.light?.castsShadow = !raw
         view?.backgroundColor=immersive ? UIColor(red:0.065,green:0.09,blue:0.10,alpha:1) : raw ? UIColor(white:0.10,alpha:1) : ReplaySurfaceFactory.background
         routeNodes.enumerateChildNodes {node,_ in node.geometry?.firstMaterial?.diffuse.contents=UIColor.systemGreen}
@@ -295,8 +295,8 @@ final class ReplaySceneController: NSObject {
         update(root);root.enumerateChildNodes {node,_ in update(node)}
     }
     private func applyImmersiveStyle() {
-        alterMaterials(in:floor) {$0.multiply.contents=UIColor(red:0.55,green:0.65,blue:0.69,alpha:1)}
-        alterMaterials(in:objects) {$0.multiply.contents=UIColor(red:0.56,green:0.68,blue:0.72,alpha:1)}
+        alterMaterials(in:floor) {$0.multiply.contents=UIColor(red:0.78,green:0.84,blue:0.86,alpha:1)}
+        alterMaterials(in:objects) {$0.multiply.contents=UIColor(red:0.74,green:0.83,blue:0.88,alpha:1)}
         // The boundary comes from the saved registered area; no fabricated stage mesh.
         cleanAnnotations.childNodes.dropFirst().forEach {$0.isHidden=true}
         if let boundary=cleanAnnotations.childNodes.first {
@@ -313,12 +313,12 @@ final class ReplaySceneController: NSObject {
         alterMaterials(in:photos) { material in
             material.multiply.contents=UIColor(red:0.55,green:0.93,blue:0.94,alpha:1)
         }
-        key.light?.color=UIColor(red:0.77,green:0.89,blue:0.95,alpha:1)
-        ambient.light?.color=UIColor(red:0.55,green:0.68,blue:0.74,alpha:1)
+        key.light?.color=UIColor(red:0.88,green:0.94,blue:1,alpha:1)
+        ambient.light?.color=UIColor(red:0.72,green:0.82,blue:0.90,alpha:1)
     }
     private func tintImmersiveSurroundings() {
         alterMaterials(in:surroundings) { material in
-            material.multiply.contents=UIColor(red:0.36,green:0.48,blue:0.55,alpha:1)
+            material.multiply.contents=UIColor(red:0.50,green:0.62,blue:0.70,alpha:1)
         }
     }
     private func startProjectionUpdates() {
