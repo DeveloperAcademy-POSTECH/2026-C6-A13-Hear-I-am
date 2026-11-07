@@ -12,7 +12,6 @@ struct ImmersiveSavedStagePreview: View {
     @State private var gallery = false
     @State private var galleryDetent=PresentationDetent.height(200)
     @State private var pointSettings = false
-    @State private var closedPhotoID: UUID?
     /// The route bar: a small capsule at first (971:33671), opened into the full-width bar (971:34370).
     @State private var barExpanded = false
     /// Where an open sheet's top edge is on screen, so the opened bar can ride up on it (971:33834 · 971:34288).
@@ -118,7 +117,6 @@ struct ImmersiveSavedStagePreview: View {
             }
             #endif
         }
-        .onChange(of:model.selectionRevision) {_,_ in closedPhotoID=nil}
         .onChange(of:gallery || pointSettings) {_,open in if !open {withAnimation(Self.barSpring) {sheetTop=nil}}}
         .sheet(isPresented:$gallery) {photoGallery.background(SheetTopReporter {top in withAnimation(Self.barSpring) {sheetTop=top}}).suspendsVoiceWake()}
         .sheet(isPresented:$pointSettings) {pointSettingsSheet.background(SheetTopReporter {top in withAnimation(Self.barSpring) {sheetTop=top}}).suspendsVoiceWake()}
@@ -169,7 +167,7 @@ struct ImmersiveSavedStagePreview: View {
     /// Only a photo pin or gallery selection opens a preview; route points and objects never open one automatically.
     private var shownPhoto: ScanPhoto? {
         guard case .photo = model.selection,model.photoPinsVisible,
-              let photo=model.selectedPhoto,closedPhotoID != photo.id else {return nil}
+              let photo=model.selectedPhoto else {return nil}
         return photo
     }
 
@@ -287,7 +285,7 @@ struct ImmersiveSavedStagePreview: View {
                 .liquidGlass(RoundedRectangle(cornerRadius:24,style:.continuous),tint:.white.opacity(0.05))
         }.buttonStyle(.plain).accessibilityLabel("선택한 사진 크게 보기")
             .overlay(alignment:.topTrailing) {
-                ScanCircleButton(systemImage:"xmark",label:"사진 미리보기 닫기",size:32) {closedPhotoID=photo.id}
+                ScanCircleButton(systemImage:"xmark",label:"사진 미리보기 닫기",size:32) {model.closePhotoPreview()}
                     .offset(x:12,y:-12)
             }
     }

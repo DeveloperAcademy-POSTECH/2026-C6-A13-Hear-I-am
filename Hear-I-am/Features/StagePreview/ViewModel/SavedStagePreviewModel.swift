@@ -87,6 +87,19 @@ final class SavedStagePreviewModel: ObservableObject {
         if case .photo=value {photoPinsVisible=true;photoCardCollapsed=false}
         // Selecting a marker updates its details without moving the user's camera.
     }
+    /// End photo selection as well as the card, so the 3D camera direction disappears without reframing the stage.
+    func closePhotoPreview() {
+        guard !savingHold,case .photo = selection else {return}
+        photoExpanded=false
+        if let points=loaded?.manifest.route?.points,points.indices.contains(activePointIndex) {
+            select(.point(activePointIndex))
+        } else {
+            // Scans without a route have no point to restore.
+            selection=nil
+            selectionRevision+=1
+            photoCardCollapsed=true
+        }
+    }
     var selectedPhoto: ScanPhoto? {
         guard let photos=loaded?.manifest.photos else {return nil}
         switch selection {
