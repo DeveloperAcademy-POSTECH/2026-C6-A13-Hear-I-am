@@ -102,10 +102,92 @@ struct StageReplayPreviewHarness: View {
                 try verifyCameraPresets(loaded,cleanSurfaces:model.cleanSurfaces)
                 try await verifyLegacyAndZeroHeights(loaded)
                 try verifyPhotoComparison(loaded,cleanSurfaces:model.cleanSurfaces)
+                try await verifyImmersiveFocusLighting(loaded,cleanSurfaces:model.cleanSurfaces)
                 try await verifyImmersiveIsolation(loaded,cleanSurfaces:model.cleanSurfaces)
                 print("REPLAY_QA_OK: oak asset, clean surroundings, raw restoration, camera round trips, photo capture, saved route heights, orbit limits, camera reset, clean markers, bundled models, calibrated photos, frustum and first-person comparison")
             }
         } catch {record=nil;self.error=error.localizedDescription;print("REPLAY_QA_FAILED: \(error.localizedDescription)")}
+    }
+    /// A single spotlight follows saved heights without steering the camera or leaking into other viewers.
+    private func verifyImmersiveFocusLighting(_ scan: LoadedScan,cleanSurfaces: [ReplaySurfaceMesh]) async throws {
+        guard let route=scan.manifest.route,let photo=scan.manifest.photos.first,let object=route.obstacles.first else {
+            throw LabError.invalid("조명 검증 자료 누락")
+        }
+        let persistedBefore=try await store.load(scan.manifest.id)
+        let scene=ReplaySceneController(scan:scan,cleanSurfaces:cleanSurfaces,immersive:true)
+        let view=SCNView(frame:CGRect(x:0,y:0,width:402,height:874));view.scene=scene.scene;scene.view=view
+        defer {scene.stopProjectionUpdates()}
+        scene.update(display:.clean,wireframe:false,showPhotos:true,selection:.point(0),cameraMode:.overview,revision:0)
+        guard let focus=scene.focusLighting,focus.node.parent === scene.stage,
+              focus.node.light?.type == .spot,focus.node.light?.castsShadow == false else {
+            throw LabError.invalid("몰입형 지점 조명 구성 검증 실패")
+        }
+        let controls=view.defaultCameraController
+        controls.rotateBy(x:24,y:5);controls.translateInCameraSpaceBy(x:0.3,y:0.2,z:0)
+        let camera=scene.camera.simdTransform,cameraTarget=controls.target,revision=scene.revision
+        func cameraUnchanged() -> Bool {
+            scene.revision==revision && simd_length(SIMD3<Float>(controls.target)-SIMD3<Float>(cameraTarget))<0.0001 &&
+                (0..<4).allSatisfy {simd_length(scene.camera.simdTransform[$0]-camera[$0])<0.0001}
+        }
+        for index in route.points.indices {
+            scene.update(display:.clean,wireframe:false,showPhotos:true,selection:.point(index),cameraMode:.overview,revision:revision)
+            let point=route.points[index],height=route.pointHeights?[index] ?? 0
+            let world=route.area.world(point)
+            let expected=SIMD3<Float>(Float(world.x),Float(world.y+height)+ReplayStageLighting.elevation,Float(world.z))
+            guard scene.focusLighting === focus,focus.target != nil,!focus.node.isHidden,
+                  (focus.node.light?.intensity ?? 0)>0,
+                  simd_length(focus.node.simdWorldPosition-expected)<0.0001,
+                  simd_length(simd_act(focus.node.simdWorldOrientation,SIMD3<Float>(0,0,-1))-SIMD3<Float>(0,-1,0))<0.0001,
+                  focus.node.animationKeys.isEmpty,cameraUnchanged() else {
+                throw LabError.invalid("지점 조명의 저장 높이·좌표·카메라 유지 검증 실패: \(index)")
+            }
+        }
+        for selection: ReplaySelection? in [.photo(photo.id),.object(object.id),nil,.point(-1),.point(route.points.count)] {
+            scene.update(display:.clean,wireframe:false,showPhotos:true,selection:selection,cameraMode:.overview,revision:revision)
+            guard focus.target==nil,focus.node.isHidden,focus.node.light?.intensity==0,
+                  focus.node.animationKeys.isEmpty,cameraUnchanged() else {
+                throw LabError.invalid("사진·기물·유효하지 않은 지점 조명 해제 검증 실패")
+            }
+        }
+        scene.update(display:.scan,wireframe:false,showPhotos:true,selection:.point(1),cameraMode:.overview,revision:revision)
+        guard focus.target==nil,focus.node.isHidden else {throw LabError.invalid("원본 스캔 조명 격리 검증 실패")}
+        scene.update(display:.clean,wireframe:false,showPhotos:true,selection:.point(1),cameraMode:.overview,revision:revision,photoViewpoint:photo)
+        guard focus.target==nil,focus.node.isHidden else {throw LabError.invalid("사진 촬영 시점 조명 격리 검증 실패")}
+        scene.update(display:.clean,wireframe:false,showPhotos:true,selection:.point(1),cameraMode:.overview,revision:revision)
+        guard focus.target != nil,!focus.node.isHidden else {throw LabError.invalid("지점 재선택 조명 복원 검증 실패")}
+        var spots=0
+        scene.scene.rootNode.enumerateChildNodes {node,_ in if node.light?.type == .spot {spots+=1}}
+        guard spots==1 else {throw LabError.invalid("지점 전환 중 조명 중복 생성 검증 실패")}
+
+        // Rapid changes replace the old motion; closing before it ends must not relight a stale point.
+        focus.focus(at:SCNVector3(1,0,0),animated:false)
+        focus.focus(at:SCNVector3(2,0.6,-1),animated:true)
+        focus.focus(at:SCNVector3(3,0,-2),animated:true)
+        let motionValid=UIAccessibility.isReduceMotionEnabled ? focus.node.animationKeys.isEmpty : focus.node.animationKeys.count==1
+        guard motionValid else {throw LabError.invalid("연속 지점 선택 조명 애니메이션 교체 검증 실패")}
+        focus.focus(at:nil,animated:false)
+        guard focus.node.animationKeys.isEmpty,focus.node.isHidden,focus.node.light?.intensity==0 else {
+            throw LabError.invalid("지점 조명 애니메이션 취소 검증 실패")
+        }
+        let ordinary=ReplaySceneController(scan:scan,cleanSurfaces:cleanSurfaces)
+        let ordinaryView=SCNView(frame:view.frame);ordinaryView.scene=ordinary.scene;ordinary.view=ordinaryView
+        ordinary.update(display:.clean,wireframe:false,showPhotos:true,selection:.point(1),cameraMode:.overview,revision:0)
+        guard ordinary.focusLighting==nil,ordinary.ambient.light?.intensity==800,ordinary.key.light?.intensity==650 else {
+            throw LabError.invalid("일반 다시보기 조명 유지 검증 실패")
+        }
+        let manifest=scan.manifest
+        let unplanned=ScanManifest(id:UUID(),name:"경로 없는 조명 검증",frame:manifest.frame,checkpoint:manifest.checkpoint,
+            worldMapHash:manifest.worldMapHash,meshHash:manifest.meshHash,meshCount:manifest.meshCount,vertexCount:manifest.vertexCount,
+            device:manifest.device,appVersion:manifest.appVersion)
+        let noRoute=ReplaySceneController(scan:LoadedScan(manifest:unplanned,worldMap:scan.worldMap,meshes:scan.meshes),cleanSurfaces:[],immersive:true)
+        guard noRoute.focusLighting==nil else {throw LabError.invalid("경로 없는 스캔 조명 격리 검증 실패")}
+        let persistedAfter=try await store.load(scan.manifest.id)
+        guard scene.scan.manifest.route==scan.manifest.route,scene.scan.meshes==scan.meshes,
+              persistedAfter.manifest.route==persistedBefore.manifest.route,persistedAfter.manifest.photos==persistedBefore.manifest.photos,
+              persistedAfter.meshes==persistedBefore.meshes,persistedAfter.worldMap==persistedBefore.worldMap else {
+            throw LabError.invalid("조명 변경 후 저장 스캔 불변 검증 실패")
+        }
+        print("IMMERSIVE_LIGHTING_QA_OK: single spotlight, saved heights, world coordinates, camera preservation, photo/raw isolation, rapid cancellation, stored scan unchanged")
     }
     /// The new scene mode must not mutate globally shared assets or the independently saved route.
     private func verifyImmersiveIsolation(_ scan: LoadedScan,cleanSurfaces: [ReplaySurfaceMesh]) async throws {
