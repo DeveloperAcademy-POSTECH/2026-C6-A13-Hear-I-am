@@ -41,7 +41,8 @@ struct StageReplayPreviewHarness: View {
             guard abs(bounds.min.y)<0.001,abs(bounds.max.y-0.4)<0.001 else {
                 throw LabError.invalid("의자 영역 높이·바닥 기준 검증 실패")
             }
-            let route=try StageRoute(area:area,points:[.init(1,0.3),.init(2.5,1.2),.init(3,2.4),.init(3.6,3.3)],obstacles:[chair,table,platform,stand],pointHeights:[0,0,0,0.6])
+            var route=try StageRoute(area:area,points:[.init(1,0.3),.init(2.5,1.2),.init(3,2.4),.init(3.6,3.3)],obstacles:[chair,table,platform,stand],pointHeights:[0,0,0,0.6])
+            if ProcessInfo.processInfo.arguments.contains("--replay-facing") {try route.setFacing(.north,at:1)}
             let image=UIGraphicsImageRenderer(size:CGSize(width:640,height:360)).image {context in
                 UIColor(white:0.92,alpha:1).setFill();context.fill(CGRect(x:0,y:0,width:640,height:360))
                 ("현장 사진 테스트\n실제 촬영 사진이 아닙니다" as NSString).draw(at:CGPoint(x:65,y:130),
@@ -102,10 +103,177 @@ struct StageReplayPreviewHarness: View {
                 try verifyCameraPresets(loaded,cleanSurfaces:model.cleanSurfaces)
                 try await verifyLegacyAndZeroHeights(loaded)
                 try verifyPhotoComparison(loaded,cleanSurfaces:model.cleanSurfaces)
+                try await verifyImmersiveFocusLighting(loaded,cleanSurfaces:model.cleanSurfaces)
+                try verifyArrivalFacing(loaded)
                 try await verifyImmersiveIsolation(loaded,cleanSurfaces:model.cleanSurfaces)
                 print("REPLAY_QA_OK: oak asset, clean surroundings, raw restoration, camera round trips, photo capture, saved route heights, orbit limits, camera reset, clean markers, bundled models, calibrated photos, frustum and first-person comparison")
             }
         } catch {record=nil;self.error=error.localizedDescription;print("REPLAY_QA_FAILED: \(error.localizedDescription)")}
+    }
+    /// One figure transform moves the spotlight at the same pace, without steering the camera or changing saved data.
+    private func verifyImmersiveFocusLighting(_ scan: LoadedScan,cleanSurfaces: [ReplaySurfaceMesh]) async throws {
+        guard let route=scan.manifest.route,let photo=scan.manifest.photos.first,let object=route.obstacles.first else {
+            throw LabError.invalid("조명 검증 자료 누락")
+        }
+        let persistedBefore=try await store.load(scan.manifest.id)
+        let scene=ReplaySceneController(scan:scan,cleanSurfaces:cleanSurfaces,immersive:true)
+        let view=SCNView(frame:CGRect(x:0,y:0,width:402,height:874));view.scene=scene.scene;scene.view=view
+        defer {scene.stopProjectionUpdates()}
+        scene.update(display:.clean,wireframe:false,showPhotos:true,selection:.point(0),cameraMode:.overview,revision:0)
+        guard let focus=scene.focusLighting,focus.node.parent === scene.person,
+              simd_length(focus.node.simdPosition-SIMD3<Float>(0,ReplayStageLighting.elevation,0))<0.0001,
+              focus.node.light?.type == .spot,focus.node.light?.castsShadow == false else {
+            throw LabError.invalid("몰입형 지점 조명 구성 검증 실패")
+        }
+        let controls=view.defaultCameraController
+        controls.rotateBy(x:24,y:5);controls.translateInCameraSpaceBy(x:0.3,y:0.2,z:0)
+        let camera=scene.camera.simdTransform,cameraTarget=controls.target,revision=scene.revision
+        func cameraUnchanged() -> Bool {
+            scene.revision==revision && simd_length(SIMD3<Float>(controls.target)-SIMD3<Float>(cameraTarget))<0.0001 &&
+                (0..<4).allSatisfy {simd_length(scene.camera.simdTransform[$0]-camera[$0])<0.0001}
+        }
+        for index in route.points.indices {
+            scene.update(display:.clean,wireframe:false,showPhotos:true,selection:.point(index),cameraMode:.overview,revision:revision)
+            let point=route.points[index],height=route.pointHeights?[index] ?? 0
+            let world=route.area.world(point)
+            let expected=SIMD3<Float>(Float(world.x),Float(world.y+height)+ReplayStageLighting.elevation,Float(world.z))
+            guard scene.focusLighting === focus,focus.node.parent === scene.person,!focus.node.isHidden,
+                  (focus.node.light?.intensity ?? 0)>0,
+                  simd_length(focus.node.simdWorldPosition-expected)<0.0001,
+                  simd_length(simd_act(focus.node.simdWorldOrientation,SIMD3<Float>(0,0,-1))-SIMD3<Float>(0,-1,0))<0.0001,
+                  focus.node.animationKeys.isEmpty,scene.person.animationKeys.isEmpty,cameraUnchanged() else {
+                throw LabError.invalid("지점 조명의 저장 높이·좌표·카메라 유지 검증 실패: \(index)")
+            }
+        }
+        for selection: ReplaySelection? in [.photo(photo.id),.object(object.id),nil,.point(-1),.point(route.points.count)] {
+            scene.update(display:.clean,wireframe:false,showPhotos:true,selection:selection,cameraMode:.overview,revision:revision)
+            guard focus.node.isHidden,focus.node.light?.intensity==0,
+                  focus.node.animationKeys.isEmpty,scene.person.animationKeys.isEmpty,cameraUnchanged() else {
+                throw LabError.invalid("사진·기물·유효하지 않은 지점 조명 해제 검증 실패")
+            }
+        }
+        scene.update(display:.scan,wireframe:false,showPhotos:true,selection:.point(1),cameraMode:.overview,revision:revision)
+        guard focus.node.isHidden,scene.person.animationKeys.isEmpty else {throw LabError.invalid("원본 스캔 조명 격리 검증 실패")}
+        scene.update(display:.clean,wireframe:false,showPhotos:true,selection:.point(1),cameraMode:.overview,revision:revision,photoViewpoint:photo)
+        guard focus.node.isHidden,scene.person.animationKeys.isEmpty else {throw LabError.invalid("사진 촬영 시점 조명 격리 검증 실패")}
+        scene.update(display:.clean,wireframe:false,showPhotos:true,selection:.point(1),cameraMode:.overview,revision:revision)
+        guard !focus.node.isHidden else {throw LabError.invalid("지점 재선택 조명 복원 검증 실패")}
+        var spots=0
+        scene.scene.rootNode.enumerateChildNodes {node,_ in if node.light?.type == .spot {spots+=1}}
+        guard spots==1 else {throw LabError.invalid("지점 전환 중 조명 중복 생성 검증 실패")}
+
+        // The figure owns the only animation, so the light cannot lag behind on rapid selections.
+        scene.movePerson(to:0,animated:false)
+        scene.movePerson(to:3,animated:true)
+        scene.movePerson(to:2,animated:true)
+        let motionValid=UIAccessibility.isReduceMotionEnabled ? scene.person.animationKeys.isEmpty : scene.person.animationKeys==["stage-person-move"]
+        guard motionValid,focus.node.parent === scene.person,focus.node.animationKeys.isEmpty,
+              simd_length(focus.node.simdWorldPosition-scene.person.simdWorldPosition-SIMD3<Float>(0,ReplayStageLighting.elevation,0))<0.0001 else {
+            throw LabError.invalid("인물·조명의 단일 이동 애니메이션 교체 검증 실패")
+        }
+        scene.update(display:.clean,wireframe:false,showPhotos:true,selection:.photo(photo.id),cameraMode:.overview,revision:revision)
+        guard scene.person.animationKeys.isEmpty,focus.node.animationKeys.isEmpty,focus.node.isHidden,focus.node.light?.intensity==0 else {
+            throw LabError.invalid("사진 전환 시 인물·조명 이동 해제 검증 실패")
+        }
+        scene.update(display:.clean,wireframe:false,showPhotos:true,selection:.point(1),cameraMode:.overview,revision:revision)
+        guard !focus.node.isHidden,scene.person.animationKeys.isEmpty else {throw LabError.invalid("사진 닫기 후 지점 조명 복원 검증 실패")}
+        scene.movePerson(to:3,animated:true)
+        scene.stopProjectionUpdates()
+        guard scene.person.animationKeys.isEmpty,focus.node.animationKeys.isEmpty,focus.node.isHidden,focus.node.light?.intensity==0 else {
+            throw LabError.invalid("화면 종료 시 인물·조명 이동 해제 검증 실패")
+        }
+        let ordinary=ReplaySceneController(scan:scan,cleanSurfaces:cleanSurfaces)
+        let ordinaryView=SCNView(frame:view.frame);ordinaryView.scene=ordinary.scene;ordinary.view=ordinaryView
+        ordinary.update(display:.clean,wireframe:false,showPhotos:true,selection:.point(1),cameraMode:.overview,revision:0)
+        guard ordinary.focusLighting==nil,ordinary.ambient.light?.intensity==800,ordinary.key.light?.intensity==650 else {
+            throw LabError.invalid("일반 다시보기 조명 유지 검증 실패")
+        }
+        let manifest=scan.manifest
+        let unplanned=ScanManifest(id:UUID(),name:"경로 없는 조명 검증",frame:manifest.frame,checkpoint:manifest.checkpoint,
+            worldMapHash:manifest.worldMapHash,meshHash:manifest.meshHash,meshCount:manifest.meshCount,vertexCount:manifest.vertexCount,
+            device:manifest.device,appVersion:manifest.appVersion)
+        let noRoute=ReplaySceneController(scan:LoadedScan(manifest:unplanned,worldMap:scan.worldMap,meshes:scan.meshes),cleanSurfaces:[],immersive:true)
+        guard noRoute.focusLighting==nil else {throw LabError.invalid("경로 없는 스캔 조명 격리 검증 실패")}
+        let persistedAfter=try await store.load(scan.manifest.id)
+        guard scene.scan.manifest.route==scan.manifest.route,scene.scan.meshes==scan.meshes,
+              persistedAfter.manifest.route==persistedBefore.manifest.route,persistedAfter.manifest.photos==persistedBefore.manifest.photos,
+              persistedAfter.meshes==persistedBefore.meshes,persistedAfter.worldMap==persistedBefore.worldMap else {
+            throw LabError.invalid("조명 변경 후 저장 스캔 불변 검증 실패")
+        }
+        print("IMMERSIVE_LIGHTING_QA_OK: shared figure-light transform, saved heights, world coordinates, camera preservation, photo/raw isolation, rapid replacement and teardown, stored scan unchanged")
+    }
+    /// Saved stage directions are reached after translation, including wrap-around and interrupted moves.
+    private func verifyArrivalFacing(_ scan: LoadedScan) throws {
+        guard let originalRoute=scan.manifest.route,let photo=scan.manifest.photos.first else {throw LabError.invalid("도착 방향 검증 자료 누락")}
+        func yaw(_ node: SCNNode) -> Float {
+            let forward=simd_act(node.simdOrientation,SIMD3<Float>(0,0,1))
+            return atan2(forward.x,forward.z)
+        }
+        func near(_ a: SCNVector3,_ b: SCNVector3) -> Bool {simd_length(SIMD3<Float>(a)-SIMD3<Float>(b))<0.0001}
+        func anglesMatch(_ a: Float,_ b: Float) -> Bool {abs(atan2(sin(a-b),cos(a-b)))<0.0001}
+        for facing in StageFacing.allCases {
+            var route=originalRoute
+            try route.setFacing(facing == .north ? .northWest : .north,at:0)
+            try route.setFacing(facing,at:1)
+            let m=scan.manifest
+            let manifest=ScanManifest(id:UUID(),name:"도착 방향 검증",frame:m.frame,checkpoint:m.checkpoint,
+                worldMapHash:m.worldMapHash,meshHash:m.meshHash,meshCount:m.meshCount,vertexCount:m.vertexCount,
+                device:m.device,appVersion:m.appVersion,route:route,photos:m.photos)
+            let scene=ReplaySceneController(scan:LoadedScan(manifest:manifest,worldMap:scan.worldMap,meshes:scan.meshes),cleanSurfaces:[],immersive:true)
+            defer {scene.stopProjectionUpdates()}
+            scene.update(display:.clean,wireframe:false,showPhotos:true,selection:.point(0),cameraMode:.overview,revision:0)
+            let origin=scene.person.position,originYaw=yaw(scene.person)
+            scene.movePerson(to:1,animated:true)
+            let desired=Float(facing.headingDegrees * .pi/180)
+            guard anglesMatch(yaw(scene.person),desired) else {throw LabError.invalid("저장된 8방위의 인물 방향 검증 실패: \(facing.label)")}
+            if UIAccessibility.isReduceMotionEnabled {
+                guard scene.person.animationKeys.isEmpty else {throw LabError.invalid("동작 줄이기 도착 방향 검증 실패")}
+            } else {
+                guard let player=scene.person.animationPlayer(forKey:"stage-person-move"),
+                      let group=CAAnimation(scnAnimation:player.animation) as? CAAnimationGroup,
+                      let position=group.animations?.compactMap({$0 as? CAKeyframeAnimation}).first(where:{$0.keyPath=="position"}),
+                      let rotation=group.animations?.compactMap({$0 as? CAKeyframeAnimation}).first(where:{$0.keyPath=="eulerAngles"}),
+                      let positions=position.values as? [NSValue],let rotations=rotation.values as? [NSValue],
+                      positions.count==3,rotations.count==3,
+                      position.keyTimes?.map({$0.doubleValue})==[0,2.0/3.0,1],rotation.keyTimes==position.keyTimes,
+                      abs(group.duration-0.75)<0.0001,position.duration==group.duration,rotation.duration==group.duration,
+                      near(positions[0].scnVector3Value,origin),near(positions[1].scnVector3Value,scene.person.position),
+                      near(positions[1].scnVector3Value,positions[2].scnVector3Value),
+                      near(rotations[0].scnVector3Value,rotations[1].scnVector3Value),
+                      anglesMatch(rotations[0].scnVector3Value.y,originYaw),anglesMatch(rotations[2].scnVector3Value.y,desired),
+                      abs(rotations[2].scnVector3Value.y-rotations[0].scnVector3Value.y)<=Float.pi+0.0001 else {
+                    throw LabError.invalid("이동 후 회전의 순서·최단각 검증 실패: \(facing.label)")
+                }
+            }
+            scene.update(display:.clean,wireframe:false,showPhotos:true,selection:.photo(photo.id),cameraMode:.overview,revision:0)
+            guard scene.person.animationKeys.isEmpty,scene.focusLighting?.node.isHidden==true else {
+                throw LabError.invalid("사진 전환 후 지연 회전 취소 검증 실패")
+            }
+            if facing == .east {
+                scene.movePerson(to:1,animated:false);scene.person.eulerAngles.y=0
+                scene.movePerson(to:1,animated:true)
+                if !UIAccessibility.isReduceMotionEnabled {
+                    guard let player=scene.person.animationPlayer(forKey:"stage-person-move"),
+                          let group=CAAnimation(scnAnimation:player.animation) as? CAAnimationGroup,
+                          abs(group.duration-0.25)<0.0001 else {throw LabError.invalid("같은 지점에서 방향만 회전 검증 실패")}
+                }
+                scene.stopProjectionUpdates()
+                guard scene.person.animationKeys.isEmpty else {throw LabError.invalid("화면 종료 후 지연 회전 취소 검증 실패")}
+            }
+        }
+        let legacy=ReplaySceneController(scan:scan,cleanSurfaces:[],immersive:true)
+        defer {legacy.stopProjectionUpdates()}
+        for index in originalRoute.points.indices where originalRoute.facing(at:index)==nil {
+            legacy.movePerson(to:index,animated:false)
+            let point=originalRoute.points[index]
+            let previous=index>0 ? originalRoute.points[index-1] : point
+            let next=originalRoute.points.indices.contains(index+1) ? originalRoute.points[index+1] : point
+            let dx=index==originalRoute.points.count-1 ? point.x-previous.x : next.x-point.x
+            let dz=index==originalRoute.points.count-1 ? -(point.y-previous.y) : -(next.y-point.y)
+            guard anglesMatch(yaw(legacy.person),Float(atan2(dx,dz))) else {throw LabError.invalid("방향 미지정 지점의 기존 구간 방향 검증 실패")}
+        }
+        guard scan.manifest.route==originalRoute else {throw LabError.invalid("도착 방향 검증 후 원본 경로 불변 검증 실패")}
+        print("ARRIVAL_FACING_QA_OK: eight saved directions, move then turn, shortest yaw, turn-only, cancellation, legacy heading")
     }
     /// The new scene mode must not mutate globally shared assets or the independently saved route.
     private func verifyImmersiveIsolation(_ scan: LoadedScan,cleanSurfaces: [ReplaySurfaceMesh]) async throws {
