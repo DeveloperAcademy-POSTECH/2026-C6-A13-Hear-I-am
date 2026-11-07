@@ -55,7 +55,10 @@ struct HearRootView: View {
         }
         .onChange(of:launch.pending) {openSiriRequest()}
         .onChange(of:gate.open) {openSiriRequest();syncWake()}
-        .onChange(of:scenePhase) {syncWake()}
+        .onChange(of:scenePhase) {
+            syncWake()
+            if scenePhase == .active {DiagnosticLogMaintenance.schedule(force:true)}
+        }
         .onChange(of:role) {syncWake()}
         .onChange(of:library.records.map(\.id)) {HearShortcuts.updateAppShortcutParameters()}
         .task {

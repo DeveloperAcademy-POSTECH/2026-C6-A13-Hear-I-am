@@ -2,7 +2,7 @@ import SwiftUI
 
 @main struct HearIAmApp: App {
     @UIApplicationDelegateAdaptor(HearAppDelegate.self) var appDelegate
-    init() {HearFont.registerBundled()}
+    init() {HearFont.registerBundled();DiagnosticLogMaintenance.start()}
     var body: some Scene {
         WindowGroup {
             #if DEBUG
