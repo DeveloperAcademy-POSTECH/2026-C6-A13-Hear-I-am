@@ -82,6 +82,10 @@ import HearIAmCore
         guidanceRecords.removeAll {$0.id == saved.id}
         guidanceRecords.append(saved);guidanceRecords.sort {$0.finishedAt > $1.finishedAt}
     }
+    func deleteGuidanceRecord(_ id: UUID) async throws {
+        try await guidanceRecordsStore.delete(id)
+        guidanceRecords.removeAll {$0.id == id}
+    }
     func togglePin(_ id: UUID) {
         var updated=pins; updated.toggle(id)
         do {try JSONEncoder().encode(updated).write(to:pinURL,options:.atomic); pins=updated}

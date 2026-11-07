@@ -26,7 +26,10 @@ struct GuidanceReplayPreviewHarness: View {
             print("GUIDANCE_REPLAY_QA_OK: clock, rate, scrubbing, end, gaps, saved height, heading, camera reset, bundled skinned figure, relaxed gait, root-motion removal, stopped pose, deterministic seeking, legacy compatibility")
         } catch {self.error=error.localizedDescription;print("GUIDANCE_REPLAY_QA_FAILED: \(error)")}
     }
-    private func makeRecord() throws -> GuidanceRecord {
+    private func makeRecord() throws -> GuidanceRecord {try Self.fixture()}
+    /// A 36-second synthetic run over a 6 × 4 m stage, for previews of the record pages.
+    static func fixture(stageID: UUID = UUID(),stageName: String = "중앙무대 · 검증용 기록",
+                        start: Date = Date(timeIntervalSince1970:1_792_540_800)) throws -> GuidanceRecord {
         let area=try StageArea(corners:[.init(0,0,0),.init(6,0,0),.init(6,0,-4),.init(0,0,-4)])
         let table=try StageObstacle(name:"테이블",kind:.other,vertices:[.init(0.5,2.5),.init(1.6,2.5),.init(1.6,3.2),.init(0.5,3.2)],height:0.75,appearance:.init(model:.table))
         let chair=try StageObstacle(name:"의자",kind:.other,vertices:[.init(4.8,1),.init(5.4,1),.init(5.4,1.6),.init(4.8,1.6)],height:0.85,appearance:.init(model:.chair))
@@ -44,8 +47,7 @@ struct GuidanceReplayPreviewHarness: View {
             let status: GuidanceReplayStatus=missing ? .untracked : t>=8 && t<10 ? .paused : t>=25 && t<27 ? .offRoute : .guiding
             samples.append(.init(time:t,position:missing ? nil:p,heading:missing ? nil:heading,targetIndex:segment+1,status:status))
         }
-        let start=Date(timeIntervalSince1970:1_792_540_800)
-        return GuidanceRecord(version:2,id:UUID(),stageID:UUID(),stageName:"중앙무대 · 검증용 기록",route:route,
+        return GuidanceRecord(version:2,id:UUID(),stageID:stageID,stageName:stageName,route:route,
             startedAt:start,completedAt:start.addingTimeInterval(36),finishedAt:start.addingTimeInterval(38),activeSeconds:30,
             replay:GuidanceReplay(duration:36,samples:samples))
     }

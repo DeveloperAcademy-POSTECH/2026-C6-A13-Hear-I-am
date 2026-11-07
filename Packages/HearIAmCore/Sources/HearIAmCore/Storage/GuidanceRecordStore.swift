@@ -19,6 +19,12 @@ public actor GuidanceRecordStore {
         try JSONEncoder().encode(record).write(to:url,options:.atomic)
         return record
     }
+    /// Removes one record. A record already gone is not an error, so a repeated delete is harmless.
+    public func delete(_ id: UUID) throws {
+        let url=root.appendingPathComponent(id.uuidString+".json")
+        guard FileManager.default.fileExists(atPath:url.path) else { return }
+        try FileManager.default.removeItem(at:url)
+    }
     public func list() throws -> [GuidanceRecord] {
         guard FileManager.default.fileExists(atPath:root.path) else { return [] }
         return try FileManager.default.contentsOfDirectory(at:root,includingPropertiesForKeys:nil,options:.skipsHiddenFiles)

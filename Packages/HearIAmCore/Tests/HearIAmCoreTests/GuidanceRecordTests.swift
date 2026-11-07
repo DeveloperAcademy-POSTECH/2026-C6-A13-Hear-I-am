@@ -30,6 +30,26 @@ final class GuidanceRecordTests: XCTestCase {
         XCTAssertEqual(record.stageName,"C6 공연장")
         XCTAssertEqual(try JSONDecoder().decode(GuidanceRecord.self,from:JSONEncoder().encode(record)),record)
     }
+    func testDeletedRecordLeavesTheListAndRepeatsSafely() throws {
+        let root=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString,isDirectory:true)
+        defer {try? FileManager.default.removeItem(at:root)}
+        let record=try completedRun().record(completionSpoken:true,finishedAt:Date(timeIntervalSince1970:1050))
+        let store=GuidanceRecordStore(root:root)
+        let expectation=expectation(description:"store")
+        Task {
+            do {
+                try await store.save(record)
+                let saved=try await store.list()
+                XCTAssertEqual(saved.map(\.id),[record.id])
+                try await store.delete(record.id)
+                let afterDelete=try await store.list()
+                XCTAssertTrue(afterDelete.isEmpty)
+                try await store.delete(record.id)
+            } catch {XCTFail("\(error)")}
+            expectation.fulfill()
+        }
+        wait(for:[expectation],timeout:5)
+    }
     func testAbortAndUnfinishedFinalSpeechCannotCreateRecord() throws {
         let route=try StageRoute(area:PerformancePlan.area,points:[.init(1,2),.init(3,2),.init(5,2)],obstacles:[],allowsOutsideEndpoints:true)
         var run=GuidanceRun(stageID:UUID(),stageName:"중간 종료",route:route)
