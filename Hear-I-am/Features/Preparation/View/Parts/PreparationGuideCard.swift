@@ -1,24 +1,38 @@
 import SwiftUI
 import HearIAmCore
 
-/// Right-edge panel with the floor plan and the item being checked (Figma 452:12580 · 452:11526 ·
-/// 452:11633). The handle folds it away (452:11435). While an object is drafted it holds the
-/// object's inputs instead of a list.
+/// Right-edge panel with the floor plan and the item being checked (Figma 971:29463 · 971:28541 · 971:29061 ·
+/// 971:28749). The handle folds it away (452:11435). While an object is drafted it holds the object's inputs
+/// instead of the plan. Points are placed with the + beside 「지정 완료」; clearing or editing one item is in its
+/// dropdown, as the design has no buttons along the panel's foot.
 struct PreparationGuideCard: View {
     @ObservedObject var model: PreparationViewModel
     let maxHeight: CGFloat
-    /// The space between the panel and the screen edge; folded, the panel slides past it.
-    var edgeGap: CGFloat = 8
     @State private var selectedObject: UUID?
-    @State private var selectedCheckpoint=0
+    /// How far a finger has pulled the panel sideways, before it lets go. The first few points decide whether the
+    /// drag is sideways (it moves the panel) or up and down (it scrolls), and that holds to the end, so a wobbly
+    /// finger does not make the panel jump between the two. Letting go eases the panel back instead of snapping.
+    @GestureState(resetTransaction:Transaction(animation:.snappy(duration:0.35))) private var drag=PanelDrag()
+    struct PanelDrag { var x: CGFloat=0; var sideways: Bool?=nil }
+    /// Figma 971:29463: the 289×237 panel runs 29pt past the screen's right edge, so 260pt of it shows.
+    static let width: CGFloat=289
+    static let height: CGFloat=237
+    static let bleed: CGFloat=29
+    /// Folded, only a 24pt strip with the handle stays on screen (452:11435).
+    private static let foldedOffset: CGFloat=width-bleed-24
     var body: some View {
         // Figma 452:12618: a 289pt glass panel (radius 34, black 20%) with the 4×34 handle on its left edge.
         // Folded, the whole panel slides to the right edge and only its handle strip stays in view (452:11435);
-        // unfolded it comes back as one piece, glass and contents together (452:11526).
+        // unfolded it comes back as one piece, glass and contents together (452:11526). A sideways swipe
+        // anywhere on it folds or unfolds it, following the finger; a tap on the handle still works (11/07).
         HStack(spacing:0) {
-            Button {withAnimation(.snappy(duration:0.35)) {model.guideCollapsed.toggle()}} label: {
-                Capsule().fill(.white).frame(width:4,height:34).frame(width:22,height:64).contentShape(Rectangle())
-            }.buttonStyle(.plain).accessibilityLabel(model.guideCollapsed ? "평면도 펼치기" : "평면도 접기")
+            // A tap, not a Button: a drag that began on a Button never reached the panel's swipe, and folded, the
+            // handle is all that shows, so the panel could be pushed away but not pulled back (11/07).
+            Capsule().fill(.white).frame(width:4,height:34).frame(width:22,height:64).contentShape(Rectangle())
+                .onTapGesture {withAnimation(.snappy(duration:0.35)) {model.guideCollapsed.toggle()}}
+                .accessibilityElement().accessibilityAddTraits(.isButton)
+                .accessibilityLabel(model.guideCollapsed ? "평면도 펼치기" : "평면도 접기")
+                .accessibilityAction {withAnimation(.snappy(duration:0.35)) {model.guideCollapsed.toggle()}}
             VStack(spacing:10) {
                 header
                 ScrollView {
@@ -30,17 +44,39 @@ struct PreparationGuideCard: View {
                         }
                         notes
                     }
-                }.frame(maxHeight:max(80,maxHeight-110))
-                footer
-            }.padding(.leading,6).padding(.trailing,22).padding(.vertical,19)
+                }.frame(maxHeight:.infinity)
+            }.padding(.leading,6).padding(.trailing,14+Self.bleed).padding(.vertical,19)
                 .allowsHitTesting(!model.guideCollapsed)
                 .accessibilityHidden(model.guideCollapsed)
-        }.frame(width:289)
+        }.frame(width:Self.width,height:min(Self.height,maxHeight))
             .background {
                 Color.clear.liquidGlass(RoundedRectangle(cornerRadius:34,style:.continuous),tint:ScanChrome.panelTint)
             }
-            .offset(x:model.guideCollapsed ? 289-24+edgeGap : 0)
+            // The whole panel, its clear gaps included, takes the swipe.
+            .contentShape(RoundedRectangle(cornerRadius:34,style:.continuous))
+            // Folded, the 24pt strip is narrow for a thumb at the screen's edge: a clear 30pt more to its left
+            // also catches the pull.
+            .background(alignment:.leading) {
+                if model.guideCollapsed {Color.clear.frame(width:30).frame(maxHeight:.infinity).contentShape(Rectangle()).offset(x:-30)}
+            }
+            .simultaneousGesture(swipe)
+            .offset(x:min(max((model.guideCollapsed ? Self.foldedOffset : 0)+drag.x,0),Self.foldedOffset))
             .environment(\.colorScheme,.dark)
+    }
+    /// Read in global coordinates and attached under the offset: measured in the panel's own space, the panel moving
+    /// with the finger shrank each step of the drag, so it shook and sprang back (11/07).
+    private var swipe: some Gesture {
+        DragGesture(minimumDistance:12,coordinateSpace:.global)
+            .updating($drag) {value,state,_ in
+                if state.sideways == nil {state.sideways=abs(value.translation.width) > abs(value.translation.height)}
+                if state.sideways == true {state.x=value.translation.width}
+            }
+            .onEnded {value in
+                let dx=value.translation.width, flick=value.predictedEndTranslation.width
+                guard abs(dx) > abs(value.translation.height)*0.7 else {return}
+                let fold=model.guideCollapsed ? dx+flick*0.2 > -60 : dx+flick*0.2 > 60
+                withAnimation(.snappy(duration:0.35)) {model.guideCollapsed=fold}
+            }
     }
 
     // MARK: Header dropdowns (452:13173)
@@ -49,19 +85,25 @@ struct PreparationGuideCard: View {
         HStack {
             switch model.step {
             case .boundary:
+                // Picking a corner makes + place (or replace) it; the corner shown can be cleared here, as the
+                // panel's old 삭제하기 did (971:29655).
                 dropdown(model.nextCorner.map {PreparationStep.cornerNames[$0]} ?? "모서리") {
                     ForEach(PreparationDraft.captureOrder,id:\.self) {i in
                         Button {model.selectedCorner=i} label: {
                             Label(PreparationStep.cornerNames[i],systemImage:draft.corners[i] == nil ? "circle" : "checkmark.circle.fill")
                         }
                     }
+                    if let corner=model.nextCorner, draft.corners[corner] != nil {
+                        Divider()
+                        Button("\(PreparationStep.cornerNames[corner]) 지우기",role:.destructive) {model.undoCorner(corner)}.disabled(model.busy)
+                    }
                 }
             case .objects:
                 if model.objectEditing {
                     Text(model.editingObjectID == nil ? "새 기물 · \(model.pendingObjectWorld.count)/8점" : "기물 수정 · \(model.pendingObjectWorld.count)/8점")
-                        .font(.system(size:16,weight:.semibold))
+                        .font(HearFont.pretendard(.semibold,size:16))
                 } else if draft.objects.isEmpty {
-                    Text("등록한 기물 없음").font(.system(size:16,weight:.semibold))
+                    Text("등록한 기물 없음").font(HearFont.pretendard(.semibold,size:16))
                 } else {
                     let index=draft.objects.firstIndex {$0.id == currentObject} ?? 0
                     let object=draft.objects[index]
@@ -69,6 +111,10 @@ struct PreparationGuideCard: View {
                         ForEach(Array(draft.objects.enumerated()),id:\.element.id) {i,o in
                             Button("\(i+1)번 \(o.name) · \(o.kind.defaultName)\(o.height.map {" · \(Int(($0*100).rounded()))cm"} ?? "")") {selectedObject=o.id}
                         }
+                        // The panel's old 수정하기 · 삭제하기 for the object shown (971:28720).
+                        Divider()
+                        Button("\(index+1)번 \(object.name) 수정하기",systemImage:"pencil") {model.beginObject(object.id)}.disabled(model.busy)
+                        Button("\(index+1)번 \(object.name) 삭제하기",systemImage:"trash",role:.destructive) {model.deleteObject(object.id)}.disabled(model.busy)
                     }
                     // The edge a chair or stairs faces, as 「2→4」 (452:11604).
                     if object.kind == .platform || object.kind == .stairs {
@@ -81,7 +127,7 @@ struct PreparationGuideCard: View {
                 }
             case .route:
                 if draft.route.isEmpty {
-                    Text("경로 0/\(StageRoute.maxPointCount)점").font(.system(size:16,weight:.semibold))
+                    Text("경로 0/\(StageRoute.maxPointCount)점").font(HearFont.pretendard(.semibold,size:16))
                 } else {
                     let labels=draft.routePointLabels
                     dropdown(labels.indices.contains(currentRoutePoint) ? labels[currentRoutePoint] : "P\(currentRoutePoint)") {
@@ -89,9 +135,15 @@ struct PreparationGuideCard: View {
                     }
                 }
             case .checkpoint:
-                dropdown("확인점 \(selectedCheckpoint+1)") {
-                    Button("확인점 1") {selectedCheckpoint=0}
-                    Button("확인점 2") {selectedCheckpoint=1}.disabled(draft.checkpoint == nil)
+                // Picking one makes + place (or replace) it; the one shown can be cleared here (971:28830).
+                let shown=model.nextCheckpoint ?? 1
+                dropdown("확인점 \(shown+1)") {
+                    Button("확인점 1") {model.selectedCheckpoint=0}
+                    Button("확인점 2") {model.selectedCheckpoint=1}.disabled(draft.checkpoint == nil)
+                    if shown == 0 ? draft.checkpoint != nil : draft.secondCheckpoint != nil {
+                        Divider()
+                        Button("확인점 \(shown+1) 지우기",role:.destructive) {model.removeCheckpoint(shown);model.selectedCheckpoint=nil}.disabled(model.busy)
+                    }
                 }
             case .scan:
                 EmptyView()
@@ -123,50 +175,13 @@ struct PreparationGuideCard: View {
     private func dropdown<Items: View>(_ title: String, @ViewBuilder items: () -> Items) -> some View {
         Menu {items()} label: {
             HStack(spacing:4) {Text(title).lineLimit(1);Image(systemName:"chevron.down").font(.system(size:12,weight:.semibold))}
-                .font(.system(size:16,weight:.semibold)).foregroundStyle(.white)
+                .font(HearFont.pretendard(.semibold,size:16)).foregroundStyle(.white)
                 .padding(.horizontal,12).frame(height:32).background(ScanChrome.panelTint,in:Capsule())
         }
     }
     private var currentObject: UUID? {
         let objects=model.draft.objects
         return objects.contains {$0.id == selectedObject} ? selectedObject : objects.first?.id
-    }
-
-    // MARK: Footer (삭제하기 · 수정하기)
-    @ViewBuilder private var footer: some View {
-        let draft=model.draft
-        switch model.step {
-        case .boundary:
-            if let corner=model.nextCorner {
-                HStack(spacing:6) {
-                    ScanCardButton(title:"삭제하기",primary:false,destructive:true,enabled:draft.corners[corner] != nil && !model.busy,compact:true) {model.undoCorner(corner)}
-                    ScanCardButton(title:draft.corners[corner] == nil ? "지정하기" : "수정하기",enabled:model.canPlacePoint,compact:true) {model.captureCorner(corner)}
-                }
-            }
-        case .objects:
-            if !model.objectEditing, let id=currentObject {
-                HStack(spacing:6) {
-                    ScanCardButton(title:"삭제하기",primary:false,destructive:true,enabled:!model.busy,compact:true) {model.deleteObject(id)}
-                    ScanCardButton(title:"수정하기",enabled:!model.busy,compact:true) {model.beginObject(id)}
-                }
-            }
-        case .checkpoint:
-            let set=selectedCheckpoint == 0 ? draft.checkpoint != nil : draft.secondCheckpoint != nil
-            HStack(spacing:6) {
-                ScanCardButton(title:"삭제하기",primary:false,destructive:true,enabled:set && !model.busy,compact:true) {model.removeCheckpoint(selectedCheckpoint)}
-                ScanCardButton(title:set ? "수정하기" : "지정하기",enabled:model.canPlacePoint && draft.area != nil && (selectedCheckpoint == 0 || draft.checkpoint != nil),compact:true) {
-                    model.placeCheckpoint(selectedCheckpoint)
-                }
-            }
-        case .route:
-            // Only the newest point can go; earlier ones are reached by undoing back to them.
-            if !draft.route.isEmpty {
-                ScanCardButton(title:currentRoutePoint == draft.route.count-1 ? "삭제하기" : "마지막 점만 삭제할 수 있어요",primary:false,destructive:true,
-                               enabled:currentRoutePoint == draft.route.count-1 && !model.busy,compact:true) {model.undoRoutePoint()}
-            }
-        case .scan:
-            EmptyView()
-        }
     }
 
     // MARK: Errors and short notes kept from the old guide card

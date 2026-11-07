@@ -68,6 +68,8 @@ final class PreparationViewModel: ObservableObject {
     var openingCoaching: Bool { supported && step == .scan && !scanIntroShown }
     @Published var selectedRoutePoint: Int?
     @Published var selectedCorner: Int?
+    /// The checkpoint the next + replaces, picked in the panel; nil fills the first empty one.
+    @Published var selectedCheckpoint: Int?
     @Published var objectEditing=false
     @Published var confirmingRouteHeight=false
     var pendingRouteHeight: (point: Point3, destination: Bool, draft: PreparationDraft, token: UUID)?
@@ -92,6 +94,12 @@ final class PreparationViewModel: ObservableObject {
             guard let self, !active else { return }
             showScanIntroOnce()
         }
+        if let preview=Self.layoutPreview, let s=PreparationStep(rawValue:preview) {
+            step=s; highest = .checkpoint; scanConfirmed=s != .scan; scanIntroShown=true
+            confirmingScan=ProcessInfo.processInfo.arguments.contains("--scan-confirm")
+            showingMore=ProcessInfo.processInfo.arguments.contains("--scan-more")
+            choosingPlan=ProcessInfo.processInfo.arguments.contains("--scan-plans")
+        }
         session.onCaptureEvent={ [weak self] in self?.cameraControlPressed() }
         session.onReset={ [weak self] in
             guard let self else { return }
@@ -100,7 +108,17 @@ final class PreparationViewModel: ObservableObject {
     }
 
     // Session state the screen reads
-    var supported: Bool { session.supported }
+    var supported: Bool { session.supported || Self.layoutPreview != nil }
+    #if DEBUG
+    /// `--scan-layout <step>`: the scan screen's layout without LiDAR, for comparing with the design in the simulator.
+    static let layoutPreview: Int? = {
+        let args=ProcessInfo.processInfo.arguments
+        guard let index=args.firstIndex(of:"--scan-layout"), args.indices.contains(index+1) else { return nil }
+        return Int(args[index+1])
+    }()
+    #else
+    static let layoutPreview: Int? = nil
+    #endif
     var supportsMesh: Bool { session.supportsMesh }
     var busy: Bool { session.busy || session.photoCapturing }
     var interrupted: Bool { session.preparationInterrupted }
@@ -169,7 +187,23 @@ final class PreparationViewModel: ObservableObject {
         case .objects: if objectEditing { addObjectVertex() } else if draft.area != nil { beginObject() }
         case .route: addRoutePoint()
         case .checkpoint:
-            if draft.checkpoint == nil { placeCheckpoint(0) } else if draft.secondCheckpoint == nil { placeCheckpoint(1) }
+            if let index=nextCheckpoint { placeCheckpoint(index); selectedCheckpoint=nil }
+        }
+    }
+    /// The checkpoint the next + places: the one picked in the panel, else the first empty one.
+    var nextCheckpoint: Int? {
+        if let selectedCheckpoint, selectedCheckpoint == 0 || draft.checkpoint != nil { return selectedCheckpoint }
+        return draft.checkpoint == nil ? 0 : (draft.secondCheckpoint == nil ? 1 : nil)
+    }
+    /// Whether the bottom-right + (the same as the Camera Control button) would place a point now (971:28541).
+    var canPressPlus: Bool {
+        guard canPlacePoint, !busy else { return false }
+        switch step {
+        case .scan: return false
+        case .boundary: return nextCorner != nil
+        case .objects: return draft.area != nil && (!objectEditing || pendingObjectWorld.count < 8)
+        case .route: return draft.area != nil && !draft.routeFinished && draft.route.count < StageRoute.maxPointCount
+        case .checkpoint: return draft.area != nil && nextCheckpoint != nil
         }
     }
     /// Steps that place points from the Camera Control button show the glow at its position.
@@ -182,14 +216,15 @@ final class PreparationViewModel: ObservableObject {
         case .boundary:
             draft.corners=Array(repeating:nil,count:4); draft.dangerZones=[]; selectedCorner=nil; synchronize()
         case .objects:
-            if objectEditing { pendingObjectWorld=[]; facingEdge=nil; measureObject(); synchronize() }
+            // While an object is drafted, ↺ drops the draft and leaves editing (the design has no cancel button).
+            if objectEditing { cancelObject() }
             else { for object in draft.objects { deleteObject(object.id) } }
         case .route:
             cancelRouteHeight()
             while !draft.route.isEmpty { undoRoutePoint() }
             selectedRoutePoint=nil
         case .checkpoint:
-            draft.checkpoint=nil; draft.secondCheckpoint=nil; synchronize()
+            draft.checkpoint=nil; draft.secondCheckpoint=nil; selectedCheckpoint=nil; synchronize()
         }
     }
     /// Removes one checkpoint from the panel; the second moves up when the first goes.
@@ -255,10 +290,6 @@ final class PreparationViewModel: ObservableObject {
         // Objects are outlined on top of the scanned surface (10/18), so the mesh stays on through that step.
         if changed {session.showMesh = value <= .objects}
         synchronizeReference()
-    }
-    /// The boundary step shows two intro pages; every other step shows one.
-    func nextIntroPage() {
-        if step == .boundary && intro == 0 {intro=1} else {intro=nil}
     }
 
     /// Mirrors the current input into anchors and the AR overlay.

@@ -28,6 +28,9 @@ struct PreparationView: View {
         ZStack {
             CameraView(model:model.session).frame(maxWidth:.infinity,maxHeight:.infinity)
             if !model.supported {Color(white:0.12)}
+            #if DEBUG
+            if PreparationViewModel.layoutPreview != nil {Color(red:0.62,green:0.55,blue:0.45)}
+            #endif
             if model.supported {
                 // From 무대 범위 on, where points are placed at the crosshair; 스캔하기 places none.
                 if model.step >= .boundary {
@@ -39,21 +42,23 @@ struct PreparationView: View {
                 VStack(spacing:0) {
                     PreparationStepBar(model:model) {if model.exitNeedsConfirmation {model.confirmingExit=true} else {close()}}
                     Spacer(minLength:8)
-                    ZStack(alignment:.bottom) {
-                        PreparationToolGroup(model:model,hasPlans:!availablePlans.isEmpty)
-                        HStack(alignment:.bottom) {
-                            PreparationPhotoControls(model:model)
-                            Spacer()
-                            PreparationControls(model:model)
-                        }
-                    }
-                }.padding(.leading,insets.leading+16).padding(.trailing,insets.trailing+16)
-                    .padding(.top,insets.top+14).padding(.bottom,insets.bottom+14)
-                if model.step != .scan {
-                    HStack {
+                    HStack(alignment:.bottom) {
+                        PreparationPhotoControls(model:model)
                         Spacer()
-                        PreparationGuideCard(model:model,maxHeight:max(160,safe.size.height-150),edgeGap:insets.trailing+8)
-                    }.padding(.trailing,insets.trailing+8).padding(.top,70).padding(.bottom,80)
+                        PreparationControls(model:model)
+                    }
+                }.padding(.leading,edge(insets).leading).padding(.trailing,edge(insets).trailing)
+                    .padding(.top,26).padding(.bottom,27)
+                // Undo and the step's tools sit in the middle of the whole screen, not of the space between the
+                // side insets, which differ by orientation (Figma 971:15599; 11/07).
+                PreparationToolGroup(model:model,hasPlans:!availablePlans.isEmpty)
+                    .frame(maxWidth:.infinity,maxHeight:.infinity,alignment:.bottom)
+                    .padding(.bottom,26)
+                if model.step != .scan {
+                    // Figma 971:29463: the panel's top is 80pt down and it runs past the screen's right edge.
+                    PreparationGuideCard(model:model,maxHeight:max(160,safe.size.height+insets.top+insets.bottom-160))
+                        .frame(maxWidth:.infinity,maxHeight:.infinity,alignment:.topTrailing)
+                        .padding(.trailing,-PreparationGuideCard.bleed).padding(.top,80)
                 }
             }
             // Nothing behind the opening coaching can be pressed until its card shows.
@@ -69,7 +74,7 @@ struct PreparationView: View {
             }
             // The soft blue pulse over the Camera Control button (top edge, right of centre in this orientation),
             // whenever that button places a point and on the card that explains it (452:11339).
-            if model.cameraControlActive || (model.step >= .objects && model.intro == 1) {
+            if model.cameraControlActive || model.intro.map({PreparationIntro.isCameraControlPage(step:model.step.rawValue,page:$0)}) == true {
                 CameraControlGlow().frame(maxWidth:.infinity,maxHeight:.infinity,alignment:.top).allowsHitTesting(false)
             }
             if model.confirmingScan {
@@ -91,7 +96,8 @@ struct PreparationView: View {
                 }.padding(28).scanCard()
             }
             if model.choosingPlan {
-                PreparationPlanPicker(plans:availablePlans,initialID:model.selectedPlan?.id,onConfirm:{model.selectReferencePlan($0)},onCancel:{model.choosingPlan=false})
+                PreparationPlanPicker(plans:availablePlans,initialID:model.selectedPlan?.id,onConfirm:{model.selectReferencePlan($0)},onCancel:{model.choosingPlan=false},
+                                      leading:edge(insets).leading,trailing:edge(insets).trailing)
             }
             if model.review {PreparationReviewCard(model:model)}
             if model.isSaving {
@@ -136,7 +142,7 @@ struct PreparationView: View {
             Color.black.opacity(0.001)
                 .onTapGesture {withAnimation(.snappy(duration:0.3)) {model.showingMore=false}}
             PreparationMorePanel(model:model) {showingSettings=true}
-                .padding(.top,insets.top+14+44+8).padding(.trailing,insets.trailing+16)
+                .padding(.top,26+44+8).padding(.trailing,edge(insets).trailing)
                 .frame(maxWidth:.infinity,maxHeight:.infinity,alignment:.topTrailing)
                 .transition(.scale(scale:0.85,anchor:.topTrailing).combined(with:.opacity))
                 .zIndex(2)
@@ -153,6 +159,14 @@ struct PreparationView: View {
                 .zIndex(1)
         }
     }
+    /// Figma 971:28541 measures the controls from the screen's edges, not the safe area: 56pt on the side of
+    /// the Dynamic Island, 34pt on the other; 34pt each side where there is no island.
+    private func edge(_ insets: EdgeInsets) -> (leading: CGFloat, trailing: CGFloat) {
+        guard max(insets.leading,insets.trailing) > 30 else {return (34,34)}
+        let orientation=(UIApplication.shared.connectedScenes.first as? UIWindowScene)?.effectiveGeometry.interfaceOrientation
+        // Turned with its top to the left (landscapeRight), the island is on the left.
+        return orientation == .landscapeLeft ? (34,56) : (56,34)
+    }
     private func close() {
         guard !closing else {return}
         closing=true
@@ -167,8 +181,8 @@ struct PreparationView: View {
     }
 }
 
-/// The design's confirmation (452:11160) in dark colours: a 300pt card with the title, the message and two
-/// capsule buttons, the confirming one in the system blue.
+/// The scan confirmation in dark colours (452:11160; kept dark over 971:28264's light card, 11/07): a 316pt card
+/// with the title, the message and two capsule buttons, the confirming one in the system blue.
 struct ScanConfirmCard: View {
     let title: String
     let message: String

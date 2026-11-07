@@ -30,19 +30,19 @@ struct GuidanceRecordsView: View {
                     }
                 }.padding(20)
             }.v3Screen()
-                .navigationTitle("기록").navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItemGroup(placement:.topBarTrailing) {
-                        Button {Task {await reloadRecords()}} label: {
-                            Image(systemName:"arrow.clockwise").frame(minWidth:44,minHeight:44)
-                        }.disabled(isRefreshing)
-                            .accessibilityLabel("기록 새로고침")
-                            .accessibilityIdentifier("records.refresh")
-                        NavigationLink {HomeSettingsView()} label: {
-                            Image(systemName:"gearshape").frame(minWidth:44,minHeight:44)
-                        }.accessibilityLabel("설정")
-                            .accessibilityIdentifier("records.settings")
-                    }
+                .navigationTitle("기록")
+                // Home on the left as on the other two tabs; refresh and settings on the right (11/07).
+                .hearTopBar("기록") {
+                    Button {changeRole?()} label: {HearTopButtonLabel(systemImage:"house")}
+                        .buttonStyle(.plain).accessibilityLabel("역할 선택으로 돌아가기")
+                } trailing: {
+                    Button {Task {await reloadRecords()}} label: {HearTopButtonLabel(systemImage:"arrow.clockwise")}
+                        .buttonStyle(.plain).disabled(isRefreshing)
+                        .accessibilityLabel("기록 새로고침")
+                        .accessibilityIdentifier("records.refresh")
+                    NavigationLink {HomeSettingsView()} label: {HearTopButtonLabel(systemImage:"gearshape")}
+                        .buttonStyle(.plain).accessibilityLabel("설정")
+                        .accessibilityIdentifier("records.settings")
                 }
                 .task {await reloadRecords()}
                 .refreshable {await reloadRecords()}

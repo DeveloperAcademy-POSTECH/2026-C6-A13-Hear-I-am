@@ -40,6 +40,22 @@ extension PreparationViewModel {
             synchronize()
         } catch {session.errorMessage=error.localizedDescription}
     }
+    /// 「지정 완료」 on the route step: the last point placed becomes the destination when none was marked,
+    /// then the step ends (971:29061 has no separate destination button).
+    func finishRoute() {
+        guard !busy, !confirmingRouteHeight else {return}
+        if !draft.routeFinished {
+            guard draft.route.count >= 2, let last=draft.route.last else {return}
+            var candidate=draft
+            candidate.removeLastRoutePoint()
+            do {
+                try candidate.addRoutePoint(last,asDestination:true,confirmHeightMismatch:true)
+                draft=candidate; synchronize()
+            } catch {session.errorMessage=error.localizedDescription; return}
+        }
+        guard draft.routeErrors.isEmpty else {session.errorMessage=draft.routeErrors.first; return}
+        advance()
+    }
     func cancelRouteHeight() { pendingRouteHeight=nil; confirmingRouteHeight=false }
     func undoRoutePoint() {
         guard !busy else {return}

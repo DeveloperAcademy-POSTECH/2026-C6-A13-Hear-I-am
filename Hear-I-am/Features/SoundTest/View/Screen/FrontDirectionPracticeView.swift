@@ -60,7 +60,7 @@ struct FrontDirectionPracticeView: View {
         }
         .settingsScreen()
         .navigationTitle("정면 찾기").navigationBarTitleDisplayMode(.inline)
-        .readsAloud {["정면 찾기",title,instruction]+[secondaryTitle,primaryTitle].compactMap {$0.map {"\($0) 버튼"}}}
+        .readsAloud(title:"정면 찾기") {["정면 찾기",title,instruction]+[secondaryTitle,primaryTitle].compactMap {$0.map {"\($0) 버튼"}}}
         .onAppear { visible = true; model.start() }
         .onDisappear { visible = false; model.close() }
         .onChange(of: scenePhase) { _, phase in

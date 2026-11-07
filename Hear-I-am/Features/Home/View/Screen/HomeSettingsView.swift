@@ -11,57 +11,56 @@ struct HomeSettingsView: View {
     var body: some View {
         ScrollView {
             VStack(spacing:0) {
-                SettingsHeroCard().padding(.top,15).padding(.bottom,27)
+                SettingsHeroCard().readAloudTarget("안내 신호 익히기","조력자와 하나씩 들어보세요","바로가기 버튼").padding(.top,15).padding(.bottom,27)
                 section("소리") {
                     NavigationLink {SoundOutputView()} label: {
                         SettingsRowLabel(title:"소리 출력",value:output.name,adaptsToDynamicType:true)
-                    }.buttonStyle(.plain).accessibilityIdentifier("settings.output")
+                    }.buttonStyle(.plain).readAloudTarget("소리 출력, \(output.name)").accessibilityIdentifier("settings.output")
                 }
                 section("사용 도움말") {
                     NavigationLink {V3UsageHelpView()} label: {
-                        SettingsRowLabel(title:"착용과 안내준비",adaptsToDynamicType:true)
-                    }.buttonStyle(.plain).accessibilityIdentifier("settings.help.wearing")
+                        SettingsRowLabel(title:"착용과 안내 준비",adaptsToDynamicType:true)
+                    }.buttonStyle(.plain).readAloudTarget("착용과 안내 준비").accessibilityIdentifier("settings.help.wearing")
                     SettingsDivider()
                     NavigationLink {V3SoundHelpView()} label: {
                         SettingsRowLabel(title:"소리가 들리지 않을 때",adaptsToDynamicType:true)
-                    }.buttonStyle(.plain).accessibilityIdentifier("settings.help.sound")
+                    }.buttonStyle(.plain).readAloudTarget("소리가 들리지 않을 때").accessibilityIdentifier("settings.help.sound")
                     SettingsDivider()
                     NavigationLink {V3VoiceHelpView()} label: {
-                        SettingsRowLabel(title:"음성으로 앱 사용하기",adaptsToDynamicType:true)
-                    }.buttonStyle(.plain).accessibilityIdentifier("settings.help.voice")
+                        SettingsRowLabel(title:"음성으로 사용하기",adaptsToDynamicType:true)
+                    }.buttonStyle(.plain).readAloudTarget("음성으로 사용하기").accessibilityIdentifier("settings.help.voice")
                     SettingsDivider()
                     Link(destination:SettingsLinks.support) {
                         SettingsRowLabel(title:"문의 및 오류 신고",accessory:.externalLink,adaptsToDynamicType:true)
-                    }.buttonStyle(.plain).accessibilityHint("문의 및 오류 신고 양식을 브라우저에서 열어요")
+                    }.buttonStyle(.plain).readAloudTarget("문의 및 오류 신고, 외부 웹 페이지 열기").accessibilityHint("문의 및 오류 신고 양식을 브라우저에서 열어요")
                         .accessibilityIdentifier("settings.support")
                 }
                 section("앱 관리") {
                     NavigationLink {V3PermissionView()} label: {
-                        SettingsRowLabel(title:"앱 접근 권한",adaptsToDynamicType:true)
-                    }.buttonStyle(.plain).accessibilityIdentifier("settings.permissions")
+                        SettingsRowLabel(title:"권한 상태",adaptsToDynamicType:true)
+                    }.buttonStyle(.plain).readAloudTarget("권한 상태").accessibilityIdentifier("settings.permissions")
                     SettingsDivider()
                     SettingsRowLabel(title:"앱 버전",value:version,accessory:.none,adaptsToDynamicType:true)
-                        .accessibilityElement(children:.combine).accessibilityIdentifier("settings.version")
+                        .accessibilityElement(children:.combine).readAloudTarget("앱 버전, \(version)").accessibilityIdentifier("settings.version")
                     SettingsDivider()
                     Link(destination:SettingsLinks.privacy) {
                         SettingsRowLabel(title:"개인정보 처리방침",accessory:.externalLink,adaptsToDynamicType:true)
-                    }.buttonStyle(.plain).accessibilityHint("개인정보 처리방침을 브라우저에서 열어요")
+                    }.buttonStyle(.plain).readAloudTarget("개인정보 처리방침, 외부 웹 페이지 열기").accessibilityHint("개인정보 처리방침을 브라우저에서 열어요")
                         .accessibilityIdentifier("settings.privacy")
                 }
             }.padding(.horizontal,20).padding(.bottom,24)
         }.settingsScreen()
             .navigationTitle("설정").navigationBarTitleDisplayMode(.inline)
-            .toolbar(.visible,for:.navigationBar)
-            .readsAloud {readAloudLines}
+            .readsAloud(title:"설정") {readAloudLines}
             .onAppear {output.refresh()}
             .onChange(of:scenePhase) {_,phase in if phase == .active {output.refresh()}}
     }
     private var readAloudLines: [String] {
         ["설정","안내 신호 익히기","조력자와 하나씩 들어보세요","바로가기 버튼",
          "소리","소리 출력, \(output.name)",
-         "사용 도움말","착용과 안내준비","소리가 들리지 않을 때","음성으로 앱 사용하기",
+         "사용 도움말","착용과 안내 준비","소리가 들리지 않을 때","음성으로 사용하기",
          "문의 및 오류 신고, 외부 웹 페이지 열기",
-         "앱 관리","앱 접근 권한","앱 버전, \(version)","개인정보 처리방침, 외부 웹 페이지 열기"]
+         "앱 관리","권한 상태","앱 버전, \(version)","개인정보 처리방침, 외부 웹 페이지 열기"]
     }
     private func section<Content: View>(_ title: String, @ViewBuilder _ content: () -> Content) -> some View {
         VStack(spacing:0) {
@@ -133,7 +132,7 @@ struct SoundOutputView: View {
             }.padding(.horizontal,16).padding(.bottom,24)
         }.settingsScreen()
             .navigationTitle("소리 출력").navigationBarTitleDisplayMode(.inline)
-            .readsAloud {
+            .readsAloud(title:"소리 출력") {
                 model.stop()
                 return ["소리 출력","출력 기기, \(output.name)","재생 방식",
                         "연결된 기기로 자동\(forcesSpeaker ? "" : ", 선택됨")","항상 iPhone 스피커\(forcesSpeaker ? ", 선택됨" : "")",
