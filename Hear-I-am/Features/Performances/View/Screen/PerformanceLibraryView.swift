@@ -74,7 +74,11 @@ struct PerformanceLibraryView: View {
                         }.buttonStyle(.plain)
                     }
                 }.padding(.horizontal, 16).padding(.top, 24).padding(.bottom, 24)
-            }.v3Screen()
+            }
+            #if DEBUG
+            .defaultScrollAnchor(ProcessInfo.processInfo.arguments.contains("--scroll-bottom") ? .bottom : .top)
+            #endif
+            .v3Screen()
                 .hearTopBar(nil) {
                     Button { changeRole?() } label: { HearTopButtonLabel(systemImage: "house") }
                         .buttonStyle(.plain).accessibilityLabel("역할 선택으로 돌아가기")
