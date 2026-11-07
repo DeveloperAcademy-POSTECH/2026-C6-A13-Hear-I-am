@@ -205,7 +205,7 @@ struct ImmersiveSavedStagePreview: View {
             Spacer(minLength:0)
         }.padding(.horizontal,20).padding(.top,full ? 20 : 14)
             .presentationDetents([.height(190),.large],selection:$galleryDetent).presentationDragIndicator(.visible)
-            .presentationBackground(Color(red:17/255,green:17/255,blue:17/255)).presentationBackgroundInteraction(.enabled(upThrough:.height(190)))
+            .presentationCornerRadius(42).presentationBackground {HearSheetBackground()}.presentationBackgroundInteraction(.enabled(upThrough:.height(190)))
             .preferredColorScheme(.dark)
     }
     private func galleryTile(_ photo: ScanPhoto,scan: LoadedScan) -> some View {
@@ -278,7 +278,6 @@ struct ImmersiveSavedStagePreview: View {
             }.buttonStyle(.plain).disabled(model.savingHold || model.enteredHoldSeconds==nil)
         }.padding(.horizontal,24).padding(.top,24).padding(.bottom,12)
             .disabled(model.savingHold)
-            .presentationDetents([.height(model.canEditPointHold ? 400 : 240)]).presentationDragIndicator(.visible)
-            .presentationBackground(Color(red:17/255,green:17/255,blue:17/255)).preferredColorScheme(.dark)
+            .hearSheet([.height(model.canEditPointHold ? 400 : 240)])
     }
 }

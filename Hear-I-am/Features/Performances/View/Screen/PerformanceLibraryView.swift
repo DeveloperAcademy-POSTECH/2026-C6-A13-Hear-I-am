@@ -143,23 +143,26 @@ struct PerformanceVenueFilterSheet: View {
     @State private var selection: Set<String>
     @State private var query = ""
     @Environment(\.dismiss) private var dismiss
+    /// No filter means every venue, so it opens with all of them checked.
     init(names: [String], selection: Set<String>, onDone: @escaping (Set<String>) -> Void) {
-        self.names = names; self.onDone = onDone; _selection = State(initialValue: selection)
+        self.names = names; self.onDone = onDone
+        _selection = State(initialValue: selection.isEmpty ? Set(names) : selection.intersection(names))
     }
+    private var allChecked: Bool { !names.isEmpty && Set(names).isSubset(of: selection) }
     private var shown: [String] {
         let search = query.trimmingCharacters(in: .whitespacesAndNewlines)
         return search.isEmpty ? names : names.filter { $0.localizedStandardContains(search) }
     }
     var body: some View {
-        NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     PerformanceSearchField(text: $query, prompt: "장소 검색")
-                    Text(selection.isEmpty ? "전체 장소" : "\(selection.count)곳 선택됨")
+                    Text("\(selection.count)곳 선택됨")
                         .font(HearFont.pretendard(.regular, size: 13)).foregroundStyle(HearV3.secondary)
                         .padding(.top, 16).padding(.bottom, 12)
                     VStack(spacing: 0) {
-                        if query.isEmpty { row("전체 장소", checked: false) { selection = [] } }
+                        // 「전체 장소」 checks every venue, and unchecks them all when they already are.
+                        if query.isEmpty { row("전체 장소", checked: allChecked) { selection = allChecked ? [] : Set(names) } }
                         ForEach(shown, id: \.self) { name in
                             row(name, checked: selection.contains(name)) {
                                 if selection.contains(name) { selection.remove(name) } else { selection.insert(name) }
@@ -170,14 +173,15 @@ struct PerformanceVenueFilterSheet: View {
                         }
                     }.padding(.horizontal, 16)
                 }.padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 24)
-            }.v3Screen()
-                .hearTopBar("장소 선택") {
+            }
+                .hearTopBar("장소 선택", sheet: true) {
                     Button { dismiss() } label: { HearTopButtonLabel(systemImage: "xmark") }.buttonStyle(.plain).accessibilityLabel("닫기")
                 } trailing: {
-                    Button { onDone(selection); dismiss() } label: { HearTopButtonLabel(systemImage: "checkmark", prominent: true) }
-                        .buttonStyle(.plain).accessibilityLabel("선택 완료")
+                    // Every venue checked is the same as no filter, which also keeps venues added later.
+                    Button { onDone(allChecked ? [] : selection); dismiss() } label: { HearTopButtonLabel(systemImage: "checkmark", prominent: true) }
+                        .buttonStyle(.plain).disabled(selection.isEmpty).opacity(selection.isEmpty ? 0.4 : 1).accessibilityLabel("선택 완료")
                 }
-        }.presentationDetents([.large]).presentationBackground(HearV3.surface)
+                .hearSheet()
     }
     private func row(_ title: String, checked: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
@@ -200,14 +204,14 @@ struct PerformanceSearchField: View {
     @FocusState private var focused: Bool
     var body: some View {
         HStack(spacing: 12) {
-            // Figma 971:31959: a 48pt capsule of white 5%, the grey glass and prompt in Pretendard 16.
+            // Figma 971:31959 · 971:32437: a 48pt liquid-glass capsule tinted white 5%, the grey glass and prompt in Pretendard 16.
             HStack(spacing: 10) {
                 Image(systemName: "magnifyingglass").font(.system(size: 20)).foregroundStyle(Self.grey).frame(width: 24, height: 24)
                 TextField(prompt, text: $text, prompt: Text(prompt).foregroundStyle(Self.grey))
                     .font(HearFont.pretendard(.regular, size: 16)).foregroundStyle(.white).autocorrectionDisabled()
                     .textInputAutocapitalization(.never).submitLabel(.search).focused($focused)
             }.padding(.horizontal, 16).frame(minHeight: 48)
-                .background(.white.opacity(0.05), in: Capsule()).overlay(Capsule().strokeBorder(.white.opacity(0.1), lineWidth: 1))
+                .liquidGlass(Capsule(), tint: .white.opacity(0.05))
             if !text.isEmpty {
                 Button { text = ""; focused = false } label: { HearTopButtonLabel(systemImage: "xmark") }
                     .buttonStyle(.plain).accessibilityLabel("검색 지우기")
@@ -267,7 +271,6 @@ struct PerformanceEditorSheet: View {
     var body: some View {
         // Figma 971:32062: 공연 이름 and, for a new performance, 공연 상세정보 holding its venue. An existing one keeps
         // its description here; its venues are managed on its own page.
-        NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 33) {
                     VStack(alignment: .leading, spacing: 12) {
@@ -294,8 +297,8 @@ struct PerformanceEditorSheet: View {
                     }
                     if let error { Text(error).foregroundStyle(.red) }
                 }.padding(.horizontal, 16).padding(.top, 20).padding(.bottom, 24)
-            }.v3Screen()
-                .hearTopBar(folder == nil ? "공연 생성하기" : "공연 정보") {
+            }
+                .hearTopBar(folder == nil ? "공연 생성하기" : "공연 정보", sheet: true) {
                     Button { dismiss() } label: { HearTopButtonLabel(systemImage: "xmark") }
                         .buttonStyle(.plain).disabled(busy).accessibilityLabel("닫기")
                 } trailing: {
@@ -315,33 +318,35 @@ struct PerformanceEditorSheet: View {
                         newVenue = ""
                     }
                 }
-        }.v3Screen()
+                .hearSheet()
     }
     private static let field = Color(red: 28/255, green: 28/255, blue: 30/255)
     private func header(_ text: String) -> some View {
         Text(text).font(HearFont.pretendard(.semibold, size: 20)).foregroundStyle(.white).padding(.horizontal, 4)
             .accessibilityAddTraits(.isHeader)
     }
-    /// The grouped row (971:32080): 「공연 및 연습 장소」 with the chosen venue and a chevron opening the choices.
+    /// The grouped row (971:32080): 「공연 및 연습 장소」 stays put and only the value on the right opens the choices,
+    /// the way a menu picker row does, so the menu grows out of 「선택 안 함」 instead of out of the whole row.
     private var venueRow: some View {
-        Menu {
-            Button("선택 안 함") { venue = nil }
-            if !venueNames.isEmpty {
-                Section { ForEach(venueNames, id: \.self) { name in Button(name) { venue = name } } }
-            }
-            Button("새 장소 추가…", systemImage: "plus") { addingVenue = true }
-        } label: {
-            HStack(spacing: 8) {
-                Text("공연 및 연습 장소").font(.body).foregroundStyle(.white)
-                Spacer(minLength: 8)
-                Text(venue ?? "선택 안 함").font(.body).foregroundStyle(Color(red: 235/255, green: 235/255, blue: 245/255).opacity(0.7)).lineLimit(1)
-                Image(systemName: "chevron.down").font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(Color(red: 235/255, green: 235/255, blue: 245/255).opacity(0.7))
-            }.padding(.horizontal, 19).frame(height: 52)
-                .background(Self.field, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
-                .contentShape(Rectangle())
-        }.buttonStyle(.plain).accessibilityLabel("공연 및 연습 장소, \(venue ?? "선택 안 함")")
+        HStack(spacing: 8) {
+            Text("공연 및 연습 장소").font(.body).foregroundStyle(.white)
+            Spacer(minLength: 8)
+            Menu {
+                Picker("공연 및 연습 장소", selection: $venue) {
+                    Text("선택 안 함").tag(String?.none)
+                    ForEach(venueNames + [venue].compactMap { $0 }.filter { !venueNames.contains($0) }, id: \.self) { name in Text(name).tag(Optional(name)) }
+                }.pickerStyle(.inline)
+                Section { Button("새 장소 추가…", systemImage: "plus") { addingVenue = true } }
+            } label: {
+                HStack(spacing: 8) {
+                    Text(venue ?? "선택 안 함").font(.body).lineLimit(1)
+                    Image(systemName: "chevron.down").font(.system(size: 14, weight: .medium))
+                }.foregroundStyle(Self.detail).frame(minHeight: 44).contentShape(Rectangle())
+            }.accessibilityLabel("공연 및 연습 장소, \(venue ?? "선택 안 함")")
+        }.padding(.horizontal, 19).frame(height: 52)
+            .background(Self.field, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
     }
+    private static let detail = Color(red: 235/255, green: 235/255, blue: 245/255).opacity(0.7)
     private func save() {
         guard valid, !busy else { return }
         busy = true; error = nil

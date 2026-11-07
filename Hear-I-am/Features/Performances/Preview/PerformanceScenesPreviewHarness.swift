@@ -47,25 +47,32 @@ struct PerformanceScenesPreviewHarness: View {
         case "scan-pick-performance": NavigationStack { PerformanceChoiceSheet(library: library, selection: performanceID) { _ in } }
         case "scan-pick-venue":
             if let performanceID { NavigationStack { VenueChoiceSheet(library: library, performanceID: performanceID, selection: venueID) { _ in } } }
-        case "create": PerformanceEditorSheet(library: library) { _ in }
-        case "space-add": PerformanceSpaceSearchSheet { _ in }
+        case "create": SheetOverPreview { listPage } sheet: { PerformanceEditorSheet(library: library) { _ in } }
+        case "space-add":
+            SheetOverPreview { detailPage } sheet: { PerformanceSpaceSearchSheet { _ in } }
         case "venue-filter":
-            PerformanceVenueFilterSheet(names: ["대구공연예술연습공간", "효자아트홀", "연습실 A", "연습실 B", "소극장 A"],
-                                        selection: ["효자아트홀", "대구공연예술연습공간"]) { _ in }
+            SheetOverPreview { listPage } sheet: {
+                PerformanceVenueFilterSheet(names: ["대구공연예술연습공간", "효자아트홀", "연습실 A", "연습실 B", "소극장 A"],
+                                            selection: ["효자아트홀", "대구공연예술연습공간"]) { _ in }
+            }
         case "editor":
             if let performanceID { ReferenceSceneEditorView(library: library, performanceID: performanceID) }
         case "space":
             if let performanceID { NavigationStack { PerformanceSpaceView(library: library, performanceID: performanceID, venueID: venueID, onStartGuidance: { _ in }) } }
         case "space-empty":
             if let performanceID { NavigationStack { PerformanceSpaceView(library: library, performanceID: performanceID, venueID: venueID, onStartGuidance: { _ in }) } }
-        case "detail":
-            if let performanceID { NavigationStack { PerformanceDetailView(library: library, performanceID: performanceID, onStartGuidance: { _ in }) } }
-        default:
-            TabView(selection: .constant(1)) {
-                Text("스캔").tabItem { HelperTab.label("스캔", systemImage: "viewfinder") }.tag(0)
-                PerformanceLibraryView(library: library, selectedPerformanceID: .constant(nil), onStartGuidance: { _ in }).tabItem { HelperTab.label("공연 관리", systemImage: "folder") }.tag(1)
-                Text("기록").tabItem { HelperTab.label("기록", systemImage: "clock") }.tag(2)
-            }
+        case "detail": detailPage
+        default: listPage
+        }
+    }
+    @ViewBuilder private var detailPage: some View {
+        if let performanceID { NavigationStack { PerformanceDetailView(library: library, performanceID: performanceID, onStartGuidance: { _ in }) } }
+    }
+    private var listPage: some View {
+        TabView(selection: .constant(1)) {
+            Text("스캔").tabItem { HelperTab.label("스캔", systemImage: "viewfinder") }.tag(0)
+            PerformanceLibraryView(library: library, selectedPerformanceID: .constant(nil), onStartGuidance: { _ in }).tabItem { HelperTab.label("공연 관리", systemImage: "folder") }.tag(1)
+            Text("기록").tabItem { HelperTab.label("기록", systemImage: "clock") }.tag(2)
         }
     }
     private func prepare() async {
@@ -102,6 +109,19 @@ struct PerformanceScenesPreviewHarness: View {
     }
 }
 
+#endif
+
+#if DEBUG
+/// A sheet as it really appears: presented over its page, so its edge against the page can be checked.
+private struct SheetOverPreview<Base: View, Sheet: View>: View {
+    @ViewBuilder let base: Base
+    @ViewBuilder let sheet: Sheet
+    @State private var shown = false
+    var body: some View {
+        base.sheet(isPresented: $shown) { sheet }
+            .task { try? await Task.sleep(for: .seconds(0.6)); shown = true }
+    }
+}
 #endif
 
 #if DEBUG
