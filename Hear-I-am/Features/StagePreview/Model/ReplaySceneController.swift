@@ -226,11 +226,11 @@ final class ReplaySceneController: NSObject {
         routeNodes.enumerateChildNodes {node,_ in node.geometry?.firstMaterial?.diffuse.contents=UIColor.systemGreen}
         photos.isHidden = !showPhotos || firstPerson
         if immersive {
-            switch selection {
-            case .photo(let id): projectionPhoto=scan.manifest.photos.first {$0.id==id}
-            case .point(let index): projectionPhoto=scan.manifest.viewpointPhoto(at:index)
-            case .object(let id): projectionPhoto=scan.manifest.photos.first {$0.objectID==id}
-            case nil: projectionPhoto=nil
+            // The immersive viewer anchors only explicitly opened photos, never a nearby point/object photo.
+            if case .photo(let id)=selection {
+                projectionPhoto=scan.manifest.photos.first {$0.id==id}
+            } else {
+                projectionPhoto=nil
             }
             startProjectionUpdates()
         }

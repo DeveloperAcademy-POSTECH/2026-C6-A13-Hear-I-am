@@ -47,8 +47,8 @@ struct ImmersiveSavedStagePreview: View {
                     LinearGradient(colors:[.black.opacity(0.25),.clear,.clear,.black.opacity(0.45)],startPoint:.top,endPoint:.bottom)
                         .allowsHitTesting(false)
                     if let photo=shownPhoto,let anchor=model.photoAnchor {
-                        // 971:33671: with the bar closed, the stage dims behind the point's photo.
-                        Color.black.opacity(barExpanded ? 0 : 0.6).allowsHitTesting(false)
+                        // Explicit photo selection dims the stage regardless of the route bar's state.
+                        Color.black.opacity(0.6).allowsHitTesting(false)
                         photoPreview(photo,scan:scan)
                             .position(x:min(max(anchor.x*geometry.size.width,86),geometry.size.width-86),
                                       y:min(max(anchor.y*(geometry.size.height+geometry.safeAreaInsets.top+safeBottom)-geometry.safeAreaInsets.top,80),geometry.size.height-200))
@@ -166,9 +166,10 @@ struct ImmersiveSavedStagePreview: View {
     #endif
     static let sheetSpring=Animation.spring(duration:0.35,bounce:0.1)
     private static let grey=Color(red:118/255,green:118/255,blue:118/255)
-    /// The point's photo, unless it was closed. Shown while photo pins are on.
+    /// Only a photo pin or gallery selection opens a preview; route points and objects never open one automatically.
     private var shownPhoto: ScanPhoto? {
-        guard model.photoPinsVisible,let photo=model.selectedPhoto,closedPhotoID != photo.id else {return nil}
+        guard case .photo = model.selection,model.photoPinsVisible,
+              let photo=model.selectedPhoto,closedPhotoID != photo.id else {return nil}
         return photo
     }
 
@@ -277,14 +278,14 @@ struct ImmersiveSavedStagePreview: View {
         }
     }
 
-    /// 971:33671: the point's photo in a 136 × 104 glass frame, a close button on its corner.
+    /// The selected photo in a 136 × 104 glass frame, a close button on its corner.
     private func photoPreview(_ photo: ScanPhoto,scan: LoadedScan) -> some View {
         Button {model.photoExpanded=true} label: {
             SavedPhotoImage(store:model.store,scanID:scan.manifest.id,photo:photo,fill:true)
                 .frame(width:124,height:94).clipShape(RoundedRectangle(cornerRadius:20,style:.continuous))
                 .frame(width:136,height:104)
                 .liquidGlass(RoundedRectangle(cornerRadius:24,style:.continuous),tint:.white.opacity(0.05))
-        }.buttonStyle(.plain).accessibilityLabel("선택한 지점 사진 크게 보기")
+        }.buttonStyle(.plain).accessibilityLabel("선택한 사진 크게 보기")
             .overlay(alignment:.topTrailing) {
                 ScanCircleButton(systemImage:"xmark",label:"사진 미리보기 닫기",size:32) {closedPhotoID=photo.id}
                     .offset(x:12,y:-12)
