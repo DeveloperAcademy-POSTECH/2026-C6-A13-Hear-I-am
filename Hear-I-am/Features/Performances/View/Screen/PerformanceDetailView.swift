@@ -1,4 +1,5 @@
 import SwiftUI
+import MapKit
 import HearIAmCore
 
 struct PerformanceDetailView: View {
@@ -87,11 +88,9 @@ struct PerformanceDetailView: View {
             .fullScreenCover(isPresented: $editingScenes) {
                 ReferenceSceneEditorView(library: library, performanceID: performanceID, initialSceneID: selectedSceneID).suspendsVoiceWake()
             }
-            .alert("공연 및 연습 공간", isPresented: $creatingSpace) {
-                TextField("예: 효자 아트홀", text: $spaceName)
-                Button("추가") { saveSpace() }.disabled(spaceName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                Button("취소", role: .cancel) { }
-            } message: { Text("이 공간에 여러 장면의 스캔 파일을 모을 수 있어요.") }
+            .sheet(isPresented: $creatingSpace) {
+                PerformanceSpaceSearchSheet { name in spaceName = name; creatingSpace = false; saveSpace() }.suspendsVoiceWake()
+            }
             .alert("공간 이름 변경", isPresented: Binding(get: { renamingSpace != nil }, set: { if !$0 { renamingSpace = nil } })) {
                 TextField("공간 이름", text: $spaceName)
                 Button("저장") { let id = renamingSpace?.id; saveSpace(id: id) }.disabled(spaceName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
@@ -167,6 +166,94 @@ struct PerformanceDetailView: View {
     private func deleteFolder() {
         busy = true
         Task { do { try await library.deletePerformance(performanceID); dismiss() } catch { self.error = error.localizedDescription }; busy = false }
+    }
+}
+
+/// 「공간 추가」 (Figma 971:32566 · 971:36428): search places on the map and pick one, or keep the typed name.
+/// Only the place's name is kept; the space has no address field.
+struct PerformanceSpaceSearchSheet: View {
+    let onDone: (String) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var query = ""
+    @State private var results: [MKMapItem] = []
+    @State private var searching = false
+    @AppStorage("performance.space.recentSearches") private var recentStore = ""
+    private struct Place: Codable, Hashable { var name: String; var address: String }
+    private var recents: [Place] { (try? JSONDecoder().decode([Place].self, from: Data(recentStore.utf8))) ?? [] }
+    private var typed: String { query.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            PerformanceSearchField(text: $query, prompt: "공연장 이름이나 주소 검색").padding(.horizontal, 16).padding(.top, 8)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    if typed.isEmpty {
+                        if !recents.isEmpty {
+                            PerformanceSectionTitle(text: "최근 검색").font(HearFont.pretendard(.semibold, size: 17)).padding(.top, 24).padding(.bottom, 4)
+                            ForEach(recents, id: \.self) { place in row(place) }
+                        } else {
+                            Text("공연장 이름이나 주소로 찾아보세요").font(HearFont.pretendard(.regular, size: 14)).foregroundStyle(HearV3.secondary)
+                                .frame(maxWidth: .infinity, minHeight: 160)
+                        }
+                    } else {
+                        if searching && results.isEmpty { ProgressView().frame(maxWidth: .infinity, minHeight: 120) }
+                        ForEach(results.indices, id: \.self) { index in row(Self.place(results[index])) }
+                        if !searching && results.isEmpty {
+                            Text("검색 결과가 없어요. 체크를 누르면 「\(typed)」 이름으로 추가해요.").font(HearFont.pretendard(.regular, size: 14))
+                                .foregroundStyle(HearV3.secondary).multilineTextAlignment(.center).frame(maxWidth: .infinity, minHeight: 120)
+                        }
+                    }
+                }.padding(.horizontal, 16).padding(.top, 8)
+            }.scrollDismissesKeyboard(.interactively)
+        }.background(HearV3.canvas.ignoresSafeArea()).preferredColorScheme(.dark)
+            .safeAreaInset(edge: .top, spacing: 0) {
+                HearTopBar(title: "공간 추가", leading: ScanCircleButton(systemImage: "xmark", label: "닫기") { dismiss() },
+                           trailing: Button { choose(Place(name: typed, address: "")) } label: { HearTopButtonLabel(systemImage: "checkmark", prominent: true) }
+                    .buttonStyle(.plain).disabled(typed.isEmpty).opacity(typed.isEmpty ? 0.45 : 1).accessibilityLabel("입력한 이름으로 추가"))
+                    .padding(.top, 6)
+            }
+            .presentationDragIndicator(.visible).presentationBackground(HearV3.canvas)
+            .task(id: typed) {
+                guard !typed.isEmpty else { results = []; return }
+                try? await Task.sleep(for: .milliseconds(300))
+                guard !Task.isCancelled else { return }
+                searching = true
+                let request = MKLocalSearch.Request(); request.naturalLanguageQuery = typed
+                request.resultTypes = [.pointOfInterest, .address]
+                let found = (try? await MKLocalSearch(request: request).start())?.mapItems ?? []
+                guard !Task.isCancelled else { return }
+                results = Array(found.prefix(20)); searching = false
+            }
+    }
+    private func row(_ place: Place) -> some View {
+        Button { choose(place) } label: {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: "mappin.circle").font(.system(size: 18)).foregroundStyle(.white).padding(.top, 2)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(place.name).font(HearFont.pretendard(.medium, size: 16)).foregroundStyle(.white).lineLimit(1)
+                    if !place.address.isEmpty {
+                        Text(place.address).font(HearFont.pretendard(.regular, size: 13)).foregroundStyle(HearV3.secondary).lineLimit(1)
+                    }
+                }.frame(maxWidth: .infinity, alignment: .leading)
+                Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold)).foregroundStyle(HearV3.secondary).padding(.top, 4)
+            }.padding(.vertical, 14).overlay(alignment: .bottom) { Rectangle().fill(.white.opacity(0.12)).frame(height: 0.5).padding(.leading, 30) }
+                .contentShape(Rectangle())
+        }.buttonStyle(.plain)
+    }
+    private func choose(_ place: Place) {
+        let name = place.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return }
+        if !place.address.isEmpty {
+            let list = [place] + recents.filter { $0 != place }
+            if let data = try? JSONEncoder().encode(Array(list.prefix(5))) { recentStore = String(decoding: data, as: UTF8.self) }
+        }
+        onDone(name)
+    }
+    private static func place(_ item: MKMapItem) -> Place {
+        let mark = item.placemark
+        let address = [mark.administrativeArea, mark.locality, mark.subLocality, mark.thoroughfare, mark.subThoroughfare]
+            .compactMap { $0 }.reduce(into: [String]()) { if $0.last != $1 { $0.append($1) } }.joined(separator: " ")
+        return Place(name: item.name ?? address, address: address)
     }
 }
 
