@@ -28,7 +28,6 @@ struct PerformanceSpaceView: View {
         Group {
             if let record {
                 ImmersiveSavedStagePreview(record:record,store:library.scans,scanSelector:AnyView(scanSelector),
-                    onNewScan:{scanning=true},onStartGuidance:onStartGuidance,
                     onRename:{scanName=record.name;rename=true},onDelete:{deleting=true})
                     .id(record.id)
             } else {
