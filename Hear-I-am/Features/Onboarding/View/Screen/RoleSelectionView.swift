@@ -96,10 +96,24 @@ enum LandingStyle {
     static let cardHeight: CGFloat = 259
     /// The design renders the photos at 80%, but the exported JPEGs come out lighter than the Figma render; 65% matches it.
     static let photoOpacity: Double = 0.65
-    /// The design draws the logo at 153pt on the launch and 96.5pt on the role page; the user asked for
-    /// both a step smaller (2026-11-02).
-    static let launchLogo: CGFloat = 124
-    static let pageLogo: CGFloat = 82
+    /// The logo at the design's sizes: 153pt on the launch, 96.5pt on the role page.
+    static let launchLogo: CGFloat = 153.054
+    static let pageLogo: CGFloat = 96.542
+
+    // Figma 971:17057 · 971:17570, in points from the top of a 402×874 screen.
+    /// The launch logo's centre sits this far above the screen's centre (logo centre 352 on an 874pt screen).
+    static let launchLogoLift: CGFloat = 85
+    /// 「Hear I am」 starts this far under the launch logo.
+    static let launchWordmarkGap: CGFloat = 36
+    /// The role page logo's centre (top 137, 96.5pt tall).
+    static let pageLogoCenter: CGFloat = 185.4
+    static let titleTop: CGFloat = 266
+    /// The design's 1.4 line height: 28pt → 39.2, 20pt → 28, 18pt → 25.2, 14pt → 19.6.
+    static let titleHeight: CGFloat = 39.2
+    static let subtitleHeight: CGFloat = 28
+    /// The 32pt dot slot (20pt dot centred at 418) and the cards right under it (top 447).
+    static let dotSlotTop: CGFloat = 402
+    static let cardTop: CGFloat = 447
 }
 
 /// The soft white glow above the role page (Figma Ellipse 31: 311×264 blurred ellipse, top at −171).
@@ -110,7 +124,7 @@ private struct LandingGlow: View {
     }
 }
 
-/// Launch and role page in one (Figma 457:16069 → 476:3167 · 3204 · 3583). At launch the logo sits in the
+/// Launch and role page in one (Figma 971:17057 → 971:17570 · 17846 · 18124). At launch the logo sits in the
 /// centre of the screen over 「Hear I am」 and draws itself in once, then rises into its place at the top of
 /// the role page while the page fades in. Opening this page later (changing the role) skips all of that.
 struct RoleSelectionView: View {
@@ -144,9 +158,12 @@ struct RoleSelectionView: View {
             // The physical screen's centre in this (safe-area) space, so the launch logo is centred on the screen.
             let insets=geometry.safeAreaInsets
             let screenCenter=CGPoint(x:geometry.size.width/2,y:(geometry.size.height+insets.bottom-insets.top)/2)
-            // The role page's slot: first in the top-aligned column, 107pt down (476:3204).
-            let pageCenter=CGPoint(x:geometry.size.width/2,y:107+pageLogo/2)
-            let logoCenter=launching ? screenCenter : pageCenter
+            let launchCenter=CGPoint(x:screenCenter.x,y:screenCenter.y-LandingStyle.launchLogoLift)
+            // The role page's slot: first in the top-aligned column, measured from the top of the screen.
+            let pageTop=max(0,LandingStyle.pageLogoCenter-pageLogo/2-insets.top)
+            let pageCenter=CGPoint(x:geometry.size.width/2,y:pageTop+pageLogo/2)
+            let titleBlockBottom=LandingStyle.titleTop+LandingStyle.titleHeight+2+LandingStyle.subtitleHeight
+            let logoCenter=launching ? launchCenter : pageCenter
             ZStack(alignment:.top) {
                 LandingStyle.canvas.ignoresSafeArea()
                 LandingGlow().ignoresSafeArea().opacity(launching ? 0 : 1)
@@ -154,30 +171,33 @@ struct RoleSelectionView: View {
                     ZStack {
                         Color.clear
                         if risen {HearStrokeLogo(size:pageLogo)}
-                    }.frame(width:pageLogo,height:pageLogo).padding(.top,107)
-                    VStack(spacing:4) {
-                        Text("사용자를 선택해주세요").font(.system(size:28,weight:.bold)).tracking(-0.84).foregroundStyle(.white)
+                    }.frame(width:pageLogo,height:pageLogo).padding(.top,pageTop)
+                    VStack(spacing:2) {
+                        Text("사용자를 선택해주세요").font(HearFont.pretendard(.bold,size:28)).tracking(-0.84).foregroundStyle(.white)
+                            .frame(height:LandingStyle.titleHeight)
                             .accessibilityAddTraits(.isHeader)
-                        Text("사용자에 따라 앱 사용 환경이 달라져요").font(.system(size:20,weight:.medium)).tracking(-0.6)
+                        Text("사용자에 따라 앱 사용 환경이 달라져요").font(HearFont.pretendard(.medium,size:20)).tracking(-0.6)
                             .foregroundStyle(LandingStyle.secondary)
-                    }.multilineTextAlignment(.center).lineLimit(1).minimumScaleFactor(0.8).padding(.top,32)
+                            .frame(height:LandingStyle.subtitleHeight)
+                    }.multilineTextAlignment(.center).lineLimit(1).minimumScaleFactor(0.8).padding(.horizontal,20)
+                        .padding(.top,LandingStyle.titleTop-LandingStyle.pageLogoCenter-pageLogo/2)
                     HStack(alignment:.top,spacing:16) {
                         ForEach(HearRole.allCases) {role in
-                            VStack(spacing:19) {
+                            VStack(spacing:LandingStyle.cardTop-LandingStyle.dotSlotTop-32) {
                                 RoleDot(state:dotState(role))
                                 RoleCard(role:role,selected:selected == role) {selected=role}
                             }
                         }
-                    }.padding(.horizontal,20).padding(.top,58)
+                    }.padding(.horizontal,20).padding(.top,LandingStyle.dotSlotTop-titleBlockBottom)
                     Spacer(minLength:16)
                 }.frame(maxWidth:.infinity).opacity(launching ? 0 : 1)
                 Button {showingSettings=true} label: {ScanCircleLabel(systemImage:"gearshape")}
                     .buttonStyle(.plain).frame(maxWidth:.infinity,alignment:.trailing).padding(.trailing,18).padding(.top,14)
                     .accessibilityLabel("설정").accessibilityIdentifier("role.settings")
                     .opacity(launching ? 0 : 1)
-                // Launch layout (457:16069): the wordmark 36pt under the centred logo.
-                Text("Hear I am").font(.system(size:40,weight:.ultraLight)).foregroundStyle(.white).fixedSize()
-                    .position(x:screenCenter.x,y:screenCenter.y+launchLogo/2+36+24)
+                // Launch layout (971:17057): the wordmark 36pt under the logo, which sits above the screen's centre.
+                Text("Hear I am").font(HearFont.suitExtraLight(size:40)).foregroundStyle(.white).fixedSize()
+                    .position(x:launchCenter.x,y:launchCenter.y+launchLogo/2+LandingStyle.launchWordmarkGap+25)
                     .opacity(launching ? 1 : 0).allowsHitTesting(false)
                     .accessibilityElement(children:.combine).accessibilityLabel("Hear I am").accessibilityIdentifier("launch.brand")
                     .accessibilityHidden(!launching)
@@ -192,7 +212,7 @@ struct RoleSelectionView: View {
             }
             .safeAreaInset(edge:.bottom,spacing:0) {
                 Button {if let selected {select(selected)}} label: {
-                    Text("선택한 사용자로 시작하기").font(.system(size:20,weight:.semibold))
+                    Text("선택한 사용자로 시작하기").font(HearFont.pretendard(.semibold,size:16))
                         .foregroundStyle(selected == nil ? LandingStyle.dimButtonText : LandingStyle.canvas)
                         .frame(maxWidth:.infinity).frame(height:50)
                         .background(selected == nil ? LandingStyle.dimButton : Color.white,in:Capsule())
@@ -261,9 +281,11 @@ private struct RoleCard: View {
                 }
                 .overlay(alignment:.bottomLeading) {
                     VStack(alignment:.leading,spacing:0) {
-                        Text(role.landingTitle).font(.system(size:18,weight:.semibold)).tracking(-0.54).foregroundStyle(.white)
-                        Text(role.landingDetail).font(.system(size:14,weight:.medium)).tracking(-0.42).foregroundStyle(.white.opacity(0.8))
-                            .lineSpacing(2).fixedSize(horizontal:false,vertical:true)
+                        Text(role.landingTitle).font(HearFont.pretendard(.semibold,size:18)).tracking(-0.54).foregroundStyle(.white)
+                            .frame(height:25.2)
+                        // 14pt at the design's 1.4 line height (19.6pt a line; Pretendard's own line is about 16.7pt).
+                        Text(role.landingDetail).font(HearFont.pretendard(.medium,size:14)).tracking(-0.42).foregroundStyle(.white.opacity(0.8))
+                            .lineSpacing(2.9).fixedSize(horizontal:false,vertical:true)
                     }.padding(.leading,19).padding(.trailing,12).padding(.bottom,19)
                 }
                 .clipShape(shape).contentShape(shape)
