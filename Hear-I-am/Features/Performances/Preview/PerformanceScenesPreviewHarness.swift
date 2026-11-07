@@ -53,6 +53,8 @@ struct PerformanceScenesPreviewHarness: View {
                                         selection: ["효자아트홀", "대구공연예술연습공간"]) { _ in }
         case "editor":
             if let performanceID { ReferenceSceneEditorView(library: library, performanceID: performanceID) }
+        case "space":
+            if let performanceID { NavigationStack { PerformanceSpaceView(library: library, performanceID: performanceID, venueID: venueID, onStartGuidance: { _ in }) } }
         case "space-empty":
             if let performanceID { NavigationStack { PerformanceSpaceView(library: library, performanceID: performanceID, venueID: venueID, onStartGuidance: { _ in }) } }
         case "detail":

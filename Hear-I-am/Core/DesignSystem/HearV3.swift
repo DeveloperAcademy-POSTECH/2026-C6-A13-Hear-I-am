@@ -51,6 +51,8 @@ extension View {
 /// through `hearTopBar` instead of the navigation bar, which would sit 14pt higher.
 struct HearTopBar<Leading: View, Trailing: View>: View {
     let title: String?
+    /// A control in the title's place, such as the scene picker on a space page.
+    var center: AnyView?=nil
     let leading: Leading
     let trailing: Trailing
     var body: some View {
@@ -60,7 +62,8 @@ struct HearTopBar<Leading: View, Trailing: View>: View {
             HStack(spacing:8) {trailing}
         }.frame(height:44)
             .overlay {
-                if let title {
+                if let center {center}
+                else if let title {
                     Text(title).font(.headline).foregroundStyle(.white).lineLimit(1).minimumScaleFactor(0.8)
                         .readAloudTarget(title).padding(.horizontal,60).accessibilityAddTraits(.isHeader)
                 }
@@ -102,5 +105,11 @@ extension View {
                                                     @ViewBuilder trailing: () -> Trailing) -> some View {
         toolbar(.hidden,for:.navigationBar)
             .safeAreaInset(edge:.top,spacing:0) {HearTopBar(title:title,leading:leading(),trailing:trailing())}
+    }
+    /// The same row with a control in the middle instead of a title.
+    func hearTopBar<Center: View, Leading: View, Trailing: View>(@ViewBuilder center: () -> Center, @ViewBuilder leading: () -> Leading,
+                                                                  @ViewBuilder trailing: () -> Trailing) -> some View {
+        toolbar(.hidden,for:.navigationBar)
+            .safeAreaInset(edge:.top,spacing:0) {HearTopBar(title:nil,center:AnyView(center()),leading:leading(),trailing:trailing())}
     }
 }
