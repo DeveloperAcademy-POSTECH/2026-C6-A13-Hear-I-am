@@ -59,8 +59,10 @@ import HearIAmCore
     /// Every candidate the recognizer gave for the last final result after the best one (#92).
     private(set) var lastAlternatives: [String] = []
     /// The app's own sentences taught to the recognizer once prepared; nil until then (#92).
-    private var languageModel: SFSpeechLanguageModel.Configuration?
+    private var languageModel: VoiceLanguageModelBuilder.Prepared?
     private var languageModelKey: String?
+    private var languageModelPreparation: Task<Void, Never>?
+    private var languageModelRequestID: UUID?
     /// Settings switch for trying the iOS 26 SpeechAnalyzer engine instead of SFSpeechRecognizer (#92).
     static let analyzerKey = "voice.engine.speechAnalyzer"
     static var usesAnalyzer: Bool { (UserDefaults.standard.object(forKey: analyzerKey) as? Bool) ?? true }
@@ -82,6 +84,21 @@ import HearIAmCore
             self?.recover("오디오 연결을 다시 준비하고 있어요", restartAudio: true, source: "narration_engine_stopped")
         }
         let center = NotificationCenter.default
+        observers.append(center.addObserver(forName: VoiceLanguageModelBuilder.vocabularyInvalidated, object: nil, queue: .main) { [weak self] _ in
+            // The builder posts synchronously on MainActor. Handle the same generation now, before
+            // a subsequent start can prepare a new vocabulary and be cleared by a delayed callback.
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.clearLanguageModel()
+                // Old personal names must not remain in the next request's hints or correction list.
+                self.contextualStrings = []
+                self.autocorrectLexicon = VoiceAutocorrect.lexicon(VoiceVocabulary.phrases().map(\.text))
+                if self.wantsListening {
+                    self.retireTurn()
+                    self.scheduleNextTurn(after: 0.05)
+                }
+            }
+        })
         observers.append(center.addObserver(forName: .AVAudioEngineConfigurationChange, object: nil, queue: nil) { [weak self] notification in
             guard let changed = notification.object as? AVAudioEngine else { return }
             let identity = ObjectIdentifier(changed)
@@ -122,6 +139,7 @@ import HearIAmCore
         speechLimitTimer?.cancel()
         endpointTimer?.cancel()
         finalResultTimer?.cancel()
+        languageModelPreparation?.cancel()
         inputBridge.clear()
         recognitionTask?.cancel()
         engine?.stop()
@@ -392,10 +410,12 @@ import HearIAmCore
             request.shouldReportPartialResults = true
             request.contextualStrings = listensInEnglish ? VoiceWakeWord.hints : contextualStrings
             request.addsPunctuation = false
-            if !listensInEnglish, let languageModel { request.customizedLanguageModel = languageModel }
+            let model = !listensInEnglish && languageModel?.lease.isCurrent == true ? languageModel : nil
+            if let model { request.customizedLanguageModel = model.configuration }
             let delegate = VoiceRecognitionTaskDelegate(service: self, turnID: identifier)
             taskDelegate = delegate
             recognitionTask = recognizer.recognitionTask(with: request, delegate: delegate)
+            if let model, let recognitionTask { VoiceLanguageModelBuilder.retain(model, untilFinished: recognitionTask) }
             sink = request
         }
         inputBridge.replace(with: sink, onReady: { [weak self] in
@@ -621,6 +641,7 @@ import HearIAmCore
         configurationTimer?.cancel(); configurationTimer = nil
         restartTimer?.cancel(); restartTimer = nil
         retireTurn()
+        cancelLanguageModelPreparation()
         tearDownEngine()
         recognizer = nil
         recovery.reset()
@@ -696,19 +717,37 @@ extension VoiceRecognitionService {
     /// Builds the app's own sentences into a custom language model in the background and keeps it for
     /// later turns (#92). The first turns use the plain model; a failure leaves the plain model in use.
     func prepareLanguageModel(_ phrases: [VoiceVocabulary.Phrase]) {
-        guard !phrases.isEmpty, let recognizer else { return }
+        guard !phrases.isEmpty, let recognizer else { clearLanguageModel(); return }
         let key = VoiceLanguageModelBuilder.key(phrases)
         guard key != languageModelKey else { return }
+        clearLanguageModel()
         languageModelKey = key; languageModel = nil
+        let requestID = UUID()
+        languageModelRequestID = requestID
         let locale = recognizer.locale
-        Task.detached(priority: .utility) { [weak self] in
-            let configuration = await VoiceLanguageModelBuilder.prepare(phrases, key: key, locale: locale)
+        languageModelPreparation = Task.detached(priority: .utility) { [weak self] in
+            let model = await VoiceLanguageModelBuilder.prepare(phrases, locale: locale)
             await MainActor.run { [weak self] in
-                guard let self, self.languageModelKey == key else { return }
-                self.languageModel = configuration
-                self.trace("voice_language_model ready=\(configuration != nil) phrases=\(phrases.count)")
+                guard let self, self.languageModelRequestID == requestID else { return }
+                self.languageModelPreparation = nil
+                self.languageModelRequestID = nil
+                self.languageModel = model?.lease.isCurrent == true ? model : nil
+                if self.languageModel == nil { self.languageModelKey = nil }
+                self.trace("voice_language_model ready=\(self.languageModel != nil) phrases=\(phrases.count)")
             }
         }
+    }
+    private func clearLanguageModel() {
+        cancelLanguageModelPreparation()
+        languageModelKey = nil
+        languageModel = nil
+    }
+    private func cancelLanguageModelPreparation() {
+        languageModelRequestID = nil
+        languageModelPreparation?.cancel(); languageModelPreparation = nil
+        // A current ready model can serve the next listening session. Library invalidation clears
+        // it separately; keeping it here avoids rebuilding after every app narration pause.
+        if languageModel == nil { languageModelKey = nil }
     }
     /// Switches between English (waiting for the call) and Korean (taking requests) from the next turn.
     func listenInEnglish(_ english: Bool) {

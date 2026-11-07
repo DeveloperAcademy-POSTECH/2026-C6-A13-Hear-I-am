@@ -1,8 +1,47 @@
 import AVFoundation
 import Speech
+import OSLog
 import HearIAmCore
 
 enum VoiceLanguageModelBuilder {
+    struct Prepared: @unchecked Sendable {
+        let configuration: SFSpeechLanguageModel.Configuration
+        let lease: VoiceModelCache.Lease
+    }
+    static let vocabularyInvalidated = Notification.Name("HearIAm.voiceVocabularyInvalidated")
+    private static let cache = VoiceModelCache(
+        root: FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("VoiceLanguageModel", isDirectory: true),
+        onCleanupFailure: { count in
+            Logger(subsystem: "org.heariam.poc4.scanlab", category: "VoiceModelCache")
+                .error("Custom voice cache cleanup failed for \(count) items; retrying on next library load.")
+        }
+    )
+
+    /// Called after a committed library change. Pending preparations become obsolete immediately;
+    /// live requests retain their files until Speech reports that they have actually completed.
+    @MainActor static func invalidateLibraryVocabulary() {
+        cache.invalidate()
+        NotificationCenter.default.post(name: vocabularyInvalidated, object: nil)
+    }
+    static func cleanUnusedCache() { cache.scheduleCleanup() }
+
+    private struct ModelUse: @unchecked Sendable {
+        let model: Prepared
+        let task: SFSpeechRecognitionTask
+    }
+    static func retain(_ model: Prepared, untilFinished task: SFSpeechRecognitionTask) {
+        let use = ModelUse(model: model, task: task)
+        Task.detached(priority: .utility) {
+            // cancel() is asynchronous. Do not rely on the service/delegate lifetime or a fixed
+            // grace period to decide that Speech has stopped reading its language-model files.
+            while use.task.state != .completed {
+                try? await Task.sleep(nanoseconds: 250_000_000)
+            }
+            withExtendedLifetime(use.model) {}
+        }
+    }
+
     /// Stable across launches, unlike Hasher: FNV-1a over every phrase and weight.
     static func key(_ phrases: [VoiceVocabulary.Phrase]) -> String {
         var hash: UInt64 = 0xcbf29ce484222325
@@ -11,23 +50,22 @@ enum VoiceLanguageModelBuilder {
         }
         return String(hash, radix: 16)
     }
-    static func prepare(_ phrases: [VoiceVocabulary.Phrase], key: String, locale: Locale) async -> SFSpeechLanguageModel.Configuration? {
-        let folder = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("VoiceLanguageModel/\(key)", isDirectory: true)
-        let configuration = SFSpeechLanguageModel.Configuration(languageModel: folder.appendingPathComponent("model"),
-                                                                vocabulary: folder.appendingPathComponent("vocabulary"))
+    static func prepare(_ phrases: [VoiceVocabulary.Phrase], locale: Locale) async -> Prepared? {
         do {
-            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            guard !Task.isCancelled else { return nil }
+            let lease = try cache.acquire()
+            let folder = lease.folder
+            let configuration = SFSpeechLanguageModel.Configuration(languageModel: folder.appendingPathComponent("model"),
+                                                                    vocabulary: folder.appendingPathComponent("vocabulary"))
             let asset = folder.appendingPathComponent("data.bin")
-            if !FileManager.default.fileExists(atPath: asset.path) {
-                let data = SFCustomLanguageModelData(locale: locale, identifier: "org.heariam.voice", version: VoiceVocabulary.version) {}
-                for phrase in phrases { data.insert(phraseCount: SFCustomLanguageModelData.PhraseCount(phrase: phrase.text, count: phrase.count)) }
-                try await data.export(to: asset)
-            }
+            let data = SFCustomLanguageModelData(locale: locale, identifier: "org.heariam.voice", version: VoiceVocabulary.version) {}
+            for phrase in phrases { data.insert(phraseCount: SFCustomLanguageModelData.PhraseCount(phrase: phrase.text, count: phrase.count)) }
+            try await data.export(to: asset)
+            guard !Task.isCancelled, lease.isCurrent else { return nil }
             try await SFSpeechLanguageModel.prepareCustomLanguageModel(for: asset, configuration: configuration)
-            return configuration
+            guard !Task.isCancelled, lease.isCurrent else { return nil }
+            return Prepared(configuration: configuration, lease: lease)
         } catch {
-            try? FileManager.default.removeItem(at: folder)
             return nil
         }
     }

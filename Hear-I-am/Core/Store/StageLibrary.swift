@@ -18,6 +18,7 @@ import HearIAmCore
     let guidanceRecordsStore: GuidanceRecordStore
     private let pinURL: URL
     private var refreshTask: Task<Void, Never>?
+    private var previousVoiceMetadata: [UUID: [String]]?
     var groups: (pinned: [ScanManifest], recent: [ScanManifest]) { pins.groups(records) }
     init(root: URL? = nil) {
         let docs=root ?? FileManager.default.urls(for:.documentDirectory,in:.userDomainMask)[0]
@@ -40,7 +41,7 @@ import HearIAmCore
         refreshTask=nil
     }
     private func loadLibrary() async {
-        loading=true; defer {loading=false}
+        loading=true; defer {loading=false;refreshVoiceMetadata()}
         do {
             // Do not commit a partial migration when either source cannot be read.
             let loadedScans=try await scans.list()
@@ -56,6 +57,14 @@ import HearIAmCore
             catalog=try await catalogStore.reconcileScanReferences(validScanIDs:Set(loadedScans.map(\.id)))
             try await synchronizeLegacyPlaces()
         } catch {self.error="공연 목록을 불러오지 못했어요. 기존 자료는 유지됩니다. \(error.localizedDescription)"}
+    }
+    private func refreshVoiceMetadata() {
+        let current=voiceMetadata
+        if previousVoiceMetadata != current {
+            previousVoiceMetadata=current
+            VoiceLanguageModelBuilder.invalidateLibraryVocabulary()
+        }
+        VoiceLanguageModelBuilder.cleanUnusedCache()
     }
     /// The catalog is authoritative after migration. A failed source sync is retried on refresh;
     /// the source's persisted revision guard prevents an older snapshot from undoing newer edits.
@@ -79,10 +88,12 @@ import HearIAmCore
         catch {self.error="고정 상태를 저장하지 못했습니다: \(error.localizedDescription)"}
     }
     func renameStage(_ id: UUID, to name: String) async throws {
+        defer {refreshVoiceMetadata()}
         let updated=try await scans.rename(id,to:name)
         if let index=records.firstIndex(where:{$0.id==id}) {records[index]=updated}
     }
     func deleteStage(_ id: UUID) async throws {
+        defer {refreshVoiceMetadata()}
         try await scans.delete(id)
         records.removeAll {$0.id == id}
         pins.remove(id)
@@ -124,35 +135,47 @@ extension StageLibrary {
             return (record.id,Array(Set(names)))
         })
     }
+    /// Includes names and classification, so correction/deletion also refreshes Siri's suggestions.
+    var voiceMetadata: [UUID: [String]] {
+        let contexts=voiceStageContexts
+        return Dictionary(uniqueKeysWithValues:records.map {($0.id,[$0.name]+(contexts[$0.id] ?? []).sorted())})
+    }
     @discardableResult func createPerformance(name: String, notes: String = "") async throws -> PerformanceFolder {
+        defer {refreshVoiceMetadata()}
         let folder=PerformanceFolder(name:name,notes:notes)
         catalog=try await catalogStore.upsert(folder)
         return catalog.performances.first {$0.id==folder.id}!
     }
     func updatePerformance(id: UUID, name: String, notes: String) async throws {
+        defer {refreshVoiceMetadata()}
         guard var folder=catalog.performances.first(where:{$0.id==id}) else {throw LabError.invalid("공연을 찾을 수 없어요.")}
         folder.name=name;folder.notes=notes;catalog=try await catalogStore.upsert(folder)
         try await synchronizeLegacyPlaces()
     }
     func deletePerformance(_ id: UUID) async throws {
+        defer {refreshVoiceMetadata()}
         catalog=try await catalogStore.deletePerformance(id)
         try await synchronizeLegacyPlaces()
     }
     @discardableResult func createVenue(name: String, in performanceID: UUID) async throws -> PerformanceVenueTag {
+        defer {refreshVoiceMetadata()}
         let tag=PerformanceVenueTag(name:name)
         catalog=try await catalogStore.upsertVenue(tag,in:performanceID)
         return catalog.performances.first {$0.id==performanceID}!.venues.first {$0.id==tag.id}!
     }
     func renameVenue(_ id: UUID, in performanceID: UUID, to name: String) async throws {
+        defer {refreshVoiceMetadata()}
         guard catalog.performances.first(where:{$0.id==performanceID})?.venues.contains(where:{$0.id==id})==true else {throw LabError.invalid("공연·연습 공간을 찾을 수 없어요.")}
         catalog=try await catalogStore.upsertVenue(.init(id:id,name:name),in:performanceID)
         try await synchronizeLegacyPlaces()
     }
     func deleteVenue(_ id: UUID, in performanceID: UUID) async throws {
+        defer {refreshVoiceMetadata()}
         catalog=try await catalogStore.deleteVenue(id,in:performanceID)
         try await synchronizeLegacyPlaces()
     }
     func assignScans(_ scanIDs: [UUID], to performanceID: UUID?, venueID: UUID? = nil) async throws {
+        defer {refreshVoiceMetadata()}
         guard Set(scanIDs).isSubset(of:Set(records.map(\.id))) else {throw LabError.invalid("저장한 무대를 다시 불러와주세요.")}
         catalog=try await catalogStore.assign(scanIDs,to:performanceID,venueID:venueID)
         try await synchronizeLegacyPlaces()
