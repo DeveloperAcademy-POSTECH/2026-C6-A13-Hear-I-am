@@ -17,7 +17,8 @@ struct ImmersiveSavedStagePreview: View {
     @State private var barExpanded = false
     /// Where an open sheet's top edge is on screen, so the opened bar can ride up on it (971:33834 · 971:34288).
     @State private var sheetTop: CGFloat?
-    @Namespace private var barSpace
+    /// Where a finger is on the opened bar, from its centre; the glass lens follows it until it lifts.
+    @State private var dragX: CGFloat?
 
     init(record: ScanManifest, store: ScanStore, scanSelector: AnyView? = nil,
          onNewScan: (() -> Void)? = nil, onStartGuidance: ((UUID) -> Void)? = nil,
@@ -33,7 +34,6 @@ struct ImmersiveSavedStagePreview: View {
     var body: some View {
         GeometryReader { geometry in
             let safeBottom=geometry.safeAreaInsets.bottom
-            let screenBottom=geometry.frame(in:.global).maxY+safeBottom
             ZStack {
                 HearV3.canvas
                 if let scan=model.loaded {
@@ -53,7 +53,7 @@ struct ImmersiveSavedStagePreview: View {
                             .transition(.opacity.combined(with:.scale(scale:0.92)))
                     }
                     if let route=scan.manifest.route,!route.points.isEmpty {
-                        controls(route:route,safeBottom:safeBottom,screenBottom:screenBottom,width:geometry.size.width)
+                        controls(route:route,safeBottom:safeBottom,height:geometry.size.height+geometry.safeAreaInsets.top+safeBottom,width:geometry.size.width)
                     } else {
                         HStack {
                             ScanCircleButton(systemImage:"photo.on.rectangle",label:"저장된 현장 사진",size:48) {gallery=true}
@@ -86,6 +86,18 @@ struct ImmersiveSavedStagePreview: View {
             if args.contains("--replay-middle") {model.select(.point(1))}
             if let i=args.firstIndex(of:"--replay-point"),args.indices.contains(i+1),let n=Int(args[i+1]) {model.select(.point(n))}
             if args.contains("--replay-expanded") {barExpanded=true}
+            if args.contains("--replay-open-later") {
+                try? await Task.sleep(for:.seconds(3))
+                withAnimation(Self.barSpring) {barExpanded=true}
+            }
+            if args.contains("--replay-gallery-close") {
+                barExpanded=true;gallery=true
+                try? await Task.sleep(for:.seconds(3));gallery=false
+            }
+            if args.contains("--replay-step-later") {
+                try? await Task.sleep(for:.seconds(3))
+                withAnimation(Self.barSpring) {model.select(.point(1))}
+            }
             if args.contains("--replay-gallery") {barExpanded=true;gallery=true}
             if args.contains("--replay-settings") {barExpanded=true;openPointSettings()}
             #endif
@@ -130,7 +142,12 @@ struct ImmersiveSavedStagePreview: View {
             .buttonStyle(.plain).accessibilityLabel("무대 메뉴")
     }
 
+    #if DEBUG
+    /// `--slow-bar` stretches the bar's spring so each frame of the change can be checked.
+    static let barSpring=Animation.spring(duration:ProcessInfo.processInfo.arguments.contains("--slow-bar") ? 4 : 0.42,bounce:0.18)
+    #else
     static let barSpring=Animation.spring(duration:0.42,bounce:0.18)
+    #endif
     private static let grey=Color(red:118/255,green:118/255,blue:118/255)
     /// The point's photo, unless it was closed. Shown while photo pins are on.
     private var shownPhoto: ScanPhoto? {
@@ -139,108 +156,114 @@ struct ImmersiveSavedStagePreview: View {
     }
 
     /// The bottom of the stage: photos and point settings at the corners, the route between them. Closed, the route
-    /// is a 94pt capsule between the arrows; opened, it is a full-width bar above them that you drag along like a
-    /// video's timeline. While a sheet is up the opened bar rides on its top edge.
-    private func controls(route: StageRoute,safeBottom: CGFloat,screenBottom: CGFloat,width: CGFloat) -> some View {
+    /// is a 94pt capsule between the arrows (971:33671); opened, the same capsule grows into a full-width bar above
+    /// them (971:34370) that you drag along like a video's timeline. It is one view whose width, place and points all
+    /// move in the same spring, so the points slide out from the window as the glass widens instead of appearing
+    /// ahead of it. While a sheet is up the opened bar rides on its top edge, but never below its resting place.
+    private func controls(route: StageRoute,safeBottom: CGFloat,height: CGFloat,width: CGFloat) -> some View {
         let count=route.points.count, index=min(model.activePointIndex,count-1)
+        let layout=RouteBarLayout(count:count,index:index,expanded:barExpanded,width:width-56)
+        let rowY=height-safeBottom-24
         let resting=safeBottom+48+12
-        let lifted=sheetTop.map {screenBottom-$0+16}
-        let hideBar=(lifted ?? 0)>screenBottom*0.6
-        return ZStack(alignment:.bottom) {
-            HStack(spacing:0) {
-                ScanCircleButton(systemImage:"photo.on.rectangle",label:"저장된 현장 사진",size:48) {
-                    withAnimation(Self.barSpring) {barExpanded=true};gallery=true
-                }
-                Spacer(minLength:8)
-                HStack(spacing:barExpanded ? 12 : 6) {
-                    arrow("chevron.left",label:"이전 지점",enabled:index>0) {model.select(.point(index-1))}
-                    if !barExpanded {
-                        collapsedRoute(route:route,index:index)
-                            .overlay(alignment:.top) {pointChip(route.pointLabel(at:index)).offset(y:-38)}
-                    }
-                    arrow("chevron.right",label:"다음 지점",enabled:index<count-1) {model.select(.point(index+1))}
-                }
-                Spacer(minLength:8)
-                ScanCircleButton(systemImage:"timer",label:"선택 지점 설정",size:48) {
-                    withAnimation(Self.barSpring) {barExpanded=true};openPointSettings()
-                }
-            }.padding(.horizontal,27).padding(.bottom,safeBottom)
-            if barExpanded && !hideBar {
-                expandedRoute(route:route,index:index,width:width-56)
-                    .padding(.bottom,lifted ?? resting)
-                    .transition(.opacity)
-            }
-        }.frame(maxWidth:.infinity,maxHeight:.infinity,alignment:.bottom)
+        let lift=max(resting,sheetTop.map {height-$0+16} ?? resting)
+        let hidden=barExpanded && lift>height*0.6
+        let barY=barExpanded ? height-min(lift,height*0.6)-25 : rowY
+        let mid=width/2
+        let focus=barExpanded ? (dragX ?? layout.x(index)) : 0
+        let chipX=min(max(mid+focus,72),width-72)
+        let label=route.pointLabel(at:index)
+        return ZStack(alignment:.topLeading) {
+            Color.clear
+            ScanCircleButton(systemImage:"photo.on.rectangle",label:"저장된 현장 사진",size:48) {
+                withAnimation(Self.barSpring) {barExpanded=true};gallery=true
+            }.position(x:51,y:rowY)
+            ScanCircleButton(systemImage:"timer",label:"선택 지점 설정",size:48) {
+                withAnimation(Self.barSpring) {barExpanded=true};openPointSettings()
+            }.position(x:width-51,y:rowY)
+            arrow("chevron.left",label:"이전 지점",enabled:index>0) {step(index-1)}
+                .position(x:mid-(barExpanded ? 24 : 71),y:rowY)
+            arrow("chevron.right",label:"다음 지점",enabled:index<count-1) {step(index+1)}
+                .position(x:mid+(barExpanded ? 24 : 71),y:rowY)
+            routeBar(route:route,layout:layout,index:index)
+                .position(x:mid,y:barY).opacity(hidden ? 0 : 1)
+            pointChip(label)
+                .position(x:chipX,y:barY-layout.barHeight/2-24).opacity(hidden ? 0 : 1)
+        }.frame(width:width,height:height)
             .sensoryFeedback(.selection,trigger:model.activePointIndex)
     }
+    private func step(_ i: Int) {withAnimation(Self.barSpring) {model.select(.point(i))}}
     private func arrow(_ symbol: String,label: String,enabled: Bool,action: @escaping () -> Void) -> some View {
         Button(action:action) {
             Image(systemName:symbol).font(.system(size:12,weight:.semibold)).foregroundStyle(enabled ? Color(white:0.98) : Self.grey)
                 .frame(width:36,height:36).liquidGlass(Circle(),tint:.white.opacity(0.05),interactive:true).contentShape(Circle())
         }.buttonStyle(.plain).disabled(!enabled).accessibilityLabel(label)
     }
+    /// The point's name on its own piece of glass. The name blurs into the next one while the glass slides and
+    /// resizes with it, so the label moves as one thing rather than an outline running ahead of its text.
     private func pointChip(_ text: String) -> some View {
-        Text(text).font(.system(size:14,weight:.semibold)).foregroundStyle(.white).lineLimit(1)
-            .padding(.horizontal,12).frame(height:28).background(.white.opacity(0.1),in:Capsule())
-            .allowsHitTesting(false)
+        ZStack {
+            Text(text).font(.system(size:14,weight:.semibold)).foregroundStyle(.white).lineLimit(1).fixedSize()
+                .id(text).transition(.blurReplace)
+        }.padding(.horizontal,12).frame(height:28)
+            .liquidGlass(Capsule(),tint:.white.opacity(0.1))
+            .animation(Self.barSpring,value:text)
+            .allowsHitTesting(false).accessibilityHidden(true)
     }
-    /// 971:33671: a window onto the route, the selected point kept in view. Tapping opens the bar.
-    private func collapsedRoute(route: StageRoute,index: Int) -> some View {
-        let count=route.points.count
-        let widths=(0..<count).map {$0==0 || $0==count-1 ? CGFloat(28) : CGFloat(20)}
-        let total=widths.reduce(0,+)
-        let center=widths.prefix(index).reduce(0,+)+widths[index]/2
-        let offset=total<=72 ? (94-total)/2 : min(11,max(94-11-total,47-center))
-        return ZStack(alignment:.leading) {
-            Capsule().fill(.clear).liquidGlass(Capsule(),tint:.white.opacity(0.05),interactive:true)
-                .matchedGeometryEffect(id:"bar",in:barSpace)
-            HStack(spacing:0) {
-                ForEach(0..<count,id:\.self) {i in routeItem(i,count:count,selected:i==index,end:28,dot:5,picked:9).frame(width:widths[i])}
-            }.offset(x:offset)
-        }.frame(width:94,height:44).clipShape(Capsule()).contentShape(Capsule())
-            .onTapGesture {withAnimation(Self.barSpring) {barExpanded=true}}
-            .accessibilityElement(children:.ignore).accessibilityAddTraits(.isButton)
-            .accessibilityLabel("동선 \(route.pointLabel(at:index)), 펼치기")
-    }
-    /// 971:34370 · 971:34415: every point in a row; drag along it to move between points.
-    private func expandedRoute(route: StageRoute,index: Int,width: CGFloat) -> some View {
-        let count=route.points.count
-        let slot=(width-14)/CGFloat(count)
-        let chipX=min(max(7+slot*(CGFloat(index)+0.5)-width/2,-width/2+30),width/2-30)
-        return VStack(spacing:10) {
-            pointChip(route.pointLabel(at:index)).offset(x:chipX).animation(Self.barSpring,value:index)
-            ZStack {
-                Capsule().fill(.clear).liquidGlass(Capsule(),tint:.white.opacity(0.05),interactive:true)
-                    .matchedGeometryEffect(id:"bar",in:barSpace)
-                HStack(spacing:0) {
-                    ForEach(0..<count,id:\.self) {i in routeItem(i,count:count,selected:i==index,end:36,dot:10,picked:16).frame(width:slot)}
-                }.padding(.horizontal,7)
-            }.frame(width:width,height:50).contentShape(Capsule())
-                .gesture(DragGesture(minimumDistance:0).onChanged {value in
-                    let i=min(max(Int((value.location.x-7)/slot),0),count-1)
-                    if i != model.activePointIndex {withAnimation(Self.barSpring) {model.select(.point(i))}}
-                })
-                .accessibilityElement(children:.ignore).accessibilityLabel("동선")
-                .accessibilityValue(route.pointLabel(at:index))
-                .accessibilityAdjustableAction {direction in
-                    switch direction {
-                    case .increment: if index<count-1 {model.select(.point(index+1))}
-                    case .decrement: if index>0 {model.select(.point(index-1))}
-                    @unknown default: break
-                    }
+    /// The route on glass. Closed, a tap opens it. Opened, a finger anywhere on it picks the point beneath, and a
+    /// lens of glass follows the finger until it lifts, then the selection settles on the point.
+    private func routeBar(route: StageRoute,layout: RouteBarLayout,index: Int) -> some View {
+        ZStack {
+            Color.clear
+            if layout.expanded,let dragX {
+                Circle().fill(.white.opacity(0.12))
+                    .overlay(Circle().strokeBorder(LinearGradient(colors:[.white.opacity(0.55),.white.opacity(0.08),.white.opacity(0.3)],
+                                                                  startPoint:.topLeading,endPoint:.bottomTrailing),lineWidth:1))
+                    .frame(width:46,height:46).offset(x:dragX)
+                    .transition(.scale(scale:0.6).combined(with:.opacity))
+            }
+            ForEach(0..<layout.count,id:\.self) {i in
+                routeItem(i,count:layout.count,selected:i==index,expanded:layout.expanded).offset(x:layout.x(i))
+            }
+        }.frame(width:layout.barWidth,height:layout.barHeight).clipShape(Capsule())
+            .liquidGlass(Capsule(),tint:.white.opacity(0.05),interactive:true)
+            .contentShape(Capsule())
+            .gesture(DragGesture(minimumDistance:0).onChanged {value in
+                guard barExpanded else {return}
+                let half=layout.barWidth/2
+                let x=min(max(value.location.x-half,-half+23),half-23)
+                if dragX == nil {withAnimation(.spring(duration:0.25,bounce:0.2)) {dragX=x}} else {dragX=x}
+                let i=layout.index(at:x)
+                if i != model.activePointIndex {withAnimation(Self.barSpring) {model.select(.point(i))}}
+            }.onEnded {value in
+                guard barExpanded else {
+                    if abs(value.translation.width)<12,abs(value.translation.height)<12 {withAnimation(Self.barSpring) {barExpanded=true}}
+                    return
                 }
-        }
+                withAnimation(Self.barSpring) {dragX=nil}
+            })
+            .accessibilityElement(children:.ignore).accessibilityLabel("동선")
+            .accessibilityValue(route.pointLabel(at:index))
+            .accessibilityHint(layout.expanded ? "위아래로 쓸어 지점을 바꿔요" : "두 번 눌러 펼쳐요")
+            .accessibilityAction {withAnimation(Self.barSpring) {barExpanded.toggle()}}
+            .accessibilityAdjustableAction {direction in
+                switch direction {
+                case .increment: if index<layout.count-1 {step(index+1)}
+                case .decrement: if index>0 {step(index-1)}
+                @unknown default: break
+                }
+            }
     }
-    /// Start and arrival: a ring and a white symbol when chosen, grey otherwise. Points between: a dot that grows white.
-    @ViewBuilder private func routeItem(_ i: Int,count: Int,selected: Bool,end: CGFloat,dot: CGFloat,picked: CGFloat) -> some View {
+    /// Start and arrival: a ring and a white symbol when chosen, grey otherwise. Points between: a dot that grows
+    /// white. Sizes change by scaling, so they move in the same spring as the bar.
+    @ViewBuilder private func routeItem(_ i: Int,count: Int,selected: Bool,expanded: Bool) -> some View {
         if i==0 || i==count-1 {
-            Image(systemName:i==0 ? "mappin" : "flag.pattern.checkered").font(.system(size:end*0.45,weight:.medium))
+            Image(systemName:i==0 ? "mappin" : "flag.pattern.checkered").font(.system(size:16,weight:.medium))
                 .foregroundStyle(selected ? .white : Self.grey)
-                .frame(width:end,height:end).background(Circle().fill(.white.opacity(selected ? 0.2 : 0)))
-                .animation(Self.barSpring,value:selected)
+                .frame(width:36,height:36).background(Circle().fill(.white.opacity(selected ? 0.2 : 0)))
+                .scaleEffect(expanded ? 1 : 28/36)
         } else {
-            Circle().fill(selected ? .white : .white.opacity(0.45)).frame(width:selected ? picked : dot,height:selected ? picked : dot)
-                .frame(width:end,height:end).animation(Self.barSpring,value:selected)
+            Circle().fill(selected ? .white : .white.opacity(0.45)).frame(width:16,height:16)
+                .scaleEffect((selected ? 16 : 10)/16*(expanded ? 1 : 0.55))
         }
     }
 
@@ -380,4 +403,25 @@ private struct SheetTopReporter: View {
                 .onChange(of:geometry.frame(in:.global).minY) {_,top in report(top)}
         }.onDisappear {report(nil)}
     }
+}
+
+/// Where each point of the route bar sits, measured from the bar's centre. Closed, the 94pt window keeps the chosen
+/// point in view, 11pt in from an edge when it is near one; opened, the points share the bar's width evenly.
+private struct RouteBarLayout {
+    let count: Int
+    let index: Int
+    let expanded: Bool
+    let width: CGFloat
+    var barWidth: CGFloat {expanded ? width : 94}
+    var barHeight: CGFloat {expanded ? 50 : 44}
+    private var slot: CGFloat {(width-14)/CGFloat(count)}
+    private var widths: [CGFloat] {(0..<count).map {$0==0 || $0==count-1 ? 28 : 20}}
+    func x(_ i: Int) -> CGFloat {
+        if expanded {return -width/2+7+slot*(CGFloat(i)+0.5)}
+        let widths=widths, total=widths.reduce(0,+)
+        let center=widths.prefix(index).reduce(0,+)+widths[index]/2
+        let offset=total<=72 ? (94-total)/2 : min(11,max(94-11-total,47-center))
+        return -47+offset+widths.prefix(i).reduce(0,+)+widths[i]/2
+    }
+    func index(at x: CGFloat) -> Int {min(max(Int((x+width/2-7)/slot),0),count-1)}
 }
