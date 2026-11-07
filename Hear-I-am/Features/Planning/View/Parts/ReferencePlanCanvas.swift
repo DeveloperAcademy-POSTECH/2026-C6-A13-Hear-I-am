@@ -6,6 +6,8 @@ struct ReferencePlanCanvas: View {
     let plan: PerformancePlan
     var editing = false
     var selectedObject: UUID?
+    /// A point picked in the list: the others dim (Figma 971:33008).
+    var selectedPoint: Int?
     var onTap: ((FloorPoint) -> Void)?
     var onDragChanged: ((FloorPoint, FloorPoint) -> Void)?
     var onDragEnded: (() -> Void)?
@@ -26,49 +28,47 @@ struct ReferencePlanCanvas: View {
             }
             Canvas { context, size in
                 let area = CGRect(origin: .zero, size: size)
-                context.fill(Path(roundedRect: area, cornerRadius: editing ? 18 : 24), with: .color(HearV3.raised))
-                if editing {
-                    // The texture and its crop are the design's static grid; all objects and routes remain data-driven.
-                    var grid = context
-                    grid.opacity = 0.5
-                    grid.draw(Image("ReferencePlanGrid"), in: CGRect(x: -size.width * 0.3891, y: -size.height * 0.6288,
-                                                                   width: size.width * 1.8243, height: size.height * 4.8))
-                } else {
-                    var grid = Path()
-                    for x in 0...12 { grid.move(to: project(.init(Double(x), 0))); grid.addLine(to: project(.init(Double(x), 8))) }
-                    for y in 0...8 { grid.move(to: project(.init(0, Double(y)))); grid.addLine(to: project(.init(12, Double(y)))) }
-                    context.stroke(grid, with: .color(.white.opacity(0.045)), lineWidth: 0.7)
-                }
-                if plan.points.count > 1 {
+                // Figma 971:32296: the backstage strips either side are darker than the stage, crossed by two faint lines.
+                context.fill(Path(area), with: .color(Color(white: 0.15)))
+                let stageLeft = project(.init(0, 0)).x, stageRight = project(.init(PerformancePlan.width, 0)).x
+                let stage = CGRect(x: stageLeft, y: 0, width: stageRight - stageLeft, height: size.height)
+                context.fill(Path(stage), with: .color(Color(white: 0.2)))
+                var cross = Path()
+                cross.move(to: CGPoint(x: stage.midX, y: 0)); cross.addLine(to: CGPoint(x: stage.midX, y: size.height))
+                cross.move(to: CGPoint(x: stage.minX, y: size.height / 2)); cross.addLine(to: CGPoint(x: stage.maxX, y: size.height / 2))
+                context.stroke(cross, with: .color(.white.opacity(0.06)), lineWidth: 1)
+                // A route that is only its start and arrival has no line yet (971:32668).
+                if plan.points.count > 2 || (plan.points.count == 2 && !plan.finished) {
                     var path = Path(); path.addLines(plan.points.map(project))
-                    context.stroke(path, with: .color(HearV3.accent), style: StrokeStyle(lineWidth: editing ? 3 : 2.5, lineCap: .round, lineJoin: .round))
+                    context.stroke(path, with: .color(Self.line), style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
                 }
                 for object in plan.objects {
                     let vertices = object.vertices.map(project)
                     var polygon = Path(); polygon.addLines(vertices); polygon.closeSubpath()
                     let center = CGPoint(x: vertices.map(\.x).reduce(0, +) / CGFloat(vertices.count), y: vertices.map(\.y).reduce(0, +) / CGFloat(vertices.count))
-                    if object.isStep && editing {
-                        let size: CGFloat = 30
-                        context.fill(Path(ellipseIn: CGRect(x: center.x - size / 2, y: center.y - size / 2, width: size, height: size)), with: .color(Color(red: 0.49, green: 0.27, blue: 0.69)))
-                    } else {
-                        context.fill(polygon, with: .color(object.isStep ? HearV3.secondary.opacity(0.65) : HearV3.selected))
-                    }
-                    context.draw(Text(object.name).font(.system(size: labelSize, weight: .medium)).foregroundColor(object.isStep && editing ? Color(red: 0.75, green: 0.62, blue: 0.86) : HearV3.secondary), at: center)
-                    if object.id == selectedObject {
-                        context.stroke(polygon, with: .color(HearV3.secondary), lineWidth: 0.8)
-                        for p in vertices {
-                            context.fill(Path(ellipseIn: CGRect(x: p.x - 2.5, y: p.y - 2.5, width: 5, height: 5)), with: .color(HearV3.text))
+                    let picked = object.id == selectedObject
+                    context.fill(polygon, with: .color(Color(white: picked ? 0.2 : 0.4)))
+                    context.draw(Text(object.name).font(.system(size: labelSize, weight: .medium)).foregroundColor(.white.opacity(0.85)), at: center)
+                    if picked {
+                        context.stroke(polygon, with: .color(.white), lineWidth: 1)
+                        for p in vertices where vertices.count <= 4 {
+                            context.fill(Path(ellipseIn: CGRect(x: p.x - 2.5, y: p.y - 2.5, width: 5, height: 5)), with: .color(.white))
                         }
                     }
                 }
                 for index in plan.points.indices {
                     let p = project(plan.points[index])
-                    let final = plan.finished && index == plan.points.count - 1
-                    let radius: CGFloat = editing ? 5.5 : 6.5
-                    context.fill(Path(ellipseIn: CGRect(x: p.x - radius, y: p.y - radius, width: radius * 2, height: radius * 2)), with: .color(final ? Color(red: 0.95, green: 0.79, blue: 0.48) : HearV3.accent))
-                    context.draw(Text(plan.pointLabel(at: index)).font(.system(size: labelSize, weight: .medium)).foregroundColor(HearV3.text), at: CGPoint(x: p.x, y: p.y + radius + 10))
+                    let end = index == 0 || (plan.finished && index == plan.points.count - 1)
+                    let radius: CGFloat = 6
+                    var dot = context
+                    if let selectedPoint, selectedPoint != index { dot.opacity = 0.45 }
+                    dot.fill(Path(ellipseIn: CGRect(x: p.x - radius, y: p.y - radius, width: radius * 2, height: radius * 2)), with: .color(end ? Self.end : Self.point))
+                    if selectedPoint == index {
+                        dot.stroke(Path(ellipseIn: CGRect(x: p.x - radius - 1.5, y: p.y - radius - 1.5, width: radius * 2 + 3, height: radius * 2 + 3)), with: .color(.white), lineWidth: 1.5)
+                    }
+                    dot.draw(Text(plan.pointLabel(at: index)).font(.system(size: labelSize, weight: .medium)).foregroundColor(HearV3.text), at: CGPoint(x: p.x, y: p.y + radius + 10))
                 }
-            }.clipShape(RoundedRectangle(cornerRadius: editing ? 18 : 24))
+            }.clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                 .contentShape(Rectangle())
                 .gesture(SpatialTapGesture().onEnded { event in onTap?(unproject(event.location)) })
                 .simultaneousGesture(DragGesture(minimumDistance: 5).onChanged { event in
@@ -78,9 +78,13 @@ struct ReferencePlanCanvas: View {
         }.accessibilityElement(children: .ignore)
             .accessibilityLabel("\(plan.name), 동선 \(plan.points.count)지점, 기물과 세트 \(plan.objects.count)개")
     }
+    static let point = Color(red: 0, green: 0.92, blue: 0.62)
+    static let line = Color(red: 0.12, green: 0.55, blue: 0.40)
+    static let end = Color(red: 0.97, green: 0.78, blue: 0.05)
+    /// The stage plus a 1.4 m backstage strip either side, where the start and the arrival wait.
     private var canvasBounds: CGRect {
         let xs = plan.points.map(\.x), ys = plan.points.map(\.y)
-        let minX = min(0, (xs.min() ?? 0) - 0.5), maxX = max(12, (xs.max() ?? 12) + 0.5)
+        let minX = min(-1.4, (xs.min() ?? 0) - 0.5), maxX = max(13.4, (xs.max() ?? 12) + 0.5)
         let minY = min(0, (ys.min() ?? 0) - 0.8), maxY = max(8, (ys.max() ?? 8) + 0.5)
         return CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
     }
@@ -88,6 +92,7 @@ struct ReferencePlanCanvas: View {
 
 struct ReferenceSceneCard: View {
     let plan: PerformancePlan
+    var height: CGFloat = 204
     var body: some View {
         VStack(spacing: 0) {
             ReferencePlanCanvas(plan: plan)
@@ -97,7 +102,6 @@ struct ReferenceSceneCard: View {
                         .background(.white.opacity(0.1), in: Capsule()).overlay(Capsule().strokeBorder(.white.opacity(0.22), lineWidth: 0.5))
                         .padding(16)
                 }
-            Rectangle().fill(HearV3.secondary.opacity(0.8)).frame(height: 3).padding(.horizontal, 12)
-        }.frame(height: 204)
+        }.frame(height: height)
     }
 }
