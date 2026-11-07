@@ -200,10 +200,10 @@ struct ReferenceSceneEditorView: View {
             }.padding(.horizontal, 16).padding(.top, 8)
         }.v3Screen().hearTopBar("동선 관리") { HearBackButton() } trailing: { EmptyView() }
             // Figma 971:36590: deleting a route asks like deleting a folder.
-            .alert("‘\(deletingRoute?.name ?? "")’ 동선을 삭제할까요?", isPresented: Binding(get: { deletingRoute != nil }, set: { if !$0 { deletingRoute = nil } })) {
-                Button("취소", role: .cancel) { deletingRoute = nil }
-                Button("삭제") { if let plan = deletingRoute { removeScene(plan.id) }; deletingRoute = nil }.keyboardShortcut(.defaultAction)
-            } message: { Text("체크를 눌러 저장하면 이 동선이 삭제돼요.\n스캔한 무대에는 영향을 주지 않아요.") }
+            .hearConfirm("‘\(deletingRoute?.name ?? "")’ 동선을 삭제할까요?", isPresented: Binding(get: { deletingRoute != nil }, set: { if !$0 { deletingRoute = nil } }),
+                         message: "체크를 눌러 저장하면 이 동선이 삭제돼요.\n스캔한 무대에는 영향을 주지 않아요.") {
+                if let plan = deletingRoute { removeScene(plan.id) }
+            }
     }
 
     // MARK: - Editing

@@ -62,14 +62,12 @@ struct PerformanceSpaceView: View {
                     perform {try await library.renameStage(id,to:scanName)}
                 }.disabled(scanName.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty || working)
             }
-            // Figma 971:36590: the same alert as deleting a folder.
-            .alert("‘\(record?.name ?? "")’ 스캔 파일을 삭제할까요?",isPresented:$deleting) {
-                Button("취소",role:.cancel) {}
-                Button("삭제") {
-                    guard let id=record?.id else {return}
-                    perform {try await library.deleteStage(id);selectedScanID=nil}
-                }.keyboardShortcut(.defaultAction).disabled(working)
-            } message: {Text("이 장면의 스캔과 사진이 삭제돼요.\n삭제한 내용은 복구할 수 없어요.")}
+            // Figma 971:36590: the same confirmation as deleting a folder.
+            .hearConfirm("‘\(record?.name ?? "")’ 스캔 파일을 삭제할까요?",isPresented:$deleting,
+                         message:"이 장면의 스캔과 사진이 삭제돼요.\n삭제한 내용은 복구할 수 없어요.") {
+                guard let id=record?.id,!working else {return}
+                perform {try await library.deleteStage(id);selectedScanID=nil}
+            }
             .alert("작업을 완료하지 못했어요",isPresented:Binding(get:{error != nil},set:{if !$0 {error=nil}})) {
                 Button("확인",role:.cancel) {error=nil}
             } message: {Text(error ?? "")}

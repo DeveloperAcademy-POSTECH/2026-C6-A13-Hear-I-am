@@ -16,6 +16,8 @@ struct PerformanceLibraryView: View {
     /// Venue names to keep; empty keeps every performance.
     @State private var venueFilter: Set<String> = []
     @State private var choosingVenues = false
+    @State private var deleting: PerformanceFolder?
+    @State private var error: String?
     @Environment(\.hearChangeRole) private var changeRole
 
     private var folders: [PerformanceFolder] {
@@ -54,11 +56,12 @@ struct PerformanceLibraryView: View {
                         }.frame(maxWidth: .infinity, minHeight: 420)
                     } else {
                         LazyVStack(spacing: 6) {
+                            // 971:31947: slide a row left to delete it; the same confirmation as on its page follows.
                             ForEach(folders) { folder in
-                                NavigationLink(value: folder.id) {
+                                HearSwipeDeleteRow(onOpen: { path.append(folder.id) }, onDelete: { deleting = folder }) {
                                     PerformanceFolderRow(name: folder.name, date: folder.updatedAt,
                                                          count: library.scans(in: folder.id).count)
-                                }.buttonStyle(.plain).accessibilityIdentifier("performance.folder.\(folder.id.uuidString)")
+                                }.accessibilityIdentifier("performance.folder.\(folder.id.uuidString)")
                             }
                         }
                     }
@@ -88,6 +91,14 @@ struct PerformanceLibraryView: View {
                 .sheet(isPresented: $choosingVenues) {
                     PerformanceVenueFilterSheet(names: venueNames, selection: venueFilter) { venueFilter = $0 }
                 }
+                .hearConfirm("‘\(deleting?.name ?? "")’ 공연 폴더를 삭제할까요?", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }),
+                             message: "기본 동선과 공연 및 연습 공간이 함께 삭제돼요.\n스캔한 무대와 사진은 미분류로 남아요.") {
+                    guard let id = deleting?.id else { return }
+                    Task { do { try await library.deletePerformance(id) } catch { self.error = error.localizedDescription } }
+                }
+                .alert("삭제하지 못했어요", isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
+                    Button("확인", role: .cancel) { error = nil }
+                } message: { Text(error ?? "") }
         }.v3Screen().onAppear { openRequestedFolder() }
             .onChange(of: selectedPerformanceID) { openRequestedFolder() }
             .onChange(of: library.performanceFolders.map(\.id)) { openRequestedFolder() }
@@ -116,9 +127,17 @@ struct PerformanceLibraryView: View {
                 }.pickerStyle(.inline).labelsHidden()
             }
         } label: {
-            HearTopButtonLabel(systemImage: "line.3.horizontal.decrease")
-        }.buttonStyle(.plain).accessibilityLabel("정렬과 필터")
+            // 971:21459: while any sort or filter differs from the default the button fills white (971:21460 when not).
+            ZStack {
+                HearTopButtonLabel(systemImage: "line.3.horizontal.decrease")
+                if filterActive {
+                    Image(systemName: "line.3.horizontal.decrease").font(.system(size: 16, weight: .semibold)).foregroundStyle(.black)
+                        .frame(width: 34, height: 34).background(.white, in: Circle())
+                }
+            }.animation(.snappy(duration: 0.2), value: filterActive)
+        }.buttonStyle(.plain).accessibilityLabel("정렬과 필터").accessibilityValue(filterActive ? "적용됨" : "")
     }
+    private var filterActive: Bool { sort != .newest || period != .all || !venueFilter.isEmpty }
     private func openRequestedFolder() {
         guard let id = selectedPerformanceID, library.performanceFolders.contains(where: { $0.id == id }) else { return }
         path = [id]; selectedPerformanceID = nil

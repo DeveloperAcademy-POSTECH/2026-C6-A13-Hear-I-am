@@ -20,6 +20,7 @@ struct PerformanceDetailView: View {
     @State private var busy = false
     @State private var focusedCard: UUID?
     @State private var openedScan: PerformanceOpenedScan?
+    @State private var openedSpaceID: UUID?
     @Environment(\.dismiss) private var dismiss
     private var folder: PerformanceFolder? { library.performanceFolders.first { $0.id == performanceID } }
     private var plans: [PerformancePlan] { library.referencePlans(for: performanceID) }
@@ -48,12 +49,10 @@ struct PerformanceDetailView: View {
                         } else {
                             LazyVStack(spacing: 6) {
                                 ForEach(spaces) { space in
-                                    NavigationLink {
-                                        PerformanceSpaceView(library: library, performanceID: performanceID, venueID: space.id, onStartGuidance: onStartGuidance)
-                                    } label: {
+                                    HearSwipeDeleteRow(onOpen: { openedSpaceID = space.id }, onDelete: { deletingSpace = space }) {
                                         PerformanceFolderRow(name: space.name, date: space.updatedAt,
                                                              count: library.scans(in: performanceID, venueID: space.id, includeAllVenues: false).count)
-                                    }.buttonStyle(.plain).accessibilityIdentifier("performance.space.\(space.id.uuidString)")
+                                    }.accessibilityIdentifier("performance.space.\(space.id.uuidString)")
                                         .contextMenu {
                                             Button("이름 변경", systemImage: "pencil") { spaceName = space.name; renamingSpace = space }
                                             Button("공간 폴더 삭제", systemImage: "trash", role: .destructive) { deletingSpace = space }
@@ -87,6 +86,17 @@ struct PerformanceDetailView: View {
             .fullScreenCover(isPresented: $editingScenes) {
                 ReferenceSceneEditorView(library: library, performanceID: performanceID, initialSceneID: selectedSceneID).suspendsVoiceWake()
             }
+            #if DEBUG
+            .task {
+                let args = ProcessInfo.processInfo.arguments
+                if args.contains("--detail-delete") { try? await Task.sleep(for: .seconds(1)); deleting = true }
+                guard args.contains("--detail-open-card") else { return }
+                try? await Task.sleep(for: .seconds(1)); if let card = routeCards.first { open(card) }
+            }
+            #endif
+            .navigationDestination(item: $openedSpaceID) { spaceID in
+                PerformanceSpaceView(library: library, performanceID: performanceID, venueID: spaceID, onStartGuidance: onStartGuidance)
+            }
             .navigationDestination(item: $openedScan) { opened in
                 PerformanceSpaceView(library: library, performanceID: performanceID, venueID: opened.venueID,
                                      initialScanID: opened.scanID, onStartGuidance: onStartGuidance)
@@ -100,16 +110,14 @@ struct PerformanceDetailView: View {
                 Button("취소", role: .cancel) { renamingSpace = nil }
             }
             // 971:36590: deleting a space asks the same way as deleting the performance folder.
-            .alert("‘\(deletingSpace?.name ?? "")’ 공간 폴더를 삭제할까요?", isPresented: Binding(get: { deletingSpace != nil }, set: { if !$0 { deletingSpace = nil } })) {
-                Button("취소", role: .cancel) { deletingSpace = nil }
-                Button("삭제") { if let space = deletingSpace { deleteSpace(space.id) } }.keyboardShortcut(.defaultAction)
-            } message: { Text("이 공간 폴더가 삭제돼요.\n스캔한 무대와 사진은 ‘공간 미지정’에 남아요.") }
+            .hearConfirm("‘\(deletingSpace?.name ?? "")’ 공간 폴더를 삭제할까요?", isPresented: Binding(get: { deletingSpace != nil }, set: { if !$0 { deletingSpace = nil } }),
+                         message: "이 공간 폴더가 삭제돼요.\n스캔한 무대와 사진은 ‘공간 미지정’에 남아요.") {
+                if let space = deletingSpace { deleteSpace(space.id) }
+            }
             // 971:36590: an alert over the page. The message says what really goes: the folder, its scenes and
             // spaces; the scans themselves stay, unfiled.
-            .alert("‘\(folder?.name ?? "")’ 공연 폴더를 삭제할까요?", isPresented: $deleting) {
-                Button("취소", role: .cancel) { }
-                Button("삭제") { deleteFolder() }.keyboardShortcut(.defaultAction)
-            } message: { Text("기본 동선과 공연 및 연습 공간이 함께 삭제돼요.\n스캔한 무대와 사진은 미분류로 남아요.") }
+            .hearConfirm("‘\(folder?.name ?? "")’ 공연 폴더를 삭제할까요?", isPresented: $deleting,
+                         message: "기본 동선과 공연 및 연습 공간이 함께 삭제돼요.\n스캔한 무대와 사진은 미분류로 남아요.") { deleteFolder() }
             .onChange(of: plans.map(\.id)) { _, ids in
                 if let selectedSceneID, !ids.contains(selectedSceneID) { self.selectedSceneID = ids.first }
             }
