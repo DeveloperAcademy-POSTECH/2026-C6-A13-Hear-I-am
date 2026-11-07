@@ -92,6 +92,7 @@ struct ReferencePlanCanvas: View {
 
 struct ReferenceSceneCard: View {
     let plan: PerformancePlan
+    var height: CGFloat = 204
     var body: some View {
         VStack(spacing: 0) {
             ReferencePlanCanvas(plan: plan)
@@ -101,6 +102,6 @@ struct ReferenceSceneCard: View {
                         .background(.white.opacity(0.1), in: Capsule()).overlay(Capsule().strokeBorder(.white.opacity(0.22), lineWidth: 0.5))
                         .padding(16)
                 }
-        }.frame(height: 204)
+        }.frame(height: height)
     }
 }
