@@ -143,3 +143,99 @@ struct HearSheetBackground: View {
             }.ignoresSafeArea()
     }
 }
+
+// MARK: - Confirmation
+
+/// The delete confirmation (Figma 971:36590) in the app's own colours: a dark glass card, the title and message on
+/// the left, 취소 on grey and the action in white with black text. It fades in over everything, tab bar included.
+struct HearConfirmAlert: View {
+    let title: String
+    let message: String
+    let confirm: String
+    let onCancel: () -> Void
+    let onConfirm: () -> Void
+    @State private var shown=false
+    var body: some View {
+        ZStack {
+            Color.black.opacity(shown ? 0.45 : 0).ignoresSafeArea().onTapGesture {}
+            VStack(alignment:.leading,spacing:0) {
+                Text(title).font(.system(size:17,weight:.semibold)).foregroundStyle(.white).fixedSize(horizontal:false,vertical:true)
+                    .accessibilityAddTraits(.isHeader)
+                Text(message).font(.system(size:15)).foregroundStyle(.white.opacity(0.7)).lineSpacing(2)
+                    .fixedSize(horizontal:false,vertical:true).padding(.top,8)
+                HStack(spacing:8) {
+                    Button {close(onCancel)} label: {
+                        Text("취소").font(.system(size:17,weight:.medium)).foregroundStyle(.white)
+                            .frame(maxWidth:.infinity).frame(height:48).background(.white.opacity(0.14),in:Capsule())
+                    }.buttonStyle(.plain)
+                    Button {close(onConfirm)} label: {
+                        Text(confirm).font(.system(size:17,weight:.semibold)).foregroundStyle(.black)
+                            .frame(maxWidth:.infinity).frame(height:48).background(.white,in:Capsule())
+                    }.buttonStyle(.plain)
+                }.padding(.top,20)
+            }.padding(.horizontal,22).padding(.top,22).padding(.bottom,14).frame(width:300)
+                .background(Color(white:0.13).opacity(0.92),in:RoundedRectangle(cornerRadius:34,style:.continuous))
+                .liquidGlass(RoundedRectangle(cornerRadius:34,style:.continuous))
+                .scaleEffect(shown ? 1 : 1.08).opacity(shown ? 1 : 0)
+                .accessibilityElement(children:.contain).accessibilityAddTraits(.isModal)
+        }.onAppear {withAnimation(.spring(duration:0.28)) {shown=true}}
+    }
+    private func close(_ then: @escaping () -> Void) {
+        withAnimation(.easeOut(duration:0.16)) {shown=false}
+        DispatchQueue.main.asyncAfter(deadline:.now()+0.17,execute:then)
+    }
+}
+
+extension View {
+    /// Shows `HearConfirmAlert` while `isPresented` is true. The cover itself appears without sliding up; the card
+    /// does its own fade.
+    func hearConfirm(_ title: String, isPresented: Binding<Bool>, message: String, confirm: String="삭제",
+                     action: @escaping () -> Void) -> some View {
+        fullScreenCover(isPresented:isPresented) {
+            HearConfirmAlert(title:title,message:message,confirm:confirm,onCancel:{isPresented.wrappedValue=false},
+                             onConfirm:{isPresented.wrappedValue=false;action()})
+                .presentationBackground(.clear)
+        }.transaction(value:isPresented.wrappedValue) {$0.disablesAnimations=true}
+    }
+}
+
+// MARK: - Swipe to delete
+
+/// A list row that slides left to show a delete button, as in Mail; a long swipe asks straight away. Tapping the
+/// row opens it, or closes the button when it is showing.
+struct HearSwipeDeleteRow<Content: View>: View {
+    let onOpen: () -> Void
+    let onDelete: () -> Void
+    @ViewBuilder let content: Content
+    @State private var offset: CGFloat=0
+    @State private var start: CGFloat?
+    @State private var horizontal: Bool?
+    private let reveal: CGFloat=78
+    var body: some View {
+        ZStack(alignment:.trailing) {
+            Button {settle(0);onDelete()} label: {
+                Image(systemName:"trash").font(.system(size:18,weight:.semibold)).foregroundStyle(.black)
+                    .frame(width:56,height:56).background(.white,in:Circle())
+            }.buttonStyle(.plain).frame(width:reveal).opacity(min(1,-offset/reveal)).scaleEffect(0.6+0.4*min(1,-offset/reveal))
+                .accessibilityHidden(true)
+            content.offset(x:offset).contentShape(Rectangle())
+                .onTapGesture {if offset != 0 {settle(0)} else {onOpen()}}
+                .simultaneousGesture(DragGesture(minimumDistance:12).onChanged {value in
+                    if horizontal == nil {horizontal=abs(value.translation.width)>abs(value.translation.height)}
+                    guard horizontal == true else {return}
+                    if start == nil {start=offset}
+                    let raw=(start ?? 0)+value.translation.width
+                    offset=raw>0 ? raw*0.15 : raw
+                }.onEnded {value in
+                    defer {horizontal=nil;start=nil}
+                    guard horizontal == true else {return}
+                    let end=(start ?? 0)+value.predictedEndTranslation.width
+                    if end < -260 {settle(0);onDelete()}
+                    else {settle(end < -reveal/2 ? -reveal : 0)}
+                })
+        }.accessibilityElement(children:.combine).accessibilityAddTraits(.isButton)
+            .accessibilityAction {onOpen()}
+            .accessibilityAction(named:"삭제",onDelete)
+    }
+    private func settle(_ value: CGFloat) {withAnimation(.spring(duration:0.3,bounce:0.15)) {offset=value}}
+}
