@@ -13,12 +13,12 @@ LiDAR로 스캔한 무대에 동선을 저장해 두면, 허리에 찬 iPhone이
     <th colspan="3" align="center"><br>💻&nbsp; Developer<br><br></th>
   </tr>
   <tr>
-    <td align="center" width="16%"><br><img src=".github/assets/team/tom.png" width="120" alt="TOM"></td>
-    <td align="center" width="16%"><br><img src=".github/assets/team/kyeozo.png" width="120" alt="KYEOZO"></td>
-    <td align="center" width="16%"><br><img src=".github/assets/team/claire.png" width="120" alt="CLAIRE"></td>
-    <td align="center" width="16%"><br><img src=".github/assets/team/nana.png" width="120" alt="NANA"></td>
-    <td align="center" width="16%"><br><img src=".github/assets/team/jace.png" width="120" alt="JACE"></td>
-    <td align="center" width="16%"><br><img src=".github/assets/team/ian.png" width="120" alt="IAN"></td>
+    <td align="center" width="16%"><br><img src=".github/assets/team/tom.png" width="120" align="absbottom" alt="TOM"></td>
+    <td align="center" width="16%"><br><img src=".github/assets/team/kyeozo.png" width="120" align="absbottom" alt="KYEOZO"></td>
+    <td align="center" width="16%"><br><img src=".github/assets/team/claire.png" width="120" align="absbottom" alt="CLAIRE"></td>
+    <td align="center" width="16%"><br><img src=".github/assets/team/nana.png" width="120" align="absbottom" alt="NANA"></td>
+    <td align="center" width="16%"><br><img src=".github/assets/team/jace.png" width="120" align="absbottom" alt="JACE"></td>
+    <td align="center" width="16%"><br><img src=".github/assets/team/ian.png" width="120" align="absbottom" alt="IAN"></td>
   </tr>
   <tr>
     <td align="center"><h3>TOM</h3>(우상영)<br><br></td>
