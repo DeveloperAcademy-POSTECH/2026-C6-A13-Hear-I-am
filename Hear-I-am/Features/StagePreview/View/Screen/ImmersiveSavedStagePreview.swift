@@ -348,16 +348,18 @@ struct ImmersiveSavedStagePreview: View {
         let seconds=model.enteredHoldSeconds ?? 0
         let waits=Binding(get:{seconds>0},set:{on in withAnimation(Self.sheetSpring) {model.holdSecondsText=on ? "10" : "0"}})
         return VStack(alignment:.leading,spacing:0) {
-            HStack(alignment:.top) {
-                Text(pointSettingsTitle).font(HearFont.pretendard(.semibold,size:22)).foregroundStyle(.white)
+            // 971:33834: the close button has the top-right corner to itself, under the grabber; the title starts on
+            // the line below it, and the wait switch on the line under the title, so none of them share a line.
+            HStack {
                 Spacer()
                 ScanCircleButton(systemImage:"xmark",label:"닫기",enabled:!model.savingHold) {pointSettings=false}
-            }
+            }.padding(.trailing,-10)
+            Text(pointSettingsTitle).font(HearFont.pretendard(.semibold,size:22)).foregroundStyle(.white)
+                .padding(.top,10)
             if model.canEditPointHold {
-                // 971:33834: the switch sits on the line under the title.
                 Toggle(isOn:waits) {
-                    Text("다음 이동 전 대기").font(HearFont.pretendard(.regular,size:14)).foregroundStyle(HearV3.secondary)
-                }.toggleStyle(PointWaitSwitchStyle()).padding(.top,-6)
+                    Text("다음 이동 전 대기").font(HearFont.pretendard(.regular,size:16)).foregroundStyle(.white)
+                }.toggleStyle(PointWaitSwitchStyle()).padding(.top,8)
                 if seconds>0 {
                     HStack(spacing:8) {
                         ForEach([5,10,20],id:\.self) {value in
@@ -396,7 +398,7 @@ struct ImmersiveSavedStagePreview: View {
                     .font(HearFont.pretendard(.semibold,size:17)).foregroundStyle(.black)
                     .frame(maxWidth:.infinity).frame(height:50).background(.white,in:Capsule())
             }.buttonStyle(.plain).disabled(model.savingHold || model.enteredHoldSeconds==nil).padding(.top,28)
-        }.padding(.horizontal,24).padding(.top,24).padding(.bottom,12)
+        }.padding(.horizontal,24).padding(.top,12).padding(.bottom,12)
             // The sheet is as tall as what is in it: short for the start, the arrival or a point that does not wait,
             // taller once 「다음 이동 전 대기」 brings out the seconds.
             .fixedSize(horizontal:false,vertical:true)
