@@ -27,6 +27,7 @@ struct HearRootView: View {
                         guidanceView(request).id(request.id)
                     } else {
                         HomeView(library:library,wake:wake,start:{open(VoiceGuidanceLaunch())},isPresented:guidance == nil)
+                            .environment(\.hearChangeRole,chooseRole)
                     }
                 } else {helperTabs}
             } else {

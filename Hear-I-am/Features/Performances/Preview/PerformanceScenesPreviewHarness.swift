@@ -40,6 +40,7 @@ struct PerformanceScenesPreviewHarness: View {
             let parts = mode.split(separator: "-").compactMap { Int($0) }
             ScanLandscapePreview { PreparationIntro(step: parts.first ?? 1, page: parts.last ?? 0) { _ in } }
         case "scan-screen": PreparationView(library: library)
+        case "performer-home": HomeView(library: library, wake: VoiceWakeListener(), start: {})
         case "scan-home": HelperScanHomeView(library: library, startNow: .constant(false)) { _ in }
         // As when the performer asks for a scan by voice: the scan tab opens straight onto the information page.
         case "scan-home-voice": HelperScanHomeView(library: library, startNow: .constant(true)) { _ in }
