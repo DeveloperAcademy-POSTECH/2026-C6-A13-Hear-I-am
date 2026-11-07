@@ -13,12 +13,20 @@ LiDAR로 스캔한 무대에 동선을 저장해 두면, 허리에 찬 iPhone이
     <th colspan="3" align="center"><br>💻&nbsp; Developer<br><br></th>
   </tr>
   <tr>
-    <td align="center" width="160"><br><img src=".github/assets/team/tom.png" width="140" alt="TOM"><h3>TOM</h3>(우상영)<br><br></td>
-    <td align="center" width="160"><br><img src=".github/assets/team/kyeozo.png" width="140" alt="KYEOZO"><h3>KYEOZO</h3>(조원경)<br><br></td>
-    <td align="center" width="160"><br><img src=".github/assets/team/claire.png" width="140" alt="CLAIRE"><h3>CLAIRE</h3>(김경민)<br><br></td>
-    <td align="center" width="160"><br><img src=".github/assets/team/nana.png" width="140" alt="NANA"><h3>NANA</h3>(김나영)<br><br></td>
-    <td align="center" width="160"><br><img src=".github/assets/team/jace.png" width="140" alt="JACE"><h3>JACE</h3>(김재원)<br><br></td>
-    <td align="center" width="160"><br><img src=".github/assets/team/ian.png" width="140" alt="IAN"><h3>IAN</h3>(김지원)<br><br></td>
+    <td align="center" width="16%"><br><img src=".github/assets/team/tom.png" width="120" alt="TOM"></td>
+    <td align="center" width="16%"><br><img src=".github/assets/team/kyeozo.png" width="120" alt="KYEOZO"></td>
+    <td align="center" width="16%"><br><img src=".github/assets/team/claire.png" width="120" alt="CLAIRE"></td>
+    <td align="center" width="16%"><br><img src=".github/assets/team/nana.png" width="120" alt="NANA"></td>
+    <td align="center" width="16%"><br><img src=".github/assets/team/jace.png" width="120" alt="JACE"></td>
+    <td align="center" width="16%"><br><img src=".github/assets/team/ian.png" width="120" alt="IAN"></td>
+  </tr>
+  <tr>
+    <td align="center"><h3>TOM</h3>(우상영)<br><br></td>
+    <td align="center"><h3>KYEOZO</h3>(조원경)<br><br></td>
+    <td align="center"><h3>CLAIRE</h3>(김경민)<br><br></td>
+    <td align="center"><h3>NANA</h3>(김나영)<br><br></td>
+    <td align="center"><h3>JACE</h3>(김재원)<br><br></td>
+    <td align="center"><h3>IAN</h3>(김지원)<br><br></td>
   </tr>
 </table>
 
