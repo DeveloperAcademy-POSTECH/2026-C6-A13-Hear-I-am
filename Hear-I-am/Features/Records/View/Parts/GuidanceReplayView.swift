@@ -14,10 +14,10 @@ struct GuidanceReplayView: View {
     @State private var scrubStart=0.0
     @State private var trackWidth: CGFloat=0
     @GestureState private var dragging=false
-    private static let barSpring=Animation.spring(duration:0.3,bounce:0.1)
+    private static let barSpring=Animation.spring(duration:0.35,bounce:0.25)
     let sceneChip: AnyView
     let onDelete: (() -> Void)?
-    private let timer=Timer.publish(every:1.0/30,on:.main,in:.common).autoconnect()
+    private let timer=Timer.publish(every:1.0/60,on:.main,in:.common).autoconnect()
     init(record: GuidanceRecord,replay: GuidanceReplay,sceneChip: AnyView,onDelete: (() -> Void)?) {
         _player=StateObject(wrappedValue:GuidanceReplayPlayer(record:record,replay:replay))
         self.sceneChip=sceneChip;self.onDelete=onDelete
@@ -55,35 +55,32 @@ struct GuidanceReplayView: View {
 
     // MARK: Bottom bar
 
-    /// The Photos video bar (Figma 971:31085 · 971:31135): play/pause and a thin track in one glass capsule. Touching
-    /// the track hides the button, thickens the track and shows the elapsed and remaining time at its two ends; the
-    /// capsule itself keeps its size, so nothing grows under the finger or into the speaker beside it. Dragging moves
-    /// the play head freely from where it was, by how far the finger went, like Photos; the arrival dots only mark.
+    /// The Photos video bar (Figma 971:31085 · 971:31135): play/pause and a thin track in one glass capsule. Nothing
+    /// moves sideways under the finger: touching the track only thickens it in place with a spring and fades the
+    /// elapsed and remaining time in above its two ends. Dragging moves the play head by exactly how far the finger
+    /// went, from where it was, and stops anywhere; passing an arrival dot gives a light tick in the hand.
     private var timeline: some View {
         HStack(spacing:10) {
-            if !scrubbing {
-                Button {
-                    if player.isPlaying {player.pause();speech.stop()} else {player.play()}
-                } label: {
-                    Image(systemName:player.isPlaying ? "pause.fill" : "play.fill").font(.system(size:17,weight:.semibold))
-                        .foregroundStyle(.white).contentTransition(.symbolEffect(.replace))
-                        .frame(width:44,height:44).contentShape(Rectangle())
-                }.buttonStyle(.plain).disabled(player.replay.duration<=0)
-                    .accessibilityLabel(player.isPlaying ? "일시정지" : "재생")
-                    .transition(.opacity.combined(with:.scale(scale:0.6)))
-            }
-            VStack(spacing:6) {
-                if scrubbing {
+            Button {
+                if player.isPlaying {player.pause();speech.stop()} else {player.play()}
+            } label: {
+                Image(systemName:player.isPlaying ? "pause.fill" : "play.fill").font(.system(size:17,weight:.semibold))
+                    .foregroundStyle(.white).contentTransition(.symbolEffect(.replace))
+                    .frame(width:44,height:44).contentShape(Rectangle())
+            }.buttonStyle(.plain).disabled(player.replay.duration<=0)
+                .accessibilityLabel(player.isPlaying ? "일시정지" : "재생")
+            track
+                .overlay(alignment:.center) {
                     HStack {
                         Text(Self.clock(player.time))
                         Spacer()
                         Text("−"+Self.clock(player.replay.duration-player.time))
                     }.font(.system(size:11)).monospacedDigit().foregroundStyle(Color(red:235/255,green:235/255,blue:245/255).opacity(0.7))
-                        .transition(.opacity)
+                        .offset(y:scrubbing ? -14 : -10).opacity(scrubbing ? 1 : 0)
+                        .allowsHitTesting(false).accessibilityHidden(true)
                 }
-                track
-            }.frame(maxWidth:.infinity,maxHeight:.infinity).contentShape(Rectangle())
-                .gesture(DragGesture(minimumDistance:0,coordinateSpace:.global)
+                .frame(maxWidth:.infinity,maxHeight:.infinity).contentShape(Rectangle())
+                .gesture(DragGesture(minimumDistance:0)
                     .updating($dragging) {_,state,_ in state=true}
                     .onChanged {value in
                         if !scrubbing {
@@ -99,6 +96,7 @@ struct GuidanceReplayView: View {
                     player.scrub(false)
                     withAnimation(Self.barSpring) {scrubbing=false}
                 }
+                .sensoryFeedback(.selection,trigger:passedTicks) {_,_ in scrubbing}
                 .accessibilityElement(children:.ignore).accessibilityLabel("재생 위치")
                 .accessibilityValue("\(Self.clock(player.time)), 전체 \(Self.clock(player.replay.duration))")
                 .accessibilityAdjustableAction {direction in
@@ -108,30 +106,30 @@ struct GuidanceReplayView: View {
                     @unknown default: break
                     }
                 }
-        }.padding(.leading,scrubbing ? 18 : 8).padding(.trailing,scrubbing ? 18 : 16)
-            .frame(height:50)
+        }.padding(.leading,8).padding(.trailing,16).frame(height:50)
             // Not interactive: interactive glass swells under a touch, which pushed the bar into the speaker.
             .liquidGlass(Capsule(),tint:.white.opacity(0.05),interactive:false)
     }
-    /// The played part in white over the whole length at 18%, thicker while held, with a dot under it at every
-    /// arrival (971:31743): bright once passed, dim ahead. The dots only mark; the play head stops anywhere.
+    /// The played part in white over the whole length at 18%, with a dot under it at every arrival (971:31743):
+    /// bright once passed, dim ahead. The track grows from its middle, so its centre line never moves.
     private var track: some View {
         let duration=max(player.replay.duration,0.001)
-        let height: CGFloat=scrubbing ? 7 : 4
+        let height: CGFloat=scrubbing ? 8 : 4
         return ZStack(alignment:.leading) {
-            Capsule().fill(.white.opacity(0.18))
+            Capsule().fill(.white.opacity(scrubbing ? 0.24 : 0.18))
             Capsule().fill(.white.opacity(0.9)).frame(width:max(height,trackWidth*min(1,player.time/duration)))
-        }.frame(height:height)
+                .transaction {$0.animation=scrubbing ? $0.animation : nil}
+        }.frame(height:height).frame(height:8)
             .onGeometryChange(for:CGFloat.self) {$0.size.width} action: {trackWidth=$0}
             .overlay(alignment:.topLeading) {
                 ForEach(tickTimes,id:\.self) {time in
                     Circle().fill(.white.opacity(time<=player.time ? 0.8 : 0.35)).frame(width:4,height:4)
-                        .offset(x:trackWidth*time/duration-2,y:height+5)
+                        .offset(x:trackWidth*time/duration-2,y:14)
                 }
             }
-            // Room for the dots, so the track, the dots and the times sit centred in the capsule together.
-            .padding(.bottom,9)
     }
+    /// How many arrival dots the play head has passed; a change while scrubbing ticks the haptic.
+    private var passedTicks: Int {tickTimes.filter {$0<=player.time}.count}
     /// Arrivals and the last arrival, the moments the narration speaks.
     private var tickTimes: [Double] {
         Array(Set(player.analysis.events.compactMap {event -> Double? in
