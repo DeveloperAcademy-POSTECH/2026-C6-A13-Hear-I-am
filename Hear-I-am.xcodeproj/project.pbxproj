@@ -7,6 +7,13 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0434380581A8A93B275B565B /* HearFont.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1117B8D97E2D75EEF43F2BD /* HearFont.swift */; };
+		40C64CF36A1D00342E3C2AD3 /* SUIT-ExtraLight.otf in Resources */ = {isa = PBXBuildFile; fileRef = 3D27381C77AFB4366C3B3D9B /* SUIT-ExtraLight.otf */; };
+		51BA9ABB90C6F57BD14D86CC /* Pretendard-SemiBold.otf in Resources */ = {isa = PBXBuildFile; fileRef = B6E8A9D6B618D4B79B200B90 /* Pretendard-SemiBold.otf */; };
+		6EB9F296D414248D7E18BEE7 /* Pretendard-Medium.otf in Resources */ = {isa = PBXBuildFile; fileRef = 880D75D99E7CB104D2F3B1A9 /* Pretendard-Medium.otf */; };
+		B1CE2ADEE2F561653F3A161A /* SUIT-LICENSE.txt in Resources */ = {isa = PBXBuildFile; fileRef = 37F492936E0CF9E4AFE70512 /* SUIT-LICENSE.txt */; };
+		BCB3CC719F4DA468B2828F65 /* Pretendard-Bold.otf in Resources */ = {isa = PBXBuildFile; fileRef = CA2DF1B682D765A637647A41 /* Pretendard-Bold.otf */; };
+		E34ADACF25ED6F8C5C936EF8 /* Pretendard-LICENSE.txt in Resources */ = {isa = PBXBuildFile; fileRef = 58AA103CAC0C16AC97DB77A2 /* Pretendard-LICENSE.txt */; };
 		016788DFB4687D2303512BFA /* GuidancePhase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 291F40B684F86DE80B690F81 /* GuidancePhase.swift */; };
 		01E2DE8EE19EA820BF5B3A8A /* PreparationViewModel+Checkpoint.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FE7D72F999868C1D579BAA8 /* PreparationViewModel+Checkpoint.swift */; };
 		026DC55939F4D0F2D7C900AD /* StageDangerZoneOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4CE088502A93FA42A78A0DC /* StageDangerZoneOverlay.swift */; };
@@ -167,6 +174,13 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		37F492936E0CF9E4AFE70512 /* SUIT-LICENSE.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "SUIT-LICENSE.txt"; sourceTree = "<group>"; };
+		3D27381C77AFB4366C3B3D9B /* SUIT-ExtraLight.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SUIT-ExtraLight.otf"; sourceTree = "<group>"; };
+		58AA103CAC0C16AC97DB77A2 /* Pretendard-LICENSE.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "Pretendard-LICENSE.txt"; sourceTree = "<group>"; };
+		880D75D99E7CB104D2F3B1A9 /* Pretendard-Medium.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Pretendard-Medium.otf"; sourceTree = "<group>"; };
+		B6E8A9D6B618D4B79B200B90 /* Pretendard-SemiBold.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Pretendard-SemiBold.otf"; sourceTree = "<group>"; };
+		C1117B8D97E2D75EEF43F2BD /* HearFont.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HearFont.swift; sourceTree = "<group>"; };
+		CA2DF1B682D765A637647A41 /* Pretendard-Bold.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Pretendard-Bold.otf"; sourceTree = "<group>"; };
 		00306065193FCDAA6A9EF1BC /* ReplaySceneController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReplaySceneController.swift; sourceTree = "<group>"; };
 		006AA0493BFEC5A4A79FB19D /* StageLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StageLibrary.swift; sourceTree = "<group>"; };
 		024B2C25E3A1BB245089301E /* GuidanceReplayPreviewHarness.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuidanceReplayPreviewHarness.swift; sourceTree = "<group>"; };
@@ -341,6 +355,19 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		1FD85CDA97AA80ADF640A95E /* Fonts */ = {
+			isa = PBXGroup;
+			children = (
+				CA2DF1B682D765A637647A41 /* Pretendard-Bold.otf */,
+				58AA103CAC0C16AC97DB77A2 /* Pretendard-LICENSE.txt */,
+				880D75D99E7CB104D2F3B1A9 /* Pretendard-Medium.otf */,
+				B6E8A9D6B618D4B79B200B90 /* Pretendard-SemiBold.otf */,
+				3D27381C77AFB4366C3B3D9B /* SUIT-ExtraLight.otf */,
+				37F492936E0CF9E4AFE70512 /* SUIT-LICENSE.txt */,
+			);
+			path = Fonts;
+			sourceTree = "<group>";
+		};
 		04619D5A5CA15CC1836CE8D6 /* ViewModel */ = {
 			isa = PBXGroup;
 			children = (
@@ -712,6 +739,7 @@
 		913ED6424FF695AB2B11D468 /* DesignSystem */ = {
 			isa = PBXGroup;
 			children = (
+				C1117B8D97E2D75EEF43F2BD /* HearFont.swift */,
 				A67574E0CF3F8D37E56F8088 /* ActionButton.swift */,
 				854F7E3558CF686ECDA6A077 /* BrandMark.swift */,
 				FEC77E507C26088A784CBBCE /* Color+Hear.swift */,
@@ -800,6 +828,7 @@
 		C07A23E757C0FCA387340B30 /* Resources */ = {
 			isa = PBXGroup;
 			children = (
+				1FD85CDA97AA80ADF640A95E /* Fonts */,
 				CEF3295A562F96FC1DE68889 /* Assets.xcassets */,
 				2FE25071A0B95163D391C2C2 /* Localizable.strings */,
 				9AEAB7E2E56E0E21AFBB462A /* AppShortcuts.strings */,
@@ -1178,6 +1207,12 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				BCB3CC719F4DA468B2828F65 /* Pretendard-Bold.otf in Resources */,
+				E34ADACF25ED6F8C5C936EF8 /* Pretendard-LICENSE.txt in Resources */,
+				6EB9F296D414248D7E18BEE7 /* Pretendard-Medium.otf in Resources */,
+				51BA9ABB90C6F57BD14D86CC /* Pretendard-SemiBold.otf in Resources */,
+				40C64CF36A1D00342E3C2AD3 /* SUIT-ExtraLight.otf in Resources */,
+				B1CE2ADEE2F561653F3A161A /* SUIT-LICENSE.txt in Resources */,
 				AD17F75881AD0B8688842F58 /* Assets.xcassets in Resources */,
 				2B503DC11A185EB1A3A06AF6 /* PrivacyInfo.xcprivacy in Resources */,
 				0A253829E02E693820910F8B /* ReplayModels.scnassets in Resources */,
@@ -1193,6 +1228,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				0434380581A8A93B275B565B /* HearFont.swift in Sources */,
 				9C103E490A91DA0824D04EE3 /* PerformanceScenesPreviewHarness.swift in Sources */,
 				C453B7FB064C6BE72043DAEF /* ImmersiveSavedStagePreview.swift in Sources */,
 				1DD7731E5A75BF0892AF586F /* ScanPreparationFlow.swift in Sources */,
