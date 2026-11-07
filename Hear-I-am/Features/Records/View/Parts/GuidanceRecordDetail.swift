@@ -1,42 +1,94 @@
 import SwiftUI
 import HearIAmCore
 
+/// One completed run. A run with a saved replay fills the page with it (Figma 971:31085); an older run without one
+/// keeps its plan and numbers. The scene chip switches between runs on the same stage; ⋯ can delete this one.
 struct GuidanceRecordDetail: View {
-    let record: GuidanceRecord
+    var library: StageLibrary?
+    @State private var current: GuidanceRecord
+    @State private var deleting=false
+    @State private var error: String?
+    @Environment(\.dismiss) private var dismiss
+    init(record: GuidanceRecord,library: StageLibrary? = nil) {
+        self.library=library;_current=State(initialValue:record)
+    }
     var body: some View {
-        ScrollView {
-            VStack(alignment:.leading,spacing:20) {
-                HStack {
-                    Text(record.stageName).font(.title2.bold())
-                    Spacer()
-                    Label("완료",systemImage:"checkmark.circle.fill").font(.subheadline).foregroundStyle(HearV3.accent)
+        Group {
+            if let replay=current.replay {
+                GuidanceReplayView(record:current,replay:replay,sceneChip:AnyView(sceneChip),
+                                   onDelete:library == nil ? nil : {deleting=true}).id(current.id)
+            } else {
+                ScrollView {legacySummary.padding(20)}.v3Screen()
+                    .hearTopBar(center:{sceneChip}) {HearBackButton()} trailing: {
+                        if library != nil {
+                            Menu {
+                                Button(role:.destructive) {deleting=true} label: {Label("현재 기록 삭제",systemImage:"trash")}
+                            } label: {HearTopButtonLabel(systemImage:"ellipsis")}.buttonStyle(.plain).accessibilityLabel("기록 메뉴")
+                        }
+                    }
+            }
+        }
+        .toolbar(.hidden,for:.tabBar)
+        .hearConfirm("이 기록을 삭제할까요?",isPresented:$deleting,
+                     message:"\(Self.dateLabel(current)) 기록이 삭제돼요.\n삭제한 기록은 복구할 수 없어요.") {delete()}
+        .alert("삭제하지 못했어요",isPresented:Binding(get:{error != nil},set:{if !$0 {error=nil}})) {
+            Button("확인",role:.cancel) {error=nil}
+        } message: {Text(error ?? "")}
+    }
+    /// Runs on the same stage, newest first; this one alone when the page has no library.
+    private var siblings: [GuidanceRecord] {
+        let all=library?.guidanceRecords.filter {$0.stageID == current.stageID} ?? []
+        return all.contains {$0.id == current.id} ? all.sorted {$0.completedAt > $1.completedAt} : [current]
+    }
+    /// 971:31106: the clapper, the scene's name and a small round chevron on 5% glass.
+    private var sceneChip: some View {
+        Menu {
+            Section(current.stageName) {
+                ForEach(siblings) {record in
+                    Button {current=record} label: {
+                        if record.id == current.id {Label(Self.dateLabel(record),systemImage:"checkmark")}
+                        else {Text(Self.dateLabel(record))}
+                    }
                 }
-                Text(record.completedAt.formatted(.dateTime.locale(Locale(identifier:"ko_KR")).year().month().day().hour().minute()))
-                    .font(.subheadline).foregroundStyle(.secondary)
-                if let replay=record.replay {
-                    GuidanceReplayView(record:record,replay:replay)
-                } else {legacySummary}
-            }.padding(20)
-        }.v3Screen().navigationTitle("이동 기록").navigationBarTitleDisplayMode(.inline)
+            }
+        } label: {
+            HStack(spacing:12) {
+                Image(systemName:"movieclapper").font(.system(size:15,weight:.medium))
+                Text(current.stageName).font(.system(size:12,weight:.semibold)).lineLimit(1)
+                Image(systemName:"chevron.down").font(.system(size:9,weight:.bold))
+                    .frame(width:18,height:18).background(.white.opacity(0.2),in:Circle())
+            }.foregroundStyle(.white).padding(.horizontal,14).frame(height:44)
+                .liquidGlass(Capsule(),tint:.white.opacity(0.05),interactive:true)
+        }.buttonStyle(.plain)
+            .accessibilityLabel("\(current.stageName), \(Self.dateLabel(current)) 기록, 같은 장면의 다른 기록 고르기")
+    }
+    static func dateLabel(_ record: GuidanceRecord) -> String {
+        record.completedAt.formatted(.dateTime.locale(Locale(identifier:"ko_KR")).month().day().hour().minute())
+    }
+    private func delete() {
+        guard let library else {return}
+        let id=current.id
+        Task {
+            do {try await library.deleteGuidanceRecord(id);dismiss()}
+            catch {self.error=error.localizedDescription}
+        }
     }
     private var legacySummary: some View {
         VStack(alignment:.leading,spacing:20) {
-            StageMap(width:record.route.area.width,depth:record.route.area.depth,points:record.guidancePath,objects:record.route.obstacles,dangerZones:record.route.dangerZones)
+            StageMap(width:current.route.area.width,depth:current.route.area.depth,points:current.guidancePath,objects:current.route.obstacles,dangerZones:current.route.dangerZones)
                 .frame(height:220).accessibilityLabel("완료한 안내의 저장 동선")
             Label("이 기록에는 실제 이동 위치가 저장되어 있지 않아요.",systemImage:"clock.badge.questionmark")
-                .font(.subheadline).foregroundStyle(.secondary)
+                .font(.subheadline).foregroundStyle(HearV3.secondary)
             VStack(spacing:18) {
-                metric("안내 시간",record.activeDurationText)
+                metric("안내 시간",GuidanceRecordRow.durationLabel(current.activeSeconds))
                 Divider()
-                metric("도착한 지점","\(record.reachedPointCount)개 / \(record.reachedPointCount)개")
+                metric("도착한 지점","\(current.reachedPointCount)곳")
                 Divider()
-                metric("안내 경로 길이",String(format:"%.1f m",record.guidanceRouteLength))
-            }.padding(20).background(Color(.systemGray6),in:RoundedRectangle(cornerRadius:20))
-            Text("안내 시간은 일시정지와 현장 재확인 시간을 제외해요. 동선 길이는 이번 안내의 출발 위치와 지점 사이 거리이며 실제 걸은 거리와 다를 수 있어요.")
-                .font(.footnote).foregroundStyle(.secondary)
+                metric("안내 경로 길이",String(format:"%.1f m",current.guidanceRouteLength))
+            }.padding(20).background(.white.opacity(0.05),in:RoundedRectangle(cornerRadius:20,style:.continuous))
         }
     }
     private func metric(_ title: String,_ value: String) -> some View {
-        HStack {Text(title).foregroundStyle(.secondary);Spacer();Text(value).font(.title3.bold()).monospacedDigit()}
+        HStack {Text(title).foregroundStyle(HearV3.secondary);Spacer();Text(value).font(.title3.bold()).monospacedDigit()}
     }
 }
