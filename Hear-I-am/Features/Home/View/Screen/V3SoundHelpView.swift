@@ -57,7 +57,7 @@ struct V3SoundHelpView: View {
         .navigationBarTitleDisplayMode(.inline)
         .settingsScreen()
         .accessibilityIdentifier("settings.help.sound")
-        .readsAloud {
+        .readsAloud(title:title) {
             [title, heading] + SoundHelpQuestion.all.flatMap { question in
                 [question.title, question.answer]
                     .map { $0.replacingOccurrences(of: "VoiceOver", with: "보이스오버") }
