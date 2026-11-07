@@ -34,11 +34,11 @@ struct PreparationToolGroup: View {
                             .offset(y:-32).accessibilityHidden(true)
                     }
             case .route:
-                // Undo, the destination flag and the bin that clears the whole route (971:29061 plus the flag, 11/07:
-                // + places the start and the points between, the flag the last point).
+                // Undo, the bin that clears the whole route and, rightmost, the destination flag (971:29061 plus the
+                // flag, 11/07: + places the start and the points between, the flag the last point).
                 undo(enabled:!draft.route.isEmpty && !model.busy) {model.undoRoutePoint()}
-                circle("flag.checkered","도착점 지정",enabled:!draft.routeFinished && draft.route.count>=2 && model.canPlacePoint && draft.area != nil) {model.addRoutePoint(destination:true)}
                 circle("trash","동선 전체 지우기",enabled:!draft.route.isEmpty && !model.busy) {model.resetStep()}
+                circle("flag.checkered","도착점 지정",enabled:!draft.routeFinished && draft.route.count>=2 && model.canPlacePoint && draft.area != nil) {model.addRoutePoint(destination:true)}
             case .checkpoint:
                 undo(enabled:draft.checkpoint != nil && !model.busy) {model.undoCheckpoint()}
             }
