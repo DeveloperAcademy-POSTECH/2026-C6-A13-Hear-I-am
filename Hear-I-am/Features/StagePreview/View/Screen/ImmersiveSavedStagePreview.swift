@@ -19,6 +19,8 @@ struct ImmersiveSavedStagePreview: View {
     @State private var sheetTop: CGFloat?
     /// Where a finger is on the opened bar, from its centre; the point's name follows it until it lifts.
     @State private var dragX: CGFloat?
+    /// The point settings' own height, which the sheet takes as its size.
+    @State private var settingsHeight: CGFloat=240
 
     init(record: ScanManifest, store: ScanStore, scanSelector: AnyView? = nil,
          onNewScan: (() -> Void)? = nil, onStartGuidance: ((UUID) -> Void)? = nil,
@@ -51,6 +53,16 @@ struct ImmersiveSavedStagePreview: View {
                             .position(x:min(max(anchor.x*geometry.size.width,86),geometry.size.width-86),
                                       y:min(max(anchor.y*(geometry.size.height+geometry.safeAreaInsets.top+safeBottom)-geometry.safeAreaInsets.top,80),geometry.size.height-200))
                             .transition(.opacity.combined(with:.scale(scale:0.92)))
+                    }
+                    if pointSettings || gallery {
+                        // A tap anywhere outside an open sheet puts it away, as a tap outside a menu does. The route
+                        // bar sits above this layer, so it can still be dragged while the sheet is up.
+                        Color.black.opacity(0.001).contentShape(Rectangle())
+                            .onTapGesture {
+                                guard !model.savingHold else {return}
+                                pointSettings=false;gallery=false
+                            }
+                            .accessibilityHidden(true)
                     }
                     if let route=scan.manifest.route,!route.points.isEmpty {
                         controls(route:route,safeBottom:safeBottom,height:geometry.size.height+geometry.safeAreaInsets.top+safeBottom,width:geometry.size.width)
@@ -100,6 +112,10 @@ struct ImmersiveSavedStagePreview: View {
             }
             if args.contains("--replay-gallery") {barExpanded=true;gallery=true}
             if args.contains("--replay-settings") {barExpanded=true;openPointSettings()}
+            if args.contains("--replay-wait-later") {
+                try? await Task.sleep(for:.seconds(3))
+                withAnimation(Self.sheetSpring) {model.holdSecondsText="10"}
+            }
             #endif
         }
         .onChange(of:model.selectionRevision) {_,_ in closedPhotoID=nil}
@@ -148,6 +164,7 @@ struct ImmersiveSavedStagePreview: View {
     #else
     static let barSpring=Animation.spring(duration:0.42,bounce:0.18)
     #endif
+    static let sheetSpring=Animation.spring(duration:0.35,bounce:0.1)
     private static let grey=Color(red:118/255,green:118/255,blue:118/255)
     /// The point's photo, unless it was closed. Shown while photo pins are on.
     private var shownPhoto: ScanPhoto? {
@@ -329,7 +346,7 @@ struct ImmersiveSavedStagePreview: View {
     /// 「지점 설정 저장」. The facing direction is not in the design but stays as one row under it.
     private var pointSettingsSheet: some View {
         let seconds=model.enteredHoldSeconds ?? 0
-        let waits=Binding(get:{seconds>0},set:{model.holdSecondsText=$0 ? "10" : "0"})
+        let waits=Binding(get:{seconds>0},set:{on in withAnimation(Self.sheetSpring) {model.holdSecondsText=on ? "10" : "0"}})
         return VStack(alignment:.leading,spacing:0) {
             HStack(alignment:.top) {
                 Text(pointSettingsTitle).font(HearFont.pretendard(.semibold,size:22)).foregroundStyle(.white)
@@ -340,7 +357,7 @@ struct ImmersiveSavedStagePreview: View {
                 // 971:33834: the switch sits on the line under the title.
                 Toggle(isOn:waits) {
                     Text("다음 이동 전 대기").font(HearFont.pretendard(.regular,size:14)).foregroundStyle(HearV3.secondary)
-                }.tint(.white).padding(.top,-6)
+                }.toggleStyle(PointWaitSwitchStyle()).padding(.top,-6)
                 if seconds>0 {
                     HStack(spacing:8) {
                         ForEach([5,10,20],id:\.self) {value in
@@ -351,16 +368,18 @@ struct ImmersiveSavedStagePreview: View {
                                     .background(seconds==value ? Color.white : Color.white.opacity(0.1),in:Capsule())
                             }.buttonStyle(.plain)
                         }
-                    }.padding(.top,16)
+                    }.padding(.top,16).transition(.opacity)
                     HStack {
                         ScanCircleButton(systemImage:"minus",label:"5초 줄이기",size:48,enabled:seconds>5) {model.holdSecondsText=String(max(seconds-5,5))}
                         Spacer()
                         Text("\(seconds)초").font(HearFont.pretendard(.semibold,size:28)).foregroundStyle(.white).monospacedDigit()
                         Spacer()
                         ScanCircleButton(systemImage:"plus",label:"5초 늘리기",size:48,enabled:seconds<3600) {model.holdSecondsText=String(min(seconds+5,3600))}
-                    }.padding(.top,20)
+                    }.padding(.top,20).transition(.opacity)
                 }
             }
+            // The wait controls fold in and out with the sheet's own resize.
+            Color.clear.frame(height:0).animation(Self.sheetSpring,value:seconds>0)
             HStack {
                 Text("도착 후 바라볼 방향").font(HearFont.pretendard(.regular,size:15)).foregroundStyle(.white)
                 Spacer()
@@ -370,17 +389,25 @@ struct ImmersiveSavedStagePreview: View {
                 }.tint(HearV3.secondary)
             }.padding(.top,18)
             if let error=model.holdSaveError {Text(error).font(.footnote).foregroundStyle(.red).padding(.top,8)}
-            Spacer(minLength:16)
             Button {
                 Task {await model.savePointSettings();if model.holdSaveError==nil {pointSettings=false}}
             } label: {
                 Group {if model.savingHold {ProgressView()} else {Text("지점 설정 저장")}}
                     .font(HearFont.pretendard(.semibold,size:17)).foregroundStyle(.black)
                     .frame(maxWidth:.infinity).frame(height:50).background(.white,in:Capsule())
-            }.buttonStyle(.plain).disabled(model.savingHold || model.enteredHoldSeconds==nil)
+            }.buttonStyle(.plain).disabled(model.savingHold || model.enteredHoldSeconds==nil).padding(.top,28)
         }.padding(.horizontal,24).padding(.top,24).padding(.bottom,12)
+            // The sheet is as tall as what is in it: short for the start, the arrival or a point that does not wait,
+            // taller once 「다음 이동 전 대기」 brings out the seconds.
+            .fixedSize(horizontal:false,vertical:true)
+            .background(GeometryReader {geometry in
+                Color.clear
+                    .onAppear {settingsHeight=geometry.size.height}
+                    .onChange(of:geometry.size.height) {_,height in settingsHeight=height}
+            })
+            .frame(maxHeight:.infinity,alignment:.top)
             .disabled(model.savingHold)
-            .hearSheet([.height(model.canEditPointHold ? 400 : 240)])
+            .hearSheet([.height(max(settingsHeight,200))])
             // The route bar above stays usable: dragging it moves the sheet to the next point.
             .presentationBackgroundInteraction(.enabled)
     }
@@ -417,4 +444,23 @@ private struct RouteBarLayout {
         return -47+offset+widths.prefix(i).reduce(0,+)+widths[i]/2
     }
     func index(at x: CGFloat) -> Int {min(max(Int((x+width/2-7)/slot),0),count-1)}
+}
+
+/// 971:33834: a white track with a black knob when on, so the knob does not vanish into a white tint.
+private struct PointWaitSwitchStyle: ToggleStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        Button {configuration.isOn.toggle()} label: {
+            HStack {
+                configuration.label
+                Spacer()
+                Capsule().fill(configuration.isOn ? Color.white : Color.white.opacity(0.18))
+                    .frame(width:50,height:30)
+                    .overlay(alignment:configuration.isOn ? .trailing : .leading) {
+                        Circle().fill(configuration.isOn ? Color.black : Color.white).frame(width:24,height:24).padding(3)
+                    }
+                    .animation(.spring(duration:0.25,bounce:0.2),value:configuration.isOn)
+            }.contentShape(Rectangle())
+        }.buttonStyle(.plain)
+            .accessibilityRepresentation {Toggle(isOn:configuration.$isOn) {configuration.label}}
+    }
 }
