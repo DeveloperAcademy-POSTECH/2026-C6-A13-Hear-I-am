@@ -228,24 +228,66 @@ struct HearSwipeDeleteRow<Content: View>: View {
                     .frame(width:56,height:56).background(.white,in:Circle())
             }.buttonStyle(.plain).frame(width:reveal).opacity(min(1,-offset/reveal)).scaleEffect(0.6+0.4*min(1,-offset/reveal))
                 .accessibilityHidden(true)
-            content.offset(x:offset).contentShape(Rectangle())
-                .onTapGesture {if offset != 0 {settle(0)} else {onOpen()}}
-                .simultaneousGesture(DragGesture(minimumDistance:12).onChanged {value in
-                    if horizontal == nil {horizontal=abs(value.translation.width)>abs(value.translation.height)}
-                    guard horizontal == true else {return}
-                    if start == nil {start=offset}
-                    let raw=(start ?? 0)+value.translation.width
-                    offset=raw>0 ? raw*0.15 : raw
-                }.onEnded {value in
-                    defer {horizontal=nil;start=nil}
-                    guard horizontal == true else {return}
-                    let end=(start ?? 0)+value.predictedEndTranslation.width
-                    if end < -260 {settle(0);onDelete()}
-                    else {settle(end < -reveal/2 ? -reveal : 0)}
-                })
+            swipe(content.offset(x:offset).contentShape(Rectangle())
+                .onTapGesture {if offset != 0 {settle(0)} else {onOpen()}})
         }.accessibilityElement(children:.combine).accessibilityAddTraits(.isButton)
             .accessibilityAction {onOpen()}
             .accessibilityAction(named:"삭제",onDelete)
     }
     private func settle(_ value: CGFloat) {withAnimation(.spring(duration:0.3,bounce:0.15)) {offset=value}}
+    private func moved(_ translation: CGFloat) {
+        if start == nil {start=offset}
+        let raw=(start ?? 0)+translation
+        offset=raw>0 ? raw*0.15 : raw
+    }
+    private func finished(_ predicted: CGFloat) {
+        defer {horizontal=nil;start=nil}
+        let end=(start ?? 0)+predicted
+        if end < -260 {settle(0);onDelete()}
+        else {settle(end < -reveal/2 ? -reveal : 0)}
+    }
+    /// A SwiftUI drag inside a scroll view holds on to every touch from iOS 18, so pressing a row and moving up or
+    /// down stopped the page from scrolling. There a UIKit pan that only starts for a sideways move takes the slide,
+    /// and a vertical move goes straight to the scroll view.
+    @ViewBuilder private func swipe<V: View>(_ view: V) -> some View {
+        if #available(iOS 18, *) {
+            view.gesture(SidewaysPan(changed:moved) {translation,velocity in finished(translation+velocity*0.2)})
+        } else {
+            view.simultaneousGesture(DragGesture(minimumDistance:12).onChanged {value in
+                if horizontal == nil {horizontal=abs(value.translation.width)>abs(value.translation.height)}
+                guard horizontal == true else {return}
+                moved(value.translation.width)
+            }.onEnded {value in
+                guard horizontal == true else {horizontal=nil;return}
+                finished(value.predictedEndTranslation.width)
+            })
+        }
+    }
+}
+
+/// A pan that begins only when the finger moves more sideways than up or down; otherwise it fails at once and the
+/// enclosing scroll view keeps the touch.
+@available(iOS 18, *)
+private struct SidewaysPan: UIGestureRecognizerRepresentable {
+    let changed: (CGFloat) -> Void
+    let ended: (CGFloat,CGFloat) -> Void
+    func makeCoordinator(converter: CoordinateSpaceConverter) -> Coordinator {Coordinator()}
+    func makeUIGestureRecognizer(context: Context) -> UIPanGestureRecognizer {
+        let pan=UIPanGestureRecognizer();pan.delegate=context.coordinator;return pan
+    }
+    func handleUIGestureRecognizerAction(_ recognizer: UIPanGestureRecognizer, context: Context) {
+        let translation=recognizer.translation(in:recognizer.view).x
+        switch recognizer.state {
+        case .began,.changed: changed(translation)
+        case .ended,.cancelled,.failed: ended(translation,recognizer.velocity(in:recognizer.view).x)
+        default: break
+        }
+    }
+    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+        func gestureRecognizerShouldBegin(_ recognizer: UIGestureRecognizer) -> Bool {
+            guard let pan=recognizer as? UIPanGestureRecognizer else {return true}
+            let velocity=pan.velocity(in:pan.view)
+            return abs(velocity.x)>abs(velocity.y)*1.2
+        }
+    }
 }
