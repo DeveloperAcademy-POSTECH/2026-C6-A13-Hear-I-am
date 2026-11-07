@@ -92,7 +92,7 @@ final class SavedStagePreviewModel: ObservableObject {
         switch selection {
         case .photo(let id): return photos.first {$0.id==id}
         case .object(let id): return photos.first {$0.objectID==id}
-        case .point(let i): return photos.first {$0.routePointIndex==i}
+        case .point(let i): return loaded?.manifest.viewpointPhoto(at:i)
         case nil: return nil
         }
     }
@@ -107,5 +107,20 @@ final class SavedStagePreviewModel: ObservableObject {
         case .photo: return "사진 촬영 위치"
         case nil: return "지점이나 기물을 선택하세요"
         }
+    }
+}
+
+extension ScanManifest {
+    /// The photo seen from a route point: the one taken there, or else the nearest photo within 2.5 m of it on the
+    /// floor, so every point that has a photo nearby shows one.
+    func viewpointPhoto(at index: Int) -> ScanPhoto? {
+        if let tagged=photos.first(where:{$0.routePointIndex==index}) {return tagged}
+        guard let route,route.points.indices.contains(index) else {return nil}
+        let point=route.area.world(route.points[index])
+        func distance(_ photo: ScanPhoto) -> Double {
+            let p=photo.position;return ((p.x-point.x)*(p.x-point.x)+(p.z-point.z)*(p.z-point.z)).squareRoot()
+        }
+        guard let nearest=photos.min(by:{distance($0)<distance($1)}),distance(nearest)<=2.5 else {return nil}
+        return nearest
     }
 }
