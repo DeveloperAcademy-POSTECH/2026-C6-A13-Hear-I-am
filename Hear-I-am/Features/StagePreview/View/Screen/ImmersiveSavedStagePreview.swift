@@ -17,7 +17,7 @@ struct ImmersiveSavedStagePreview: View {
     @State private var barExpanded = false
     /// Where an open sheet's top edge is on screen, so the opened bar can ride up on it (971:33834 · 971:34288).
     @State private var sheetTop: CGFloat?
-    /// Where a finger is on the opened bar, from its centre; the glass lens follows it until it lifts.
+    /// Where a finger is on the opened bar, from its centre; the point's name follows it until it lifts.
     @State private var dragX: CGFloat?
 
     init(record: ScanManifest, store: ScanStore, scanSelector: AnyView? = nil,
@@ -209,18 +209,11 @@ struct ImmersiveSavedStagePreview: View {
             .animation(Self.barSpring,value:text)
             .allowsHitTesting(false).accessibilityHidden(true)
     }
-    /// The route on glass. Closed, a tap opens it. Opened, a finger anywhere on it picks the point beneath, and a
-    /// lens of glass follows the finger until it lifts, then the selection settles on the point.
+    /// The route on glass. Closed, a tap opens it. Opened, a finger anywhere on it picks the point beneath, and the
+    /// name above follows the finger until it lifts, then settles over the point.
     private func routeBar(route: StageRoute,layout: RouteBarLayout,index: Int) -> some View {
         ZStack {
             Color.clear
-            if layout.expanded,let dragX {
-                Circle().fill(.white.opacity(0.12))
-                    .overlay(Circle().strokeBorder(LinearGradient(colors:[.white.opacity(0.55),.white.opacity(0.08),.white.opacity(0.3)],
-                                                                  startPoint:.topLeading,endPoint:.bottomTrailing),lineWidth:1))
-                    .frame(width:46,height:46).offset(x:dragX)
-                    .transition(.scale(scale:0.6).combined(with:.opacity))
-            }
             ForEach(0..<layout.count,id:\.self) {i in
                 routeItem(i,count:layout.count,selected:i==index,expanded:layout.expanded).offset(x:layout.x(i))
             }
