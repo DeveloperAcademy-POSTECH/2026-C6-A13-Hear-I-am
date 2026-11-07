@@ -16,6 +16,7 @@ final class ReplaySceneController: NSObject {
     private let cleanSurfaces: [ReplaySurfaceMesh]
     private let immersive: Bool
     private(set) var focusLighting: ReplayStageLighting?
+    private static let personMoveKey="stage-person-move"
     var onPhotoProjection: ((CGPoint?) -> Void)?
     private var projectionPhoto: ScanPhoto?
     private var projectionLink: CADisplayLink?
@@ -72,7 +73,7 @@ final class ReplaySceneController: NSObject {
             applyImmersiveStyle()
             if scan.manifest.route != nil {
                 let lighting=ReplayStageLighting()
-                stage.addChildNode(lighting.node)
+                person.addChildNode(lighting.node)
                 focusLighting=lighting
             }
         }
@@ -184,12 +185,30 @@ final class ReplaySceneController: NSObject {
             selectable(label,.photo(photo.id));photos.addChildNode(label)
         }
     }
-    func movePerson(to index: Int) {
+    func movePerson(to index: Int, animated: Bool = false) {
         guard let route=scan.manifest.route, route.points.indices.contains(index) else {person.isHidden=true;return}
         person.isHidden=false
         let p=route.points[index]
         let height=routeHeight(index)
-        person.position=SCNVector3(p.x,height,-p.y)
+        let destination=SCNVector3(p.x,height,-p.y)
+        let moved=person.position.x != destination.x || person.position.y != destination.y || person.position.z != destination.z
+        let animate=animated && !UIAccessibility.isReduceMotionEnabled
+        if moved || !animate {
+            // The light is a child of person: one animation moves both at exactly the same pace.
+            let origin=person.animationKeys.contains(Self.personMoveKey) ? person.presentation.position : person.position
+            person.removeAnimation(forKey:Self.personMoveKey)
+            SCNTransaction.begin();SCNTransaction.disableActions=true
+            person.position=destination
+            SCNTransaction.commit()
+            if moved && animate {
+                let move=CABasicAnimation(keyPath:"position")
+                move.fromValue=NSValue(scnVector3:origin)
+                move.toValue=NSValue(scnVector3:destination)
+                move.duration=0.5
+                move.timingFunction=CAMediaTimingFunction(name:.easeInEaseOut)
+                person.addAnimation(move,forKey:Self.personMoveKey)
+            }
+        }
         names["clean-person"] = .point(index)
         for (i,label) in pointLabels {label.position.y=Float(i==index ? height+1.8 : routeHeight(i)+0.24)}
         let next=route.points.indices.contains(index+1) ? route.points[index+1] : p
@@ -248,7 +267,7 @@ final class ReplaySceneController: NSObject {
         if let selection {
             switch selection {
             case .point(let i):
-                movePerson(to:i)
+                movePerson(to:i,animated:immersive && !raw && !firstPerson && view?.window != nil)
                 if !raw,let route=scan.manifest.route,route.points.indices.contains(i) {
                     let p=route.points[i]
                     let ring=ReplayModelFactory.part(SCNTorus(ringRadius:0.29,pipeRadius:0.012),
@@ -283,11 +302,11 @@ final class ReplaySceneController: NSObject {
         }
         if !raw, !firstPerson, case .point(let index)=selection,
            let route=scan.manifest.route, route.points.indices.contains(index) {
-            let point=route.points[index]
-            focusLighting?.focus(at:.init(point.x,routeHeight(index),-point.y),animated:view?.window != nil)
+            focusLighting?.setVisible(true)
         } else {
             // Photo inspection and raw scans must keep their original lighting.
-            focusLighting?.focus(at:nil,animated:false)
+            focusLighting?.setVisible(false)
+            person.removeAnimation(forKey:Self.personMoveKey)
         }
         guard self.revision != revision || displayChanged || viewpointChanged else {return}
         self.revision=revision
@@ -345,7 +364,8 @@ final class ReplaySceneController: NSObject {
         projectionLink=link
     }
     func stopProjectionUpdates() {
-        focusLighting?.focus(at:nil,animated:false)
+        focusLighting?.setVisible(false)
+        person.removeAnimation(forKey:Self.personMoveKey)
         projectionLink?.invalidate();projectionLink=nil
         onPhotoProjection=nil
     }

@@ -108,7 +108,7 @@ struct StageReplayPreviewHarness: View {
             }
         } catch {record=nil;self.error=error.localizedDescription;print("REPLAY_QA_FAILED: \(error.localizedDescription)")}
     }
-    /// A single spotlight follows saved heights without steering the camera or leaking into other viewers.
+    /// One figure transform moves the spotlight at the same pace, without steering the camera or changing saved data.
     private func verifyImmersiveFocusLighting(_ scan: LoadedScan,cleanSurfaces: [ReplaySurfaceMesh]) async throws {
         guard let route=scan.manifest.route,let photo=scan.manifest.photos.first,let object=route.obstacles.first else {
             throw LabError.invalid("조명 검증 자료 누락")
@@ -118,7 +118,8 @@ struct StageReplayPreviewHarness: View {
         let view=SCNView(frame:CGRect(x:0,y:0,width:402,height:874));view.scene=scene.scene;scene.view=view
         defer {scene.stopProjectionUpdates()}
         scene.update(display:.clean,wireframe:false,showPhotos:true,selection:.point(0),cameraMode:.overview,revision:0)
-        guard let focus=scene.focusLighting,focus.node.parent === scene.stage,
+        guard let focus=scene.focusLighting,focus.node.parent === scene.person,
+              simd_length(focus.node.simdPosition-SIMD3<Float>(0,ReplayStageLighting.elevation,0))<0.0001,
               focus.node.light?.type == .spot,focus.node.light?.castsShadow == false else {
             throw LabError.invalid("몰입형 지점 조명 구성 검증 실패")
         }
@@ -134,40 +135,50 @@ struct StageReplayPreviewHarness: View {
             let point=route.points[index],height=route.pointHeights?[index] ?? 0
             let world=route.area.world(point)
             let expected=SIMD3<Float>(Float(world.x),Float(world.y+height)+ReplayStageLighting.elevation,Float(world.z))
-            guard scene.focusLighting === focus,focus.target != nil,!focus.node.isHidden,
+            guard scene.focusLighting === focus,focus.node.parent === scene.person,!focus.node.isHidden,
                   (focus.node.light?.intensity ?? 0)>0,
                   simd_length(focus.node.simdWorldPosition-expected)<0.0001,
                   simd_length(simd_act(focus.node.simdWorldOrientation,SIMD3<Float>(0,0,-1))-SIMD3<Float>(0,-1,0))<0.0001,
-                  focus.node.animationKeys.isEmpty,cameraUnchanged() else {
+                  focus.node.animationKeys.isEmpty,scene.person.animationKeys.isEmpty,cameraUnchanged() else {
                 throw LabError.invalid("지점 조명의 저장 높이·좌표·카메라 유지 검증 실패: \(index)")
             }
         }
         for selection: ReplaySelection? in [.photo(photo.id),.object(object.id),nil,.point(-1),.point(route.points.count)] {
             scene.update(display:.clean,wireframe:false,showPhotos:true,selection:selection,cameraMode:.overview,revision:revision)
-            guard focus.target==nil,focus.node.isHidden,focus.node.light?.intensity==0,
-                  focus.node.animationKeys.isEmpty,cameraUnchanged() else {
+            guard focus.node.isHidden,focus.node.light?.intensity==0,
+                  focus.node.animationKeys.isEmpty,scene.person.animationKeys.isEmpty,cameraUnchanged() else {
                 throw LabError.invalid("사진·기물·유효하지 않은 지점 조명 해제 검증 실패")
             }
         }
         scene.update(display:.scan,wireframe:false,showPhotos:true,selection:.point(1),cameraMode:.overview,revision:revision)
-        guard focus.target==nil,focus.node.isHidden else {throw LabError.invalid("원본 스캔 조명 격리 검증 실패")}
+        guard focus.node.isHidden,scene.person.animationKeys.isEmpty else {throw LabError.invalid("원본 스캔 조명 격리 검증 실패")}
         scene.update(display:.clean,wireframe:false,showPhotos:true,selection:.point(1),cameraMode:.overview,revision:revision,photoViewpoint:photo)
-        guard focus.target==nil,focus.node.isHidden else {throw LabError.invalid("사진 촬영 시점 조명 격리 검증 실패")}
+        guard focus.node.isHidden,scene.person.animationKeys.isEmpty else {throw LabError.invalid("사진 촬영 시점 조명 격리 검증 실패")}
         scene.update(display:.clean,wireframe:false,showPhotos:true,selection:.point(1),cameraMode:.overview,revision:revision)
-        guard focus.target != nil,!focus.node.isHidden else {throw LabError.invalid("지점 재선택 조명 복원 검증 실패")}
+        guard !focus.node.isHidden else {throw LabError.invalid("지점 재선택 조명 복원 검증 실패")}
         var spots=0
         scene.scene.rootNode.enumerateChildNodes {node,_ in if node.light?.type == .spot {spots+=1}}
         guard spots==1 else {throw LabError.invalid("지점 전환 중 조명 중복 생성 검증 실패")}
 
-        // Rapid changes replace the old motion; closing before it ends must not relight a stale point.
-        focus.focus(at:SCNVector3(1,0,0),animated:false)
-        focus.focus(at:SCNVector3(2,0.6,-1),animated:true)
-        focus.focus(at:SCNVector3(3,0,-2),animated:true)
-        let motionValid=UIAccessibility.isReduceMotionEnabled ? focus.node.animationKeys.isEmpty : focus.node.animationKeys.count==1
-        guard motionValid else {throw LabError.invalid("연속 지점 선택 조명 애니메이션 교체 검증 실패")}
-        focus.focus(at:nil,animated:false)
-        guard focus.node.animationKeys.isEmpty,focus.node.isHidden,focus.node.light?.intensity==0 else {
-            throw LabError.invalid("지점 조명 애니메이션 취소 검증 실패")
+        // The figure owns the only animation, so the light cannot lag behind on rapid selections.
+        scene.movePerson(to:0,animated:false)
+        scene.movePerson(to:3,animated:true)
+        scene.movePerson(to:2,animated:true)
+        let motionValid=UIAccessibility.isReduceMotionEnabled ? scene.person.animationKeys.isEmpty : scene.person.animationKeys==["stage-person-move"]
+        guard motionValid,focus.node.parent === scene.person,focus.node.animationKeys.isEmpty,
+              simd_length(focus.node.simdWorldPosition-scene.person.simdWorldPosition-SIMD3<Float>(0,ReplayStageLighting.elevation,0))<0.0001 else {
+            throw LabError.invalid("인물·조명의 단일 이동 애니메이션 교체 검증 실패")
+        }
+        scene.update(display:.clean,wireframe:false,showPhotos:true,selection:.photo(photo.id),cameraMode:.overview,revision:revision)
+        guard scene.person.animationKeys.isEmpty,focus.node.animationKeys.isEmpty,focus.node.isHidden,focus.node.light?.intensity==0 else {
+            throw LabError.invalid("사진 전환 시 인물·조명 이동 해제 검증 실패")
+        }
+        scene.update(display:.clean,wireframe:false,showPhotos:true,selection:.point(1),cameraMode:.overview,revision:revision)
+        guard !focus.node.isHidden,scene.person.animationKeys.isEmpty else {throw LabError.invalid("사진 닫기 후 지점 조명 복원 검증 실패")}
+        scene.movePerson(to:3,animated:true)
+        scene.stopProjectionUpdates()
+        guard scene.person.animationKeys.isEmpty,focus.node.animationKeys.isEmpty,focus.node.isHidden,focus.node.light?.intensity==0 else {
+            throw LabError.invalid("화면 종료 시 인물·조명 이동 해제 검증 실패")
         }
         let ordinary=ReplaySceneController(scan:scan,cleanSurfaces:cleanSurfaces)
         let ordinaryView=SCNView(frame:view.frame);ordinaryView.scene=ordinary.scene;ordinary.view=ordinaryView
@@ -187,7 +198,7 @@ struct StageReplayPreviewHarness: View {
               persistedAfter.meshes==persistedBefore.meshes,persistedAfter.worldMap==persistedBefore.worldMap else {
             throw LabError.invalid("조명 변경 후 저장 스캔 불변 검증 실패")
         }
-        print("IMMERSIVE_LIGHTING_QA_OK: single spotlight, saved heights, world coordinates, camera preservation, photo/raw isolation, rapid cancellation, stored scan unchanged")
+        print("IMMERSIVE_LIGHTING_QA_OK: shared figure-light transform, saved heights, world coordinates, camera preservation, photo/raw isolation, rapid replacement and teardown, stored scan unchanged")
     }
     /// The new scene mode must not mutate globally shared assets or the independently saved route.
     private func verifyImmersiveIsolation(_ scan: LoadedScan,cleanSurfaces: [ReplaySurfaceMesh]) async throws {
