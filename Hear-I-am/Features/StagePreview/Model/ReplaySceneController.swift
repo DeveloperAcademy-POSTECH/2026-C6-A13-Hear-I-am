@@ -228,7 +228,7 @@ final class ReplaySceneController: NSObject {
         if immersive {
             switch selection {
             case .photo(let id): projectionPhoto=scan.manifest.photos.first {$0.id==id}
-            case .point(let index): projectionPhoto=scan.manifest.photos.first {$0.routePointIndex==index}
+            case .point(let index): projectionPhoto=scan.manifest.viewpointPhoto(at:index)
             case .object(let id): projectionPhoto=scan.manifest.photos.first {$0.objectID==id}
             case nil: projectionPhoto=nil
             }
