@@ -3,14 +3,18 @@ import Combine
 import HearIAmCore
 
 /// Figma 971:31085 · 971:31135 · 971:31745: the recorded run fills the page and plays like a video. A glass bar
-/// at the bottom holds play/pause and the system slider, with a tick under it at every arrival; touching the slider
-/// shows the elapsed and remaining time on both sides, as in Photos. The speaker button beside it reads each arrival aloud as the play head passes it.
+/// at the bottom works like the Photos video bar, with a dot under the track at every arrival; the speaker sits
+/// beside it. The speaker button beside it reads each arrival aloud as the play head passes it.
 struct GuidanceReplayView: View {
     @StateObject private var player: GuidanceReplayPlayer
     @Environment(\.scenePhase) private var scenePhase
     @State private var speech=GuidanceSpeech()
     @State private var muted=false
     @State private var scrubbing=false
+    @State private var scrubStart=0.0
+    @State private var trackWidth: CGFloat=0
+    @GestureState private var dragging=false
+    private static let barSpring=Animation.spring(duration:0.3,bounce:0.1)
     let sceneChip: AnyView
     let onDelete: (() -> Void)?
     private let timer=Timer.publish(every:1.0/30,on:.main,in:.common).autoconnect()
@@ -51,51 +55,82 @@ struct GuidanceReplayView: View {
 
     // MARK: Bottom bar
 
-    /// The play button and the system slider in one glass capsule that never changes size, so nothing moves under
-    /// the finger. Touching the slider fades the elapsed and remaining time in above its two ends, as in Photos.
+    /// The Photos video bar (Figma 971:31085 · 971:31135): play/pause and a thin track in one glass capsule. Touching
+    /// the track hides the button, thickens the track and shows the elapsed and remaining time at its two ends; the
+    /// capsule itself keeps its size, so nothing grows under the finger or into the speaker beside it. Dragging moves
+    /// the play head freely from where it was, by how far the finger went, like Photos; the arrival dots only mark.
     private var timeline: some View {
-        HStack(spacing:6) {
-            Button {
-                if player.isPlaying {player.pause();speech.stop()} else {player.play()}
-            } label: {
-                Image(systemName:player.isPlaying ? "pause.fill" : "play.fill").font(.system(size:17,weight:.semibold))
-                    .foregroundStyle(.white).contentTransition(.symbolEffect(.replace))
-                    .frame(width:44,height:44).contentShape(Rectangle())
-            }.buttonStyle(.plain).disabled(player.replay.duration<=0)
-                .accessibilityLabel(player.isPlaying ? "일시정지" : "재생")
-            slider
-                .overlay(alignment:.top) {
+        HStack(spacing:10) {
+            if !scrubbing {
+                Button {
+                    if player.isPlaying {player.pause();speech.stop()} else {player.play()}
+                } label: {
+                    Image(systemName:player.isPlaying ? "pause.fill" : "play.fill").font(.system(size:17,weight:.semibold))
+                        .foregroundStyle(.white).contentTransition(.symbolEffect(.replace))
+                        .frame(width:44,height:44).contentShape(Rectangle())
+                }.buttonStyle(.plain).disabled(player.replay.duration<=0)
+                    .accessibilityLabel(player.isPlaying ? "일시정지" : "재생")
+                    .transition(.opacity.combined(with:.scale(scale:0.6)))
+            }
+            VStack(spacing:6) {
+                if scrubbing {
                     HStack {
                         Text(Self.clock(player.time))
                         Spacer()
                         Text("−"+Self.clock(player.replay.duration-player.time))
                     }.font(.system(size:11)).monospacedDigit().foregroundStyle(Color(red:235/255,green:235/255,blue:245/255).opacity(0.7))
-                        .offset(y:-6).opacity(scrubbing ? 1 : 0).allowsHitTesting(false).accessibilityHidden(true)
+                        .transition(.opacity)
                 }
-        }.padding(.leading,8).padding(.trailing,16).frame(height:54)
+                track
+            }.frame(maxWidth:.infinity,maxHeight:.infinity).contentShape(Rectangle())
+                .gesture(DragGesture(minimumDistance:0,coordinateSpace:.global)
+                    .updating($dragging) {_,state,_ in state=true}
+                    .onChanged {value in
+                        if !scrubbing {
+                            scrubStart=player.time;player.scrub(true);speech.stop()
+                            withAnimation(Self.barSpring) {scrubbing=true}
+                        }
+                        guard trackWidth>0 else {return}
+                        player.seek(scrubStart+Double(value.translation.width/trackWidth)*player.replay.duration)
+                    })
+                // @GestureState resets even when the system cancels the drag, so the bar never stays expanded.
+                .onChange(of:dragging) {_,active in
+                    guard !active,scrubbing else {return}
+                    player.scrub(false)
+                    withAnimation(Self.barSpring) {scrubbing=false}
+                }
+                .accessibilityElement(children:.ignore).accessibilityLabel("재생 위치")
+                .accessibilityValue("\(Self.clock(player.time)), 전체 \(Self.clock(player.replay.duration))")
+                .accessibilityAdjustableAction {direction in
+                    switch direction {
+                    case .increment: player.seek(player.time+5)
+                    case .decrement: player.seek(player.time-5)
+                    @unknown default: break
+                    }
+                }
+        }.padding(.leading,scrubbing ? 18 : 8).padding(.trailing,scrubbing ? 18 : 16)
+            .frame(height:50)
             // Not interactive: interactive glass swells under a touch, which pushed the bar into the speaker.
             .liquidGlass(Capsule(),tint:.white.opacity(0.05),interactive:false)
     }
-    /// Figma 971:31743: the iOS 26 slider with a tick under it at every arrival; earlier systems get the plain slider.
-    @ViewBuilder private var slider: some View {
+    /// The played part in white over the whole length at 18%, thicker while held, with a dot under it at every
+    /// arrival (971:31743): bright once passed, dim ahead. The dots only mark; the play head stops anywhere.
+    private var track: some View {
         let duration=max(player.replay.duration,0.001)
-        let value=Binding(get:{min(player.time,duration)},set:{player.seek($0)})
-        if #available(iOS 26.0, *) {
-            Slider(value:value,in:0...duration,label:{Text("재생 위치")},ticks:{
-                SliderTickContentForEach(tickTimes,id:\.self) {SliderTick($0)}
-            },onEditingChanged:editing)
-                .tint(.white).frame(maxWidth:.infinity)
-                .accessibilityValue("\(Self.clock(player.time)), 전체 \(Self.clock(player.replay.duration))")
-        } else {
-            Slider(value:value,in:0...duration,label:{Text("재생 위치")},onEditingChanged:editing)
-                .tint(.white).frame(maxWidth:.infinity)
-                .accessibilityValue("\(Self.clock(player.time)), 전체 \(Self.clock(player.replay.duration))")
-        }
-    }
-    private func editing(_ active: Bool) {
-        player.scrub(active)
-        if active {speech.stop()}
-        withAnimation(.easeOut(duration:0.2)) {scrubbing=active}
+        let height: CGFloat=scrubbing ? 7 : 4
+        return ZStack(alignment:.leading) {
+            Capsule().fill(.white.opacity(0.18))
+            Capsule().fill(.white.opacity(0.9)).frame(width:max(height,trackWidth*min(1,player.time/duration)))
+        }.frame(height:height)
+            .onGeometryChange(for:CGFloat.self) {$0.size.width} action: {trackWidth=$0}
+            .overlay(alignment:.topLeading) {
+                ForEach(tickTimes,id:\.self) {time in
+                    Circle().fill(.white.opacity(time<=player.time ? 0.8 : 0.35)).frame(width:4,height:4)
+                        .offset(x:trackWidth*time/duration-2,y:height+5)
+                }
+            }
+            // Room for the dots, so the track, the dots and the times sit centred in the capsule together.
+            .padding(.bottom,9)
     }
     /// Arrivals and the last arrival, the moments the narration speaks.
     private var tickTimes: [Double] {
@@ -110,7 +145,7 @@ struct GuidanceReplayView: View {
         } label: {
             Image(systemName:muted ? "speaker.slash" : "speaker.wave.2.fill").font(.system(size:15,weight:.semibold))
                 .foregroundStyle(.white).contentTransition(.symbolEffect(.replace))
-                .frame(width:54,height:54).liquidGlass(Circle(),tint:.white.opacity(0.05),interactive:true).contentShape(Circle())
+                .frame(width:50,height:50).liquidGlass(Circle(),tint:.white.opacity(0.05),interactive:true).contentShape(Circle())
         }.buttonStyle(.plain).accessibilityLabel(muted ? "소리 켜기" : "소리 끄기")
             .accessibilityHint("재생하면서 지점 도착과 경로 이탈을 읽어 줘요.")
     }
