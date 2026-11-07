@@ -92,4 +92,44 @@ final class VoiceModelCacheTests: XCTestCase {
         XCTAssertThrowsError(try cache.acquire()); XCTAssertEqual(cache.cleanup().removed, 0)
         XCTAssertEqual(try Data(contentsOf: root), Data("unrelated".utf8))
     }
+
+    func testSlowRemovalDoesNotBlockInvalidationOrNewLeases() async throws {
+        let root = temporaryRoot(); defer { try? FileManager.default.removeItem(at: root) }
+        let oldFolder = try makeFolder(root, "abc")
+        let removing = expectation(description: "Old cache removal entered")
+        let cleanupFinished = expectation(description: "Old cache removal finished")
+        let finishRemoval = DispatchSemaphore(value: 0)
+        let cache = VoiceModelCache(root: root, removeDirectory: { url in
+            if url.lastPathComponent == "abc" {
+                removing.fulfill()
+                _ = finishRemoval.wait(timeout: .now() + 5)
+            }
+            try FileManager.default.removeItem(at: url)
+        })
+        let oldLease = try cache.acquire()
+        DispatchQueue.global(qos: .utility).async {
+            let report = cache.cleanup()
+            XCTAssertEqual(report.removed, 1)
+            cleanupFinished.fulfill()
+        }
+        await fulfillment(of: [removing], timeout: 2)
+        let responsive = expectation(description: "Lease state remains available while disk removal is blocked")
+        let probe = Task.detached {
+            cache.invalidate()
+            XCTAssertFalse(oldLease.isCurrent)
+            let newLease = try cache.acquire()
+            XCTAssertTrue(newLease.isCurrent)
+            try Data([4, 5, 6]).write(to: newLease.folder.appendingPathComponent("model"))
+            responsive.fulfill()
+            return newLease
+        }
+        await fulfillment(of: [responsive], timeout: 1)
+        finishRemoval.signal()
+        let newLease = try await probe.value
+        await fulfillment(of: [cleanupFinished], timeout: 2)
+        cache.cleanup()
+        XCTAssertEqual(try Data(contentsOf: newLease.folder.appendingPathComponent("model")), Data([4, 5, 6]))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: oldLease.folder.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: oldFolder.path))
+    }
 }
