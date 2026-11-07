@@ -113,6 +113,23 @@ struct PerformanceLibraryView: View {
     }
     /// 971:31766: sort, venue and period, each a section of the system menu.
     private var filterMenu: some View {
+        HearSortFilterMenu(sort: $sort, period: $period, venueCount: venueFilter.count) { choosingVenues = true }
+    }
+    private func openRequestedFolder() {
+        guard let id = selectedPerformanceID, library.performanceFolders.contains(where: { $0.id == id }) else { return }
+        path = [id]; selectedPerformanceID = nil
+    }
+}
+
+/// The sort-and-filter button shared by the performance list and the records (971:31766 · 971:31052): sort, venue
+/// and period in one system menu. While anything differs from the default the button fills white (971:21459).
+struct HearSortFilterMenu: View {
+    @Binding var sort: PerformanceSort
+    @Binding var period: PerformancePeriod
+    let venueCount: Int
+    let chooseVenues: () -> Void
+    private var active: Bool { sort != .newest || period != .all || venueCount > 0 }
+    var body: some View {
         Menu {
             Section("정렬") {
                 Picker("정렬", selection: $sort) {
@@ -120,9 +137,9 @@ struct PerformanceLibraryView: View {
                 }.pickerStyle(.inline).labelsHidden()
             }
             Section("장소") {
-                Button { choosingVenues = true } label: {
+                Button(action: chooseVenues) {
                     Text("장소 선택…")
-                    Text(venueFilter.isEmpty ? "전체 장소" : "\(venueFilter.count)곳 선택")
+                    Text(venueCount == 0 ? "전체 장소" : "\(venueCount)곳 선택")
                 }
             }
             Section("기간") {
@@ -131,20 +148,14 @@ struct PerformanceLibraryView: View {
                 }.pickerStyle(.inline).labelsHidden()
             }
         } label: {
-            // 971:21459: while any sort or filter differs from the default the button fills white (971:21460 when not).
             ZStack {
                 HearTopButtonLabel(systemImage: "line.3.horizontal.decrease")
-                if filterActive {
+                if active {
                     Image(systemName: "line.3.horizontal.decrease").font(.system(size: 16, weight: .semibold)).foregroundStyle(.black)
                         .frame(width: 34, height: 34).background(.white, in: Circle())
                 }
-            }.animation(.snappy(duration: 0.2), value: filterActive)
-        }.buttonStyle(.plain).accessibilityLabel("정렬과 필터").accessibilityValue(filterActive ? "적용됨" : "")
-    }
-    private var filterActive: Bool { sort != .newest || period != .all || !venueFilter.isEmpty }
-    private func openRequestedFolder() {
-        guard let id = selectedPerformanceID, library.performanceFolders.contains(where: { $0.id == id }) else { return }
-        path = [id]; selectedPerformanceID = nil
+            }.animation(.snappy(duration: 0.2), value: active)
+        }.buttonStyle(.plain).accessibilityLabel("정렬과 필터").accessibilityValue(active ? "적용됨" : "")
     }
 }
 

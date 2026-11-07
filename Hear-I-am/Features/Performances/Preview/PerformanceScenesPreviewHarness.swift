@@ -61,8 +61,18 @@ struct PerformanceScenesPreviewHarness: View {
             if let performanceID { NavigationStack { PerformanceSpaceView(library: library, performanceID: performanceID, venueID: venueID, onStartGuidance: { _ in }) } }
         case "space-empty":
             if let performanceID { NavigationStack { PerformanceSpaceView(library: library, performanceID: performanceID, venueID: venueID, onStartGuidance: { _ in }) } }
+        case "records", "records-empty": recordsPage
+        case "record-detail":
+            if let record = library.guidanceRecords.first { NavigationStack { GuidanceRecordDetail(record: record, library: library) } }
         case "detail": detailPage
         default: listPage
+        }
+    }
+    private var recordsPage: some View {
+        TabView(selection: .constant(2)) {
+            Text("스캔").tabItem { HelperTab.label("스캔", systemImage: "viewfinder") }.tag(0)
+            Text("공연 관리").tabItem { HelperTab.label("공연 관리", systemImage: "folder") }.tag(1)
+            GuidanceRecordsView(library: library).tabItem { HelperTab.label("기록", systemImage: "clock") }.tag(2)
         }
     }
     @ViewBuilder private var detailPage: some View {
@@ -78,7 +88,7 @@ struct PerformanceScenesPreviewHarness: View {
     private func prepare() async {
         do {
             await library.refresh()
-            if mode == "empty" { ready = true; return }
+            if mode == "empty" || mode == "records-empty" { ready = true; return }
             let folder = try await library.createPerformance(name: "Lion King", notes: "쇼케이스를 위한 10분 공연")
             performanceID = folder.id
             let venue = try await library.createVenue(name: "효자 아트홀", in: folder.id)
@@ -100,6 +110,14 @@ struct PerformanceScenesPreviewHarness: View {
                 savedID = scan.id
             }
             for name in ["소말리아 해적선", "내 귀에 앉은 조랑말"] { _ = try await library.createPerformance(name: name) }
+            if mode == "records" || mode == "record-detail" {
+                // Runs on the saved scenes, a day apart, the newest first.
+                for (index, scan) in library.scans(in: folder.id).enumerated() {
+                    let record = try GuidanceReplayPreviewHarness.fixture(stageID: scan.id, stageName: scan.name,
+                                                                         start: Date().addingTimeInterval(-Double(index + 1) * 86_400))
+                    try await library.saveGuidanceRecord(record)
+                }
+            }
             if ProcessInfo.processInfo.arguments.contains("--many") {
                 for n in 1...9 { _ = try await library.createPerformance(name: "연습 공연 \(n)") }
             }
