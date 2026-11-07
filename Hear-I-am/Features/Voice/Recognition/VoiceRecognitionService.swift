@@ -743,22 +743,28 @@ enum VoiceLog {
     }()
 
     static func write(_ event: String, _ detail: String, screen: String) {
-        let time = clock.string(from: Date())
-        let entry = ["time": time, "event": event, "screen": screen, "detail": detail]
+        let recordedAt=Date()
         queue.async {
-            guard var line = try? JSONSerialization.data(withJSONObject: entry, options: [.sortedKeys]),
-                  let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
-            line.append(0x0a)
-            let folder = documents.appendingPathComponent("VoiceLogs", isDirectory: true)
-            try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-            let file = folder.appendingPathComponent("voice-\(time.prefix(10)).jsonl")
-            if let handle = try? FileHandle(forWritingTo: file) {
-                defer { try? handle.close() }
-                _ = try? handle.seekToEnd()
-                try? handle.write(contentsOf: line)
-            } else {
-                try? line.write(to: file)
+            // The formatter and all file operations share this queue. The retention lock prevents a
+            // daily log being replaced between seek/append, which would otherwise lose new entries.
+            let time=clock.string(from:recordedAt)
+            let entry=["time":time,"event":event,"screen":screen,"detail":detail]
+            DiagnosticLogRetention.withFileAccess {
+                guard var line=try? JSONSerialization.data(withJSONObject:entry,options:[.sortedKeys]),
+                      let documents=FileManager.default.urls(for:.documentDirectory,in:.userDomainMask).first else {return}
+                line.append(0x0a)
+                let folder=documents.appendingPathComponent("VoiceLogs",isDirectory:true)
+                try? FileManager.default.createDirectory(at:folder,withIntermediateDirectories:true)
+                let file=folder.appendingPathComponent("voice-\(time.prefix(10)).jsonl")
+                if let handle=try? FileHandle(forWritingTo:file) {
+                    defer {try? handle.close()}
+                    _ = try? handle.seekToEnd()
+                    try? handle.write(contentsOf:line)
+                } else {
+                    try? line.write(to:file)
+                }
             }
+            DiagnosticLogMaintenance.schedule()
         }
     }
 }
