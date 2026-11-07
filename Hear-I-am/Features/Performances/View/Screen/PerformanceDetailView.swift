@@ -18,6 +18,8 @@ struct PerformanceDetailView: View {
     @State private var query = ""
     @State private var error: String?
     @State private var busy = false
+    @State private var focusedCard: UUID?
+    @State private var openedScan: PerformanceOpenedScan?
     @Environment(\.dismiss) private var dismiss
     private var folder: PerformanceFolder? { library.performanceFolders.first { $0.id == performanceID } }
     private var plans: [PerformancePlan] { library.referencePlans(for: performanceID) }
@@ -42,10 +44,7 @@ struct PerformanceDetailView: View {
                         }.padding(.horizontal, 4)
                         PerformanceSearchField(text: $query, prompt: "공연 및 연습 공간 검색")
                         if spaces.isEmpty {
-                            VStack(spacing: 20) {
-                                Image(systemName: "folder").font(.system(size: 52, weight: .light))
-                                Text(query.isEmpty ? "공간을\n추가해주세요" : "검색한 공간이\n없습니다").font(HearFont.pretendard(.semibold, size: 20)).multilineTextAlignment(.center)
-                            }.foregroundStyle(HearV3.secondary).frame(maxWidth: .infinity, minHeight: 230)
+                            PerformanceEmptyCard(systemImage: "folder", text: query.isEmpty ? "공간을\n추가해주세요" : "검색한 공간이\n없습니다").padding(.top, 20)
                         } else {
                             LazyVStack(spacing: 6) {
                                 ForEach(spaces) { space in
@@ -88,6 +87,10 @@ struct PerformanceDetailView: View {
             .fullScreenCover(isPresented: $editingScenes) {
                 ReferenceSceneEditorView(library: library, performanceID: performanceID, initialSceneID: selectedSceneID).suspendsVoiceWake()
             }
+            .navigationDestination(item: $openedScan) { opened in
+                PerformanceSpaceView(library: library, performanceID: performanceID, venueID: opened.venueID,
+                                     initialScanID: opened.scanID, onStartGuidance: onStartGuidance)
+            }
             .sheet(isPresented: $creatingSpace) {
                 PerformanceSpaceSearchSheet { name in spaceName = name; creatingSpace = false; saveSpace() }.suspendsVoiceWake()
             }
@@ -96,16 +99,17 @@ struct PerformanceDetailView: View {
                 Button("저장") { let id = renamingSpace?.id; saveSpace(id: id) }.disabled(spaceName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 Button("취소", role: .cancel) { renamingSpace = nil }
             }
-            .confirmationDialog("공간 폴더를 삭제할까요?", isPresented: Binding(get: { deletingSpace != nil }, set: { if !$0 { deletingSpace = nil } }), titleVisibility: .visible) {
-                if let space = deletingSpace { Button("공간 폴더 삭제", role: .destructive) { deleteSpace(space.id) } }
+            // 971:36590: deleting a space asks the same way as deleting the performance folder.
+            .alert("‘\(deletingSpace?.name ?? "")’ 공간 폴더를 삭제할까요?", isPresented: Binding(get: { deletingSpace != nil }, set: { if !$0 { deletingSpace = nil } })) {
                 Button("취소", role: .cancel) { deletingSpace = nil }
-            } message: { Text("스캔과 사진은 삭제하지 않고 이 공연의 ‘공간 미지정’에 보관해요.") }
+                Button("삭제") { if let space = deletingSpace { deleteSpace(space.id) } }.keyboardShortcut(.defaultAction)
+            } message: { Text("이 공간 폴더가 삭제돼요.\n스캔한 무대와 사진은 ‘공간 미지정’에 남아요.") }
             // 971:36590: an alert over the page. The message says what really goes: the folder, its scenes and
             // spaces; the scans themselves stay, unfiled.
             .alert("‘\(folder?.name ?? "")’ 공연 폴더를 삭제할까요?", isPresented: $deleting) {
                 Button("취소", role: .cancel) { }
-                Button("삭제", role: .destructive) { deleteFolder() }
-            } message: { Text("기본 동선과 공연 및 연습 공간이 함께 삭제돼요. 스캔한 무대와 사진은 미분류로 남아요.") }
+                Button("삭제") { deleteFolder() }.keyboardShortcut(.defaultAction)
+            } message: { Text("기본 동선과 공연 및 연습 공간이 함께 삭제돼요.\n스캔한 무대와 사진은 미분류로 남아요.") }
             .onChange(of: plans.map(\.id)) { _, ids in
                 if let selectedSceneID, !ids.contains(selectedSceneID) { self.selectedSceneID = ids.first }
             }
@@ -113,42 +117,65 @@ struct PerformanceDetailView: View {
                 Button("확인", role: .cancel) { error = nil }
             } message: { Text(error ?? "") }
     }
+    /// Every route on this performance, in the order of the space list: each space's scanned scenes, the unfiled ones,
+    /// then the reference routes drawn in the editor. Each says where it is from, 「공간(동선 이름)」.
+    private var routeCards: [PerformanceRouteCard] {
+        let venues = (folder?.venues ?? []).sorted { $0.updatedAt > $1.updatedAt }
+        var cards = venues.flatMap { venue in
+            library.scans(in: performanceID, venueID: venue.id, includeAllVenues: false)
+                .compactMap { PerformanceRouteCard(scan: $0, venueName: venue.name, venueID: venue.id) }
+        }
+        cards += unfiled.compactMap { PerformanceRouteCard(scan: $0, venueName: "공간 미지정", venueID: nil) }
+        cards += plans.map { PerformanceRouteCard(plan: $0) }
+        return cards
+    }
     private var referenceSection: some View {
-        VStack(spacing: 16) {
+        let cards = routeCards
+        let focused = cards.first { $0.id == focusedCard } ?? cards.first
+        return VStack(spacing: 16) {
             HStack {
                 PerformanceSectionTitle(text: "기본 동선")
                 Spacer()
-                Button { editingScenes = true } label: { PerformanceOutlineButtonLabel(title: "편집", systemImage: "pencil") }
+                Button { selectedSceneID = plans.first?.id; editingScenes = true } label: { PerformanceOutlineButtonLabel(title: "편집", systemImage: "pencil") }
                     .buttonStyle(.plain).accessibilityIdentifier("performance.scenes.edit")
             }.padding(.horizontal, 20)
-            if plans.isEmpty {
+            if cards.isEmpty {
+                // Figma 971:32413: a 200pt card of white 5%, the route symbol and 「기본동선을 추가해주세요」 in grey.
                 Button { editingScenes = true } label: {
-                    VStack(spacing: 20) {
-                        Image(systemName: "point.bottomleft.forward.to.point.topright.scurvepath").font(.system(size: 44, weight: .light))
-                        Text("기본동선을\n추가해주세요").font(HearFont.pretendard(.semibold, size: 20)).multilineTextAlignment(.center)
-                    }.foregroundStyle(HearV3.secondary).frame(maxWidth: .infinity, minHeight: 200)
-                        .background(HearV3.surface, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-                }.buttonStyle(.plain).padding(.horizontal, 16)
+                    PerformanceEmptyCard(systemImage: "point.topleft.down.to.point.bottomright.curvepath", text: "기본동선을\n추가해주세요")
+                        .background(.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+                }.buttonStyle(.plain).padding(.horizontal, 18)
             } else {
                 GeometryReader { geometry in
+                    let width = geometry.size.width - 36
                     ScrollView(.horizontal, showsIndicators: false) {
-                        LazyHStack(spacing: 10) {
-                            ForEach(plans) { plan in
-                                Button { selectedSceneID = plan.id; editingScenes = true } label: {
-                                    ReferenceSceneCard(plan: plan).frame(width: geometry.size.width - 36)
-                                }.buttonStyle(.plain).id(plan.id).accessibilityLabel("\(plan.name), 참고 동선 편집")
+                        LazyHStack(alignment: .top, spacing: 10) {
+                            ForEach(cards) { card in
+                                Button { open(card) } label: {
+                                    ReferenceSceneCard(plan: card.plan, height: card.height(width: width)).frame(width: width)
+                                }.buttonStyle(.plain).id(card.id).accessibilityLabel("\(card.label), 열기")
                             }
                         }.scrollTargetLayout()
-                    }.contentMargins(.horizontal, 16, for: .scrollContent).scrollTargetBehavior(.viewAligned)
-                        .scrollPosition(id: $selectedSceneID)
-                }.frame(height: 210)
-                HStack(spacing: 6) {
-                    ForEach(plans) { plan in
-                        Circle().fill((selectedSceneID ?? plans.first?.id) == plan.id ? HearV3.text : HearV3.secondary.opacity(0.4)).frame(width: 6, height: 6)
-                    }
-                }.accessibilityLabel("참고 동선 \(plans.count)개")
+                    }.contentMargins(.horizontal, 18, for: .scrollContent).scrollTargetBehavior(.viewAligned)
+                        .scrollPosition(id: $focusedCard)
+                }.frame(height: cards.map { $0.height(width: UIScreen.main.bounds.width - 36) }.max() ?? 204)
+                if let focused {
+                    Text(focused.label).font(HearFont.pretendard(.regular, size: 13)).foregroundStyle(HearV3.secondary)
+                        .lineLimit(1).padding(.horizontal, 20).contentTransition(.opacity)
+                }
+                if cards.count > 1 {
+                    HStack(spacing: 6) {
+                        ForEach(cards) { card in
+                            Circle().fill(focused?.id == card.id ? HearV3.text : HearV3.secondary.opacity(0.4)).frame(width: 6, height: 6)
+                        }
+                    }.accessibilityElement(children: .ignore).accessibilityLabel("동선 \(cards.count)개 중 \((cards.firstIndex { $0.id == focused?.id } ?? 0) + 1)번째")
+                }
             }
-        }
+        }.animation(.easeInOut(duration: 0.2), value: focusedCard)
+    }
+    private func open(_ card: PerformanceRouteCard) {
+        if card.isScan { openedScan = PerformanceOpenedScan(venueID: card.venueID, scanID: card.id) }
+        else { selectedSceneID = card.id; editingScenes = true }
     }
     private func saveSpace(id: UUID? = nil) {
         guard !busy else { return }; busy = true
@@ -205,14 +232,13 @@ struct PerformanceSpaceSearchSheet: View {
                     }
                 }.padding(.horizontal, 16).padding(.top, 8)
             }.scrollDismissesKeyboard(.interactively)
-        }.background(HearV3.canvas.ignoresSafeArea()).preferredColorScheme(.dark)
+        }
             .safeAreaInset(edge: .top, spacing: 0) {
-                HearTopBar(title: "공간 추가", leading: ScanCircleButton(systemImage: "xmark", label: "닫기") { dismiss() },
+                HearTopBar(title: "공간 추가", sheet: true, leading: ScanCircleButton(systemImage: "xmark", label: "닫기") { dismiss() },
                            trailing: Button { choose(Place(name: typed, address: "")) } label: { HearTopButtonLabel(systemImage: "checkmark", prominent: true) }
                     .buttonStyle(.plain).disabled(typed.isEmpty).opacity(typed.isEmpty ? 0.45 : 1).accessibilityLabel("입력한 이름으로 추가"))
-                    .padding(.top, 6)
             }
-            .presentationDragIndicator(.visible).presentationBackground(HearV3.canvas)
+            .hearSheet()
             .task(id: typed) {
                 guard !typed.isEmpty else { results = []; return }
                 try? await Task.sleep(for: .milliseconds(300))
@@ -265,18 +291,68 @@ struct PerformanceSectionTitle: View {
     }
 }
 
-/// The small outlined capsule beside a heading, 「✎ 편집」 and 「+ 추가하기」 (971:32296).
+/// The small glass capsule beside a heading, 「✎ 편집」 and 「+ 추가하기」 (971:32423): 30pt high, tinted white 5%.
 struct PerformanceOutlineButtonLabel: View {
     let title: String
     let systemImage: String
     var body: some View {
         HStack(spacing: 6) {
             Image(systemName: systemImage).font(.system(size: 13, weight: .medium))
-            Text(title).font(HearFont.pretendard(.medium, size: 14))
-        }.foregroundStyle(.white).padding(.horizontal, 12).frame(height: 32)
-            .background(.black, in: Capsule())
-            .overlay(Capsule().strokeBorder(.white.opacity(0.25), lineWidth: 1))
+            Text(title).font(HearFont.pretendard(.medium, size: 14)).tracking(-0.42)
+        }.foregroundStyle(.white).padding(.horizontal, 12).frame(height: 30)
+            .liquidGlass(Capsule(), tint: .white.opacity(0.05), interactive: true)
             .contentShape(Capsule())
+    }
+}
+
+/// The empty state inside a 200pt card (971:32426 · 971:32441): a 48pt symbol over two grey lines.
+struct PerformanceEmptyCard: View {
+    let systemImage: String
+    let text: String
+    var body: some View {
+        VStack(spacing: 20) {
+            Image(systemName: systemImage).font(.system(size: 44, weight: .regular)).frame(width: 60, height: 60)
+            Text(text).font(HearFont.pretendard(.medium, size: 20)).tracking(-0.6).lineSpacing(4).multilineTextAlignment(.center)
+        }.foregroundStyle(PerformanceSearchField.grey).frame(maxWidth: .infinity).frame(height: 200)
+    }
+}
+
+struct PerformanceOpenedScan: Hashable, Identifiable {
+    let venueID: UUID?
+    let scanID: UUID
+    var id: UUID { scanID }
+}
+
+/// One card of the 기본 동선 carousel: a scanned scene drawn on the schematic stage, or a reference route.
+struct PerformanceRouteCard: Identifiable {
+    let id: UUID
+    let plan: PerformancePlan
+    let label: String
+    let venueID: UUID?
+    let isScan: Bool
+    /// Stage depth over width; a scanned stage keeps its own proportions, so its card is taller or shorter.
+    let aspect: Double
+    init(plan: PerformancePlan) {
+        id = plan.id; self.plan = plan; label = "기본 동선(\(plan.name))"; venueID = nil; isScan = false
+        aspect = PerformancePlan.depth / PerformancePlan.width
+    }
+    /// The scan's route, scaled from its measured stage onto the 12 × 8 schematic. Nil when it has no route yet.
+    init?(scan: ScanManifest, venueName: String, venueID: UUID?) {
+        guard let route = scan.route, route.points.count >= 2, route.area.width > 0.1, route.area.depth > 0.1 else { return nil }
+        let sx = PerformancePlan.width / route.area.width, sy = PerformancePlan.depth / route.area.depth
+        var plan = PerformancePlan(); plan.id = scan.id; plan.name = scan.name; plan.isReferenceOnly = true
+        for point in route.points { try? plan.append(FloorPoint(min(15, max(-3, point.x * sx)), min(9, max(-1, point.y * sy)))) }
+        plan.completeReference()
+        plan.objects = route.obstacles.compactMap {
+            try? StageObstacle(name: $0.name, kind: $0.kind, passage: $0.passage, vertices: $0.vertices.map { FloorPoint($0.x * sx, $0.y * sy) })
+        }
+        id = scan.id; self.plan = plan; label = "\(venueName)(\(scan.name))"; self.venueID = venueID; isScan = true
+        aspect = route.area.depth / route.area.width
+    }
+    /// The schematic spans the stage plus both 1.4 m backstage strips; its height follows the stage's proportions.
+    func height(width: CGFloat) -> CGFloat {
+        let stageWidth = (width - 32) * PerformancePlan.width / (PerformancePlan.width + 2.8)
+        return min(280, max(150, stageWidth * aspect + 32))
     }
 }
 
@@ -303,11 +379,11 @@ struct PerformanceLinkStagesView: View {
                         }.frame(minHeight:48)
                     }.buttonStyle(.plain).accessibilityAddTraits(selected.contains(scan.id) ? .isSelected : [])
                 }
-            }.scrollContentBackground(.hidden).v3Screen().navigationTitle("무대 연결").navigationBarTitleDisplayMode(.inline)
+            }.scrollContentBackground(.hidden).clearNavigationBackground().navigationTitle("무대 연결").navigationBarTitleDisplayMode(.inline)
                 .searchable(text:$query,prompt:"무대 또는 공연 이름 검색")
                 .toolbar {ToolbarItem(placement:.cancellationAction) {Button("닫기",systemImage:"xmark") {dismiss()}.labelStyle(.iconOnly)}}
-                .safeAreaInset(edge:.bottom) {Button("선택한 \(selected.count)개 연결") {classificationIDs=Array(selected);classifying=true}.buttonStyle(V3PrimaryButtonStyle()).disabled(selected.isEmpty).padding(20).background(HearV3.canvas)}
+                .safeAreaInset(edge:.bottom) {Button("선택한 \(selected.count)개 연결") {classificationIDs=Array(selected);classifying=true}.buttonStyle(V3PrimaryButtonStyle()).disabled(selected.isEmpty).padding(20)}
                 .sheet(isPresented:$classifying) {StageClassificationView(library:library,scanIDs:classificationIDs,initialPerformanceID:performanceID) {_ in dismiss()}.suspendsVoiceWake()}
-        }.v3Screen()
+        }.hearSheet()
     }
 }

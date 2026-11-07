@@ -18,6 +18,7 @@ struct ReferenceSceneEditorView: View {
     @State private var renameTarget: ReferenceRenameTarget?
     @State private var renameText = ""
     @State private var managing = false
+    @State private var deletingRoute: PerformancePlan?
     @State private var confirmExit = false
     @State private var message: String?
     @State private var saving = false
@@ -190,7 +191,7 @@ struct ReferenceSceneEditorView: View {
                     } menu: {
                         Button("이름 변경", systemImage: "pencil") { renameText = plan.name; renameTarget = .scene(plan.id) }
                         Button("복제", systemImage: "plus.square.on.square") { duplicateScene(plan) }
-                        Section { Button("동선 삭제", systemImage: "trash", role: .destructive) { removeScene(plan.id) } }
+                        Section { Button("동선 삭제", systemImage: "trash", role: .destructive) { deletingRoute = plan } }
                     }
                 }
                 if scenes.isEmpty {
@@ -198,6 +199,11 @@ struct ReferenceSceneEditorView: View {
                 }
             }.padding(.horizontal, 16).padding(.top, 8)
         }.v3Screen().hearTopBar("동선 관리") { HearBackButton() } trailing: { EmptyView() }
+            // Figma 971:36590: deleting a route asks like deleting a folder.
+            .alert("‘\(deletingRoute?.name ?? "")’ 동선을 삭제할까요?", isPresented: Binding(get: { deletingRoute != nil }, set: { if !$0 { deletingRoute = nil } })) {
+                Button("취소", role: .cancel) { deletingRoute = nil }
+                Button("삭제") { if let plan = deletingRoute { removeScene(plan.id) }; deletingRoute = nil }.keyboardShortcut(.defaultAction)
+            } message: { Text("체크를 눌러 저장하면 이 동선이 삭제돼요.\n스캔한 무대에는 영향을 주지 않아요.") }
     }
 
     // MARK: - Editing
