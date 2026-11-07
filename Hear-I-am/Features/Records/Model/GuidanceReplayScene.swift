@@ -4,6 +4,8 @@ import HearIAmCore
 
 /// Rebuild the saved plan in stage coordinates; later stage edits or deletion cannot alter a record.
 @MainActor final class GuidanceReplayScene {
+    /// Figma 971:31085: the replay fills the page on #21262A, as the saved stage does on its own dark ground.
+    static let background=UIColor(red:33/255,green:38/255,blue:42/255,alpha:1)
     let scene=SCNScene(),camera=SCNNode()
     let walkingFigure=ReplayWalkingFigure()
     var person: SCNNode {walkingFigure.node}
@@ -18,7 +20,7 @@ import HearIAmCore
     init(record: GuidanceRecord) {
         self.record=record
         walkingTimeline=record.replay.map {GuidanceWalkTimeline(replay:$0)}
-        scene.background.contents=ReplaySurfaceFactory.background
+        scene.background.contents=Self.background
         scene.rootNode.addChildNode(camera)
         let ambient=SCNNode();ambient.light=SCNLight();ambient.light?.type = .ambient;ambient.light?.intensity=650
         let key=SCNNode();key.light=SCNLight();key.light?.type = .directional;key.light?.intensity=900
@@ -155,7 +157,7 @@ struct GuidanceReplaySceneView: UIViewRepresentable {
     func makeUIView(context: Context) -> SCNView {
         let view=ReplaySCNView(),controller=player.scene
         controller.view=view;view.scene=controller.scene;view.pointOfView=controller.camera
-        view.backgroundColor=ReplaySurfaceFactory.background;view.allowsCameraControl=true;view.antialiasingMode = .multisampling4X
+        view.backgroundColor=GuidanceReplayScene.background;view.allowsCameraControl=true;view.antialiasingMode = .multisampling4X
         view.onLayout={ [weak controller] in controller?.frame() }
         return view
     }
