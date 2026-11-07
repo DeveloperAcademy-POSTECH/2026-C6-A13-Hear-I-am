@@ -53,6 +53,9 @@ public struct PlaceFolderIndex: Codable, Equatable, Sendable {
     public var places: [PlaceEntry] = []
     public var assignments: [UUID: PlaceDestination] = [:]
     public var favoriteScans: Set<UUID> = []
+    /// Reject stale catalog reconciliation without changing the legacy file/folder layout.
+    public var performanceSynchronizationID: UUID?
+    public var performanceSynchronizationRevision: UInt64?
     public init() {}
     public func contains(_ destination: PlaceDestination) -> Bool {
         guard let place=places.first(where:{$0.id == destination.placeID}) else {return false}
