@@ -76,15 +76,25 @@ struct VoiceLogoSpinner: View {
     }
 }
 
-/// The empty conversation after the call (495:5074): the logo over the question.
+/// The empty conversation (495:5074), and the performer's first screen before the call (971:36998): the logo
+/// over the question, with a grey line under it, 「HearIam을 불러주세요」 before the call. The group's middle is
+/// 30pt above the screen's.
 struct VoiceWaitingPrompt: View {
     var text="오늘은 어떤 공연을\n연습할까요?"
+    var subtitle: String?=nil
     var animating=true
     var body: some View {
         VStack(spacing:36) {
             VoiceLogoSpinner(size:74,animating:animating).opacity(0.5)
-            Text(text).font(.system(size:32,weight:.semibold)).tracking(-0.96).lineSpacing(4)
-                .foregroundStyle(.white).multilineTextAlignment(.center).fixedSize(horizontal:false,vertical:true)
+            VStack(spacing:12) {
+                Text(text).font(HearFont.pretendard(.semibold,size:32)).tracking(-0.96).lineSpacing(4)
+                    .foregroundStyle(.white).multilineTextAlignment(.center).fixedSize(horizontal:false,vertical:true)
+                if let subtitle {
+                    Text(subtitle).font(HearFont.pretendard(.medium,size:24)).tracking(-0.72)
+                        .foregroundStyle(VoiceStyle.meta).multilineTextAlignment(.center)
+                        .contentTransition(.opacity)
+                }
+            }
         }
         .frame(maxWidth:.infinity,maxHeight:.infinity).offset(y:-30)
         .accessibilityElement(children:.combine)
