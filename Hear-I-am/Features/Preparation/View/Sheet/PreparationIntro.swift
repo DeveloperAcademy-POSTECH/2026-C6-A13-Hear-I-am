@@ -111,7 +111,7 @@ private struct PreparationIntroPage: View {
         case 1: return page == 0 ? "공연할 영역을 정해주세요" : "물체의 포인트 추가"
         case 2: return page == 0 ? "기물을 미리 표시해주세요" : "물체의 포인트 추가"
         case 3: return "움직일 동선 찍기"
-        default: return "확인(기준)점 찍기"
+        default: return "확인점 찍기"
         }
     }
     private var detail: String {
