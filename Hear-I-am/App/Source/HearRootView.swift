@@ -60,7 +60,7 @@ struct HearRootView: View {
             if scenePhase == .active {DiagnosticLogMaintenance.schedule(force:true)}
         }
         .onChange(of:role) {syncWake()}
-        .onChange(of:library.records.map(\.id)) {HearShortcuts.updateAppShortcutParameters()}
+        .onChange(of:library.voiceMetadata) {HearShortcuts.updateAppShortcutParameters()}
         .task {
             await library.refresh()
             HearShortcuts.updateAppShortcutParameters()
