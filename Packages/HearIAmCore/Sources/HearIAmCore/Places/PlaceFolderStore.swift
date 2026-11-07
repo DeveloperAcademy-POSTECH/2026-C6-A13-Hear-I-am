@@ -19,6 +19,35 @@ public actor PlaceFolderStore {
         try encoder.encode(index).write(to:indexURL,options:.atomic)
         return index
     }
+    /// Reconcile only imported references and explicitly renamed places. Archive assets are retained.
+    /// Revision markers make older async snapshots harmless, including after reopening this store.
+    @discardableResult public func reconcileLegacySnapshot(_ catalog: PerformanceCatalog) throws -> PlaceFolderIndex {
+        try catalog.validate()
+        let current=try load()
+        guard let state=catalog.legacySynchronization, let snapshot=catalog.legacyPlaces else {return current}
+        // A user may remove the old index in Files. Never recreate an archive they removed.
+        guard FileManager.default.fileExists(atPath:indexURL.path) else {return current}
+        if let id=current.performanceSynchronizationID {
+            guard id==state.id else {throw LabError.invalid("이전 장소 자료의 연결 상태를 확인해주세요.")}
+            if let revision=current.performanceSynchronizationRevision, revision>state.revision {return current}
+        }
+        var result=current
+        for i in result.places.indices {
+            if let name=state.renamedPlaceNames[result.places[i].id] {result.places[i].name=name}
+        }
+        for id in state.managedScanIDs {
+            // A separately removed original place must not be reintroduced by an imported assignment.
+            if let destination=snapshot.assignments[id], result.contains(destination) {result.assignments[id]=destination}
+            else {result.assignments.removeValue(forKey:id)}
+            if snapshot.favoriteScans.contains(id) {result.favoriteScans.insert(id)}
+            else {result.favoriteScans.remove(id)}
+        }
+        result.performanceSynchronizationID=state.id
+        result.performanceSynchronizationRevision=state.revision
+        guard result != current else {return current}
+        return try commit(result)
+    }
+
     public func photo(_ id: UUID) throws -> Data {
         let url=photoURL(id)
         let info=try url.resourceValues(forKeys:[.fileSizeKey])
