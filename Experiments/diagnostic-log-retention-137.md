@@ -41,33 +41,41 @@ OSLog는 iOS가 관리하는 시스템 로그다. 앱이 직접 저장하는 JSO
 
 파일 날짜를 읽는 새 동작에 맞춰 `PrivacyInfo.xcprivacy`의 FileTimestamp 사용 사유 `C617.1`을 추가한다. 이는 앱 컨테이너 안의 파일 메타데이터 처리 사유다. [Apple 공식 문서](https://developer.apple.com/documentation/bundleresources/app-privacy-configuration/nsprivacyaccessedapitypes/nsprivacyaccessedapitypereasons)
 
-## 추가 제안 — 이번에는 구현하지 않음
+## UI를 유지한 후속 보완 (2026-11-08)
 
-### 1. 이전 장소 자료의 삭제·정정 경로 (우선)
+### 1. 이전 장소 연결과 이름 변경의 동기화
 
-`StageLibrary.loadLibrary`는 최초 이전 시 `PlaceFolders`를 읽은 뒤 원본을 남긴다. `PerformanceCatalog.migrate`는 주소·사진 ID 등을 `legacyPlaces`에도 복제한다. 현재 V3에는 구 장소 관리 화면으로 들어가는 경로가 없고, 공연·공간·스캔 삭제는 구 JSON/JPEG와 `legacyPlaces`를 지우지 않는다. `legacyPath`도 남아 삭제·이름 변경 전 명칭이 음성 검색에 사용될 수 있다.
+공연·공간을 삭제하거나 스캔을 다른 폴더로 옮기면, 해당 스캔의 이전 `legacyPath`와 원본/복제본의 분류 연결을 해제한다. 스캔 자체를 삭제하면 기존 즐겨찾기와 카탈로그 참조도 정리한다. 완전한 스캔 목록 조회가 성공한 다음에만 누락된 참조를 정리하므로, 손상된 파일을 빈 목록으로 오인하지 않는다. 이미 이전 버전에서 남은 옛 별칭도 현재 장소와 일치하지 않으면 해제한다.
 
-공연/공간 폴더를 삭제해도 스캔을 보관하는 현재 동작은 UI에 설명돼 있으므로 그대로 존중한다. 대신 사용자에게 남은 구 장소 자료를 확인·삭제할 경로를 제공하고, 자료 삭제/정정 시 원본 JSON·사진, `legacyPlaces`, `legacyPath`를 일관되게 처리하는 것을 제안한다. 자료가 중복 저장돼 있다는 이유만으로 자동 삭제하지 않는다.
+한 공연만 사용하는 이전 장소의 이름 변경은 원본과 복제본에 함께 반영한다. 여러 공연이 같은 장소를 쓰는 경우에는 변경한 공연의 옛 연결만 해제하고 다른 공연의 이름을 바꾸지 않는다. 기존 파일 형식에 선택적 동기화 ID와 리비전만 추가하여 늦게 끝난 작업이 최신 삭제/정정을 되돌리지 않도록 한다. 원본 정리가 실패하면 다음 목록 조회에서 재시도하며, 파일 앱에서 지운 이전 원본을 다시 만들지 않는다.
 
-관련: `Core/Store/StageLibrary.swift`, `Storage/PerformanceCatalog.swift`, `Storage/PerformanceCatalogStore.swift`, `Places/PlaceFolderStore.swift`.
+**기존 삭제 안내를 유지한다.** 공연/공간 폴더 삭제는 스캔·사진·안내 기록의 삭제를 뜻하지 않는다. 따라서 이전 장소의 주소·대표 사진·비어 있는 장소 보관 자료는 일괄 삭제하지 않는다. 이 자료 자체를 관리/삭제할 UI는 이번 범위에서 추가하지 않았다. 사용자 자료 폴더 위치와 화면 구성도 유지했다.
 
-### 2. 무대·장소 이름이 포함된 음성 모델 캐시
+관련: `Core/Store/StageLibrary.swift`, `Storage/PerformanceCatalog.swift`, `Storage/PerformanceCatalogStore.swift`, `Places/PlaceFolderStore.swift`, `Places/PlaceFolders.swift`.
 
-`VoiceLanguageModelBuilder.prepare`는 문구 목록의 해시마다 `VoiceLanguageModel/<hash>`에 모델을 저장한다. 무대/장소 삭제 후 이전 해시 폴더의 이름 정보가 남을 수 있다. 관련 자료 삭제 시 사용 중 모델을 안전하게 해제한 뒤 이전 캐시를 정리하거나, 현재 모델을 제외한 구 모델을 지우는 방식을 제안한다. 3개월 진단 로그와는 별도 수명 관리가 필요하다.
+### 2. 음성 인식 모델 캐시와 검색 제안
 
-관련: `Voice/Recognition/VoiceSpeechAnalyzer.swift`, `Voice/Agent/GuidanceViewModel+VoiceRehearsal.swift`, `Voice/VoiceVocabulary.swift`.
+무대 이름 또는 공연/공간 분류가 변경되거나 삭제되면 이전 음성 모델과 준비 중 결과를 무효화하고, 옛 이름이 포함된 인식 힌트·자동 교정 목록도 비운다. 실제 인식 요청이 완료되기 전에는 사용 중인 모델 파일을 지우지 않는다. 각 준비 작업은 별도 캐시 폴더를 사용하므로 늦게 끝난 이전 작업이 새 모델을 덮어쓸 수 없다. 정상적인 현재 모델은 낭독 때문에 잠깐 마이크를 멈출 때 재사용한다. 오래된 캐시 파일을 삭제하는 동안에도 음성 입력 상태 확인과 무효화가 기다리지 않도록 파일 정리 잠금과 사용 상태 잠금을 분리했다.
 
-### 3. 앱 안에서 연습·안내 기록을 직접 삭제
+목록 조회와 이름/분류 변경 시 사용하지 않는 앱 소유 캐시를 정리한다. 과거 해시 폴더와 새 준비 폴더만 대상으로 하며, 다른 이름의 파일과 심볼릭 링크는 보존한다. Siri 제안 갱신도 스캔 ID뿐 아니라 이름과 분류 변경에 반응한다. 사진·스캔·안내 기록 저장 경로, 음성 인식 방식과 권한은 변경하지 않는다.
+
+관련: `Voice/VoiceModelCache.swift`, `Voice/Recognition/VoiceSpeechAnalyzer.swift`, `Voice/Recognition/VoiceRecognitionService.swift`, `Core/Store/StageLibrary.swift`, `App/Source/HearRootView.swift`.
+
+## 남은 제안과 운영 확인
+
+이전 장소 보관 자료 자체의 접근/삭제 기능은 UI와 삭제 범위 결정이 필요하므로 보류했다. 앱 삭제/파일 앱 관리와 별개로 숨겨진 장소 보관 자료를 앱에서 직접 정리하는 기능은 아직 없다.
+
+### 1. 앱 안에서 연습·안내 기록을 직접 삭제
 
 `GuidanceRecordStore`와 기록 화면은 저장·목록·상세 조회를 제공하지만 개별 삭제 기능은 없다. 방침의 파일 앱 관리 설명과 바로 충돌하는 것은 아니지만, 앱 내 개별/전체 삭제를 제공하면 특히 공연자에게 더 접근하기 쉽다. 무대 삭제와 안내 기록 삭제가 별개라는 안내도 함께 제안한다.
 
 관련: `Storage/GuidanceRecordStore.swift`, `Features/Records/View/Screen/GuidanceRecordsView.swift`.
 
-### 4. 운영자가 받은 고객지원 자료의 6개월 보관
+### 2. 운영자가 받은 고객지원 자료의 6개월 보관
 
 방침은 문의 처리 완료 후 6개월 삭제를 명시한다. 이메일·Google Forms·첨부파일의 삭제 일정은 앱 로컬 파일 정리로 이행할 수 없다. 운영 계정의 실제 보관/삭제 상태는 이번 코드 검토에서 확인하지 않았다. 문의 종료일 기록과 해당 시스템의 정기 삭제 절차를 별도로 마련해야 한다.
 
-### 5. 방침 문구와 선택권 보완
+### 3. 방침 문구와 선택권 보완
 
 자동 정리 시점(실행/복귀, 쓰기 중 파일 종료 후)과 시스템 로그/백업의 범위를 구체적으로 설명하는 것을 제안한다. 개발용으로 모든 인식 문구를 장기 보관할 필요가 없다면 진단 저장 끄기와 텍스트 최소화도 별도 검토할 수 있다. 이는 현재 방침에서 허용한 진단 저장과 별개인 제품 개선 제안이다.
 
@@ -81,7 +89,7 @@ OSLog는 iOS가 관리하는 시스템 로그다. 앱이 직접 저장하는 JSO
 
 ## 검증
 
-- Core 전체 XCTest **390개 통과**, 실패 0·skip 0. 신규 보관 테스트 13개 포함.
+- Core 전체 XCTest **408개 통과**, 실패 0·skip 0. 보관 테스트 13개와 후속 장소 동기화 11개·캐시 7개 포함.
 - 월말·윤년·밀리초 경계·시간대, 오래된 헤더/불완전 행, 재작성 후 날짜 보존, 허용된 파일만 삭제, 심볼릭 링크 제외, 사용자 자료 보존, 임시 복사본 회수, 활성 파일/동시 append 보호, 쓰기 실패 원본 보존을 검증했다.
 - 50,000행 + 큰 JSON 행 fixture 처리: Mac 테스트에서 0.521초. 최초 구현의 18.073초에서 개선했으며 iPhone 실측 성능을 의미하지 않는다.
 - Xcode 27.1: Debug iOS Simulator 및 Release generic iOS **서명 제외 빌드 성공**.
@@ -89,6 +97,8 @@ OSLog는 iOS가 관리하는 시스템 로그다. 앱이 직접 저장하는 JSO
 - 빌드된 앱의 `PrivacyInfo.xcprivacy`에 FileTimestamp/C617.1이 포함된 것을 확인했다.
 - 기존 `CameraView.Coordinator`의 `ARCoachingOverlayViewDelegate` main-actor 적합성 경고가 남아 있다. 이번 변경 파일의 새 경고나 빌드 오류는 없었다. 카메라 경고 수정은 이번 범위에 포함하지 않았다.
 - 독립 코드 검토에서 만료 헤더와 중단된 정리 임시 파일의 잔존을 보완했고, 최종 차단 이슈는 발견되지 않았다.
+- 실제 `StageLibrary` 코드를 임시 Mac 실행 프로그램에 연결해 공유/단독 장소 이름 변경, 원본 사진 보존, 폴더 삭제 시 스캔 보존, 핀 저장 실패 전 참조 정리, 파일 앱 삭제 후 복구, 손상된 스캔 목록의 분류 보존을 검증했다. 음성 엔진 대신 캐시 무효화 호출 여부만 확인하는 대역을 사용했다.
+- 실제 iPhone에서 Speech 요청을 취소한 뒤 완료 상태로 전환되고 캐시가 회수되는지는 추가 기기 검증이 필요하다. Core 테스트는 준비/사용 중 캐시 보호와 완료 후 회수를 검증한다.
 - 실제 사용자 iPhone 자료에는 정리를 실행하지 않았다. 아직 배포하지 않았으며, 테스트는 임시 디렉터리와 새 테스트 기기의 합성 자료만 사용했다.
 
 재검증은 Xcode 개발 도구를 선택한 환경에서 `swift test --package-path Packages/HearIAmCore`로 실행할 수 있다. 앱 빌드는 `Hear-I-am` scheme을 사용한다.
