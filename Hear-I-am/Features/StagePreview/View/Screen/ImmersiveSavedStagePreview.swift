@@ -5,14 +5,11 @@ import HearIAmCore
 struct ImmersiveSavedStagePreview: View {
     @StateObject private var model: SavedStagePreviewModel
     let scanSelector: AnyView?
-    let onNewScan: (() -> Void)?
-    let onStartGuidance: ((UUID) -> Void)?
     let onRename: (() -> Void)?
     let onDelete: (() -> Void)?
     @State private var gallery = false
     @State private var galleryDetent=PresentationDetent.height(200)
     @State private var pointSettings = false
-    @State private var closedPhotoID: UUID?
     /// The route bar: a small capsule at first (971:33671), opened into the full-width bar (971:34370).
     @State private var barExpanded = false
     /// Where an open sheet's top edge is on screen, so the opened bar can ride up on it (971:33834 · 971:34288).
@@ -23,13 +20,12 @@ struct ImmersiveSavedStagePreview: View {
     @State private var settingsHeight: CGFloat=240
 
     init(record: ScanManifest, store: ScanStore, scanSelector: AnyView? = nil,
-         onNewScan: (() -> Void)? = nil, onStartGuidance: ((UUID) -> Void)? = nil,
          onRename: (() -> Void)? = nil, onDelete: (() -> Void)? = nil) {
         let model=SavedStagePreviewModel(record:record,store:store)
         model.display = .clean;model.immersive=true;model.showCleanPhotoPins=true
         model.selection = record.route?.points.isEmpty == false ? .point(0) : nil
         _model=StateObject(wrappedValue:model)
-        self.scanSelector=scanSelector;self.onNewScan=onNewScan;self.onStartGuidance=onStartGuidance
+        self.scanSelector=scanSelector
         self.onRename=onRename;self.onDelete=onDelete
     }
 
@@ -44,11 +40,11 @@ struct ImmersiveSavedStagePreview: View {
                         .simultaneousGesture(TapGesture().onEnded {
                             if barExpanded && !pointSettings && !gallery {withAnimation(Self.barSpring) {barExpanded=false}}
                         })
-                    LinearGradient(colors:[.black.opacity(0.25),.clear,.clear,.black.opacity(0.45)],startPoint:.top,endPoint:.bottom)
+                    LinearGradient(colors:[.black.opacity(0.16),.clear,.clear,.black.opacity(0.30)],startPoint:.top,endPoint:.bottom)
                         .allowsHitTesting(false)
                     if let photo=shownPhoto,let anchor=model.photoAnchor {
-                        // 971:33671: with the bar closed, the stage dims behind the point's photo.
-                        Color.black.opacity(barExpanded ? 0 : 0.6).allowsHitTesting(false)
+                        // Explicit photo selection dims the stage regardless of the route bar's state.
+                        Color.black.opacity(0.6).allowsHitTesting(false)
                         photoPreview(photo,scan:scan)
                             .position(x:min(max(anchor.x*geometry.size.width,86),geometry.size.width-86),
                                       y:min(max(anchor.y*(geometry.size.height+geometry.safeAreaInsets.top+safeBottom)-geometry.safeAreaInsets.top,80),geometry.size.height-200))
@@ -118,7 +114,6 @@ struct ImmersiveSavedStagePreview: View {
             }
             #endif
         }
-        .onChange(of:model.selectionRevision) {_,_ in closedPhotoID=nil}
         .onChange(of:gallery || pointSettings) {_,open in if !open {withAnimation(Self.barSpring) {sheetTop=nil}}}
         .sheet(isPresented:$gallery) {photoGallery.background(SheetTopReporter {top in withAnimation(Self.barSpring) {sheetTop=top}}).suspendsVoiceWake()}
         .sheet(isPresented:$pointSettings) {pointSettingsSheet.background(SheetTopReporter {top in withAnimation(Self.barSpring) {sheetTop=top}}).suspendsVoiceWake()}
@@ -130,26 +125,18 @@ struct ImmersiveSavedStagePreview: View {
         }
     }
 
-    /// 971:34557: photo pins, the two camera views and rename, then deleting this scan. Starting guidance, the
-    /// point settings and a new scan are not in the design but stay, in their own section.
+    /// Photo pins, camera views, scene rename and scan deletion.
     private var moreMenu: some View {
         Menu {
-            Toggle(isOn:Binding(get:{model.photoPinsVisible},set:{model.photoPinsVisible=$0})) {
-                Label("사진 위치 표시",systemImage:"photo.badge.magnifyingglass")
+            Button {model.photoPinsVisible.toggle()} label: {
+                Label(model.photoPinsVisible ? "사진 위치 표시 ✓" : "사진 위치 표시",systemImage:"photo.badge.magnifyingglass")
             }
+            .accessibilityLabel("사진 위치 표시")
+            .accessibilityValue(model.photoPinsVisible ? "표시 중" : "숨김")
             Section {
                 Button("시점 초기화",systemImage:"arrow.counterclockwise") {model.setCamera(.overview)}
                 Button("동선 위에서 보기",systemImage:"eye") {model.setCamera(.overhead)}
                 if let onRename {Button("장면 이름 변경",systemImage:"pencil",action:onRename)}
-            }
-            Section {
-                if let onStartGuidance {
-                    Button("안내 시작",systemImage:"arrow.up.right") {onStartGuidance(model.record.id)}
-                        .disabled(!model.record.supportsAlignment || model.loaded?.manifest.route == nil)
-                }
-                Button("지점 설정",systemImage:"timer") {openPointSettings()}
-                    .disabled(model.loaded?.manifest.route?.points.isEmpty != false)
-                if let onNewScan {Button("새 장면 스캔",systemImage:"viewfinder",action:onNewScan)}
             }
             if let onDelete {
                 Section {Button("현재 스캔 파일 삭제",systemImage:"trash",role:.destructive,action:onDelete)}
@@ -166,9 +153,10 @@ struct ImmersiveSavedStagePreview: View {
     #endif
     static let sheetSpring=Animation.spring(duration:0.35,bounce:0.1)
     private static let grey=Color(red:118/255,green:118/255,blue:118/255)
-    /// The point's photo, unless it was closed. Shown while photo pins are on.
+    /// Only a photo pin or gallery selection opens a preview; route points and objects never open one automatically.
     private var shownPhoto: ScanPhoto? {
-        guard model.photoPinsVisible,let photo=model.selectedPhoto,closedPhotoID != photo.id else {return nil}
+        guard case .photo = model.selection,model.photoPinsVisible,
+              let photo=model.selectedPhoto else {return nil}
         return photo
     }
 
@@ -277,16 +265,16 @@ struct ImmersiveSavedStagePreview: View {
         }
     }
 
-    /// 971:33671: the point's photo in a 136 × 104 glass frame, a close button on its corner.
+    /// The selected photo in a 136 × 104 glass frame, a close button on its corner.
     private func photoPreview(_ photo: ScanPhoto,scan: LoadedScan) -> some View {
         Button {model.photoExpanded=true} label: {
             SavedPhotoImage(store:model.store,scanID:scan.manifest.id,photo:photo,fill:true)
                 .frame(width:124,height:94).clipShape(RoundedRectangle(cornerRadius:20,style:.continuous))
                 .frame(width:136,height:104)
                 .liquidGlass(RoundedRectangle(cornerRadius:24,style:.continuous),tint:.white.opacity(0.05))
-        }.buttonStyle(.plain).accessibilityLabel("선택한 지점 사진 크게 보기")
+        }.buttonStyle(.plain).accessibilityLabel("선택한 사진 크게 보기")
             .overlay(alignment:.topTrailing) {
-                ScanCircleButton(systemImage:"xmark",label:"사진 미리보기 닫기",size:32) {closedPhotoID=photo.id}
+                ScanCircleButton(systemImage:"xmark",label:"사진 미리보기 닫기",size:32) {model.closePhotoPreview()}
                     .offset(x:12,y:-12)
             }
     }

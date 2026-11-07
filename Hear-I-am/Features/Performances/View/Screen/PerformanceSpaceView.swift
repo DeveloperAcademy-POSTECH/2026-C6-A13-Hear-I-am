@@ -28,7 +28,6 @@ struct PerformanceSpaceView: View {
         Group {
             if let record {
                 ImmersiveSavedStagePreview(record:record,store:library.scans,scanSelector:AnyView(scanSelector),
-                    onNewScan:{scanning=true},onStartGuidance:onStartGuidance,
                     onRename:{scanName=record.name;rename=true},onDelete:{deleting=true})
                     .id(record.id)
             } else {
@@ -87,7 +86,18 @@ struct PerformanceSpaceView: View {
                     }
                 }
             }
-            Button("새 장면 스캔",systemImage:"viewfinder") {scanning=true}
+            Section {
+                Button("스캔하러 가기",systemImage:"viewfinder") {scanning=true}
+            }
+            Section {
+                Button("동선 안내 시작하기",systemImage:"play.fill") {
+                    guard !working,let record,record.supportsAlignment,record.route != nil else {return}
+                    onStartGuidance(record.id)
+                }
+                .disabled(working || record?.supportsAlignment != true || record?.route == nil)
+                .accessibilityIdentifier("performance.space.startGuidance")
+                .accessibilityHint("선택한 장면의 공간 확인과 출발 준비를 시작해요")
+            }
         } label: {
             // 971:33671: a 170pt glass capsule, the clapper, the scene's name and a chevron in a small disc.
             HStack(spacing:10) {

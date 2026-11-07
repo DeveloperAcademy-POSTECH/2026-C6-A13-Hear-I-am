@@ -15,6 +15,8 @@ final class ReplaySceneController: NSObject {
     let surroundings=SCNNode(), key=SCNNode(), ambient=SCNNode()
     private let cleanSurfaces: [ReplaySurfaceMesh]
     private let immersive: Bool
+    private(set) var focusLighting: ReplayStageLighting?
+    private static let personMoveKey="stage-person-move"
     var onPhotoProjection: ((CGPoint?) -> Void)?
     private var projectionPhoto: ScanPhoto?
     private var projectionLink: CADisplayLink?
@@ -67,7 +69,14 @@ final class ReplaySceneController: NSObject {
         scene.rootNode.addChildNode(hazards)
         buildStage()
         buildPhotos()
-        if immersive { applyImmersiveStyle() }
+        if immersive {
+            applyImmersiveStyle()
+            if scan.manifest.route != nil {
+                let lighting=ReplayStageLighting()
+                person.addChildNode(lighting.node)
+                focusLighting=lighting
+            }
+        }
         for (index,p) in [scan.manifest.checkpoint,scan.manifest.secondCheckpoint].compactMap({$0}).enumerated() {
             scanAnnotations.addChildNode(ReplayModelFactory.part(SCNSphere(radius:0.07),.init(p.x,p.y+0.06,p.z),color:.systemYellow))
             scanAnnotations.addChildNode(ReplayModelFactory.caption("확인점 \(index+1)",at:.init(p.x,p.y+0.18,p.z)))
@@ -176,19 +185,69 @@ final class ReplaySceneController: NSObject {
             selectable(label,.photo(photo.id));photos.addChildNode(label)
         }
     }
-    func movePerson(to index: Int) {
-        guard let route=scan.manifest.route, route.points.indices.contains(index) else {person.isHidden=true;return}
+    func movePerson(to index: Int, animated: Bool = false) {
+        guard let route=scan.manifest.route, route.points.indices.contains(index) else {
+            person.removeAnimation(forKey:Self.personMoveKey)
+            person.isHidden=true
+            return
+        }
         person.isHidden=false
-        let p=route.points[index]
-        let height=routeHeight(index)
-        person.position=SCNVector3(p.x,height,-p.y)
+        let p=route.points[index],height=routeHeight(index)
+        let destination=SCNVector3(p.x,height,-p.y)
+        let modelYaw=personYaw(person)
+        let desiredYaw=arrivalYaw(at:index,in:route) ?? modelYaw
+        let moved=simd_length(SIMD3<Float>(person.position)-SIMD3<Float>(destination))>0.0001
+        let turned=abs(shortestTurn(from:modelYaw,to:desiredYaw))>0.0001
+        let animate=animated && !UIAccessibility.isReduceMotionEnabled
+        // Re-rendering the same selection must not restart its pending arrival turn.
+        if moved || turned || !animate {
+            let visible=person.animationKeys.contains(Self.personMoveKey) ? person.presentation : person
+            let origin=visible.position,originYaw=personYaw(visible)
+            let targetYaw=originYaw+shortestTurn(from:originYaw,to:desiredYaw)
+            let traveling=simd_length(SIMD3<Float>(origin)-SIMD3<Float>(destination))>0.0001
+            person.removeAnimation(forKey:Self.personMoveKey)
+            SCNTransaction.begin();SCNTransaction.disableActions=true
+            person.position=destination
+            person.eulerAngles=SCNVector3(0,targetYaw,0)
+            SCNTransaction.commit()
+            if animate && (traveling || abs(targetYaw-originYaw)>0.0001) {
+                // The light shares this transform. Hold the old facing while moving,
+                // then turn in place after arrival; one key also cancels both phases.
+                let duration: CFTimeInterval=traveling ? 0.75 : 0.25
+                let times: [NSNumber]=traveling ? [0,NSNumber(value:2.0/3.0),1] : [0,1]
+                let position=CAKeyframeAnimation(keyPath:"position")
+                position.values=(traveling ? [origin,destination,destination] : [origin,destination]).map {NSValue(scnVector3:$0)}
+                position.keyTimes=times;position.duration=duration
+                position.timingFunctions=traveling ? [.init(name:.easeInEaseOut),.init(name:.linear)] : [.init(name:.linear)]
+                let before=SCNVector3(0,originYaw,0),after=SCNVector3(0,targetYaw,0)
+                let facing=CAKeyframeAnimation(keyPath:"eulerAngles")
+                facing.values=(traveling ? [before,before,after] : [before,after]).map {NSValue(scnVector3:$0)}
+                facing.keyTimes=times;facing.duration=duration
+                facing.timingFunctions=traveling ? [.init(name:.linear),.init(name:.easeInEaseOut)] : [.init(name:.easeInEaseOut)]
+                let arrival=CAAnimationGroup()
+                arrival.animations=[position,facing];arrival.duration=duration
+                person.addAnimation(arrival,forKey:Self.personMoveKey)
+            }
+        }
         names["clean-person"] = .point(index)
         for (i,label) in pointLabels {label.position.y=Float(i==index ? height+1.8 : routeHeight(i)+0.24)}
+    }
+    /// Read the visible +Z facing rather than Euler components, which can flip across 90 degrees.
+    private func personYaw(_ node: SCNNode) -> Float {
+        let front=simd_act(node.simdOrientation,SIMD3<Float>(0,0,1))
+        return atan2(front.x,front.z)
+    }
+    private func shortestTurn(from origin: Float,to target: Float) -> Float {
+        atan2(sin(target-origin),cos(target-origin))
+    }
+    private func arrivalYaw(at index: Int,in route: StageRoute) -> Float? {
+        if let facing=route.facing(at:index) {return Float(facing.headingDegrees * .pi/180)}
+        let p=route.points[index]
         let next=route.points.indices.contains(index+1) ? route.points[index+1] : p
         let previous=index>0 ? route.points[index-1] : p
         let dx=index==route.points.count-1 ? p.x-previous.x : next.x-p.x
         let dz=index==route.points.count-1 ? -(p.y-previous.y) : -(next.y-p.y)
-        if hypot(dx,dz)>0.001 {person.eulerAngles.y=Float(atan2(dx,dz))}
+        return hypot(dx,dz)>0.001 ? Float(atan2(dx,dz)) : nil
     }
     func update(display: ReplayDisplay, wireframe: Bool, showPhotos: Bool, selection: ReplaySelection?, cameraMode: ReplayCamera, revision: Int, photoViewpoint: ScanPhoto? = nil) {
         let state=RenderState(display:display,wireframe:wireframe,showPhotos:showPhotos,selection:selection,
@@ -219,18 +278,18 @@ final class ReplaySceneController: NSObject {
         cleanRouteNodes.isHidden=raw
         scanPerson.isHidden = !raw
         cleanPerson.isHidden=raw
-        ambient.light?.intensity=immersive && !raw ? 390 : raw ? 650 : 800
-        key.light?.intensity=immersive && !raw ? 780 : raw ? 900 : 650
+        ambient.light?.intensity=immersive && !raw ? 580 : raw ? 650 : 800
+        key.light?.intensity=immersive && !raw ? 900 : raw ? 900 : 650
         key.light?.castsShadow = !raw
         view?.backgroundColor=immersive ? UIColor(red:0.065,green:0.09,blue:0.10,alpha:1) : raw ? UIColor(white:0.10,alpha:1) : ReplaySurfaceFactory.background
         routeNodes.enumerateChildNodes {node,_ in node.geometry?.firstMaterial?.diffuse.contents=UIColor.systemGreen}
         photos.isHidden = !showPhotos || firstPerson
         if immersive {
-            switch selection {
-            case .photo(let id): projectionPhoto=scan.manifest.photos.first {$0.id==id}
-            case .point(let index): projectionPhoto=scan.manifest.viewpointPhoto(at:index)
-            case .object(let id): projectionPhoto=scan.manifest.photos.first {$0.objectID==id}
-            case nil: projectionPhoto=nil
+            // The immersive viewer anchors only explicitly opened photos, never a nearby point/object photo.
+            if case .photo(let id)=selection {
+                projectionPhoto=scan.manifest.photos.first {$0.id==id}
+            } else {
+                projectionPhoto=nil
             }
             startProjectionUpdates()
         }
@@ -240,7 +299,7 @@ final class ReplaySceneController: NSObject {
         if let selection {
             switch selection {
             case .point(let i):
-                movePerson(to:i)
+                movePerson(to:i,animated:immersive && !raw && !firstPerson && view?.window != nil)
                 if !raw,let route=scan.manifest.route,route.points.indices.contains(i) {
                     let p=route.points[i]
                     let ring=ReplayModelFactory.part(SCNTorus(ringRadius:0.29,pipeRadius:0.012),
@@ -273,6 +332,14 @@ final class ReplaySceneController: NSObject {
             person.isHidden=scan.manifest.route?.points.isEmpty ?? true
             selectionOverlay.isHidden=false;hazards.isHidden=false
         }
+        if !raw, !firstPerson, case .point(let index)=selection,
+           let route=scan.manifest.route, route.points.indices.contains(index) {
+            focusLighting?.setVisible(true)
+        } else {
+            // Photo inspection and raw scans must keep their original lighting.
+            focusLighting?.setVisible(false)
+            person.removeAnimation(forKey:Self.personMoveKey)
+        }
         guard self.revision != revision || displayChanged || viewpointChanged else {return}
         self.revision=revision
         reframe()
@@ -295,8 +362,8 @@ final class ReplaySceneController: NSObject {
         update(root);root.enumerateChildNodes {node,_ in update(node)}
     }
     private func applyImmersiveStyle() {
-        alterMaterials(in:floor) {$0.multiply.contents=UIColor(red:0.55,green:0.65,blue:0.69,alpha:1)}
-        alterMaterials(in:objects) {$0.multiply.contents=UIColor(red:0.56,green:0.68,blue:0.72,alpha:1)}
+        alterMaterials(in:floor) {$0.multiply.contents=UIColor(red:0.78,green:0.84,blue:0.86,alpha:1)}
+        alterMaterials(in:objects) {$0.multiply.contents=UIColor(red:0.74,green:0.83,blue:0.88,alpha:1)}
         // The boundary comes from the saved registered area; no fabricated stage mesh.
         cleanAnnotations.childNodes.dropFirst().forEach {$0.isHidden=true}
         if let boundary=cleanAnnotations.childNodes.first {
@@ -313,12 +380,12 @@ final class ReplaySceneController: NSObject {
         alterMaterials(in:photos) { material in
             material.multiply.contents=UIColor(red:0.55,green:0.93,blue:0.94,alpha:1)
         }
-        key.light?.color=UIColor(red:0.77,green:0.89,blue:0.95,alpha:1)
-        ambient.light?.color=UIColor(red:0.55,green:0.68,blue:0.74,alpha:1)
+        key.light?.color=UIColor(red:0.88,green:0.94,blue:1,alpha:1)
+        ambient.light?.color=UIColor(red:0.72,green:0.82,blue:0.90,alpha:1)
     }
     private func tintImmersiveSurroundings() {
         alterMaterials(in:surroundings) { material in
-            material.multiply.contents=UIColor(red:0.36,green:0.48,blue:0.55,alpha:1)
+            material.multiply.contents=UIColor(red:0.50,green:0.62,blue:0.70,alpha:1)
         }
     }
     private func startProjectionUpdates() {
@@ -329,6 +396,8 @@ final class ReplaySceneController: NSObject {
         projectionLink=link
     }
     func stopProjectionUpdates() {
+        focusLighting?.setVisible(false)
+        person.removeAnimation(forKey:Self.personMoveKey)
         projectionLink?.invalidate();projectionLink=nil
         onPhotoProjection=nil
     }

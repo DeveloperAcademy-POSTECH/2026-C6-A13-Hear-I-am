@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		991410000000000000000002 /* ReplayStageLighting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 991410000000000000000001 /* ReplayStageLighting.swift */; };
 		A13700000000000000000002 /* DiagnosticLogMaintenance.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13700000000000000000001 /* DiagnosticLogMaintenance.swift */; };
 		A14AECEE7CA1F72613D268E9 /* Pretendard-Regular.otf in Resources */ = {isa = PBXBuildFile; fileRef = 0D89E22907286EC43454D305 /* Pretendard-Regular.otf */; };
 		0434380581A8A93B275B565B /* HearFont.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1117B8D97E2D75EEF43F2BD /* HearFont.swift */; };
@@ -176,6 +177,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		991410000000000000000001 /* ReplayStageLighting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReplayStageLighting.swift; sourceTree = "<group>"; };
 		A13700000000000000000001 /* DiagnosticLogMaintenance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticLogMaintenance.swift; sourceTree = "<group>"; };
 		0D89E22907286EC43454D305 /* Pretendard-Regular.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Pretendard-Regular.otf"; sourceTree = "<group>"; };
 		37F492936E0CF9E4AFE70512 /* SUIT-LICENSE.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "SUIT-LICENSE.txt"; sourceTree = "<group>"; };
@@ -413,6 +415,7 @@
 			children = (
 				6A386723CB3162352D0F1847 /* ReplayModelFactory.swift */,
 				00306065193FCDAA6A9EF1BC /* ReplaySceneController.swift */,
+				991410000000000000000001 /* ReplayStageLighting.swift */,
 				82E4D4763B0EC54A3B3CAD63 /* ReplaySurfaceFactory.swift */,
 			);
 			path = Model;
@@ -1361,6 +1364,7 @@
 				4D8CDD9238FE3E0573F34080 /* PreparationViewModel.swift in Sources */,
 				0AA1B769BB98876C0C594903 /* ReplayModelFactory.swift in Sources */,
 				E800DE00262C19BDBAB1EC6F /* ReplaySceneController.swift in Sources */,
+				991410000000000000000002 /* ReplayStageLighting.swift in Sources */,
 				42BEB49F3784E96653838089 /* ReplaySurfaceFactory.swift in Sources */,
 				69EB6E4372E9954BCB3B3F85 /* ReplayWalkingFigure.swift in Sources */,
 				3E8F05B4CB93029E6189D535 /* SavedMeshView.swift in Sources */,
