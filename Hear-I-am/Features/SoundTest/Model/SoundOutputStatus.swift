@@ -1,8 +1,8 @@
 import SwiftUI
 import AVFoundation
 
-/// Only use a product image when the route name identifies it. A renamed Bluetooth device can
-/// conceal its model, so an unrecognized name keeps a generic icon instead of guessing AirPods.
+/// Only use an AirPods picture when the route name identifies it. A renamed Bluetooth device can conceal its
+/// model, so any other wired or Bluetooth earphones are 「headphones」 and get the headphone picture instead.
 enum OutputDeviceKind: Equatable {
     case iPhone, airPods, airPodsMax, headphones, externalAudio
 
@@ -18,7 +18,8 @@ enum OutputDeviceKind: Equatable {
             if isAirPods {
                 self = normalized.contains("max") || normalized.contains("맥스") ? .airPodsMax : .airPods
             } else {
-                self = .externalAudio
+                // Any other Bluetooth earphones or headset (11/07: shown with the headphone picture, 971:35244).
+                self = .headphones
             }
         default:
             self = .externalAudio

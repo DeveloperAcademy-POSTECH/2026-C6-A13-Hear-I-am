@@ -47,19 +47,19 @@ struct ScanCircleButton: View {
     }
 }
 
-/// The 222×48 dark button at the bottom right that finishes the step.
+/// The 140×48 dark button at the bottom right that finishes the step (971:30334); 30% while it cannot.
 struct ScanPrimaryButton: View {
     let title: String
     var enabled=true
     let action: () -> Void
     var body: some View {
         Button(action:action) {
-            Text(title).font(.system(size:18,weight:.bold)).foregroundStyle(.white)
+            Text(title).font(HearFont.pretendard(.bold,size:18)).tracking(-0.54).foregroundStyle(.white)
                 .lineLimit(1).minimumScaleFactor(0.8)
-                .frame(width:222,height:48)
-                .background(ScanChrome.primary,in:Capsule())
+                .frame(width:140,height:48)
+                .background(enabled ? ScanChrome.primary : Color.black.opacity(0.8),in:Capsule())
                 .contentShape(Capsule())
-        }.buttonStyle(.plain).disabled(!enabled).opacity(enabled ? 1 : 0.5)
+        }.buttonStyle(.plain).disabled(!enabled).opacity(enabled ? 1 : 0.3)
     }
 }
 
@@ -74,7 +74,7 @@ struct ScanCardButton: View {
     let action: () -> Void
     var body: some View {
         Button(action:action) {
-            Text(title).font(.system(size:compact ? 16 : 17,weight:compact ? .medium : .semibold))
+            Text(title).font(HearFont.pretendard(compact ? .medium : .semibold,size:compact ? 16 : 17))
                 .foregroundStyle(destructive ? ScanChrome.danger : (primary ? ScanChrome.darkText : .white))
                 .lineLimit(1).minimumScaleFactor(0.8)
                 .frame(maxWidth:.infinity).frame(height:compact ? 30 : 44)
@@ -98,6 +98,13 @@ struct PreparationStepBar: View {
     @ObservedObject var model: PreparationViewModel
     let exit: () -> Void
     @State private var expanded=false
+    /// The step the finger is over while the selection is held and slid; nil otherwise.
+    @State private var sliding: PreparationStep?
+    /// Whether the slide itself opened the folded capsule, so letting go on the same step folds it again.
+    @State private var slideOpened=false
+    @State private var chipFrames: [PreparationStep: CGRect]=[:]
+    @Namespace private var pill
+    private static let capsuleSpace="stepCapsule"
     var body: some View {
         HStack(alignment:.top) {
             ScanCircleButton(systemImage:"chevron.backward",label:"나가기",enabled:!model.busy,action:exit)
@@ -120,37 +127,110 @@ struct PreparationStepBar: View {
         }
     }
 
-    /// 48pt glass capsule of 18pt chips; only the current step stands out. Tapping it opens every step (452:11199).
+    /// The step capsule (971:28584 · 971:28313): every step in a row, 153pt wide folded and 316pt open, the current
+    /// step centred and the row fading toward both ends (memo 971:30301). Tapping the current step opens or folds
+    /// it; another step, when reachable, goes there. Like the tab bar, the selection can also be held and slid: the
+    /// pill follows the finger from step to step, the row scrolls a hidden step into view, and letting go goes
+    /// to the step under it (11/07). The row does not scroll by hand, since the slide does that.
     private var stepCapsule: some View {
-        HStack(spacing:0) {
-            ForEach(visibleSteps,id:\.self) {s in
-                let current=s == model.step
-                Button {
-                    if current {withAnimation(.snappy) {expanded.toggle()}}
-                    else {model.changeStep(s);withAnimation(.snappy) {expanded=false}}
-                } label: {
-                    Text(s.title).font(.system(size:18,weight:.medium)).lineLimit(1)
-                        .foregroundStyle(.white.opacity(current ? 1 : (model.canSelect(s) ? 0.85 : 0.45)))
-                        .padding(.horizontal,14).frame(height:30)
-                        .background(current ? ScanChrome.selected : .clear,in:Capsule())
-                }.buttonStyle(.plain).disabled(!current && !model.canSelect(s))
-                    .transition(.opacity.combined(with:.scale(scale:0.6)))
-                    .accessibilityLabel("\(s.rawValue+1)단계 \(s.title)\(model.isComplete(s) ? ", 완료" : "")\(current ? ", 현재 단계" : "")")
+        ScrollViewReader {proxy in
+            ScrollView(.horizontal,showsIndicators:false) {
+                HStack(spacing:0) {
+                    ForEach(PreparationStep.allCases,id:\.self) {s in stepChip(s)}
+                }.padding(.horizontal,8).frame(maxHeight:.infinity)
             }
-        }.padding(.horizontal,9).frame(height:48)
-            .liquidGlass(Capsule(),tint:ScanChrome.capsuleTint)
+            .scrollDisabled(true)
             .mask {
-                // Folded, the neighbours fade at the capsule's ends; open, every step reads in full (452:11199).
-                LinearGradient(stops:[.init(color:.black.opacity(expanded ? 1 : 0.35),location:0),.init(color:.black,location:0.25),.init(color:.black,location:0.75),.init(color:.black.opacity(expanded ? 1 : 0.35),location:1)],startPoint:.leading,endPoint:.trailing)
+                LinearGradient(stops:[.init(color:.black.opacity(0.3),location:0),.init(color:.black,location:0.2),
+                                      .init(color:.black,location:0.8),.init(color:.black.opacity(0.3),location:1)],
+                               startPoint:.leading,endPoint:.trailing)
             }
-            .animation(.snappy(duration:0.35),value:expanded)
-            .animation(.snappy(duration:0.35),value:model.step)
-            .accessibilityHint(expanded ? "단계를 눌러 이동" : "현재 단계를 누르면 모든 단계가 펼쳐져요")
+            .frame(width:expanded ? 316 : 153,height:expanded ? 46 : 48)
+            .coordinateSpace(name:Self.capsuleSpace)
+            .onPreferenceChange(StepChipFrames.self) {chipFrames=$0}
+            .liquidGlass(Capsule(),tint:ScanChrome.capsuleTint)
+            .clipShape(Capsule())
+            .contentShape(Capsule())
+            .highPriorityGesture(slide(proxy))
+            .onAppear {proxy.scrollTo(model.step,anchor:.center)}
+            .onChange(of:model.step) {_,step in withAnimation(.snappy(duration:0.35)) {proxy.scrollTo(step,anchor:.center)}}
+            .onChange(of:expanded) {_,_ in
+                Task { @MainActor in
+                    try? await Task.sleep(for:.seconds(0.05))
+                    withAnimation(.snappy(duration:0.35)) {proxy.scrollTo(model.step,anchor:.center)}
+                }
+            }
+            .sensoryFeedback(.selection,trigger:sliding)
+        }
+        .animation(.snappy(duration:0.35),value:expanded)
+        .accessibilityHint(expanded ? "단계를 눌러 이동" : "현재 단계를 누르면 모든 단계가 펼쳐져요")
     }
-    private var visibleSteps: [PreparationStep] {
-        guard !expanded else {return PreparationStep.allCases}
-        let i=model.step.rawValue
-        return PreparationStep.allCases.filter {abs($0.rawValue-i) <= 1}
+
+    private func stepChip(_ s: PreparationStep) -> some View {
+        let current=s == model.step
+        let lit=(sliding ?? model.step) == s
+        let reachable=current || model.canSelect(s)
+        return Text(s.title).font(HearFont.pretendard(.medium,size:18)).tracking(-0.54).lineLimit(1)
+            .foregroundStyle(.white.opacity(reachable ? 1 : 0.45))
+            .padding(.horizontal,14).frame(height:30)
+            .background {
+                if lit {
+                    Capsule().fill(sliding != nil ? Color.white.opacity(0.22) : ScanChrome.selected)
+                        .matchedGeometryEffect(id:"stepPill",in:pill)
+                        .scaleEffect(sliding != nil ? 1.08 : 1)
+                }
+            }
+            .contentShape(Capsule())
+            .background {
+                GeometryReader {g in Color.clear.preference(key:StepChipFrames.self,value:[s:g.frame(in:.named(Self.capsuleSpace))])}
+            }
+            .onTapGesture {
+                if current {withAnimation(.snappy) {expanded.toggle()}}
+                else if reachable {model.changeStep(s);withAnimation(.snappy) {expanded=false}}
+            }
+            .id(s)
+            .accessibilityElement().accessibilityAddTraits(.isButton)
+            .accessibilityLabel("\(s.rawValue+1)단계 \(s.title)\(model.isComplete(s) ? ", 완료" : "")\(current ? ", 현재 단계" : "")")
+            .accessibilityAction {
+                if current {withAnimation(.snappy) {expanded.toggle()}}
+                else if reachable {model.changeStep(s);withAnimation(.snappy) {expanded=false}}
+            }
+    }
+
+    /// The held-and-slid selection. Chip frames are read in the capsule's own space, so they move with the row
+    /// when it scrolls a hidden step in and the finger always picks the chip it is over.
+    private func slide(_ proxy: ScrollViewProxy) -> some Gesture {
+        DragGesture(minimumDistance:6,coordinateSpace:.named(Self.capsuleSpace))
+            .onChanged {value in
+                if sliding == nil {
+                    slideOpened = !expanded
+                    if !expanded {withAnimation(.snappy(duration:0.3)) {expanded=true}}
+                    sliding=model.step
+                }
+                guard let target=chip(at:value.location.x), target != sliding,
+                      target == model.step || model.canSelect(target) else {return}
+                withAnimation(.snappy(duration:0.25)) {sliding=target}
+                // Bring a step cut off by the capsule's edge fully into view.
+                if let frame=chipFrames[target], frame.minX < 0 || frame.maxX > 316 {
+                    withAnimation(.snappy(duration:0.3)) {proxy.scrollTo(target)}
+                }
+            }
+            .onEnded {_ in
+                let target=sliding ?? model.step
+                withAnimation(.snappy(duration:0.3)) {
+                    sliding=nil
+                    if target != model.step {model.changeStep(target);expanded=false}
+                    else if slideOpened {expanded=false}
+                }
+            }
+    }
+
+    /// The chip under x, or the nearest one when the finger has slid past the row's ends.
+    private func chip(at x: CGFloat) -> PreparationStep? {
+        chipFrames.min {a,b in distance(x,a.value) < distance(x,b.value)}?.key
+    }
+    private func distance(_ x: CGFloat, _ frame: CGRect) -> CGFloat {
+        x < frame.minX ? frame.minX-x : x > frame.maxX ? x-frame.maxX : 0
     }
 
     /// Filled as each checkpoint is set (452:13197).
@@ -222,5 +302,13 @@ struct PreparationMorePanel: View {
         }
         .padding(.leading,6).padding(.trailing,8).frame(height:44)
         .contentShape(Rectangle())
+    }
+}
+
+/// Each step chip's frame in the capsule, for the held-and-slid selection.
+private struct StepChipFrames: PreferenceKey {
+    static var defaultValue: [PreparationStep: CGRect]=[:]
+    static func reduce(value: inout [PreparationStep: CGRect], nextValue: () -> [PreparationStep: CGRect]) {
+        value.merge(nextValue()) {$1}
     }
 }

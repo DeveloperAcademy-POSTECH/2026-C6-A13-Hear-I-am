@@ -26,7 +26,8 @@ struct SettingsSectionHeader: View {
     var weight: Font.Weight = .regular
     var body: some View {
         Text(title).font(.system(size:size,weight:weight)).foregroundStyle(SettingsStyle.secondary)
-            .lineLimit(1).padding(.leading,16).padding(.bottom,8).frame(maxWidth:.infinity,alignment:.leading)
+            .lineLimit(1).readAloudTarget(title)
+            .padding(.leading,16).padding(.bottom,8).frame(maxWidth:.infinity,alignment:.leading)
             .accessibilityAddTraits(.isHeader)
     }
 }
@@ -160,7 +161,7 @@ struct TutorialExampleRow: View {
     var body: some View {
         Button {model.play(example)} label: {
             SettingsRowLabel(title:example.title,detail:playing ? "재생 중 · 누르면 중지" : example.detail,accessory:playing ? .stop : .play)
-        }.buttonStyle(.plain)
+        }.buttonStyle(.plain).readAloudTarget("\(example.title), \(example.detail)")
             .accessibilityLabel(example.title+(playing ? " 중지" : " 듣기"))
             .accessibilityValue(playing ? "재생 중" : "")
             .accessibilityHint(example.detail)
@@ -249,9 +250,12 @@ private final class CenteredVolumeView: MPVolumeView {
     static let shared=PageReader()
     @Published private(set) var reading=false
     @Published private(set) var error: String?
+    /// The line being spoken, so the page can box the part it belongs to (see readAloudTarget).
+    @Published private(set) var currentLine: String?
     private let speech=GuidanceSpeech()
     private init() {
-        speech.onSpeaking={[weak self] on in self?.reading=on}
+        speech.onSpeaking={[weak self] on in self?.reading=on; if !on {self?.currentLine=nil}}
+        speech.onText={[weak self] text in self?.currentLine=text.trimmingCharacters(in:.whitespacesAndNewlines)}
         speech.onError={[weak self] message in self?.error=message}
     }
     func toggle(_ lines: [String]) {if reading {stop()} else {read(lines)}}
@@ -268,17 +272,36 @@ struct ReadAloudButton: View {
     let lines: () -> [String]
     @ObservedObject private var reader=PageReader.shared
     var body: some View {
-        Button {reader.toggle(lines())} label: {Image(systemName:reader.reading ? "stop.fill" : SettingsSymbols.readAloud)}
-            .animation(nil,value:reader.reading)
+        Button {reader.toggle(lines())} label: {ScanCircleLabel(systemImage:reader.reading ? "stop.fill" : SettingsSymbols.readAloud)}
+            .buttonStyle(.plain).animation(nil,value:reader.reading)
             .accessibilityLabel(reader.reading ? "읽기 중지" : "화면 읽어주기").accessibilityIdentifier("settings.readAloud")
     }
 }
 
 extension View {
-    /// Puts the read-aloud button in the navigation bar and stops reading when the page goes away.
-    /// `lines` runs when the button is tapped, so it can stop other playback first.
-    func readsAloud(_ lines: @escaping () -> [String]) -> some View {
-        toolbar {ToolbarItem(id:"settings.readAloud",placement:.topBarTrailing) {ReadAloudButton(lines:lines)}}
+    /// The settings pages' top row (HearTopBar: back, title, read-aloud) in place of the navigation bar; reading stops when
+    /// the page goes away. `lines` runs when the button is tapped, so it can stop other playback first.
+    func readsAloud(title: String, _ lines: @escaping () -> [String]) -> some View {
+        modifier(SettingsHeaderModifier(title:title,lines:lines))
+    }
+}
+
+private struct SettingsHeaderModifier: ViewModifier {
+    let title: String
+    let lines: () -> [String]
+    @Environment(\.dismiss) private var dismiss
+    func body(content: Content) -> some View {
+        content.hearTopBar(title) {HearBackButton()} trailing: {ReadAloudButton(lines:lines)}
+            .overlayPreferenceValue(ReadAloudTargets.self) {targets in ReadAloudHighlight(targets:targets)}
+            #if DEBUG
+            // Screenshots of the reading box: `--read-aloud-autostart` reads the page as soon as it shows.
+            .task {
+                guard ProcessInfo.processInfo.arguments.contains("--read-aloud-autostart") else {return}
+                try? await Task.sleep(for:.seconds(1));PageReader.shared.read(lines())
+            }
+            #endif
+            // VoiceOver's two-finger scrub still goes back without the system bar.
+            .accessibilityAction(.escape) {dismiss()}
             .onDisappear {PageReader.shared.stop()}
     }
 }
@@ -296,12 +319,14 @@ struct OutputDeviceHero: View {
                 switch output.kind {
                 case .iPhone: device("DeviceIPhone",size:150)
                 case .airPodsMax: device("DeviceAirPodsMax",size:160)
-                case .headphones: genericDevice("headphones")
+                // Earphones and headsets other than AirPods use the design's headphone picture (971:35244).
+                case .headphones: device("DeviceAirPodsMax",size:160)
                 case .externalAudio: genericDevice("speaker.wave.2")
                 case .airPods:
                     HStack(spacing:18) {device("DeviceAirPods",size:140);device("DeviceAirPodsCase",size:120)}
                 }
             }.frame(height:162).scaleEffect(appeared ? 1 : 0.86).opacity(appeared ? 1 : 0)
+                .readAloudTarget("연결된 기기, \(output.name)")
             Text(output.name).font(.body.weight(.semibold)).foregroundStyle(.white)
                 .multilineTextAlignment(.center).fixedSize(horizontal:false,vertical:true)
         }.padding(.top,32).padding(.bottom,24)
@@ -363,5 +388,49 @@ private struct TiltEffect: ViewModifier {
             .rotation3DEffect(.degrees(enabled ? tilt.roll : 0),axis:(x:0,y:1,z:0),perspective:0.5)
             .rotation3DEffect(.degrees(enabled ? -tilt.pitch : 0),axis:(x:1,y:0,z:0),perspective:0.5)
             .shadow(color:.white.opacity(0.08),radius:24,x:enabled ? -tilt.roll : 0,y:12)
+    }
+}
+
+// MARK: - Showing what is being read
+
+/// Where each read-aloud line sits on the page, keyed by the line's text.
+struct ReadAloudTargets: PreferenceKey {
+    static let defaultValue: [String: Anchor<CGRect>]=[:]
+    static func reduce(value: inout [String: Anchor<CGRect>], nextValue: () -> [String: Anchor<CGRect>]) {
+        value.merge(nextValue()) {first,_ in first}
+    }
+}
+
+extension View {
+    /// Marks this view as the part of the page that the given read-aloud lines describe, so the blue box
+    /// lands on it while one of them is spoken (Figma 971:16696 · 16790 · 16884). Lines must match the page's
+    /// `readsAloud` lines word for word.
+    func readAloudTarget(_ lines: String...) -> some View {
+        anchorPreference(key:ReadAloudTargets.self,value:.bounds) {anchor in
+            Dictionary(lines.map {($0.trimmingCharacters(in:.whitespacesAndNewlines),anchor)}) {first,_ in first}
+        }
+    }
+    func readAloudTarget(_ lines: [String]) -> some View {
+        anchorPreference(key:ReadAloudTargets.self,value:.bounds) {anchor in
+            Dictionary(lines.map {($0.trimmingCharacters(in:.whitespacesAndNewlines),anchor)}) {first,_ in first}
+        }
+    }
+}
+
+/// The 2.5pt blue box around the part being read, moving from part to part with the voice, like the
+/// VoiceOver cursor (971:16696). Lines with no marked part show no box.
+private struct ReadAloudHighlight: View {
+    let targets: [String: Anchor<CGRect>]
+    @ObservedObject private var reader=PageReader.shared
+    static let blue=Color(red:0,green:136/255,blue:1)   // #0088FF
+    var body: some View {
+        GeometryReader {proxy in
+            if reader.reading, let line=reader.currentLine, let anchor=targets[line] {
+                let rect=proxy[anchor].insetBy(dx:-4,dy:-4)
+                Rectangle().strokeBorder(Self.blue,lineWidth:2.5)
+                    .frame(width:rect.width,height:rect.height).position(x:rect.midX,y:rect.midY)
+                    .animation(.snappy(duration:0.25),value:line)
+            }
+        }.allowsHitTesting(false).accessibilityHidden(true)
     }
 }
