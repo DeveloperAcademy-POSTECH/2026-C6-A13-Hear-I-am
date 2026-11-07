@@ -16,8 +16,8 @@ final class ReplayStageLighting {
         light.color = UIColor(red:1, green:0.92, blue:0.80, alpha:1)
         light.intensity = 0
         // A broad penumbra keeps the edge soft; one light, no additional shadow map.
-        light.spotInnerAngle = 8
-        light.spotOuterAngle = 58
+        light.spotInnerAngle = 6
+        light.spotOuterAngle = 46
         light.attenuationStartDistance = CGFloat(Self.elevation)
         light.attenuationEndDistance = 5.8
         light.attenuationFalloffExponent = 2
@@ -48,7 +48,7 @@ final class ReplayStageLighting {
         target = destination
         node.position = destination
         node.isHidden = false
-        node.light?.intensity = 850
+        node.light?.intensity = 300
         SCNTransaction.commit()
 
         guard wasVisible, animated, !UIAccessibility.isReduceMotionEnabled else {return}
