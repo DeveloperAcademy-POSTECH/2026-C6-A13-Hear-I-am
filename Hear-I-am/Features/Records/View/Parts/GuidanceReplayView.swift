@@ -51,6 +51,10 @@ struct GuidanceReplayView: View {
             if args.contains("--record-top") {player.cameraMode = .overhead}
             if args.contains("--record-muted") {muted=true}
             if args.contains("--record-scrubbing") {scrubbing=true}
+            // Lets go of a held bar after three seconds, to check the bar settles back to its resting width.
+            if args.contains("--record-release") {
+                DispatchQueue.main.asyncAfter(deadline:.now()+3) {withAnimation(Self.barSpring) {scrubbing=false}}
+            }
             #endif
         }
         .onDisappear {player.pause();speech.deactivate()}
@@ -77,17 +81,8 @@ struct GuidanceReplayView: View {
                     .accessibilityLabel(player.isPlaying ? "일시정지" : "재생")
                     .transition(.scale(scale:0.2,anchor:.leading).combined(with:.opacity))
             }
-            VStack(spacing:7) {
-                if scrubbing {
-                    HStack {
-                        Text(Self.clock(player.time))
-                        Spacer()
-                        Text("−"+Self.clock(player.replay.duration-player.time))
-                    }.font(.system(size:11)).monospacedDigit().foregroundStyle(Color(red:235/255,green:235/255,blue:245/255).opacity(0.7))
-                        .transition(.opacity.combined(with:.offset(y:6)))
-                }
-                track
-            }.frame(maxWidth:.infinity,maxHeight:.infinity).contentShape(Rectangle())
+            track
+                .frame(maxWidth:.infinity,maxHeight:.infinity).contentShape(Rectangle())
                 .gesture(DragGesture(minimumDistance:0)
                     .updating($dragging) {_,state,_ in state=true}
                     .onChanged {value in
@@ -119,26 +114,41 @@ struct GuidanceReplayView: View {
             // Not interactive: interactive glass swells under a touch on its own, out of step with this spring.
             .liquidGlass(Capsule(),tint:.white.opacity(0.05),interactive:false)
     }
-    /// The played part in white over the whole length at 18%, with a dot under it at every arrival (971:31743):
-    /// bright once passed, dim ahead. Nothing is filled at the start. The dots take part in the layout, so the
-    /// track and its dots sit centred in the capsule together.
+    /// The played part in white over the whole length at 18%, centred in the capsule, with a dot under it at every
+    /// arrival (971:31743), bright once passed and dim ahead, and the times above it while held. The played part and
+    /// the dots are laid out from the track's own animated size, so they stretch along with it instead of jumping
+    /// to the new width, and they never feed back into the track's size. Nothing is filled at the start.
     private var track: some View {
         let duration=max(player.replay.duration,0.001)
         let height: CGFloat=scrubbing ? 8 : 4
-        let played=trackWidth*min(1,max(0,player.time/duration))
-        return ZStack(alignment:.leading) {
-            Capsule().fill(.white.opacity(scrubbing ? 0.24 : 0.18))
-            Capsule().fill(.white.opacity(0.9)).frame(width:played).opacity(played>0.5 ? 1 : 0)
-                .transaction {$0.animation=scrubbing ? $0.animation : nil}
-        }.frame(height:height)
-            .onGeometryChange(for:CGFloat.self) {$0.size.width} action: {trackWidth=$0}
-            .overlay(alignment:.bottomLeading) {
-                ForEach(tickTimes,id:\.self) {time in
-                    Circle().fill(.white.opacity(time<=player.time && player.time>0 ? 0.8 : 0.35)).frame(width:4,height:4)
-                        .offset(x:trackWidth*time/duration-2,y:9)
+        let ratio=min(1,max(0,player.time/duration))
+        return Capsule().fill(.white.opacity(scrubbing ? 0.24 : 0.18)).frame(height:height)
+            .overlay(alignment:.leading) {
+                GeometryReader {proxy in
+                    Capsule().fill(.white.opacity(0.9))
+                        .frame(width:proxy.size.width*ratio,height:proxy.size.height)
+                        .opacity(ratio>0 ? 1 : 0)
                 }
             }
-            .padding(.bottom,9)
+            .overlay(alignment:.topLeading) {
+                GeometryReader {proxy in
+                    ForEach(tickTimes,id:\.self) {time in
+                        Circle().fill(.white.opacity(time<=player.time && player.time>0 ? 0.8 : 0.35)).frame(width:4,height:4)
+                            .position(x:proxy.size.width*time/duration,y:proxy.size.height+6)
+                    }
+                }
+            }
+            .overlay(alignment:.top) {
+                HStack {
+                    Text(Self.clock(player.time))
+                    Spacer()
+                    Text("−"+Self.clock(player.replay.duration-player.time))
+                }.font(.system(size:11)).monospacedDigit().foregroundStyle(Color(red:235/255,green:235/255,blue:245/255).opacity(0.7))
+                    .fixedSize(horizontal:false,vertical:true)
+                    .offset(y:scrubbing ? -20 : -12).opacity(scrubbing ? 1 : 0)
+                    .allowsHitTesting(false).accessibilityHidden(true)
+            }
+            .onGeometryChange(for:CGFloat.self) {$0.size.width} action: {trackWidth=$0}
     }
     /// On iOS 26 the bar and the speaker share one glass container. Resting 8 pt apart they stay two shapes; the
     /// shrinking speaker comes within 4 pt and melts into the stretching bar, and drips back out on release.
