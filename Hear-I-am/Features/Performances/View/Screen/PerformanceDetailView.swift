@@ -158,22 +158,30 @@ struct PerformanceDetailView: View {
                         .background(.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
                 }.buttonStyle(.plain).padding(.horizontal, 18)
             } else {
+                let rowHeight = cards.map { $0.height(width: UIScreen.main.bounds.width - 36) }.max() ?? 204
                 GeometryReader { geometry in
                     let width = geometry.size.width - 36
                     ScrollView(.horizontal, showsIndicators: false) {
                         LazyHStack(alignment: .top, spacing: 10) {
                             ForEach(cards) { card in
+                                // The whole column answers a tap, not just the drawn card: a shorter card's empty space
+                                // under it too, so a press anywhere in the carousel opens that route.
                                 Button { open(card) } label: {
-                                    ReferenceSceneCard(plan: card.plan, height: card.height(width: width)).frame(width: width)
-                                }.buttonStyle(.plain).id(card.id).accessibilityLabel("\(card.label), 열기")
+                                    ReferenceSceneCard(plan: card.plan, height: card.height(width: width))
+                                        .frame(width: width, height: rowHeight, alignment: .top)
+                                        .contentShape(Rectangle())
+                                }.buttonStyle(PerformanceCardPressStyle()).id(card.id).accessibilityLabel("\(card.label), 열기")
                             }
                         }.scrollTargetLayout()
                     }.contentMargins(.horizontal, 18, for: .scrollContent).scrollTargetBehavior(.viewAligned)
                         .scrollPosition(id: $focusedCard)
-                }.frame(height: cards.map { $0.height(width: UIScreen.main.bounds.width - 36) }.max() ?? 204)
+                }.frame(height: rowHeight)
                 if let focused {
+                    // The caption under the card opens the same route.
                     Text(focused.label).font(HearFont.pretendard(.regular, size: 13)).foregroundStyle(HearV3.secondary)
-                        .lineLimit(1).padding(.horizontal, 20).contentTransition(.opacity)
+                        .lineLimit(1).padding(.horizontal, 20).padding(.vertical, 8).contentShape(Rectangle())
+                        .onTapGesture { open(focused) }.padding(.vertical, -8).contentTransition(.opacity)
+                        .accessibilityHidden(true)
                 }
                 if cards.count > 1 {
                     HStack(spacing: 6) {
@@ -336,6 +344,14 @@ struct PerformanceOpenedScan: Hashable, Identifiable {
 }
 
 /// One card of the 기본 동선 carousel: a scanned scene drawn on the schematic stage, or a reference route.
+/// A card that dips slightly under the finger, so a press reads as opening it.
+struct PerformanceCardPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label.scaleEffect(configuration.isPressed ? 0.97 : 1).opacity(configuration.isPressed ? 0.85 : 1)
+            .animation(.spring(duration: 0.25, bounce: 0.2), value: configuration.isPressed)
+    }
+}
+
 struct PerformanceRouteCard: Identifiable {
     let id: UUID
     let plan: PerformancePlan
