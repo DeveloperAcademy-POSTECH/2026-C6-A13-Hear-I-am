@@ -15,6 +15,7 @@ final class ReplaySceneController: NSObject {
     let surroundings=SCNNode(), key=SCNNode(), ambient=SCNNode()
     private let cleanSurfaces: [ReplaySurfaceMesh]
     private let immersive: Bool
+    private(set) var focusLighting: ReplayStageLighting?
     var onPhotoProjection: ((CGPoint?) -> Void)?
     private var projectionPhoto: ScanPhoto?
     private var projectionLink: CADisplayLink?
@@ -67,7 +68,14 @@ final class ReplaySceneController: NSObject {
         scene.rootNode.addChildNode(hazards)
         buildStage()
         buildPhotos()
-        if immersive { applyImmersiveStyle() }
+        if immersive {
+            applyImmersiveStyle()
+            if scan.manifest.route != nil {
+                let lighting=ReplayStageLighting()
+                stage.addChildNode(lighting.node)
+                focusLighting=lighting
+            }
+        }
         for (index,p) in [scan.manifest.checkpoint,scan.manifest.secondCheckpoint].compactMap({$0}).enumerated() {
             scanAnnotations.addChildNode(ReplayModelFactory.part(SCNSphere(radius:0.07),.init(p.x,p.y+0.06,p.z),color:.systemYellow))
             scanAnnotations.addChildNode(ReplayModelFactory.caption("확인점 \(index+1)",at:.init(p.x,p.y+0.18,p.z)))
@@ -273,6 +281,14 @@ final class ReplaySceneController: NSObject {
             person.isHidden=scan.manifest.route?.points.isEmpty ?? true
             selectionOverlay.isHidden=false;hazards.isHidden=false
         }
+        if !raw, !firstPerson, case .point(let index)=selection,
+           let route=scan.manifest.route, route.points.indices.contains(index) {
+            let point=route.points[index]
+            focusLighting?.focus(at:.init(point.x,routeHeight(index),-point.y),animated:view?.window != nil)
+        } else {
+            // Photo inspection and raw scans must keep their original lighting.
+            focusLighting?.focus(at:nil,animated:false)
+        }
         guard self.revision != revision || displayChanged || viewpointChanged else {return}
         self.revision=revision
         reframe()
@@ -329,6 +345,7 @@ final class ReplaySceneController: NSObject {
         projectionLink=link
     }
     func stopProjectionUpdates() {
+        focusLighting?.focus(at:nil,animated:false)
         projectionLink?.invalidate();projectionLink=nil
         onPhotoProjection=nil
     }
