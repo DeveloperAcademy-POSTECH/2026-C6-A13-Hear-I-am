@@ -100,6 +100,9 @@ struct PerformanceScenesPreviewHarness: View {
                 savedID = scan.id
             }
             for name in ["소말리아 해적선", "내 귀에 앉은 조랑말"] { _ = try await library.createPerformance(name: name) }
+            if ProcessInfo.processInfo.arguments.contains("--many") {
+                for n in 1...9 { _ = try await library.createPerformance(name: "연습 공연 \(n)") }
+            }
             guard library.referencePlans(for: folder.id).count == 3,
                   library.scans(in: folder.id).count == 3,
                   library.records.allSatisfy({ $0.route?.points == route.points }) else { throw LabError.invalid("씬과 실제 스캔의 독립 저장 검증 실패") }

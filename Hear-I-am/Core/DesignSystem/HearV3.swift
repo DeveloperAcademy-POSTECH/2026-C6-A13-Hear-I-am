@@ -71,9 +71,19 @@ struct HearTopBar<Leading: View, Trailing: View>: View {
                 }
             }
             .padding(.horizontal,18).padding(.top,sheet ? 25 : 14).padding(.bottom,8)
-            // Content scrolling up fades out under the buttons, as it did under the system bar.
+            // Content scrolling up must not show through the status bar or between the buttons: the page colour
+            // stays solid down to the buttons' middle and fades out a little below the row. Over a stage (a control
+            // in the middle) only a light shade, so the scene still reaches the top.
             .background {
-                if !sheet {LinearGradient(colors:[.black,.black.opacity(0)],startPoint:.top,endPoint:.bottom).ignoresSafeArea(edges:.top)}
+                if !sheet {
+                    if center == nil {
+                        LinearGradient(stops:[.init(color:HearV3.canvas,location:0),.init(color:HearV3.canvas,location:0.62),
+                                              .init(color:HearV3.canvas.opacity(0),location:1)],startPoint:.top,endPoint:.bottom)
+                            .padding(.bottom,-22).ignoresSafeArea(edges:.top).allowsHitTesting(false)
+                    } else {
+                        LinearGradient(colors:[.black,.black.opacity(0)],startPoint:.top,endPoint:.bottom).ignoresSafeArea(edges:.top)
+                    }
+                }
             }
     }
 }

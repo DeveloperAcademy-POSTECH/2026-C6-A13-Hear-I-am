@@ -71,7 +71,11 @@ struct PerformanceDetailView: View {
                     }.padding(.horizontal, 16)
                 }.padding(.top, 28).padding(.bottom, 24)
             } else { ContentUnavailableView("공연을 찾을 수 없어요", systemImage: "folder.badge.questionmark") }
-        }.v3Screen()
+        }
+        #if DEBUG
+        .defaultScrollAnchor(ProcessInfo.processInfo.arguments.contains("--scroll-bottom") ? .bottom : .top)
+        #endif
+        .v3Screen()
             .hearTopBar(folder?.name ?? "공연 관리") { HearBackButton() } trailing: {
                 // 971:36544: edit and delete; linking saved scans stays between them.
                 Menu {
