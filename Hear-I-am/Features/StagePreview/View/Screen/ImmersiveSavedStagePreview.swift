@@ -40,7 +40,7 @@ struct ImmersiveSavedStagePreview: View {
                         .simultaneousGesture(TapGesture().onEnded {
                             if barExpanded && !pointSettings && !gallery {withAnimation(Self.barSpring) {barExpanded=false}}
                         })
-                    LinearGradient(colors:[.black.opacity(0.25),.clear,.clear,.black.opacity(0.45)],startPoint:.top,endPoint:.bottom)
+                    LinearGradient(colors:[.black.opacity(0.16),.clear,.clear,.black.opacity(0.30)],startPoint:.top,endPoint:.bottom)
                         .allowsHitTesting(false)
                     if let photo=shownPhoto,let anchor=model.photoAnchor {
                         // Explicit photo selection dims the stage regardless of the route bar's state.
