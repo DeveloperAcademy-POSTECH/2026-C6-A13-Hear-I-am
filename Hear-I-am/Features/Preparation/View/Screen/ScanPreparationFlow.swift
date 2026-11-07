@@ -3,6 +3,7 @@ import AVFoundation
 import HearIAmCore
 
 /// One owner for pre-scan choices, the camera cover, and the already-saved scan's classification.
+/// Pushed onto the scan tab's navigation stack, so it has no stack of its own.
 struct ScanPreparationFlow: View {
     @ObservedObject var library: StageLibrary
     let onSaved: (UUID) -> Void
@@ -27,40 +28,41 @@ struct ScanPreparationFlow: View {
         Group {
             if postScan, let savedID {
                 StageClassificationView(library: library, scanIDs: [savedID], initialPerformanceID: performanceID,
-                    initialVenueID: venueID, wasJustSaved: true) { _ in
+                    initialVenueID: venueID, wasJustSaved: true, embedded: true) { _ in
                         onSaved(savedID); dismiss()
                     }
             } else {
-                NavigationStack {
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 36) {
-                            Text("스캔할 무대의\n정보를 입력해주세요").font(.title.bold()).lineSpacing(5).padding(.horizontal, 4)
-                            StageInformationFields(library: library, stageName: $sceneName, performanceID: $performanceID, venueID: $venueID).disabled(busy || requestingCamera)
-                            if let error {
-                                Text(error).font(.callout).foregroundStyle(.red)
-                                if savedID != nil { Button("저장한 무대 다시 불러오기") { finishScan() } }
-                            }
-                        }.padding(.horizontal, 16).padding(.top, 28).padding(.bottom, 24)
-                    }.v3Screen().navigationTitle("무대 저장").navigationBarTitleDisplayMode(.inline)
-                        .toolbar {
-                            ToolbarItem(placement: .cancellationAction) { Button("닫기", systemImage: "chevron.left") { dismiss() }.labelStyle(.iconOnly).disabled(busy) }
-                            ToolbarItem(placement: .primaryAction) {
-                                Menu { Button("입력 내용 초기화") { sceneName = ""; performanceID = nil; venueID = nil } } label: { Image(systemName: "ellipsis") }.disabled(busy || requestingCamera)
-                            }
+                ScrollView {
+                    // Figma 971:22703: the title, then the three fields 32.6pt under it.
+                    VStack(alignment: .leading, spacing: 0) {
+                        StageInfoTitle(text: "스캔할 무대의\n정보를 입력해주세요")
+                        StageInformationFields(library: library, stageName: $sceneName, performanceID: $performanceID, venueID: $venueID)
+                            .disabled(busy || requestingCamera).padding(.top, 32.6)
+                        if let error {
+                            Text(error).font(.callout).foregroundStyle(.red).padding(.top, 16)
+                            if savedID != nil { Button("저장한 무대 다시 불러오기") { finishScan() }.padding(.top, 8) }
                         }
-                        .safeAreaInset(edge: .bottom) {
-                            VStack(spacing: 8) {
-                                Button("건너뛰기") { sceneName = ""; performanceID = nil; venueID = nil; beginScan() }
-                                    .font(.headline).frame(maxWidth: .infinity, minHeight: 50).liquidGlass(Capsule(), interactive: true)
-                                    .disabled(requestingCamera || busy || savedID != nil)
-                                Button(busy ? "무대를 불러오는 중…" : requestingCamera ? "카메라 확인 중…" : "저장 후 스캔하기", action: beginScan)
-                                    .buttonStyle(V3PrimaryButtonStyle()).disabled(requestingCamera || busy || sceneName.count > 80 || savedID != nil)
-                                    .accessibilityIdentifier("scan.beginWithInformation")
-                            }.padding(.horizontal, 16).padding(.vertical, 12).background(HearV3.canvas)
-                        }
-                }
+                    }.padding(.horizontal, 16).padding(.top, StageInfoStyle.titleTop).padding(.bottom, 24)
+                }.v3Screen().navigationTitle("무대 저장")
+                    .hearTopBar("무대 저장") {
+                        HearBackButton(enabled: !(busy || requestingCamera))
+                    } trailing: {
+                        Menu { Button("입력 내용 초기화") { sceneName = ""; performanceID = nil; venueID = nil } } label: { HearTopButtonLabel(systemImage: "ellipsis") }
+                            .disabled(busy || requestingCamera).accessibilityLabel("더보기")
+                    }
+                    .stageInfoBottomBar(height: 120) {
+                        VStack(spacing: 8) {
+                            StageInfoButton(title: "건너뛰기", primary: false) { sceneName = ""; performanceID = nil; venueID = nil; beginScan() }
+                                .disabled(requestingCamera || busy || savedID != nil)
+                            StageInfoButton(title: busy ? "무대를 불러오는 중…" : requestingCamera ? "카메라 확인 중…" : "저장 후 스캔하기", primary: true, action: beginScan)
+                                .disabled(requestingCamera || busy || sceneName.count > 80 || savedID != nil)
+                                .accessibilityIdentifier("scan.beginWithInformation")
+                        }.padding(.horizontal, 16)
+                    }
             }
         }.v3Screen()
+            // Pushed from the scan tab (it slides in from the side); the tab bar stays out of the way as in 971:22703.
+            .toolbar(.hidden, for: .tabBar)
             .task { await library.refresh() }
             .scanCover(isPresented: $scanning, onDismiss: finishScan) {
                 PreparationView(library: library, performanceID: performanceID, sceneName: sceneName) { savedID = $0 }.suspendsVoiceWake()
