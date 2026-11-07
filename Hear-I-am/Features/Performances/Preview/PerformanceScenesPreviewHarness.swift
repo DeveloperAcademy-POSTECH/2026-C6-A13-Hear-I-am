@@ -48,6 +48,9 @@ struct PerformanceScenesPreviewHarness: View {
         case "scan-pick-venue":
             if let performanceID { NavigationStack { VenueChoiceSheet(library: library, performanceID: performanceID, selection: venueID) { _ in } } }
         case "create": PerformanceEditorSheet(library: library) { _ in }
+        case "venue-filter":
+            PerformanceVenueFilterSheet(names: ["대구공연예술연습공간", "효자아트홀", "연습실 A", "연습실 B", "소극장 A"],
+                                        selection: ["효자아트홀", "대구공연예술연습공간"]) { _ in }
         case "editor":
             if let performanceID { ReferenceSceneEditorView(library: library, performanceID: performanceID) }
         case "space-empty":
