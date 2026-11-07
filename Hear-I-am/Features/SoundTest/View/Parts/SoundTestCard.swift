@@ -319,7 +319,8 @@ struct OutputDeviceHero: View {
                 switch output.kind {
                 case .iPhone: device("DeviceIPhone",size:150)
                 case .airPodsMax: device("DeviceAirPodsMax",size:160)
-                case .headphones: genericDevice("headphones")
+                // Earphones and headsets other than AirPods use the design's headphone picture (971:35244).
+                case .headphones: device("DeviceAirPodsMax",size:160)
                 case .externalAudio: genericDevice("speaker.wave.2")
                 case .airPods:
                     HStack(spacing:18) {device("DeviceAirPods",size:140);device("DeviceAirPodsCase",size:120)}
