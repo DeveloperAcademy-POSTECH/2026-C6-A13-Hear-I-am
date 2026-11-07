@@ -52,7 +52,17 @@ import HearIAmCore
                 let places=try await legacyPlacesStore.load()
                 catalog=try await catalogStore.migrateIfNeeded(scans:loadedScans,plans:loadedPlans,places:places)
             }
+            // Only a successful complete scan listing can release references to removed bundles.
+            catalog=try await catalogStore.reconcileScanReferences(validScanIDs:Set(loadedScans.map(\.id)))
+            try await synchronizeLegacyPlaces()
         } catch {self.error="공연 목록을 불러오지 못했어요. 기존 자료는 유지됩니다. \(error.localizedDescription)"}
+    }
+    /// The catalog is authoritative after migration. A failed source sync is retried on refresh;
+    /// the source's persisted revision guard prevents an older snapshot from undoing newer edits.
+    private func synchronizeLegacyPlaces() async throws {
+        let latest=try await catalogStore.load()
+        catalog=latest
+        _ = try await legacyPlacesStore.reconcileLegacySnapshot(latest)
     }
     func refreshGuidanceRecords() async {
         do {guidanceRecords=try await guidanceRecordsStore.list();recordError=nil}
@@ -76,6 +86,9 @@ import HearIAmCore
         try await scans.delete(id)
         records.removeAll {$0.id == id}
         pins.remove(id)
+        // A later pin write failure must not leave a deleted stage in the legacy catalog.
+        catalog=try await catalogStore.removeScanReferences(id)
+        try await synchronizeLegacyPlaces()
         try JSONEncoder().encode(pins).write(to:pinURL,options:.atomic)
     }
     func deletePlan(_ id: UUID) async throws {
@@ -119,8 +132,12 @@ extension StageLibrary {
     func updatePerformance(id: UUID, name: String, notes: String) async throws {
         guard var folder=catalog.performances.first(where:{$0.id==id}) else {throw LabError.invalid("공연을 찾을 수 없어요.")}
         folder.name=name;folder.notes=notes;catalog=try await catalogStore.upsert(folder)
+        try await synchronizeLegacyPlaces()
     }
-    func deletePerformance(_ id: UUID) async throws {catalog=try await catalogStore.deletePerformance(id)}
+    func deletePerformance(_ id: UUID) async throws {
+        catalog=try await catalogStore.deletePerformance(id)
+        try await synchronizeLegacyPlaces()
+    }
     @discardableResult func createVenue(name: String, in performanceID: UUID) async throws -> PerformanceVenueTag {
         let tag=PerformanceVenueTag(name:name)
         catalog=try await catalogStore.upsertVenue(tag,in:performanceID)
@@ -129,11 +146,16 @@ extension StageLibrary {
     func renameVenue(_ id: UUID, in performanceID: UUID, to name: String) async throws {
         guard catalog.performances.first(where:{$0.id==performanceID})?.venues.contains(where:{$0.id==id})==true else {throw LabError.invalid("공연·연습 공간을 찾을 수 없어요.")}
         catalog=try await catalogStore.upsertVenue(.init(id:id,name:name),in:performanceID)
+        try await synchronizeLegacyPlaces()
     }
-    func deleteVenue(_ id: UUID, in performanceID: UUID) async throws {catalog=try await catalogStore.deleteVenue(id,in:performanceID)}
+    func deleteVenue(_ id: UUID, in performanceID: UUID) async throws {
+        catalog=try await catalogStore.deleteVenue(id,in:performanceID)
+        try await synchronizeLegacyPlaces()
+    }
     func assignScans(_ scanIDs: [UUID], to performanceID: UUID?, venueID: UUID? = nil) async throws {
         guard Set(scanIDs).isSubset(of:Set(records.map(\.id))) else {throw LabError.invalid("저장한 무대를 다시 불러와주세요.")}
         catalog=try await catalogStore.assign(scanIDs,to:performanceID,venueID:venueID)
+        try await synchronizeLegacyPlaces()
     }
     func referencePlans(for performanceID: UUID?) -> [PerformancePlan] {
         catalog.referencePlans(among:plans,for:performanceID)
