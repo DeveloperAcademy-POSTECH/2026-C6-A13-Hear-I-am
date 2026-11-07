@@ -186,36 +186,68 @@ final class ReplaySceneController: NSObject {
         }
     }
     func movePerson(to index: Int, animated: Bool = false) {
-        guard let route=scan.manifest.route, route.points.indices.contains(index) else {person.isHidden=true;return}
+        guard let route=scan.manifest.route, route.points.indices.contains(index) else {
+            person.removeAnimation(forKey:Self.personMoveKey)
+            person.isHidden=true
+            return
+        }
         person.isHidden=false
-        let p=route.points[index]
-        let height=routeHeight(index)
+        let p=route.points[index],height=routeHeight(index)
         let destination=SCNVector3(p.x,height,-p.y)
-        let moved=person.position.x != destination.x || person.position.y != destination.y || person.position.z != destination.z
+        let modelYaw=personYaw(person)
+        let desiredYaw=arrivalYaw(at:index,in:route) ?? modelYaw
+        let moved=simd_length(SIMD3<Float>(person.position)-SIMD3<Float>(destination))>0.0001
+        let turned=abs(shortestTurn(from:modelYaw,to:desiredYaw))>0.0001
         let animate=animated && !UIAccessibility.isReduceMotionEnabled
-        if moved || !animate {
-            // The light is a child of person: one animation moves both at exactly the same pace.
-            let origin=person.animationKeys.contains(Self.personMoveKey) ? person.presentation.position : person.position
+        // Re-rendering the same selection must not restart its pending arrival turn.
+        if moved || turned || !animate {
+            let visible=person.animationKeys.contains(Self.personMoveKey) ? person.presentation : person
+            let origin=visible.position,originYaw=personYaw(visible)
+            let targetYaw=originYaw+shortestTurn(from:originYaw,to:desiredYaw)
+            let traveling=simd_length(SIMD3<Float>(origin)-SIMD3<Float>(destination))>0.0001
             person.removeAnimation(forKey:Self.personMoveKey)
             SCNTransaction.begin();SCNTransaction.disableActions=true
             person.position=destination
+            person.eulerAngles=SCNVector3(0,targetYaw,0)
             SCNTransaction.commit()
-            if moved && animate {
-                let move=CABasicAnimation(keyPath:"position")
-                move.fromValue=NSValue(scnVector3:origin)
-                move.toValue=NSValue(scnVector3:destination)
-                move.duration=0.5
-                move.timingFunction=CAMediaTimingFunction(name:.easeInEaseOut)
-                person.addAnimation(move,forKey:Self.personMoveKey)
+            if animate && (traveling || abs(targetYaw-originYaw)>0.0001) {
+                // The light shares this transform. Hold the old facing while moving,
+                // then turn in place after arrival; one key also cancels both phases.
+                let duration: CFTimeInterval=traveling ? 0.75 : 0.25
+                let times: [NSNumber]=traveling ? [0,NSNumber(value:2.0/3.0),1] : [0,1]
+                let position=CAKeyframeAnimation(keyPath:"position")
+                position.values=(traveling ? [origin,destination,destination] : [origin,destination]).map {NSValue(scnVector3:$0)}
+                position.keyTimes=times;position.duration=duration
+                position.timingFunctions=traveling ? [.init(name:.easeInEaseOut),.init(name:.linear)] : [.init(name:.linear)]
+                let before=SCNVector3(0,originYaw,0),after=SCNVector3(0,targetYaw,0)
+                let facing=CAKeyframeAnimation(keyPath:"eulerAngles")
+                facing.values=(traveling ? [before,before,after] : [before,after]).map {NSValue(scnVector3:$0)}
+                facing.keyTimes=times;facing.duration=duration
+                facing.timingFunctions=traveling ? [.init(name:.linear),.init(name:.easeInEaseOut)] : [.init(name:.easeInEaseOut)]
+                let arrival=CAAnimationGroup()
+                arrival.animations=[position,facing];arrival.duration=duration
+                person.addAnimation(arrival,forKey:Self.personMoveKey)
             }
         }
         names["clean-person"] = .point(index)
         for (i,label) in pointLabels {label.position.y=Float(i==index ? height+1.8 : routeHeight(i)+0.24)}
+    }
+    /// Read the visible +Z facing rather than Euler components, which can flip across 90 degrees.
+    private func personYaw(_ node: SCNNode) -> Float {
+        let front=simd_act(node.simdOrientation,SIMD3<Float>(0,0,1))
+        return atan2(front.x,front.z)
+    }
+    private func shortestTurn(from origin: Float,to target: Float) -> Float {
+        atan2(sin(target-origin),cos(target-origin))
+    }
+    private func arrivalYaw(at index: Int,in route: StageRoute) -> Float? {
+        if let facing=route.facing(at:index) {return Float(facing.headingDegrees * .pi/180)}
+        let p=route.points[index]
         let next=route.points.indices.contains(index+1) ? route.points[index+1] : p
         let previous=index>0 ? route.points[index-1] : p
         let dx=index==route.points.count-1 ? p.x-previous.x : next.x-p.x
         let dz=index==route.points.count-1 ? -(p.y-previous.y) : -(next.y-p.y)
-        if hypot(dx,dz)>0.001 {person.eulerAngles.y=Float(atan2(dx,dz))}
+        return hypot(dx,dz)>0.001 ? Float(atan2(dx,dz)) : nil
     }
     func update(display: ReplayDisplay, wireframe: Bool, showPhotos: Bool, selection: ReplaySelection?, cameraMode: ReplayCamera, revision: Int, photoViewpoint: ScanPhoto? = nil) {
         let state=RenderState(display:display,wireframe:wireframe,showPhotos:showPhotos,selection:selection,
