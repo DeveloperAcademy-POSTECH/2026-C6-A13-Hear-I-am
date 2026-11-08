@@ -26,10 +26,15 @@ struct ReferenceSceneEditorView: View {
     /// Routes made in this session whose last point is not yet joined to the arrival (971:33297): tapping the
     /// backstage strip that holds the arrival joins them.
     @State private var unlinked: Set<UUID> = []
+    /// Scanned scenes shown beside the drawn routes; saving writes an edited one back to its scan.
+    private let scanned: [UUID: ScanRouteBridge]
     @Environment(\.dismiss) private var dismiss
     init(library: StageLibrary, performanceID: UUID, initialSceneID: UUID? = nil) {
         self.library = library; self.performanceID = performanceID
-        var loaded = library.referencePlans(for: performanceID)
+        // The same order as the 기본 동선 carousel: each space's scanned routes, the unfiled ones, then drawn routes.
+        let bridges = ScanRouteBridge.all(in: library, performanceID: performanceID)
+        scanned = Dictionary(bridges.map { ($0.scanID, $0) }, uniquingKeysWith: { a, _ in a })
+        var loaded = bridges.map(\.plan) + library.referencePlans(for: performanceID)
         if loaded.isEmpty { loaded = [Self.newRoute(named: "새 동선")] }
         for index in loaded.indices { loaded[index].isReferenceOnly = true }
         _scenes = State(initialValue: loaded)
@@ -57,7 +62,10 @@ struct ReferenceSceneEditorView: View {
                 }
                 .navigationDestination(isPresented: $managing) { manageList }
                 .disabled(saving).interactiveDismissDisabled(dirty || saving)
-                .onChange(of: selectedID) { selectedObject = nil; selectedPoint = nil; dragBaseline = nil }
+                .onChange(of: selectedID) { _, id in
+                    selectedObject = nil; selectedPoint = nil; dragBaseline = nil
+                    if let id, scanned[id] != nil { tool = .point }
+                }
                 .onChange(of: tool) { selectedObject = nil; selectedPoint = nil; dragBaseline = nil }
                 .confirmationDialog("저장하지 않은 변경사항이 있어요", isPresented: $confirmExit, titleVisibility: .visible) {
                     Button("저장하지 않고 나가기", role: .destructive) { dismiss() }; Button("계속 편집", role: .cancel) { }
@@ -93,7 +101,12 @@ struct ReferenceSceneEditorView: View {
                 canvas(plan).padding(.top, 16)
                 Text("객석").font(.system(size: 12, weight: .semibold)).tracking(-0.08).foregroundStyle(Color(white: 0.62))
                     .frame(maxWidth: .infinity).padding(.top, 12)
-                toolPicker.padding(.top, 24)
+                if scanned[plan.id] == nil { toolPicker.padding(.top, 24) }
+                else {
+                    // A scanned stage keeps its measured size and objects; only its route changes here.
+                    Text("스캔한 무대예요. 무대 크기와 장애물은 그대로 두고 동선만 바꿀 수 있어요.")
+                        .font(HearFont.pretendard(.regular, size: 13)).foregroundStyle(HearV3.secondary).padding(.top, 24)
+                }
                 Group { if tool == .point { pointRows(plan) } else { objectRows(plan) } }.padding(.top, 16)
             } else {
                 VStack(spacing: 16) {
@@ -123,7 +136,7 @@ struct ReferenceSceneEditorView: View {
                 Section("동선") {
                     ForEach(scenes) { plan in
                         Button { selectedID = plan.id } label: {
-                            if plan.id == selectedID { Label(plan.name, systemImage: "checkmark") } else { Text(plan.name) }
+                            if plan.id == selectedID { Label(menuName(plan), systemImage: "checkmark") } else { Text(menuName(plan)) }
                         }
                     }
                 }
@@ -131,7 +144,7 @@ struct ReferenceSceneEditorView: View {
                 Section { Button("동선 관리", systemImage: "gearshape") { managing = true } }
             } label: {
                 HStack(spacing: 4) {
-                    Text(current?.name ?? "동선 없음").font(.system(size: 17, weight: .semibold)).lineLimit(1)
+                    Text(current.map(menuName) ?? "동선 없음").font(.system(size: 17, weight: .semibold)).lineLimit(1)
                     Image(systemName: "chevron.up.chevron.down").font(.system(size: 12, weight: .semibold))
                 }.foregroundStyle(.white).frame(minHeight: 44).contentShape(Rectangle())
             }.accessibilityLabel("\(current?.name ?? "동선 없음"), 동선 선택")
@@ -194,7 +207,7 @@ struct ReferenceSceneEditorView: View {
             VStack(spacing: 8) {
                 ForEach(scenes) { plan in
                     ReferenceEditorRow(selected: false, onSelect: { selectedID = plan.id; managing = false }) {
-                        Text(plan.name).font(HearFont.pretendard(.regular, size: 16)).foregroundStyle(.white).lineLimit(1)
+                        Text(menuName(plan)).font(HearFont.pretendard(.regular, size: 16)).foregroundStyle(.white).lineLimit(1)
                         if plan.id == selectedID {
                             // 971:32767: plain green text beside the name, no badge.
                             Text("현재 사용 중").font(HearFont.pretendard(.regular, size: 13)).foregroundStyle(HearV3.accent)
@@ -202,7 +215,10 @@ struct ReferenceSceneEditorView: View {
                     } menu: {
                         Button("이름 변경", systemImage: "pencil") { renameText = plan.name; renameTarget = .scene(plan.id) }
                         Button("복제", systemImage: "plus.square.on.square") { duplicateScene(plan) }
-                        Section { Button("동선 삭제", systemImage: "trash", role: .destructive) { deletingRoute = plan } }
+                        // A scanned route goes with its scan, deleted from its space; here it can only be edited.
+                        if scanned[plan.id] == nil {
+                            Section { Button("동선 삭제", systemImage: "trash", role: .destructive) { deletingRoute = plan } }
+                        }
                     }
                 }
                 if scenes.isEmpty {
@@ -215,6 +231,11 @@ struct ReferenceSceneEditorView: View {
                          message: "체크를 눌러 저장하면 이 동선이 삭제돼요.\n스캔한 무대에는 영향을 주지 않아요.") {
                 if let plan = deletingRoute { removeScene(plan.id) }
             }
+    }
+
+    /// A scanned route says which space it is from, 「CGV(커튼콜)」, as on the performance page.
+    private func menuName(_ plan: PerformancePlan) -> String {
+        scanned[plan.id].map { "\($0.venueName)(\(plan.name))" } ?? plan.name
     }
 
     // MARK: - Editing
@@ -247,8 +268,10 @@ struct ReferenceSceneEditorView: View {
             plan.objects.append(copy); selectedObject = copy.id
         }
     }
+    /// A scanned route's stage and obstacles stay as measured; only its points move.
+    private var routeOnly: Bool { current.map { scanned[$0.id] != nil } ?? false }
     private func tap(_ point: FloorPoint) {
-        guard let plan = current else { return }
+        guard let plan = current, tool == .point || !routeOnly else { return }
         if tool == .point {
             if let index = plan.points.indices.min(by: { plan.points[$0].distance(to: point) < plan.points[$1].distance(to: point) }),
                plan.points[index].distance(to: point) < 0.5 {
@@ -284,7 +307,7 @@ struct ReferenceSceneEditorView: View {
         }
     }
     private func drag(from start: FloorPoint, to end: FloorPoint) {
-        guard let index = selectedIndex else { return }
+        guard let index = selectedIndex, tool == .point || !routeOnly else { return }
         var plan = dragBaseline ?? scenes[index]
         do {
             if tool == .point {
@@ -324,7 +347,16 @@ struct ReferenceSceneEditorView: View {
         guard !saving else { return }; saving = true
         Task {
             do {
-                for var plan in scenes { plan.completeReference(); try await library.savePerformancePlan(plan, for: performanceID) }
+                for var plan in scenes {
+                    plan.completeReference()
+                    if let bridge = scanned[plan.id] {
+                        // A scanned route is written back to its scan, and only when it changed.
+                        var opened = bridge.plan; opened.completeReference()
+                        var geometry = plan; geometry.name = opened.name
+                        if geometry != opened { try await library.updateScanRoute(plan.id, route: bridge.route(from: plan)) }
+                        if plan.name != opened.name { try await library.renameStage(plan.id, to: plan.name) }
+                    } else { try await library.savePerformancePlan(plan, for: performanceID) }
+                }
                 for id in removedSceneIDs {
                     // An unsaved route can be added and removed in the same editing session.
                     // Also allow retry after an earlier deletion in this batch already succeeded.
@@ -430,5 +462,60 @@ private enum ReferenceRenameTarget {
     case scene(UUID), object(UUID), point(Int)
     var title: String {
         switch self { case .scene: return "동선 이름 변경"; case .object: return "장애물 이름 변경"; case .point: return "지점 이름 변경" }
+    }
+}
+
+/// A scanned scene's route laid onto the 12 × 8 schematic so the route editor can show and edit it, and back again
+/// onto the measured stage on save. Each axis scales on its own; heights follow the nearest measured point.
+struct ScanRouteBridge {
+    let scanID: UUID
+    let venueName: String
+    let venueID: UUID?
+    let route: StageRoute
+    /// The schematic as it was opened; an untouched route is not written back.
+    let plan: PerformancePlan
+    private let sx: Double, sy: Double
+    init?(scan: ScanManifest, venueName: String, venueID: UUID?) {
+        guard let route = scan.route, route.points.count >= 2, route.area.width > 0.1, route.area.depth > 0.1 else { return nil }
+        scanID = scan.id; self.venueName = venueName; self.venueID = venueID; self.route = route
+        let sx = PerformancePlan.width / route.area.width, sy = PerformancePlan.depth / route.area.depth
+        self.sx = sx; self.sy = sy
+        var plan = PerformancePlan(); plan.id = scan.id; plan.name = scan.name; plan.isReferenceOnly = true
+        for point in route.points { try? plan.append(FloorPoint(min(15, max(-3, point.x * sx)), min(9, max(-1, point.y * sy)))) }
+        plan.completeReference()
+        plan.objects = route.obstacles.map { var o = $0; o.vertices = o.vertices.map { FloorPoint($0.x * sx, $0.y * sy) }; return o }
+        // Only names the user gave are carried; the automatic ones (P1, 의자1) follow the points as they change.
+        let defaults = StageRoute.pointLabels(points: route.points, obstacles: route.obstacles)
+        for index in plan.points.indices where route.points.indices.contains(index) {
+            let name = route.pointNames.indices.contains(index) && route.pointNames[index] != defaults[index] ? route.pointNames[index] : ""
+            try? plan.setPointSettings(.init(name: name, holdSeconds: route.holdSeconds(at: index), facing: route.facing(at: index)), at: index)
+        }
+        self.plan = plan
+    }
+    /// The edited points back on the measured stage. The stage, its danger zones and the scanned obstacles are kept
+    /// exactly as measured: only the route changes.
+    func route(from edited: PerformancePlan) throws -> StageRoute {
+        let points = edited.points.map { FloorPoint($0.x / sx, $0.y / sy) }
+        let obstacles = route.obstacles
+        let heights = route.pointHeights.map { measured in
+            points.map { p in route.points.indices.min { route.points[$0].distance(to: p) < route.points[$1].distance(to: p) }.map { measured[$0] } ?? 0 }
+        }
+        let defaults = StageRoute.pointLabels(points: points, obstacles: obstacles)
+        let settings = edited.points.indices.map { edited.settings(at: $0) }
+        let holds = settings.indices.map { $0 == 0 || $0 == settings.count - 1 ? 0 : settings[$0].holdSeconds }
+        let facings = settings.map(\.facing)
+        // Settings the scan never had stay absent, so an untouched route saves exactly as it was.
+        return try StageRoute(area: route.area, points: points, obstacles: obstacles, allowsOutsideEndpoints: route.version == 2,
+                              dangerZones: route.dangerZones, pointHeights: heights,
+                              pointHoldSeconds: route.pointHoldSeconds == nil && holds.allSatisfy { $0 == 0 } ? nil : holds,
+                              pointNames: settings.indices.map { settings[$0].name.isEmpty ? defaults[$0] : settings[$0].name },
+                              pointFacings: route.pointFacings == nil && facings.allSatisfy { $0 == nil } ? nil : facings)
+    }
+    /// Every scanned route on a performance, in the order of its space list, then the unfiled ones.
+    @MainActor static func all(in library: StageLibrary, performanceID: UUID) -> [ScanRouteBridge] {
+        let venues = (library.performanceFolders.first { $0.id == performanceID }?.venues ?? []).sorted { $0.updatedAt > $1.updatedAt }
+        return venues.flatMap { venue in
+            library.scans(in: performanceID, venueID: venue.id, includeAllVenues: false).compactMap { ScanRouteBridge(scan: $0, venueName: venue.name, venueID: venue.id) }
+        } + library.scans(in: performanceID, includeAllVenues: false).compactMap { ScanRouteBridge(scan: $0, venueName: "공간 미지정", venueID: nil) }
     }
 }
