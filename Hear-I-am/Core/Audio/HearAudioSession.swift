@@ -72,7 +72,9 @@ import AVFoundation
 /// The arrival ding sits a little under the warning since 10/21 so the side of the next point is heard over it.
 enum SignalVolume {
     static let warning: Float=1.0
-    static let speech: Float=0.8
+    /// Every spoken line plays at full level, so speech is as loud as the phone's volume says (11/08:
+    /// 「음성이 커졌다 작아졌다」). 0.8 here against the narration engine's 1.0 made lines differ.
+    static let speech: Float=1.0
     static let buzz: Float=0.9
     /// It was 1.0 like the warning (10/17) until 10/21, when it masked the side of the next point.
     static let arrival: Float=0.7

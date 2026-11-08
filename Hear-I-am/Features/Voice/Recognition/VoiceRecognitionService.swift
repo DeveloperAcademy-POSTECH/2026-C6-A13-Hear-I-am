@@ -231,6 +231,9 @@ import HearIAmCore
             engineID = identifier
             trace("voice_engine_created id=\(identifier.uuidString)")
             try engine.inputNode.setVoiceProcessingEnabled(true)
+            // Voice processing turns the app's other sound down (signals, the system voice) and, with
+            // advanced ducking, by more while someone speaks: the voice was heard louder and softer (11/08).
+            engine.inputNode.voiceProcessingOtherAudioDuckingConfiguration = .init(enableAdvancedDucking: false, duckingLevel: .min)
             narration.attach(to: engine)
         }
         guard engine.inputNode.isVoiceProcessingEnabled else { throw VoiceRecognitionFailure.noInput }
@@ -262,6 +265,7 @@ import HearIAmCore
         hasInputTap = true
         engine.prepare()
         try engine.start()
+        engineStartedAt = ProcessInfo.processInfo.systemUptime
         restartAudioNeeded = false
     }
 
@@ -284,6 +288,14 @@ import HearIAmCore
             guard self.wantsListening, self.sessionID == session,
                   let changed, self.engine === changed else { return }
             if changed.isRunning { self.beginTurn(); return }
+            if !self.inputSettled, !self.startupRestarted {
+                // Expected once for a new engine: restarted without a message and without cutting the line.
+                self.startupRestarted = true
+                VoiceLog.write("voice_startup_restart", String(format: "%.2fs", ProcessInfo.processInfo.systemUptime - self.engineStartedAt), screen: "")
+                self.restartAudioNeeded = true
+                self.scheduleNextTurn(after: 0)
+                return
+            }
             self.recover("오디오 연결을 다시 준비하고 있어요", restartAudio: true, source: "engine_configuration")
         }
     }
@@ -293,6 +305,7 @@ import HearIAmCore
               engine?.isRunning == true, inputBridge.isReady,
               !inputBridge.isStalled(at: ProcessInfo.processInfo.systemUptime) else { return }
         turnInputConfirmed = true
+        defer { settleInput() }
         VoiceLog.write("voice_turn_ready", "\(analyzerTurn != nil ? "analyzer" : (listensInEnglish ? "english" : "sf")) \(String(format: "%.2fs", ProcessInfo.processInfo.systemUptime - turnStartedAt))", screen: "")
         trace("voice_input_ready engine=\(self.engineID?.uuidString ?? "none") turn=\(turnID.uuidString) route=\(HearAudioSession.route)")
         isRecovering = false
@@ -330,12 +343,62 @@ import HearIAmCore
     }
 
     /// Render narration through the same voice-processing engine as microphone capture.
-    func speakNarration(_ utterance: AVSpeechUtterance, completion: @escaping (Bool) -> Void) -> Bool {
-        guard wantsListening, let engine, engine.isRunning else { return false }
-        narration.speak(utterance, completion: completion)
+    /// With `waitsForStart`, a line asked for while listening is still starting waits (up to 3 s) for the
+    /// engine to settle instead of going to the system voice. A new voice-processing engine is stopped by the
+    /// system about 0.75 s after it starts; the first line on every handoff from Home was cut there and said
+    /// again from the start, in another voice and level (11/06 5 of 5, POS 11/08).
+    func speakNarration(_ utterance: AVSpeechUtterance, waitsForStart: Bool = false, completion: @escaping (Bool) -> Void) -> Bool {
+        if wantsListening, let engine, engine.isRunning, inputSettled || !waitsForStart {
+            narration.speak(utterance, completion: completion)
+            return true
+        }
+        guard waitsForStart else { return false }
+        pendingNarration?.completion(false)
+        let id = UUID()
+        pendingNarration = (id, utterance, completion)
+        pendingNarrationTimer?.cancel()
+        pendingNarrationTimer = Task { @MainActor [weak self] in
+            do { try await Task.sleep(nanoseconds: 3_000_000_000) } catch { return }
+            guard let self, let pending = self.pendingNarration, pending.id == id else { return }
+            self.pendingNarration = nil
+            VoiceLog.write("voice_narration_waited", "timeout", screen: "")
+            if self.wantsListening, self.engine?.isRunning == true { self.narration.speak(pending.utterance, completion: pending.completion) }
+            else { pending.completion(false) }
+        }
         return true
     }
-    func stopNarration() { narration.stop() }
+    /// Listening has been ready once, past the restart a new engine goes through (see `startupRestarted`).
+    private var inputSettled = false
+    /// The one quiet restart allowed while a session starts; a second change is a real recovery.
+    private var startupRestarted = false
+    private var engineStartedAt: TimeInterval = 0
+    private var pendingNarration: (id: UUID, utterance: AVSpeechUtterance, completion: (Bool) -> Void)?
+    private var pendingNarrationTimer: Task<Void, Never>?
+    private func settleInput() {
+        guard !inputSettled else { return }
+        // The system's change notice for a new engine comes about 0.75 s after it starts.
+        // After that one restart nothing more is expected.
+        let wait = startupRestarted ? 0 : engineStartedAt + 1.1 - ProcessInfo.processInfo.systemUptime
+        guard wait <= 0 else {
+            let session = sessionID
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(nanoseconds: UInt64(wait * 1_000_000_000))
+                guard let self, self.sessionID == session, self.wantsListening, self.turnInputConfirmed,
+                      self.engine?.isRunning == true, !self.retryScheduled else { return }
+                self.settleInput()
+            }
+            return
+        }
+        inputSettled = true
+        guard let pending = pendingNarration else { return }
+        pendingNarration = nil; pendingNarrationTimer?.cancel(); pendingNarrationTimer = nil
+        VoiceLog.write("voice_narration_waited", String(format: "%.2fs", ProcessInfo.processInfo.systemUptime - engineStartedAt), screen: "")
+        narration.speak(pending.utterance, completion: pending.completion)
+    }
+    func stopNarration() {
+        pendingNarration = nil; pendingNarrationTimer?.cancel(); pendingNarrationTimer = nil
+        narration.stop()
+    }
     /// Silences the app's voice at once without dropping the line, so it can go on if no words follow.
     func holdNarration(_ hold: Bool) { if hold { narration.pause() } else { narration.resume() } }
 
@@ -634,6 +697,9 @@ import HearIAmCore
 
     private func stopCapture(restorePlayback: Bool) {
         wantsListening = false
+        inputSettled = false; startupRestarted = false
+        pendingNarrationTimer?.cancel(); pendingNarrationTimer = nil
+        if let pending = pendingNarration { pendingNarration = nil; pending.completion(false) }
         englishRecognizer = nil
         sessionID = nil
         retryScheduled = false
