@@ -203,7 +203,8 @@ struct PerformanceDetailView: View {
     }
 }
 
-/// 「공간 추가」 (Figma 971:32566 · 971:36428): search places on the map and pick one, or keep the typed name.
+/// 「공간 추가」 (Figma 971:32566 · 971:36428): search places on the map and pick one, or keep the typed name. Before
+/// anything is typed it shows the recent picks and the performance venues around the phone.
 /// Only the place's name is kept; the space has no address field.
 struct PerformanceSpaceSearchSheet: View {
     let onDone: (String) -> Void
@@ -211,33 +212,37 @@ struct PerformanceSpaceSearchSheet: View {
     @State private var query = ""
     @State private var results: [MKMapItem] = []
     @State private var searching = false
+    @StateObject private var nearby = NearbyVenueFinder()
     @AppStorage("performance.space.recentSearches") private var recentStore = ""
-    private struct Place: Codable, Hashable { var name: String; var address: String }
+    fileprivate struct Place: Codable, Hashable { var name: String; var address: String }
     private var recents: [Place] { (try? JSONDecoder().decode([Place].self, from: Data(recentStore.utf8))) ?? [] }
     private var typed: String { query.trimmingCharacters(in: .whitespacesAndNewlines) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            PerformanceSearchField(text: $query, prompt: "공연장 이름이나 주소 검색").padding(.horizontal, 16).padding(.top, 8)
+            PerformanceSearchField(text: $query, prompt: "공연장 이름이나 주소 검색", clears: false).padding(.horizontal, 14).padding(.top, 8)
             ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
+                VStack(alignment: .leading, spacing: 20) {
                     if typed.isEmpty {
-                        if !recents.isEmpty {
-                            PerformanceSectionTitle(text: "최근 검색").font(HearFont.pretendard(.semibold, size: 17)).padding(.top, 24).padding(.bottom, 4)
-                            ForEach(recents, id: \.self) { place in row(place) }
-                        } else {
-                            Text("공연장 이름이나 주소로 찾아보세요").font(HearFont.pretendard(.regular, size: 14)).foregroundStyle(HearV3.secondary)
-                                .frame(maxWidth: .infinity, minHeight: 160)
+                        // 971:32566: 「최근 검색」 then 「주변 공연장」, each a 20pt heading over its rows.
+                        if !recents.isEmpty { section("최근 검색", recents.prefix(3).map { $0 }) }
+                        if !nearby.places.isEmpty { section("주변 공연장", nearby.places.map(Self.place)) }
+                        if recents.isEmpty && nearby.places.isEmpty {
+                            Text(nearby.searching ? "주변 공연장을 찾고 있어요" : "공연장 이름이나 주소로 찾아보세요")
+                                .font(HearFont.pretendard(.regular, size: 14)).foregroundStyle(HearV3.secondary).frame(maxWidth: .infinity, minHeight: 160)
                         }
                     } else {
-                        if searching && results.isEmpty { ProgressView().frame(maxWidth: .infinity, minHeight: 120) }
-                        ForEach(results.indices, id: \.self) { index in row(Self.place(results[index])) }
-                        if !searching && results.isEmpty {
-                            Text("검색 결과가 없어요. 체크를 누르면 「\(typed)」 이름으로 추가해요.").font(HearFont.pretendard(.regular, size: 14))
-                                .foregroundStyle(HearV3.secondary).multilineTextAlignment(.center).frame(maxWidth: .infinity, minHeight: 120)
+                        // 971:36428: the matches straight under the field, no heading.
+                        VStack(spacing: 0) {
+                            if searching && results.isEmpty { ProgressView().frame(maxWidth: .infinity, minHeight: 120) }
+                            ForEach(results.indices, id: \.self) { index in row(Self.place(results[index]), last: index == results.count - 1) }
+                            if !searching && results.isEmpty {
+                                Text("검색 결과가 없어요. 체크를 누르면 「\(typed)」 이름으로 추가해요.").font(HearFont.pretendard(.regular, size: 14))
+                                    .foregroundStyle(HearV3.secondary).multilineTextAlignment(.center).frame(maxWidth: .infinity, minHeight: 120)
+                            }
                         }
                     }
-                }.padding(.horizontal, 16).padding(.top, 8)
+                }.padding(.horizontal, 14).padding(.top, 28).padding(.bottom, 24)
             }.scrollDismissesKeyboard(.interactively)
         }
             .safeAreaInset(edge: .top, spacing: 0) {
@@ -246,6 +251,7 @@ struct PerformanceSpaceSearchSheet: View {
                     .buttonStyle(.plain).disabled(typed.isEmpty).opacity(typed.isEmpty ? 0.45 : 1).accessibilityLabel("입력한 이름으로 추가"))
             }
             .hearSheet()
+            .task { nearby.start() }
             .task(id: typed) {
                 guard !typed.isEmpty else { results = []; return }
                 try? await Task.sleep(for: .milliseconds(300))
@@ -253,24 +259,53 @@ struct PerformanceSpaceSearchSheet: View {
                 searching = true
                 let request = MKLocalSearch.Request(); request.naturalLanguageQuery = typed
                 request.resultTypes = [.pointOfInterest, .address]
+                if let region = nearby.region { request.region = region }
                 let found = (try? await MKLocalSearch(request: request).start())?.mapItems ?? []
                 guard !Task.isCancelled else { return }
                 results = Array(found.prefix(20)); searching = false
             }
-    }
-    private func row(_ place: Place) -> some View {
-        Button { choose(place) } label: {
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: "mappin.circle").font(.system(size: 18)).foregroundStyle(.white).padding(.top, 2)
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(place.name).font(HearFont.pretendard(.medium, size: 16)).foregroundStyle(.white).lineLimit(1)
-                    if !place.address.isEmpty {
-                        Text(place.address).font(HearFont.pretendard(.regular, size: 13)).foregroundStyle(HearV3.secondary).lineLimit(1)
+            #if DEBUG
+            .onAppear {
+                // Fills the sheet like the design for screenshots: recents, nearby venues or a typed search.
+                let args = ProcessInfo.processInfo.arguments
+                if args.contains("--space-search-sample") {
+                    let sample = Place(name: "효자아트홀", address: "경북 포항시 남구 효자동")
+                    if let data = try? JSONEncoder().encode([sample, Place(name: "포항문화예술회관", address: "경북 포항시 남구 대잠동"),
+                                                             Place(name: "대구공연예술연습공간", address: "대구 중구 동인동")]) {
+                        recentStore = String(decoding: data, as: UTF8.self)
                     }
+                }
+                if let i = args.firstIndex(of: "--space-query"), args.count > i + 1 { query = args[i + 1] }
+            }
+            #endif
+    }
+    private func section(_ title: String, _ places: [Place]) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title).font(HearFont.pretendard(.semibold, size: 20)).tracking(-0.6).foregroundStyle(.white)
+            VStack(spacing: 0) { ForEach(places.indices, id: \.self) { row(places[$0], last: $0 == places.count - 1) } }
+        }
+    }
+    /// 971:32582: the outlined pin in a 30pt column, the name in body text with the drill-in arrow, the address in grey,
+    /// and a hairline under the text that the pin column stays clear of.
+    private func row(_ place: Place, last: Bool) -> some View {
+        Button { choose(place) } label: {
+            HStack(alignment: .top, spacing: 8) {
+                HearMapPin().stroke(.white, style: StrokeStyle(lineWidth: 1.67, lineCap: .round)).frame(width: 20, height: 20).frame(width: 30, height: 30)
+                VStack(alignment: .leading, spacing: 9) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 0) {
+                            Text(place.name).font(.system(size: 17)).tracking(-0.43).foregroundStyle(.white).lineLimit(1)
+                            Spacer(minLength: 8)
+                            Image(systemName: "chevron.right").font(.system(size: 14, weight: .semibold)).foregroundStyle(PerformanceSearchField.grey)
+                                .frame(width: 28, height: 28)
+                        }.frame(height: 28)
+                        if !place.address.isEmpty {
+                            Text(place.address).font(.system(size: 15)).tracking(-0.23).foregroundStyle(PerformanceSearchField.grey).lineLimit(1)
+                        }
+                    }
+                    Rectangle().fill(last ? .clear : .white.opacity(0.2)).frame(height: 0.5)
                 }.frame(maxWidth: .infinity, alignment: .leading)
-                Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold)).foregroundStyle(HearV3.secondary).padding(.top, 4)
-            }.padding(.vertical, 14).overlay(alignment: .bottom) { Rectangle().fill(.white.opacity(0.12)).frame(height: 0.5).padding(.leading, 30) }
-                .contentShape(Rectangle())
+            }.padding(8).contentShape(Rectangle())
         }.buttonStyle(.plain)
     }
     private func choose(_ place: Place) {
@@ -287,6 +322,70 @@ struct PerformanceSpaceSearchSheet: View {
         let address = [mark.administrativeArea, mark.locality, mark.subLocality, mark.thoroughfare, mark.subThoroughfare]
             .compactMap { $0 }.reduce(into: [String]()) { if $0.last != $1 { $0.append($1) } }.joined(separator: " ")
         return Place(name: item.name ?? address, address: address)
+    }
+}
+
+/// Performance venues around the phone for 「주변 공연장」 (971:32566). It asks for the location only while the sheet is
+/// open; without permission the section simply stays away and searching works as before.
+@MainActor final class NearbyVenueFinder: NSObject, ObservableObject, CLLocationManagerDelegate {
+    @Published private(set) var places: [MKMapItem] = []
+    @Published private(set) var searching = false
+    /// Where the phone is, so typed searches also favour nearby places.
+    private(set) var region: MKCoordinateRegion?
+    private let manager = CLLocationManager()
+    func start() {
+        manager.delegate = self; manager.desiredAccuracy = kCLLocationAccuracyKilometer
+        switch manager.authorizationStatus {
+        case .notDetermined: manager.requestWhenInUseAuthorization()
+        case .authorizedWhenInUse, .authorizedAlways: searching = true; manager.requestLocation()
+        default: break
+        }
+    }
+    nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        let status = manager.authorizationStatus
+        Task { @MainActor in
+            if status == .authorizedWhenInUse || status == .authorizedAlways, places.isEmpty, !searching { searching = true; self.manager.requestLocation() }
+        }
+    }
+    nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        guard let location = locations.last else { return }
+        Task { @MainActor in await find(around: location) }
+    }
+    nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        Task { @MainActor in searching = false }
+    }
+    private func find(around location: CLLocation) async {
+        region = MKCoordinateRegion(center: location.coordinate, latitudinalMeters: 20_000, longitudinalMeters: 20_000)
+        // Apple's venue categories are sparse in Korea, so a plain 「공연장」 search around the phone fills in.
+        let request = MKLocalPointsOfInterestRequest(center: location.coordinate, radius: 5_000)
+        var categories: [MKPointOfInterestCategory] = [.theater]
+        if #available(iOS 18.0, *) { categories += [.musicVenue] }
+        request.pointOfInterestFilter = MKPointOfInterestFilter(including: categories)
+        var found = (try? await MKLocalSearch(request: request).start())?.mapItems ?? []
+        if found.isEmpty {
+            let typed = MKLocalSearch.Request(); typed.naturalLanguageQuery = "공연장"; typed.resultTypes = .pointOfInterest
+            typed.region = MKCoordinateRegion(center: location.coordinate, latitudinalMeters: 10_000, longitudinalMeters: 10_000)
+            found = (try? await MKLocalSearch(request: typed).start())?.mapItems ?? []
+        }
+        places = Array(found.sorted { ($0.placemark.location?.distance(from: location) ?? 0) < ($1.placemark.location?.distance(from: location) ?? 0) }.prefix(3))
+        searching = false
+    }
+}
+
+/// The outlined map pin of the place rows (971:32584), drawn in a 20pt box.
+struct HearMapPin: Shape {
+    func path(in rect: CGRect) -> Path {
+        let s = min(rect.width, rect.height) / 20
+        func p(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: rect.minX + x * s, y: rect.minY + y * s) }
+        var path = Path()
+        path.move(to: p(16.67, 8.33))
+        path.addCurve(to: p(10.5, 18.17), control1: p(16.67, 12.49), control2: p(12.05, 16.83))
+        path.addCurve(to: p(9.5, 18.17), control1: p(10.21, 18.39), control2: p(9.79, 18.39))
+        path.addCurve(to: p(3.33, 8.33), control1: p(7.95, 16.83), control2: p(3.33, 12.49))
+        path.addArc(center: p(10, 8.33), radius: 6.67 * s, startAngle: .degrees(180), endAngle: .degrees(0), clockwise: false)
+        path.closeSubpath()
+        path.addEllipse(in: CGRect(origin: p(7.5, 5.83), size: CGSize(width: 5 * s, height: 5 * s)))
+        return path
     }
 }
 
