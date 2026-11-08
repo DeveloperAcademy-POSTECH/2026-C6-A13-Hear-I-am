@@ -8,6 +8,8 @@ struct ReferencePlanCanvas: View {
     var selectedObject: UUID?
     /// A point picked in the list: the others dim (Figma 971:33008).
     var selectedPoint: Int?
+    /// False while a new route's last point is not yet joined to the arrival (971:32668 · 971:33297).
+    var arrivalLinked = true
     var onTap: ((FloorPoint) -> Void)?
     var onDragChanged: ((FloorPoint, FloorPoint) -> Void)?
     var onDragEnded: (() -> Void)?
@@ -29,17 +31,19 @@ struct ReferencePlanCanvas: View {
             Canvas { context, size in
                 let area = CGRect(origin: .zero, size: size)
                 // Figma 971:32296: the backstage strips either side are darker than the stage, crossed by two faint lines.
-                context.fill(Path(area), with: .color(Color(white: 0.15)))
+                // Figma 971:32813: #242424 ground, the stage 8% lighter.
+                context.fill(Path(area), with: .color(Color(white: 36 / 255)))
                 let stageLeft = project(.init(0, 0)).x, stageRight = project(.init(PerformancePlan.width, 0)).x
                 let stage = CGRect(x: stageLeft, y: 0, width: stageRight - stageLeft, height: size.height)
-                context.fill(Path(stage), with: .color(Color(white: 0.2)))
+                context.fill(Path(stage), with: .color(Color(white: 217 / 255).opacity(0.08)))
                 var cross = Path()
                 cross.move(to: CGPoint(x: stage.midX, y: 0)); cross.addLine(to: CGPoint(x: stage.midX, y: size.height))
                 cross.move(to: CGPoint(x: stage.minX, y: size.height / 2)); cross.addLine(to: CGPoint(x: stage.maxX, y: size.height / 2))
                 context.stroke(cross, with: .color(.white.opacity(0.06)), lineWidth: 1)
                 // A route that is only its start and arrival has no line yet (971:32668).
-                if plan.points.count > 2 || (plan.points.count == 2 && !plan.finished) {
-                    var path = Path(); path.addLines(plan.points.map(project))
+                let drawn = arrivalLinked ? plan.points : Array(plan.points.dropLast())
+                if drawn.count > 2 || (drawn.count == 2 && (!plan.finished || !arrivalLinked)) {
+                    var path = Path(); path.addLines(drawn.map(project))
                     context.stroke(path, with: .color(Self.line), style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
                 }
                 for object in plan.objects {
@@ -59,14 +63,18 @@ struct ReferencePlanCanvas: View {
                 for index in plan.points.indices {
                     let p = project(plan.points[index])
                     let end = index == 0 || (plan.finished && index == plan.points.count - 1)
-                    let radius: CGFloat = 6
+                    let radius: CGFloat = 6.5
                     var dot = context
                     if let selectedPoint, selectedPoint != index { dot.opacity = 0.45 }
                     dot.fill(Path(ellipseIn: CGRect(x: p.x - radius, y: p.y - radius, width: radius * 2, height: radius * 2)), with: .color(end ? Self.end : Self.point))
                     if selectedPoint == index {
-                        dot.stroke(Path(ellipseIn: CGRect(x: p.x - radius - 1.5, y: p.y - radius - 1.5, width: radius * 2 + 3, height: radius * 2 + 3)), with: .color(.white), lineWidth: 1.5)
+                        // 971:32662 · 971:32808: the picked point gets a white ring with a dark gap, its edit handle.
+                        let ring = radius + 3.5
+                        dot.stroke(Path(ellipseIn: CGRect(x: p.x - ring, y: p.y - ring, width: ring * 2, height: ring * 2)), with: .color(.white), lineWidth: 1.5)
                     }
-                    dot.draw(Text(plan.pointLabel(at: index)).font(.system(size: labelSize, weight: .medium)).foregroundColor(HearV3.text), at: CGPoint(x: p.x, y: p.y + radius + 10))
+                    let label = Text(plan.pointLabel(at: index))
+                        .font(end ? .system(size: labelSize) : HearFont.pretendard(.regular, size: labelSize + 1)).foregroundColor(.white)
+                    dot.draw(label, at: CGPoint(x: p.x, y: p.y + radius + 10))
                 }
             }.clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                 .contentShape(Rectangle())

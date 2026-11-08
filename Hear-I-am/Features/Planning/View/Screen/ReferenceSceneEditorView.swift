@@ -23,13 +23,17 @@ struct ReferenceSceneEditorView: View {
     @State private var message: String?
     @State private var saving = false
     @State private var dirty = false
+    /// Routes made in this session whose last point is not yet joined to the arrival (971:33297): tapping the
+    /// backstage strip that holds the arrival joins them.
+    @State private var unlinked: Set<UUID> = []
     @Environment(\.dismiss) private var dismiss
     init(library: StageLibrary, performanceID: UUID, initialSceneID: UUID? = nil) {
         self.library = library; self.performanceID = performanceID
         var loaded = library.referencePlans(for: performanceID)
-        if loaded.isEmpty { loaded = [Self.newRoute(named: "1번 동선")] }
+        if loaded.isEmpty { loaded = [Self.newRoute(named: "새 동선")] }
         for index in loaded.indices { loaded[index].isReferenceOnly = true }
         _scenes = State(initialValue: loaded)
+        _unlinked = State(initialValue: loaded.count == 1 && loaded[0].points.count <= 2 ? [loaded[0].id] : [])
         _selectedID = State(initialValue: loaded.contains(where: { $0.id == initialSceneID }) ? initialSceneID : loaded.first?.id)
     }
     /// A new route starts with its start and arrival waiting in the two backstage strips (971:32668).
@@ -66,6 +70,19 @@ struct ReferenceSceneEditorView: View {
                 .alert("확인해주세요", isPresented: Binding(get: { message != nil }, set: { if !$0 { message = nil } })) {
                     Button("확인", role: .cancel) { message = nil }
                 } message: { Text(message ?? "") }
+                #if DEBUG
+                .onAppear {
+                    // Preview states for the editor screens: a fresh route, a picked point, the obstacle tab, the list.
+                    let args = ProcessInfo.processInfo.arguments
+                    if args.contains("--editor-new") { addScene(); past.removeAll() }
+                    if let i = args.firstIndex(of: "--editor-point"), args.count > i + 1, let n = Int(args[i + 1]) { selectedPoint = n }
+                    if args.contains("--editor-obstacles") {
+                        tool = .obstacle
+                        DispatchQueue.main.async { selectedObject = current?.objects.first?.id }
+                    }
+                    if args.contains("--editor-manage") { managing = true }
+                }
+                #endif
         }.v3Screen()
     }
 
@@ -74,7 +91,7 @@ struct ReferenceSceneEditorView: View {
             routeHeader.padding(.top, 8)
             if let plan = current {
                 canvas(plan).padding(.top, 16)
-                Text("객석").font(HearFont.pretendard(.regular, size: 12)).foregroundStyle(HearV3.secondary)
+                Text("객석").font(.system(size: 12, weight: .semibold)).tracking(-0.08).foregroundStyle(Color(white: 0.62))
                     .frame(maxWidth: .infinity).padding(.top, 12)
                 toolPicker.padding(.top, 24)
                 Group { if tool == .point { pointRows(plan) } else { objectRows(plan) } }.padding(.top, 16)
@@ -89,7 +106,7 @@ struct ReferenceSceneEditorView: View {
     }
     @ViewBuilder private func canvas(_ plan: PerformancePlan) -> some View {
         ReferencePlanCanvas(plan: plan, editing: true, selectedObject: tool == .obstacle ? selectedObject : nil,
-                            selectedPoint: tool == .point ? selectedPoint : nil,
+                            selectedPoint: tool == .point ? selectedPoint : nil, arrivalLinked: !unlinked.contains(plan.id),
                             onTap: { tap($0) }, onDragChanged: { drag(from: $0, to: $1) }, onDragEnded: { dragBaseline = nil })
             .frame(height: 219)
             .overlay {
@@ -114,26 +131,20 @@ struct ReferenceSceneEditorView: View {
                 Section { Button("동선 관리", systemImage: "gearshape") { managing = true } }
             } label: {
                 HStack(spacing: 4) {
-                    Text(current?.name ?? "동선 없음").font(HearFont.pretendard(.semibold, size: 20)).lineLimit(1)
-                    Image(systemName: "chevron.up.chevron.down").font(.system(size: 13, weight: .semibold))
+                    Text(current?.name ?? "동선 없음").font(.system(size: 17, weight: .semibold)).lineLimit(1)
+                    Image(systemName: "chevron.up.chevron.down").font(.system(size: 12, weight: .semibold))
                 }.foregroundStyle(.white).frame(minHeight: 44).contentShape(Rectangle())
             }.accessibilityLabel("\(current?.name ?? "동선 없음"), 동선 선택")
             Spacer()
-            ScanCircleButton(systemImage: "arrow.uturn.backward", label: "실행 취소", size: 36, enabled: !past.isEmpty) { undo() }
-            ScanCircleButton(systemImage: "arrow.uturn.forward", label: "다시 실행", size: 36, enabled: !future.isEmpty) { redo() }
+            HistoryButton(systemImage: "arrow.uturn.backward", label: "실행 취소", enabled: !past.isEmpty) { undo() }
+            HistoryButton(systemImage: "arrow.uturn.forward", label: "다시 실행", enabled: !future.isEmpty) { redo() }
         }
     }
+    /// Figma 971:32821: the system segmented control, large, so it takes the system's own Liquid Glass.
     private var toolPicker: some View {
-        HStack(spacing: 0) {
-            ForEach(ReferenceSceneTool.allCases) { item in
-                Text(item.rawValue).font(HearFont.pretendard(.semibold, size: 14)).foregroundStyle(.white)
-                    .frame(maxWidth: .infinity).frame(height: 40)
-                    .background { if tool == item { Capsule().fill(Color.white.opacity(0.3)) } }
-                    .contentShape(Capsule())
-                    .onTapGesture { withAnimation(.snappy(duration: 0.2)) { tool = item } }
-                    .accessibilityAddTraits(tool == item ? [.isButton, .isSelected] : .isButton)
-            }
-        }.padding(2).background(Color.white.opacity(0.1), in: Capsule())
+        Picker("편집 대상", selection: $tool.animation(.snappy(duration: 0.2))) {
+            ForEach(ReferenceSceneTool.allCases) { Text($0.rawValue).tag($0) }
+        }.pickerStyle(.segmented).controlSize(.large)
     }
     private func pointRows(_ plan: PerformancePlan) -> some View {
         VStack(spacing: 8) {
@@ -141,9 +152,9 @@ struct ReferenceSceneEditorView: View {
                 let label = plan.pointLabel(at: index), name = plan.settings(at: index).name
                 ReferenceEditorRow(selected: selectedPoint == index, onSelect: { selectedPoint = selectedPoint == index ? nil : index }) {
                     Text(label.hasPrefix("P") ? label.map(String.init).joined(separator: " ") : label)
-                        .font(HearFont.pretendard(.semibold, size: 11)).foregroundStyle(.white)
-                        .frame(width: 40, height: 40).background(Color.white.opacity(0.3), in: Circle())
-                    Text(name.isEmpty ? label : name).font(HearFont.pretendard(.medium, size: 16)).foregroundStyle(.white).lineLimit(1)
+                        .font(HearFont.pretendard(.semibold, size: 12)).foregroundStyle(Color(red: 230 / 255, green: 231 / 255, blue: 238 / 255))
+                        .frame(width: 40, height: 40).background(Color(red: 168 / 255, green: 168 / 255, blue: 174 / 255).opacity(0.5), in: Circle())
+                    Text(name.isEmpty ? label : name).font(HearFont.pretendard(.regular, size: 16)).foregroundStyle(.white).lineLimit(1)
                 } menu: {
                     Button("이름 변경", systemImage: "pencil") { renameText = name; renameTarget = .point(index) }
                     if index > 0 && index < plan.points.count - 1 || !plan.finished && index > 0 {
@@ -164,7 +175,7 @@ struct ReferenceSceneEditorView: View {
             }
             ForEach(plan.objects) { object in
                 ReferenceEditorRow(selected: selectedObject == object.id, onSelect: { selectedObject = selectedObject == object.id ? nil : object.id }) {
-                    Text(object.name).font(HearFont.pretendard(.medium, size: 16)).foregroundStyle(.white).lineLimit(1)
+                    Text(object.name).font(HearFont.pretendard(.regular, size: 16)).foregroundStyle(.white).lineLimit(1)
                 } menu: {
                     Button("이름 변경", systemImage: "pencil") { renameText = object.name; renameTarget = .object(object.id) }
                     Button("복제", systemImage: "plus.square.on.square") { duplicate(object) }
@@ -183,10 +194,10 @@ struct ReferenceSceneEditorView: View {
             VStack(spacing: 8) {
                 ForEach(scenes) { plan in
                     ReferenceEditorRow(selected: false, onSelect: { selectedID = plan.id; managing = false }) {
-                        Text(plan.name).font(HearFont.pretendard(.medium, size: 16)).foregroundStyle(.white).lineLimit(1)
+                        Text(plan.name).font(HearFont.pretendard(.regular, size: 16)).foregroundStyle(.white).lineLimit(1)
                         if plan.id == selectedID {
-                            Text("현재 사용 중").font(HearFont.pretendard(.medium, size: 13)).foregroundStyle(HearV3.accent)
-                                .padding(.horizontal, 8).padding(.vertical, 3).background(HearV3.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
+                            // 971:32767: plain green text beside the name, no badge.
+                            Text("현재 사용 중").font(HearFont.pretendard(.regular, size: 13)).foregroundStyle(HearV3.accent)
                         }
                     } menu: {
                         Button("이름 변경", systemImage: "pencil") { renameText = plan.name; renameTarget = .scene(plan.id) }
@@ -208,11 +219,12 @@ struct ReferenceSceneEditorView: View {
 
     // MARK: - Editing
     private func addScene() {
-        var number = scenes.count + 1
-        while scenes.contains(where: { $0.name == "\(number)번 동선" }) { number += 1 }
+        // 971:32668: a new route is 「새 동선」 until renamed; a second one is 「새 동선 2」.
+        var name = "새 동선", number = 1
+        while scenes.contains(where: { $0.name == name }) { number += 1; name = "새 동선 \(number)" }
         snapshot()
-        let plan = Self.newRoute(named: "\(number)번 동선"); scenes.append(plan); dirty = true
-        selectedID = plan.id
+        let plan = Self.newRoute(named: name); scenes.append(plan); dirty = true
+        unlinked.insert(plan.id); selectedID = plan.id
     }
     private func duplicateScene(_ plan: PerformancePlan) {
         snapshot()
@@ -247,6 +259,10 @@ struct ReferenceSceneEditorView: View {
             if plan.points.isEmpty { edit { $0.resumeEditing(); try $0.append(point) }; return }
             if backstageLeft { edit { try $0.movePoint(at: 0, to: point) }; return }
             if backstageRight {
+                // 971:33297: with the points placed, tapping the arrival's backstage joins the last point to it.
+                if unlinked.contains(plan.id) && plan.points.count > 2 {
+                    withAnimation(.snappy(duration: 0.25)) { _ = unlinked.remove(plan.id) }; return
+                }
                 // The last point joins the arrival in the backstage; an arrival already there just moves.
                 if plan.finished { edit { try $0.movePoint(at: $0.points.count - 1, to: point) } }
                 else { edit { $0.resumeEditing(); try $0.append(point); $0.completeReference() } }
@@ -356,6 +372,21 @@ struct ReferenceSceneEditorView: View {
     }
 }
 
+/// Undo and redo (971:32930): 36pt glass circles that stay visible when there is nothing to undo; only the
+/// arrow dims, as in the design.
+private struct HistoryButton: View {
+    let systemImage: String
+    let label: String
+    let enabled: Bool
+    let action: () -> Void
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemImage).font(.system(size: 15, weight: .semibold)).foregroundStyle(.white.opacity(enabled ? 1 : 0.3))
+                .frame(width: 36, height: 36).liquidGlass(Circle(), tint: .white.opacity(0.05), interactive: enabled).contentShape(Circle())
+        }.buttonStyle(.plain).disabled(!enabled).accessibilityLabel(label)
+    }
+}
+
 /// One rounded row of the editor's lists: tap to pick it, ⋯ for its actions.
 private struct ReferenceEditorRow<Content: View, MenuContent: View>: View {
     let selected: Bool
@@ -364,13 +395,15 @@ private struct ReferenceEditorRow<Content: View, MenuContent: View>: View {
     @ViewBuilder let menu: MenuContent
     var body: some View {
         HStack(spacing: 16) {
-            HStack(spacing: 16) { content }.frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
+            HStack(spacing: 18) { content }.frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
                 .onTapGesture(perform: onSelect).accessibilityAddTraits(.isButton)
             Menu { menu } label: {
-                Image(systemName: "ellipsis").font(.system(size: 17, weight: .bold)).foregroundStyle(.white).frame(width: 44, height: 44).contentShape(Rectangle())
+                Image(systemName: "ellipsis").font(.system(size: 20, weight: .semibold)).foregroundStyle(.white).frame(width: 44, height: 44).contentShape(Rectangle())
             }.accessibilityLabel("더보기")
-        }.padding(.leading, 16).padding(.trailing, 6).frame(minHeight: 76)
-            .background(selected ? Color.white.opacity(0.14) : HearV3.surface, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        }.padding(.leading, 17).padding(.trailing, 6).frame(minHeight: 76)
+            // 971:32824: 10% grey rows, 18pt corners; the picked one a little lighter.
+            .background(selected ? Color.white.opacity(0.12) : Color(red: 85 / 255, green: 87 / 255, blue: 89 / 255).opacity(0.1),
+                        in: RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 }
 
