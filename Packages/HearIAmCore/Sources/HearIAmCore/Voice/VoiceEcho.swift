@@ -31,6 +31,20 @@ public enum VoiceEcho {
         return parts.dropFirst(echoed).joined(separator: " ")
     }
 
+    /// The heard words pick one of the items the app is reading out, so they are the user's answer even
+    /// though the same words are in the app's list. 「찐 테스트 일」 and 「누리 랩」 said over the list were
+    /// dropped as echo three times on 11/06 and had to be said again. The app hearing its own list runs on
+    /// past one item (「찐테스트1 누리랩 응가」), so only an answer about one name long counts.
+    public static func isChoice(_ heard: String, names: [String], contexts: [[String]] = []) -> Bool {
+        let request = VoiceStageSearch.normalized(heard)
+        guard !request.isEmpty else { return false }
+        if VoiceStageSearch.ordinal(heard) != nil { return true }
+        guard case .selected(let index) = VoiceStageSearch.resolve(heard, names: names, contexts: contexts) else { return false }
+        let own = [names[index]] + (contexts.indices.contains(index) ? contexts[index] : [])
+        let longest = own.map { VoiceStageSearch.normalized($0).count }.max() ?? 0
+        return request.count <= longest + 2
+    }
+
     private static func words(_ text: String) -> [String] {
         text.split(whereSeparator: \.isWhitespace).map { VoiceStageSearch.normalized(String($0)) }.filter { !$0.isEmpty }
     }
