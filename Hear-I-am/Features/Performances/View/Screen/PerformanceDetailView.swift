@@ -212,41 +212,60 @@ struct PerformanceDetailView: View {
     }
 }
 
-/// 「공간 추가」 (Figma 971:32566 · 971:36428): search places on the map and pick one, or keep the typed name. Before
+/// 「공간 추가」 (Figma 872:3484 · 971:32566 · 971:36428): search places on the map and pick one, or keep the typed name. Before
 /// anything is typed it shows the recent picks and the performance venues around the phone.
 /// Only the place's name is kept; the space has no address field.
 struct PerformanceSpaceSearchSheet: View {
     let onDone: (String) -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var query = ""
-    @State private var results: [MKMapItem] = []
+    @State private var searchResults: [Place] = []
     @State private var searching = false
     @StateObject private var nearby = NearbyVenueFinder()
     @AppStorage("performance.space.recentSearches") private var recentStore = ""
-    fileprivate struct Place: Codable, Hashable { var name: String; var address: String }
+    struct Place: Codable, Hashable { var name: String; var address: String }
     private var recents: [Place] { (try? JSONDecoder().decode([Place].self, from: Data(recentStore.utf8))) ?? [] }
     private var typed: String { query.trimmingCharacters(in: .whitespacesAndNewlines) }
+    private var combinedResults: [Place] {
+        var seen = Set<String>()
+        var merged: [Place] = []
+        for item in nearby.completions + searchResults {
+            let key = "\(item.name)|\(item.address)"
+            if seen.insert(key).inserted {
+                merged.append(item)
+            }
+        }
+        return Array(merged.prefix(20))
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            PerformanceSearchField(text: $query, prompt: "공연장 이름이나 주소 검색", clears: false).padding(.horizontal, 14).padding(.top, 8)
+            PerformanceSearchField(text: $query, prompt: "공연장 이름이나 주소 검색", clears: false)
+                .padding(.horizontal, 14)
+                .padding(.top, 16)
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     if typed.isEmpty {
-                        // 971:32566: 「최근 검색」 then 「주변 공연장」, each a 20pt heading over its rows.
-                        if !recents.isEmpty { section("최근 검색", recents.prefix(3).map { $0 }) }
-                        if !nearby.places.isEmpty { section("주변 공연장", nearby.places.map(Self.place)) }
+                        // 872:3484 · 971:32566: 「최근 검색」 then 「주변 공연장」, each a 20pt heading over its rows.
+                        if !recents.isEmpty { section("최근 검색", recents.prefix(3).map { $0 }, hideLastDivider: false) }
+                        if !nearby.places.isEmpty { section("주변 공연장", nearby.places.map(Self.place), hideLastDivider: true) }
                         if recents.isEmpty && nearby.places.isEmpty {
-                            Text(nearby.searching ? "주변 공연장을 찾고 있어요" : "공연장 이름이나 주소로 찾아보세요")
+                            Text(nearby.searching ? "주변 공연장을 찾고 있어요" : "공연장 이름이나 주소로 검색해보세요")
                                 .font(HearFont.pretendard(.regular, size: 14)).foregroundStyle(HearV3.secondary).frame(maxWidth: .infinity, minHeight: 160)
                         }
                     } else {
                         // 971:36428: the matches straight under the field, no heading.
+                        let matches = combinedResults
                         VStack(spacing: 0) {
-                            if searching && results.isEmpty { ProgressView().frame(maxWidth: .infinity, minHeight: 120) }
-                            ForEach(results.indices, id: \.self) { index in row(Self.place(results[index]), last: index == results.count - 1) }
-                            if !searching && results.isEmpty {
-                                Text("검색 결과가 없어요. 체크를 누르면 「\(typed)」 이름으로 추가해요.").font(HearFont.pretendard(.regular, size: 14))
+                            if (searching || nearby.completing) && matches.isEmpty {
+                                ProgressView().frame(maxWidth: .infinity, minHeight: 120)
+                            }
+                            ForEach(matches.indices, id: \.self) { index in
+                                row(matches[index], last: index == matches.count - 1)
+                            }
+                            if !searching && !nearby.completing && matches.isEmpty {
+                                Text("검색 결과가 없어요. 우측 상단 체크를 누르면 「\(typed)」 이름으로 추가해요.")
+                                    .font(HearFont.pretendard(.regular, size: 14))
                                     .foregroundStyle(HearV3.secondary).multilineTextAlignment(.center).frame(maxWidth: .infinity, minHeight: 120)
                             }
                         }
@@ -261,17 +280,24 @@ struct PerformanceSpaceSearchSheet: View {
             }
             .hearSheet()
             .task { nearby.start() }
+            .onChange(of: typed) { _, newValue in
+                nearby.updateQuery(newValue)
+            }
             .task(id: typed) {
-                guard !typed.isEmpty else { results = []; return }
-                try? await Task.sleep(for: .milliseconds(300))
-                guard !Task.isCancelled else { return }
+                nearby.updateQuery(typed)
+                guard !typed.isEmpty else { searchResults = []; searching = false; return }
                 searching = true
-                let request = MKLocalSearch.Request(); request.naturalLanguageQuery = typed
+                try? await Task.sleep(for: .milliseconds(250))
+                guard !Task.isCancelled else { return }
+                let request = MKLocalSearch.Request()
+                request.naturalLanguageQuery = typed
                 request.resultTypes = [.pointOfInterest, .address]
-                if let region = nearby.region { request.region = region }
+                request.region = nearby.region ?? NearbyVenueFinder.koreaRegion
                 let found = (try? await MKLocalSearch(request: request).start())?.mapItems ?? []
                 guard !Task.isCancelled else { return }
-                results = Array(found.prefix(20)); searching = false
+                let koreanItems = found.filter(NearbyVenueFinder.isKoreanItem)
+                searchResults = Array(koreanItems.map(Self.place).prefix(20))
+                searching = false
             }
             #if DEBUG
             .onAppear {
@@ -288,13 +314,17 @@ struct PerformanceSpaceSearchSheet: View {
             }
             #endif
     }
-    private func section(_ title: String, _ places: [Place]) -> some View {
+    private func section(_ title: String, _ places: [Place], hideLastDivider: Bool) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title).font(HearFont.pretendard(.semibold, size: 20)).tracking(-0.6).foregroundStyle(.white)
-            VStack(spacing: 0) { ForEach(places.indices, id: \.self) { row(places[$0], last: $0 == places.count - 1) } }
+            VStack(spacing: 0) {
+                ForEach(places.indices, id: \.self) { index in
+                    row(places[index], last: hideLastDivider && index == places.count - 1)
+                }
+            }
         }
     }
-    /// 971:32582: the outlined pin in a 30pt column, the name in body text with the drill-in arrow, the address in grey,
+    /// 872:3500 · 971:32582: the outlined pin in a 30pt column, the name in body text with the drill-in arrow, the address in grey,
     /// and a hairline under the text that the pin column stays clear of.
     private func row(_ place: Place, last: Bool) -> some View {
         Button { choose(place) } label: {
@@ -312,7 +342,7 @@ struct PerformanceSpaceSearchSheet: View {
                             Text(place.address).font(.system(size: 15)).tracking(-0.23).foregroundStyle(PerformanceSearchField.grey).lineLimit(1)
                         }
                     }
-                    Rectangle().fill(last ? .clear : .white.opacity(0.2)).frame(height: 0.5)
+                    Rectangle().fill(last ? .clear : .white.opacity(0.2)).frame(height: 1)
                 }.frame(maxWidth: .infinity, alignment: .leading)
             }.padding(8).contentShape(Rectangle())
         }.buttonStyle(.plain)
@@ -326,7 +356,7 @@ struct PerformanceSpaceSearchSheet: View {
         }
         onDone(name)
     }
-    private static func place(_ item: MKMapItem) -> Place {
+    static func place(_ item: MKMapItem) -> Place {
         let mark = item.placemark
         let address = [mark.administrativeArea, mark.locality, mark.subLocality, mark.thoroughfare, mark.subThoroughfare]
             .compactMap { $0 }.reduce(into: [String]()) { if $0.last != $1 { $0.append($1) } }.joined(separator: " ")
@@ -334,14 +364,88 @@ struct PerformanceSpaceSearchSheet: View {
     }
 }
 
-/// Performance venues around the phone for 「주변 공연장」 (971:32566). It asks for the location only while the sheet is
-/// open; without permission the section simply stays away and searching works as before.
-@MainActor final class NearbyVenueFinder: NSObject, ObservableObject, CLLocationManagerDelegate {
+/// Performance venues around the phone for 「주변 공연장」 (872:3484 · 971:32566) and South Korea-only keyword autocomplete.
+@MainActor final class NearbyVenueFinder: NSObject, ObservableObject, CLLocationManagerDelegate, MKLocalSearchCompleterDelegate {
+    static let koreaRegion = MKCoordinateRegion(
+        center: CLLocationCoordinate2D(latitude: 36.35, longitude: 127.85),
+        span: MKCoordinateSpan(latitudeDelta: 5.5, longitudeDelta: 4.5)
+    )
+    private static let defaultKoreaLocation = CLLocation(latitude: 36.0190, longitude: 129.3435)
+    private static let koreanRegions = [
+        "대한민국", "서울", "부산", "대구", "인천", "광주", "대전", "울산", "세종",
+        "경기", "강원", "충북", "충청", "전북", "전라", "경북", "경상", "제주"
+    ]
+
     @Published private(set) var places: [MKMapItem] = []
+    @Published private(set) var completions: [PerformanceSpaceSearchSheet.Place] = []
     @Published private(set) var searching = false
-    /// Where the phone is, so typed searches also favour nearby places.
+    @Published private(set) var completing = false
+    /// Where the phone is (within South Korea), so typed searches also favour nearby Korean places.
     private(set) var region: MKCoordinateRegion?
     private let manager = CLLocationManager()
+    private let completer = MKLocalSearchCompleter()
+
+    override init() {
+        super.init()
+        completer.delegate = self
+        completer.resultTypes = [.pointOfInterest, .address]
+        completer.region = Self.koreaRegion
+    }
+
+    static func isInKorea(_ coordinate: CLLocationCoordinate2D) -> Bool {
+        (33.0...38.9).contains(coordinate.latitude) && (124.5...132.0).contains(coordinate.longitude)
+    }
+
+    static func isKoreanItem(_ item: MKMapItem) -> Bool {
+        if let code = item.placemark.isoCountryCode, !code.isEmpty {
+            return code.uppercased() == "KR"
+        }
+        return isInKorea(item.placemark.coordinate)
+    }
+
+    private static func koreanPlace(from completion: MKLocalSearchCompletion) -> PerformanceSpaceSearchSheet.Place? {
+        let name = completion.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let rawSub = completion.subtitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty, !rawSub.isEmpty, !rawSub.contains("근처 검색") else { return nil }
+        let isKoreanAddress = koreanRegions.contains { rawSub.hasPrefix($0) }
+            || rawSub.hasSuffix("South Korea")
+            || rawSub.hasSuffix("Republic of Korea")
+        guard isKoreanAddress else { return nil }
+        var address = rawSub
+        if address.hasPrefix("대한민국") {
+            address = String(address.dropFirst("대한민국".count))
+                .trimmingCharacters(in: CharacterSet(charactersIn: " ,"))
+        }
+        return PerformanceSpaceSearchSheet.Place(name: name, address: address)
+    }
+
+    func updateQuery(_ query: String) {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            completer.cancel()
+            completions = []
+            completing = false
+            return
+        }
+        completer.region = region ?? Self.koreaRegion
+        if completer.queryFragment != trimmed {
+            completing = true
+            completer.queryFragment = trimmed
+        }
+    }
+
+    nonisolated func completerDidUpdateResults(_ completer: MKLocalSearchCompleter) {
+        let rawResults = completer.results
+        Task { @MainActor in
+            self.completions = rawResults.compactMap(Self.koreanPlace)
+            self.completing = false
+        }
+    }
+
+    nonisolated func completer(_ completer: MKLocalSearchCompleter, didFailWithError error: Error) {
+        Task { @MainActor in self.completing = false }
+    }
+
     func start() {
         manager.delegate = self; manager.desiredAccuracy = kCLLocationAccuracyKilometer
         switch manager.authorizationStatus {
@@ -364,19 +468,27 @@ struct PerformanceSpaceSearchSheet: View {
         Task { @MainActor in searching = false }
     }
     private func find(around location: CLLocation) async {
-        region = MKCoordinateRegion(center: location.coordinate, latitudinalMeters: 20_000, longitudinalMeters: 20_000)
+        let targetLocation = Self.isInKorea(location.coordinate) ? location : Self.defaultKoreaLocation
+        let localRegion = MKCoordinateRegion(center: targetLocation.coordinate, latitudinalMeters: 20_000, longitudinalMeters: 20_000)
+        if Self.isInKorea(location.coordinate) {
+            region = localRegion
+            completer.region = localRegion
+        } else {
+            region = Self.koreaRegion
+            completer.region = Self.koreaRegion
+        }
         // Apple's venue categories are sparse in Korea, so a plain 「공연장」 search around the phone fills in.
-        let request = MKLocalPointsOfInterestRequest(center: location.coordinate, radius: 5_000)
+        let request = MKLocalPointsOfInterestRequest(center: targetLocation.coordinate, radius: 5_000)
         var categories: [MKPointOfInterestCategory] = [.theater]
         if #available(iOS 18.0, *) { categories += [.musicVenue] }
         request.pointOfInterestFilter = MKPointOfInterestFilter(including: categories)
-        var found = (try? await MKLocalSearch(request: request).start())?.mapItems ?? []
+        var found = ((try? await MKLocalSearch(request: request).start())?.mapItems ?? []).filter(Self.isKoreanItem)
         if found.isEmpty {
             let typed = MKLocalSearch.Request(); typed.naturalLanguageQuery = "공연장"; typed.resultTypes = .pointOfInterest
-            typed.region = MKCoordinateRegion(center: location.coordinate, latitudinalMeters: 10_000, longitudinalMeters: 10_000)
-            found = (try? await MKLocalSearch(request: typed).start())?.mapItems ?? []
+            typed.region = MKCoordinateRegion(center: targetLocation.coordinate, latitudinalMeters: 10_000, longitudinalMeters: 10_000)
+            found = ((try? await MKLocalSearch(request: typed).start())?.mapItems ?? []).filter(Self.isKoreanItem)
         }
-        places = Array(found.sorted { ($0.placemark.location?.distance(from: location) ?? 0) < ($1.placemark.location?.distance(from: location) ?? 0) }.prefix(3))
+        places = Array(found.sorted { ($0.placemark.location?.distance(from: targetLocation) ?? 0) < ($1.placemark.location?.distance(from: targetLocation) ?? 0) }.prefix(3))
         searching = false
     }
 }
