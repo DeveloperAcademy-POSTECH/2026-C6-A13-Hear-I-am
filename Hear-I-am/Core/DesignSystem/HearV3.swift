@@ -141,6 +141,24 @@ extension View {
     }
 }
 
+extension UINavigationController: @retroactive UIGestureRecognizerDelegate {
+    override open func viewDidLoad() {
+        super.viewDidLoad()
+        interactivePopGestureRecognizer?.delegate = self
+    }
+
+    public func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        viewControllers.count > 1 && transitionCoordinator == nil
+    }
+
+    public func gestureRecognizer(
+        _ gestureRecognizer: UIGestureRecognizer,
+        shouldBeRequiredToFailBy otherGestureRecognizer: UIGestureRecognizer
+    ) -> Bool {
+        viewControllers.count > 1
+    }
+}
+
 /// The sheet surface: near-black glass a step lighter than the page, brightening toward the lower right, with the
 /// light catching its top-left rim.
 struct HearSheetBackground: View {
@@ -322,6 +340,12 @@ private struct SidewaysPan: UIGestureRecognizerRepresentable {
             guard let pan=recognizer as? UIPanGestureRecognizer else {return true}
             let velocity=pan.velocity(in:pan.view)
             return abs(velocity.x)>abs(velocity.y)*1.2
+        }
+        func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldRequireFailureOf otherGestureRecognizer: UIGestureRecognizer
+        ) -> Bool {
+            otherGestureRecognizer is UIScreenEdgePanGestureRecognizer
         }
     }
 }
