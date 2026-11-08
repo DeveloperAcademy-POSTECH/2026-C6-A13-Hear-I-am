@@ -148,9 +148,10 @@ struct PerformanceDetailView: View {
             HStack {
                 PerformanceSectionTitle(text: "기본 동선")
                 Spacer()
-                // 편집 opens the saved route the carousel is showing: a scanned scene in its space, a drawn route in the editor.
+                // 편집 always opens the route editor; on a drawn route's card it opens on that route.
                 Button {
-                    if let focused, focused.isScan { open(focused) } else { selectedSceneID = focused?.id ?? plans.first?.id; editingScenes = true }
+                    selectedSceneID = plans.contains { $0.id == focused?.id } ? focused?.id : plans.first?.id
+                    editingScenes = true
                 } label: { PerformanceOutlineButtonLabel(title: "편집", systemImage: "pencil") }
                     .buttonStyle(.plain).accessibilityIdentifier("performance.scenes.edit")
             }.padding(.horizontal, 20)
