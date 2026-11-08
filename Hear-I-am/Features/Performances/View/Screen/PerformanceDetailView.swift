@@ -135,7 +135,8 @@ struct PerformanceDetailView: View {
             HStack {
                 PerformanceSectionTitle(text: "기본 동선")
                 Spacer()
-                Button { selectedSceneID = plans.first?.id; editingScenes = true } label: { PerformanceOutlineButtonLabel(title: "편집", systemImage: "pencil") }
+                // 편집 opens the saved route the carousel is showing, not always the first one.
+                Button { selectedSceneID = focused?.id ?? plans.first?.id; editingScenes = true } label: { PerformanceOutlineButtonLabel(title: "편집", systemImage: "pencil") }
                     .buttonStyle(.plain).accessibilityIdentifier("performance.scenes.edit")
             }.padding(.horizontal, 20)
             if cards.isEmpty {
