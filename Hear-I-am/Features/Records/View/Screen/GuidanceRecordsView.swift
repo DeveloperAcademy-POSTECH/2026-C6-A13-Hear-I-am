@@ -14,6 +14,9 @@ struct GuidanceRecordsView: View {
     /// Venue names to keep; empty keeps every record.
     @State private var venueFilter: Set<String> = []
     @State private var choosingVenues=false
+    @State private var opened: UUID?
+    @State private var deleting: GuidanceRecord?
+    @State private var deleteError: String?
 
     var body: some View {
         NavigationStack {
@@ -33,11 +36,11 @@ struct GuidanceRecordsView: View {
                     } else {
                         LazyVStack(spacing:4) {
                             ForEach(records) {record in
-                                NavigationLink {GuidanceRecordDetail(record:record,library:library)} label: {
+                                // Slides left to delete, as the performance list does.
+                                HearSwipeDeleteRow(onOpen:{opened=record.id},onDelete:{deleting=record}) {
                                     GuidanceRecordRow(title:title(record),date:record.completedAt,venue:venue(record),
                                                       duration:record.activeSeconds,points:record.reachedPointCount)
-                                }.buttonStyle(.plain)
-                                    .accessibilityIdentifier("records.\(record.id)")
+                                }.accessibilityIdentifier("records.\(record.id)")
                             }
                         }
                     }
@@ -51,6 +54,20 @@ struct GuidanceRecordsView: View {
                 }
                 .task {await reloadRecords()}
                 .refreshable {await reloadRecords()}
+                .navigationDestination(item:$opened) {id in
+                    if let record=library.guidanceRecords.first(where:{$0.id == id}) {GuidanceRecordDetail(record:record,library:library)}
+                }
+                .hearConfirm("이 기록을 삭제할까요?",isPresented:Binding(get:{deleting != nil},set:{if !$0 {deleting=nil}}),
+                             message:"\(deleting.map(GuidanceRecordDetail.dateLabel) ?? "") 기록이 삭제돼요.\n삭제한 기록은 복구할 수 없어요.") {
+                    guard let record=deleting else {return}
+                    Task {
+                        do {try await library.deleteGuidanceRecord(record.id)}
+                        catch {deleteError=error.localizedDescription}
+                    }
+                }
+                .alert("삭제하지 못했어요",isPresented:Binding(get:{deleteError != nil},set:{if !$0 {deleteError=nil}})) {
+                    Button("확인",role:.cancel) {deleteError=nil}
+                } message: {Text(deleteError ?? "")}
                 .sheet(isPresented:$choosingVenues) {
                     PerformanceVenueFilterSheet(names:venueNames,selection:venueFilter) {venueFilter=$0}
                 }

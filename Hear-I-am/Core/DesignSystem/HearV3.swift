@@ -211,8 +211,10 @@ extension View {
 
 // MARK: - Swipe to delete
 
-/// A list row that slides left to show a delete button, as in Mail; a long swipe asks straight away. Tapping the
-/// row opens it, or closes the button when it is showing.
+/// A list row that slides left to show a delete button, as in Notes. A short slide leaves the round button open;
+/// tapping it deletes. Pulling further stretches the button with the finger, and past most of the row it snaps
+/// its icon to the leading edge with a tap in the hand; letting go there deletes. Tapping the row opens it, or
+/// closes the button when it is showing. Deleting goes through `onDelete`, which asks before anything is removed.
 struct HearSwipeDeleteRow<Content: View>: View {
     let onOpen: () -> Void
     let onDelete: () -> Void
@@ -220,31 +222,63 @@ struct HearSwipeDeleteRow<Content: View>: View {
     @State private var offset: CGFloat=0
     @State private var start: CGFloat?
     @State private var horizontal: Bool?
-    private let reveal: CGFloat=78
+    @State private var width: CGFloat=0
+    /// How far the row rests when the button is open: the 56pt button and a 10pt gap either side.
+    private let reveal: CGFloat=76
+    private let gap: CGFloat=10
+    private var pull: CGFloat {max(0,-offset)}
+    /// Past this the release deletes; the button has stretched over most of the row.
+    private var commitDistance: CGFloat {max(reveal*2,width*0.6)}
+    private var committing: Bool {pull>commitDistance}
     var body: some View {
         ZStack(alignment:.trailing) {
-            Button {settle(0);onDelete()} label: {
-                Image(systemName:"trash").font(.system(size:18,weight:.semibold)).foregroundStyle(.black)
-                    .frame(width:56,height:56).background(.white,in:Circle())
-            }.buttonStyle(.plain).frame(width:reveal).opacity(min(1,-offset/reveal)).scaleEffect(0.6+0.4*min(1,-offset/reveal))
-                .accessibilityHidden(true)
-            swipe(content.offset(x:offset).contentShape(Rectangle())
+            deleteButton
+            // The tap and the slide sit before the offset, so the row's touch area moves with it and no longer
+            // covers the button underneath (the button never received a tap before).
+            swipe(content.contentShape(Rectangle())
                 .onTapGesture {if offset != 0 {settle(0)} else {onOpen()}})
-        }.accessibilityElement(children:.combine).accessibilityAddTraits(.isButton)
+                .offset(x:offset)
+        }.onGeometryChange(for:CGFloat.self) {$0.size.width} action: {width=$0}
+            .sensoryFeedback(.impact(weight:.medium),trigger:committing) {_,now in now}
+            .accessibilityElement(children:.combine).accessibilityAddTraits(.isButton)
             .accessibilityAction {onOpen()}
             .accessibilityAction(named:"삭제",onDelete)
+            #if DEBUG
+            // Shows every row pulled by N points, to check the button at rest, stretched and past the delete point.
+            .onAppear {
+                let args=ProcessInfo.processInfo.arguments
+                if let i=args.firstIndex(of:"--swipe-preview"),args.count>i+1,let value=Double(args[i+1]) {offset = -CGFloat(value)}
+            }
+            #endif
+    }
+    /// White on the dark page, black icon, as the app's other delete actions. It fills the gap the row leaves and
+    /// grows from a circle into a long capsule as the row is pulled.
+    private var deleteButton: some View {
+        let size=max(0,pull-gap*2)
+        let shown=min(1,pull/reveal)
+        return Button {settle(0);onDelete()} label: {
+            ZStack(alignment:committing ? .leading : .center) {
+                Capsule().fill(.white)
+                Image(systemName:"trash").font(.system(size:18,weight:.semibold)).foregroundStyle(.black)
+                    .frame(width:56,height:56)
+            }.frame(width:max(56*shown,size),height:56*max(0.6,shown))
+                .animation(.spring(duration:0.25,bounce:0.2),value:committing)
+        }.buttonStyle(.plain).padding(.trailing,gap).opacity(shown)
+            .allowsHitTesting(pull>=reveal-1).accessibilityHidden(true)
     }
     private func settle(_ value: CGFloat) {withAnimation(.spring(duration:0.3,bounce:0.15)) {offset=value}}
     private func moved(_ translation: CGFloat) {
         if start == nil {start=offset}
         let raw=(start ?? 0)+translation
-        offset=raw>0 ? raw*0.15 : raw
+        // Past the row's own width the pull only stretches a little more.
+        offset=raw>0 ? raw*0.15 : (raw < -width ? -width+(raw+width)*0.2 : raw)
     }
     private func finished(_ predicted: CGFloat) {
         defer {horizontal=nil;start=nil}
         let end=(start ?? 0)+predicted
-        if end < -260 {settle(0);onDelete()}
-        else {settle(end < -reveal/2 ? -reveal : 0)}
+        // A long pull, or a hard flick that would carry the row nearly off, deletes.
+        if committing || end < -width*0.9 {settle(0);onDelete();return}
+        settle(end < -reveal/2 ? -reveal : 0)
     }
     /// A SwiftUI drag inside a scroll view holds on to every touch from iOS 18, so pressing a row and moving up or
     /// down stopped the page from scrolling. There a UIKit pan that only starts for a sideways move takes the slide,
