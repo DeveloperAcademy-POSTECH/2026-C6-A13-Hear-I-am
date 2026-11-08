@@ -53,7 +53,7 @@ struct HomeView: View {
     /// One screen before and after the call: only the grey line changes, so calling feels like the same
     /// conversation going on. A tap anywhere on it starts listening without the wake phrase.
     private var prompt:some View {
-        VoiceWaitingPrompt(subtitle:wake.awake ? "듣고 있어요" : "HearIam을 불러주세요",animating:animating)
+        VoiceWaitingPrompt(subtitle:wake.awake ? "듣고 있어요" : "Hear I am을 불러주세요",animating:animating)
             .ignoresSafeArea()
             .contentShape(Rectangle())
             .onTapGesture {if !wake.awake {wake.beginConversation()}}

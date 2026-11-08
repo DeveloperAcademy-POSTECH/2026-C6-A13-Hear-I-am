@@ -60,7 +60,7 @@ enum GuidanceModeChoice: String, AppEnum {
 }
 
 struct StartVoiceGuidanceIntent: AppIntent {
-    static let title: LocalizedStringResource="HearIam으로 안내 시작"
+    static let title: LocalizedStringResource="Hear I am으로 안내 시작"
     static let description=IntentDescription("앱을 열고 말로 무대를 골라 안내를 시작해요. 무대와 사용 방식을 함께 말하면 그 단계로 바로 넘어가요.")
     static let openAppWhenRun=true
 
