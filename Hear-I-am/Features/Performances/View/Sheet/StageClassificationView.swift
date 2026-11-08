@@ -184,7 +184,11 @@ struct StageInformationFields: View {
         }
         .navigationDestination(isPresented: $choosingPerformance) {
             PerformanceChoiceSheet(library: library, selection: performanceID) { id in
-                if performanceID != id { venueID = nil }; performanceID = id
+                if performanceID != id {
+                    let venues = library.performanceFolders.first { $0.id == id }?.venues ?? []
+                    venueID = venues.count == 1 ? venues[0].id : nil
+                }
+                performanceID = id
             }.suspendsVoiceWake()
         }
         .navigationDestination(isPresented: $choosingVenue) {
@@ -359,7 +363,27 @@ struct VenueChoiceSheet: View {
                 Button { creating = true } label: { HearTopButtonLabel(systemImage: "plus", prominent: true) }
                     .buttonStyle(.plain).accessibilityLabel("새 공간")
             }
-            .sheet(isPresented: $creating) { VenueEditorSheet(library: library, performanceID: performanceID) { id in onSelect(id); dismiss() } }
+            .sheet(isPresented: $creating) {
+                PerformanceSpaceSearchSheet { name in
+                    creating = false
+                    saveVenue(named: name)
+                }.suspendsVoiceWake()
+            }
+    }
+    private func saveVenue(named name: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        if let existing = folder?.venues.first(where: { $0.name == trimmed }) {
+            onSelect(existing.id)
+            dismiss()
+            return
+        }
+        Task {
+            if let created = try? await library.createVenue(name: trimmed, in: performanceID) {
+                onSelect(created.id)
+                dismiss()
+            }
+        }
     }
 }
 
