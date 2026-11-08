@@ -23,13 +23,22 @@ struct ReferenceSceneEditorView: View {
     @State private var message: String?
     @State private var saving = false
     @State private var dirty = false
+    /// Routes made in this session whose last point is not yet joined to the arrival (971:33297): tapping the
+    /// backstage strip that holds the arrival joins them.
+    @State private var unlinked: Set<UUID> = []
+    /// Scanned scenes shown beside the drawn routes; saving writes an edited one back to its scan.
+    private let scanned: [UUID: ScanRouteBridge]
     @Environment(\.dismiss) private var dismiss
     init(library: StageLibrary, performanceID: UUID, initialSceneID: UUID? = nil) {
         self.library = library; self.performanceID = performanceID
-        var loaded = library.referencePlans(for: performanceID)
-        if loaded.isEmpty { loaded = [Self.newRoute(named: "1번 동선")] }
+        // The same order as the 기본 동선 carousel: each space's scanned routes, the unfiled ones, then drawn routes.
+        let bridges = ScanRouteBridge.all(in: library, performanceID: performanceID)
+        scanned = Dictionary(bridges.map { ($0.scanID, $0) }, uniquingKeysWith: { a, _ in a })
+        var loaded = bridges.map(\.plan) + library.referencePlans(for: performanceID)
+        if loaded.isEmpty { loaded = [Self.newRoute(named: "새 동선")] }
         for index in loaded.indices { loaded[index].isReferenceOnly = true }
         _scenes = State(initialValue: loaded)
+        _unlinked = State(initialValue: loaded.count == 1 && loaded[0].points.count <= 2 ? [loaded[0].id] : [])
         _selectedID = State(initialValue: loaded.contains(where: { $0.id == initialSceneID }) ? initialSceneID : loaded.first?.id)
     }
     /// A new route starts with its start and arrival waiting in the two backstage strips (971:32668).
@@ -53,19 +62,35 @@ struct ReferenceSceneEditorView: View {
                 }
                 .navigationDestination(isPresented: $managing) { manageList }
                 .disabled(saving).interactiveDismissDisabled(dirty || saving)
-                .onChange(of: selectedID) { selectedObject = nil; selectedPoint = nil; dragBaseline = nil }
+                .onChange(of: selectedID) { _, id in
+                    selectedObject = nil; selectedPoint = nil; dragBaseline = nil
+                    if let id, scanned[id] != nil { tool = .point }
+                }
                 .onChange(of: tool) { selectedObject = nil; selectedPoint = nil; dragBaseline = nil }
                 .confirmationDialog("저장하지 않은 변경사항이 있어요", isPresented: $confirmExit, titleVisibility: .visible) {
                     Button("저장하지 않고 나가기", role: .destructive) { dismiss() }; Button("계속 편집", role: .cancel) { }
                 }
-                .alert(renameTarget?.title ?? "이름 변경", isPresented: Binding(get: { renameTarget != nil }, set: { if !$0 { renameTarget = nil } })) {
-                    TextField("이름", text: $renameText)
-                    Button("취소", role: .cancel) { renameTarget = nil }
-                    Button("저장") { rename() }.disabled(renameText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || renameText.count > 80)
-                }
+                .modifier(renameAlert(shown: !managing))
                 .alert("확인해주세요", isPresented: Binding(get: { message != nil }, set: { if !$0 { message = nil } })) {
                     Button("확인", role: .cancel) { message = nil }
                 } message: { Text(message ?? "") }
+                #if DEBUG
+                .onAppear {
+                    // Preview states for the editor screens: a fresh route, a picked point, the obstacle tab, the list.
+                    let args = ProcessInfo.processInfo.arguments
+                    if args.contains("--editor-new") { addScene(); past.removeAll() }
+                    if let i = args.firstIndex(of: "--editor-point"), args.count > i + 1, let n = Int(args[i + 1]) { selectedPoint = n }
+                    if args.contains("--editor-obstacles") {
+                        tool = .obstacle
+                        DispatchQueue.main.async { selectedObject = current?.objects.first?.id }
+                    }
+                    if args.contains("--editor-manage") { managing = true }
+                    if args.contains("--editor-rename"), let plan = scenes.first {
+                        managing = true
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { renameText = plan.name; renameTarget = .scene(plan.id) }
+                    }
+                }
+                #endif
         }.v3Screen()
     }
 
@@ -74,9 +99,14 @@ struct ReferenceSceneEditorView: View {
             routeHeader.padding(.top, 8)
             if let plan = current {
                 canvas(plan).padding(.top, 16)
-                Text("객석").font(HearFont.pretendard(.regular, size: 12)).foregroundStyle(HearV3.secondary)
+                Text("객석").font(.system(size: 12, weight: .semibold)).tracking(-0.08).foregroundStyle(Color(white: 0.62))
                     .frame(maxWidth: .infinity).padding(.top, 12)
-                toolPicker.padding(.top, 24)
+                if scanned[plan.id] == nil { toolPicker.padding(.top, 24) }
+                else {
+                    // A scanned stage keeps its measured size and objects; only its route changes here.
+                    Text("스캔한 무대예요. 무대 크기와 장애물은 그대로 두고 동선만 바꿀 수 있어요.")
+                        .font(HearFont.pretendard(.regular, size: 13)).foregroundStyle(HearV3.secondary).padding(.top, 24)
+                }
                 Group { if tool == .point { pointRows(plan) } else { objectRows(plan) } }.padding(.top, 16)
             } else {
                 VStack(spacing: 16) {
@@ -89,7 +119,7 @@ struct ReferenceSceneEditorView: View {
     }
     @ViewBuilder private func canvas(_ plan: PerformancePlan) -> some View {
         ReferencePlanCanvas(plan: plan, editing: true, selectedObject: tool == .obstacle ? selectedObject : nil,
-                            selectedPoint: tool == .point ? selectedPoint : nil,
+                            selectedPoint: tool == .point ? selectedPoint : nil, arrivalLinked: !unlinked.contains(plan.id),
                             onTap: { tap($0) }, onDragChanged: { drag(from: $0, to: $1) }, onDragEnded: { dragBaseline = nil })
             .frame(height: 219)
             .overlay {
@@ -106,7 +136,7 @@ struct ReferenceSceneEditorView: View {
                 Section("동선") {
                     ForEach(scenes) { plan in
                         Button { selectedID = plan.id } label: {
-                            if plan.id == selectedID { Label(plan.name, systemImage: "checkmark") } else { Text(plan.name) }
+                            if plan.id == selectedID { Label(menuName(plan), systemImage: "checkmark") } else { Text(menuName(plan)) }
                         }
                     }
                 }
@@ -114,26 +144,19 @@ struct ReferenceSceneEditorView: View {
                 Section { Button("동선 관리", systemImage: "gearshape") { managing = true } }
             } label: {
                 HStack(spacing: 4) {
-                    Text(current?.name ?? "동선 없음").font(HearFont.pretendard(.semibold, size: 20)).lineLimit(1)
-                    Image(systemName: "chevron.up.chevron.down").font(.system(size: 13, weight: .semibold))
+                    Text(current.map(menuName) ?? "동선 없음").font(.system(size: 17, weight: .semibold)).lineLimit(1)
+                    Image(systemName: "chevron.up.chevron.down").font(.system(size: 12, weight: .semibold))
                 }.foregroundStyle(.white).frame(minHeight: 44).contentShape(Rectangle())
             }.accessibilityLabel("\(current?.name ?? "동선 없음"), 동선 선택")
             Spacer()
-            ScanCircleButton(systemImage: "arrow.uturn.backward", label: "실행 취소", size: 36, enabled: !past.isEmpty) { undo() }
-            ScanCircleButton(systemImage: "arrow.uturn.forward", label: "다시 실행", size: 36, enabled: !future.isEmpty) { redo() }
+            HistoryButton(systemImage: "arrow.uturn.backward", label: "실행 취소", enabled: !past.isEmpty) { undo() }
+            HistoryButton(systemImage: "arrow.uturn.forward", label: "다시 실행", enabled: !future.isEmpty) { redo() }
         }
     }
+    /// Figma 971:32821: 포인트 · 장애물 on a glass track with a glass thumb, so it reads as Liquid Glass at rest too,
+    /// not only while the system control is being dragged. Tap a side or slide the thumb across.
     private var toolPicker: some View {
-        HStack(spacing: 0) {
-            ForEach(ReferenceSceneTool.allCases) { item in
-                Text(item.rawValue).font(HearFont.pretendard(.semibold, size: 14)).foregroundStyle(.white)
-                    .frame(maxWidth: .infinity).frame(height: 40)
-                    .background { if tool == item { Capsule().fill(Color.white.opacity(0.3)) } }
-                    .contentShape(Capsule())
-                    .onTapGesture { withAnimation(.snappy(duration: 0.2)) { tool = item } }
-                    .accessibilityAddTraits(tool == item ? [.isButton, .isSelected] : .isButton)
-            }
-        }.padding(2).background(Color.white.opacity(0.1), in: Capsule())
+        ReferenceToolPicker(selection: $tool)
     }
     private func pointRows(_ plan: PerformancePlan) -> some View {
         VStack(spacing: 8) {
@@ -141,9 +164,9 @@ struct ReferenceSceneEditorView: View {
                 let label = plan.pointLabel(at: index), name = plan.settings(at: index).name
                 ReferenceEditorRow(selected: selectedPoint == index, onSelect: { selectedPoint = selectedPoint == index ? nil : index }) {
                     Text(label.hasPrefix("P") ? label.map(String.init).joined(separator: " ") : label)
-                        .font(HearFont.pretendard(.semibold, size: 11)).foregroundStyle(.white)
-                        .frame(width: 40, height: 40).background(Color.white.opacity(0.3), in: Circle())
-                    Text(name.isEmpty ? label : name).font(HearFont.pretendard(.medium, size: 16)).foregroundStyle(.white).lineLimit(1)
+                        .font(HearFont.pretendard(.semibold, size: 12)).foregroundStyle(Color(red: 230 / 255, green: 231 / 255, blue: 238 / 255))
+                        .frame(width: 40, height: 40).background(Color(red: 168 / 255, green: 168 / 255, blue: 174 / 255).opacity(0.5), in: Circle())
+                    Text(name.isEmpty ? label : name).font(HearFont.pretendard(.regular, size: 16)).foregroundStyle(.white).lineLimit(1)
                 } menu: {
                     Button("이름 변경", systemImage: "pencil") { renameText = name; renameTarget = .point(index) }
                     if index > 0 && index < plan.points.count - 1 || !plan.finished && index > 0 {
@@ -164,7 +187,7 @@ struct ReferenceSceneEditorView: View {
             }
             ForEach(plan.objects) { object in
                 ReferenceEditorRow(selected: selectedObject == object.id, onSelect: { selectedObject = selectedObject == object.id ? nil : object.id }) {
-                    Text(object.name).font(HearFont.pretendard(.medium, size: 16)).foregroundStyle(.white).lineLimit(1)
+                    Text(object.name).font(HearFont.pretendard(.regular, size: 16)).foregroundStyle(.white).lineLimit(1)
                 } menu: {
                     Button("이름 변경", systemImage: "pencil") { renameText = object.name; renameTarget = .object(object.id) }
                     Button("복제", systemImage: "plus.square.on.square") { duplicate(object) }
@@ -183,15 +206,18 @@ struct ReferenceSceneEditorView: View {
             VStack(spacing: 8) {
                 ForEach(scenes) { plan in
                     ReferenceEditorRow(selected: false, onSelect: { selectedID = plan.id; managing = false }) {
-                        Text(plan.name).font(HearFont.pretendard(.medium, size: 16)).foregroundStyle(.white).lineLimit(1)
+                        Text(menuName(plan)).font(HearFont.pretendard(.regular, size: 16)).foregroundStyle(.white).lineLimit(1)
                         if plan.id == selectedID {
-                            Text("현재 사용 중").font(HearFont.pretendard(.medium, size: 13)).foregroundStyle(HearV3.accent)
-                                .padding(.horizontal, 8).padding(.vertical, 3).background(HearV3.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
+                            // 971:32767: plain green text beside the name, no badge.
+                            Text("현재 사용 중").font(HearFont.pretendard(.regular, size: 13)).foregroundStyle(HearV3.accent)
                         }
                     } menu: {
                         Button("이름 변경", systemImage: "pencil") { renameText = plan.name; renameTarget = .scene(plan.id) }
                         Button("복제", systemImage: "plus.square.on.square") { duplicateScene(plan) }
-                        Section { Button("동선 삭제", systemImage: "trash", role: .destructive) { deletingRoute = plan } }
+                        // A scanned route goes with its scan, deleted from its space; here it can only be edited.
+                        if scanned[plan.id] == nil {
+                            Section { Button("동선 삭제", systemImage: "trash", role: .destructive) { deletingRoute = plan } }
+                        }
                     }
                 }
                 if scenes.isEmpty {
@@ -199,6 +225,8 @@ struct ReferenceSceneEditorView: View {
                 }
             }.padding(.horizontal, 16).padding(.top, 8)
         }.v3Screen().hearTopBar("동선 관리") { HearBackButton() } trailing: { EmptyView() }
+            // The rename box opens on this page; on the editor underneath it only appeared after going back.
+            .modifier(renameAlert(shown: managing))
             // Figma 971:36590: deleting a route asks like deleting a folder.
             .hearConfirm("‘\(deletingRoute?.name ?? "")’ 동선을 삭제할까요?", isPresented: Binding(get: { deletingRoute != nil }, set: { if !$0 { deletingRoute = nil } }),
                          message: "체크를 눌러 저장하면 이 동선이 삭제돼요.\n스캔한 무대에는 영향을 주지 않아요.") {
@@ -206,13 +234,25 @@ struct ReferenceSceneEditorView: View {
             }
     }
 
+    /// The rename box, attached to whichever page is on top: the editor or 「동선 관리」.
+    private func renameAlert(shown: Bool) -> ReferenceRenameAlert {
+        ReferenceRenameAlert(title: renameTarget?.title ?? "이름 변경",
+                             isPresented: Binding(get: { shown && renameTarget != nil }, set: { if !$0 { renameTarget = nil } }),
+                             text: $renameText, onCancel: { renameTarget = nil }, onSave: rename)
+    }
+    /// A scanned route says which space it is from, 「CGV(커튼콜)」, as on the performance page.
+    private func menuName(_ plan: PerformancePlan) -> String {
+        scanned[plan.id].map { "\($0.venueName)(\(plan.name))" } ?? plan.name
+    }
+
     // MARK: - Editing
     private func addScene() {
-        var number = scenes.count + 1
-        while scenes.contains(where: { $0.name == "\(number)번 동선" }) { number += 1 }
+        // 971:32668: a new route is 「새 동선」 until renamed; a second one is 「새 동선 2」.
+        var name = "새 동선", number = 1
+        while scenes.contains(where: { $0.name == name }) { number += 1; name = "새 동선 \(number)" }
         snapshot()
-        let plan = Self.newRoute(named: "\(number)번 동선"); scenes.append(plan); dirty = true
-        selectedID = plan.id
+        let plan = Self.newRoute(named: name); scenes.append(plan); dirty = true
+        unlinked.insert(plan.id); selectedID = plan.id
     }
     private func duplicateScene(_ plan: PerformancePlan) {
         snapshot()
@@ -235,8 +275,10 @@ struct ReferenceSceneEditorView: View {
             plan.objects.append(copy); selectedObject = copy.id
         }
     }
+    /// A scanned route's stage and obstacles stay as measured; only its points move.
+    private var routeOnly: Bool { current.map { scanned[$0.id] != nil } ?? false }
     private func tap(_ point: FloorPoint) {
-        guard let plan = current else { return }
+        guard let plan = current, tool == .point || !routeOnly else { return }
         if tool == .point {
             if let index = plan.points.indices.min(by: { plan.points[$0].distance(to: point) < plan.points[$1].distance(to: point) }),
                plan.points[index].distance(to: point) < 0.5 {
@@ -247,6 +289,10 @@ struct ReferenceSceneEditorView: View {
             if plan.points.isEmpty { edit { $0.resumeEditing(); try $0.append(point) }; return }
             if backstageLeft { edit { try $0.movePoint(at: 0, to: point) }; return }
             if backstageRight {
+                // 971:33297: with the points placed, tapping the arrival's backstage joins the last point to it.
+                if unlinked.contains(plan.id) && plan.points.count > 2 {
+                    withAnimation(.snappy(duration: 0.25)) { _ = unlinked.remove(plan.id) }; return
+                }
                 // The last point joins the arrival in the backstage; an arrival already there just moves.
                 if plan.finished { edit { try $0.movePoint(at: $0.points.count - 1, to: point) } }
                 else { edit { $0.resumeEditing(); try $0.append(point); $0.completeReference() } }
@@ -268,7 +314,7 @@ struct ReferenceSceneEditorView: View {
         }
     }
     private func drag(from start: FloorPoint, to end: FloorPoint) {
-        guard let index = selectedIndex else { return }
+        guard let index = selectedIndex, tool == .point || !routeOnly else { return }
         var plan = dragBaseline ?? scenes[index]
         do {
             if tool == .point {
@@ -308,7 +354,16 @@ struct ReferenceSceneEditorView: View {
         guard !saving else { return }; saving = true
         Task {
             do {
-                for var plan in scenes { plan.completeReference(); try await library.savePerformancePlan(plan, for: performanceID) }
+                for var plan in scenes {
+                    plan.completeReference()
+                    if let bridge = scanned[plan.id] {
+                        // A scanned route is written back to its scan, and only when it changed.
+                        var opened = bridge.plan; opened.completeReference()
+                        var geometry = plan; geometry.name = opened.name
+                        if geometry != opened { try await library.updateScanRoute(plan.id, route: bridge.route(from: plan)) }
+                        if plan.name != opened.name { try await library.renameStage(plan.id, to: plan.name) }
+                    } else { try await library.savePerformancePlan(plan, for: performanceID) }
+                }
                 for id in removedSceneIDs {
                     // An unsaved route can be added and removed in the same editing session.
                     // Also allow retry after an earlier deletion in this batch already succeeded.
@@ -356,6 +411,21 @@ struct ReferenceSceneEditorView: View {
     }
 }
 
+/// Undo and redo (971:32930): 36pt glass circles that stay visible when there is nothing to undo; only the
+/// arrow dims, as in the design.
+private struct HistoryButton: View {
+    let systemImage: String
+    let label: String
+    let enabled: Bool
+    let action: () -> Void
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemImage).font(.system(size: 15, weight: .semibold)).foregroundStyle(.white.opacity(enabled ? 1 : 0.3))
+                .frame(width: 36, height: 36).liquidGlass(Circle(), tint: .white.opacity(0.05), interactive: enabled).contentShape(Circle())
+        }.buttonStyle(.plain).disabled(!enabled).accessibilityLabel(label)
+    }
+}
+
 /// One rounded row of the editor's lists: tap to pick it, ⋯ for its actions.
 private struct ReferenceEditorRow<Content: View, MenuContent: View>: View {
     let selected: Bool
@@ -364,13 +434,15 @@ private struct ReferenceEditorRow<Content: View, MenuContent: View>: View {
     @ViewBuilder let menu: MenuContent
     var body: some View {
         HStack(spacing: 16) {
-            HStack(spacing: 16) { content }.frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
+            HStack(spacing: 18) { content }.frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
                 .onTapGesture(perform: onSelect).accessibilityAddTraits(.isButton)
             Menu { menu } label: {
-                Image(systemName: "ellipsis").font(.system(size: 17, weight: .bold)).foregroundStyle(.white).frame(width: 44, height: 44).contentShape(Rectangle())
+                Image(systemName: "ellipsis").font(.system(size: 20, weight: .semibold)).foregroundStyle(.white).frame(width: 44, height: 44).contentShape(Rectangle())
             }.accessibilityLabel("더보기")
-        }.padding(.leading, 16).padding(.trailing, 6).frame(minHeight: 76)
-            .background(selected ? Color.white.opacity(0.14) : HearV3.surface, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        }.padding(.leading, 17).padding(.trailing, 6).frame(minHeight: 76)
+            // 971:32824: 10% grey rows, 18pt corners; the picked one a little lighter.
+            .background(selected ? Color.white.opacity(0.12) : Color(red: 85 / 255, green: 87 / 255, blue: 89 / 255).opacity(0.1),
+                        in: RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 }
 
@@ -397,5 +469,127 @@ private enum ReferenceRenameTarget {
     case scene(UUID), object(UUID), point(Int)
     var title: String {
         switch self { case .scene: return "동선 이름 변경"; case .object: return "장애물 이름 변경"; case .point: return "지점 이름 변경" }
+    }
+}
+
+/// A scanned scene's route laid onto the 12 × 8 schematic so the route editor can show and edit it, and back again
+/// onto the measured stage on save. Each axis scales on its own; heights follow the nearest measured point.
+struct ScanRouteBridge {
+    let scanID: UUID
+    let venueName: String
+    let venueID: UUID?
+    let route: StageRoute
+    /// The schematic as it was opened; an untouched route is not written back.
+    let plan: PerformancePlan
+    private let sx: Double, sy: Double
+    init?(scan: ScanManifest, venueName: String, venueID: UUID?) {
+        guard let route = scan.route, route.points.count >= 2, route.area.width > 0.1, route.area.depth > 0.1 else { return nil }
+        scanID = scan.id; self.venueName = venueName; self.venueID = venueID; self.route = route
+        let sx = PerformancePlan.width / route.area.width, sy = PerformancePlan.depth / route.area.depth
+        self.sx = sx; self.sy = sy
+        var plan = PerformancePlan(); plan.id = scan.id; plan.name = scan.name; plan.isReferenceOnly = true
+        for point in route.points { try? plan.append(FloorPoint(min(15, max(-3, point.x * sx)), min(9, max(-1, point.y * sy)))) }
+        plan.completeReference()
+        plan.objects = route.obstacles.map { var o = $0; o.vertices = o.vertices.map { FloorPoint($0.x * sx, $0.y * sy) }; return o }
+        // Only names the user gave are carried; the automatic ones (P1, 의자1) follow the points as they change.
+        let defaults = StageRoute.pointLabels(points: route.points, obstacles: route.obstacles)
+        for index in plan.points.indices where route.points.indices.contains(index) {
+            let name = route.pointNames.indices.contains(index) && route.pointNames[index] != defaults[index] ? route.pointNames[index] : ""
+            try? plan.setPointSettings(.init(name: name, holdSeconds: route.holdSeconds(at: index), facing: route.facing(at: index)), at: index)
+        }
+        self.plan = plan
+    }
+    /// The edited points back on the measured stage. The stage, its danger zones and the scanned obstacles are kept
+    /// exactly as measured: only the route changes.
+    func route(from edited: PerformancePlan) throws -> StageRoute {
+        let points = edited.points.map { FloorPoint($0.x / sx, $0.y / sy) }
+        let obstacles = route.obstacles
+        let heights = route.pointHeights.map { measured in
+            points.map { p in route.points.indices.min { route.points[$0].distance(to: p) < route.points[$1].distance(to: p) }.map { measured[$0] } ?? 0 }
+        }
+        let defaults = StageRoute.pointLabels(points: points, obstacles: obstacles)
+        let settings = edited.points.indices.map { edited.settings(at: $0) }
+        let holds = settings.indices.map { $0 == 0 || $0 == settings.count - 1 ? 0 : settings[$0].holdSeconds }
+        let facings = settings.map(\.facing)
+        // Settings the scan never had stay absent, so an untouched route saves exactly as it was.
+        return try StageRoute(area: route.area, points: points, obstacles: obstacles, allowsOutsideEndpoints: route.version == 2,
+                              dangerZones: route.dangerZones, pointHeights: heights,
+                              pointHoldSeconds: route.pointHoldSeconds == nil && holds.allSatisfy { $0 == 0 } ? nil : holds,
+                              pointNames: settings.indices.map { settings[$0].name.isEmpty ? defaults[$0] : settings[$0].name },
+                              pointFacings: route.pointFacings == nil && facings.allSatisfy { $0 == nil } ? nil : facings)
+    }
+    /// Every scanned route on a performance, in the order of its space list, then the unfiled ones.
+    @MainActor static func all(in library: StageLibrary, performanceID: UUID) -> [ScanRouteBridge] {
+        let venues = (library.performanceFolders.first { $0.id == performanceID }?.venues ?? []).sorted { $0.updatedAt > $1.updatedAt }
+        return venues.flatMap { venue in
+            library.scans(in: performanceID, venueID: venue.id, includeAllVenues: false).compactMap { ScanRouteBridge(scan: $0, venueName: venue.name, venueID: venue.id) }
+        } + library.scans(in: performanceID, includeAllVenues: false).compactMap { ScanRouteBridge(scan: $0, venueName: "공간 미지정", venueID: nil) }
+    }
+}
+
+private struct ReferenceRenameAlert: ViewModifier {
+    let title: String
+    @Binding var isPresented: Bool
+    @Binding var text: String
+    let onCancel: () -> Void
+    let onSave: () -> Void
+    func body(content: Content) -> some View {
+        content.alert(title, isPresented: $isPresented) {
+            TextField("이름", text: $text)
+            Button("취소", role: .cancel, action: onCancel)
+            Button("저장", action: onSave).disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || text.count > 80)
+        }
+    }
+}
+
+/// Two-way glass switch for the editor's 포인트 · 장애물 (971:32821). The thumb follows the finger and swells a little
+/// while held, as the system control does, and lands on the side it is let go over.
+private struct ReferenceToolPicker: View {
+    @Binding var selection: ReferenceSceneTool
+    @State private var dragX: CGFloat?
+    @GestureState private var pressing = false
+    var body: some View {
+        GeometryReader { geometry in
+            let cases = ReferenceSceneTool.allCases
+            let inset: CGFloat = 4
+            let segment = (geometry.size.width - inset * 2) / CGFloat(cases.count)
+            let index = CGFloat(cases.firstIndex(of: selection) ?? 0)
+            let thumbX = dragX.map { min(max($0 - segment / 2, inset), geometry.size.width - inset - segment) } ?? inset + segment * index
+            ZStack(alignment: .leading) {
+                Capsule().fill(.clear).frame(width: segment, height: geometry.size.height - inset * 2)
+                    .liquidGlass(Capsule(), tint: .white.opacity(0.16), interactive: true)
+                    .scaleEffect(pressing ? 1.06 : 1)
+                    .offset(x: thumbX)
+                HStack(spacing: 0) {
+                    ForEach(cases) { item in
+                        Text(item.rawValue).font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(.white.opacity(item == selection ? 1 : 0.6)).frame(width: segment)
+                    }
+                }.padding(.horizontal, inset).allowsHitTesting(false)
+            }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+                .contentShape(Capsule())
+                .gesture(DragGesture(minimumDistance: 0)
+                    .updating($pressing) { _, state, _ in state = true }
+                    .onChanged { value in
+                        // A tap jumps on release; a slide carries the thumb under the finger.
+                        if abs(value.translation.width) > 4 || dragX != nil { dragX = value.location.x }
+                    }
+                    .onEnded { value in
+                        let picked = cases[min(cases.count - 1, max(0, Int((value.location.x - inset) / segment)))]
+                        withAnimation(.spring(duration: 0.35, bounce: 0.2)) { selection = picked; dragX = nil }
+                    })
+                .animation(.spring(duration: 0.3, bounce: 0.15), value: pressing)
+        }.frame(height: 48)
+            .liquidGlass(Capsule(), tint: .white.opacity(0.05))
+            .sensoryFeedback(.selection, trigger: selection)
+            .accessibilityElement(children: .ignore).accessibilityLabel("편집 대상").accessibilityValue(selection.rawValue)
+            .accessibilityAdjustableAction { direction in
+                let cases = ReferenceSceneTool.allCases, i = cases.firstIndex(of: selection) ?? 0
+                switch direction {
+                case .increment: selection = cases[min(cases.count - 1, i + 1)]
+                case .decrement: selection = cases[max(0, i - 1)]
+                @unknown default: break
+                }
+            }
     }
 }

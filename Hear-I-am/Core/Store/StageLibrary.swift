@@ -96,6 +96,11 @@ import HearIAmCore
         let updated=try await scans.rename(id,to:name)
         if let index=records.firstIndex(where:{$0.id==id}) {records[index]=updated}
     }
+    /// Saves a scanned scene's route edited on the performance's route editor.
+    func updateScanRoute(_ id: UUID, route: StageRoute) async throws {
+        let updated=try await scans.replaceRoute(id,with:route)
+        if let index=records.firstIndex(where:{$0.id==id}) {records[index]=updated}
+    }
     func deleteStage(_ id: UUID) async throws {
         defer {refreshVoiceMetadata()}
         try await scans.delete(id)

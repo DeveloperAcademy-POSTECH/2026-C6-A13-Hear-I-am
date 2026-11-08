@@ -124,6 +124,18 @@ public actor ScanStore {
         try encoder.encode(manifest).write(to:url,options:.atomic)
         return manifest
     }
+    /// Replaces a saved scan's route, as edited on the performance's route editor. The stage frame, world map and
+    /// meshes stay as scanned; only the route over that stage changes.
+    public func replaceRoute(_ id: UUID, with route: StageRoute) throws -> ScanManifest {
+        let url=root.appendingPathComponent(id.uuidString,isDirectory:true).appendingPathComponent("manifest.json")
+        var manifest=try JSONDecoder().decode(ScanManifest.self,from:Data(contentsOf:url))
+        guard manifest.id == id, manifest.route != nil else { throw LabError.invalid("저장된 무대 경로를 찾을 수 없습니다.") }
+        try route.validate()
+        manifest.route=route;try manifest.validate()
+        let encoder=JSONEncoder();encoder.outputFormatting=[.sortedKeys]
+        try encoder.encode(manifest).write(to:url,options:.atomic)
+        return manifest
+    }
     /// Remove only the selected scan bundle; completed guidance records live in a separate store.
     public func delete(_ id: UUID) throws {
         let directory=root.appendingPathComponent(id.uuidString,isDirectory:true)
