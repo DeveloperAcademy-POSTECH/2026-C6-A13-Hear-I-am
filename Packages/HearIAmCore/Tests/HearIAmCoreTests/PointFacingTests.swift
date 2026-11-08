@@ -91,6 +91,21 @@ final class PointFacingTests: XCTestCase {
         var g=try guide();observe(&g,0);observe(&g,0.25);observe(&g,0.5);observe(&g,2)
         XCTAssertEqual(g.state,.paused);XCTAssertEqual(g.pauseReason,.sampleGap);XCTAssertEqual(g.facingPointIndex,1)
     }
+    func testReplaceRouteKeepsStageMapAndMeshes() async throws {
+        let root=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer {try? FileManager.default.removeItem(at:root)}
+        let store=ScanStore(root:root), id=UUID(), r=try route(), map=Data([1,2,3])
+        let mesh=MeshSnapshot(id:UUID(),transform:[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1],vertices:[.init(0,0,0),.init(1,0,0),.init(0,0,1)],indices:[0,1,2])
+        let original=try await store.save(id:id,name:"동선 교체",frame:StageFrame(origin:r.area.world(.init(0,0)),front:r.area.world(.init(0,-1))),checkpoint:r.area.world(.init(1,1)),worldMap:map,meshes:[mesh],device:"test",appVersion:"test",route:r)
+        var points=r.points;points[1]=FloorPoint(points[1].x,points[1].y+0.5)
+        let edited=try StageRoute(area:r.area,points:points,obstacles:r.obstacles)
+        _=try await store.replaceRoute(id,with:edited)
+        let loaded=try await store.load(id)
+        XCTAssertEqual(loaded.manifest.route?.points,points)
+        XCTAssertEqual(loaded.manifest.route?.area,r.area)
+        XCTAssertEqual(loaded.worldMap,map);XCTAssertEqual(loaded.manifest.meshHash,original.meshHash)
+        XCTAssertEqual(loaded.manifest.name,"동선 교체")
+    }
     func testStoreEditsAreAtomicAndPreserveMapOtherPointsAndMetadata() async throws {
         let root=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer {try? FileManager.default.removeItem(at:root)}
