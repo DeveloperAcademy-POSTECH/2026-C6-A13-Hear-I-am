@@ -31,11 +31,12 @@ struct ReferencePlanCanvas: View {
             Canvas { context, size in
                 let area = CGRect(origin: .zero, size: size)
                 // Figma 971:32296: the backstage strips either side are darker than the stage, crossed by two faint lines.
-                // Figma 971:32813: #242424 ground, the stage 8% lighter.
-                context.fill(Path(area), with: .color(Color(white: 36 / 255)))
+                // The editor follows Figma 971:32813 (#242424 ground, the stage 8% lighter); the saved-route card on the
+                // performance page keeps its own look.
+                context.fill(Path(area), with: .color(editing ? Color(white: 36 / 255) : Color(white: 0.15)))
                 let stageLeft = project(.init(0, 0)).x, stageRight = project(.init(PerformancePlan.width, 0)).x
                 let stage = CGRect(x: stageLeft, y: 0, width: stageRight - stageLeft, height: size.height)
-                context.fill(Path(stage), with: .color(Color(white: 217 / 255).opacity(0.08)))
+                context.fill(Path(stage), with: .color(editing ? Color(white: 217 / 255).opacity(0.08) : Color(white: 0.2)))
                 var cross = Path()
                 cross.move(to: CGPoint(x: stage.midX, y: 0)); cross.addLine(to: CGPoint(x: stage.midX, y: size.height))
                 cross.move(to: CGPoint(x: stage.minX, y: size.height / 2)); cross.addLine(to: CGPoint(x: stage.maxX, y: size.height / 2))
@@ -63,7 +64,7 @@ struct ReferencePlanCanvas: View {
                 for index in plan.points.indices {
                     let p = project(plan.points[index])
                     let end = index == 0 || (plan.finished && index == plan.points.count - 1)
-                    let radius: CGFloat = 6.5
+                    let radius: CGFloat = editing ? 6.5 : 6
                     var dot = context
                     if let selectedPoint, selectedPoint != index { dot.opacity = 0.45 }
                     dot.fill(Path(ellipseIn: CGRect(x: p.x - radius, y: p.y - radius, width: radius * 2, height: radius * 2)), with: .color(end ? Self.end : Self.point))
@@ -72,8 +73,9 @@ struct ReferencePlanCanvas: View {
                         let ring = radius + 3.5
                         dot.stroke(Path(ellipseIn: CGRect(x: p.x - ring, y: p.y - ring, width: ring * 2, height: ring * 2)), with: .color(.white), lineWidth: 1.5)
                     }
-                    let label = Text(plan.pointLabel(at: index))
-                        .font(end ? .system(size: labelSize) : HearFont.pretendard(.regular, size: labelSize + 1)).foregroundColor(.white)
+                    let label = editing
+                        ? Text(plan.pointLabel(at: index)).font(end ? .system(size: labelSize) : HearFont.pretendard(.regular, size: labelSize + 1)).foregroundColor(.white)
+                        : Text(plan.pointLabel(at: index)).font(.system(size: labelSize, weight: .medium)).foregroundColor(HearV3.text)
                     dot.draw(label, at: CGPoint(x: p.x, y: p.y + radius + 10))
                 }
             }.clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
