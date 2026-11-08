@@ -234,6 +234,8 @@ struct PerformanceVenueFilterSheet: View {
 struct PerformanceSearchField: View {
     @Binding var text: String
     let prompt: String
+    /// The ⓧ beside the field that empties it; the place search sheet keeps the field full width (971:36428).
+    var clears = true
     static let grey = Color(red: 118/255, green: 118/255, blue: 118/255)
     @FocusState private var focused: Bool
     var body: some View {
@@ -246,7 +248,7 @@ struct PerformanceSearchField: View {
                     .textInputAutocapitalization(.never).submitLabel(.search).focused($focused)
             }.padding(.horizontal, 16).frame(minHeight: 48)
                 .liquidGlass(Capsule(), tint: .white.opacity(0.05))
-            if !text.isEmpty {
+            if clears && !text.isEmpty {
                 Button { text = ""; focused = false } label: { HearTopButtonLabel(systemImage: "xmark") }
                     .buttonStyle(.plain).accessibilityLabel("검색 지우기")
             }
