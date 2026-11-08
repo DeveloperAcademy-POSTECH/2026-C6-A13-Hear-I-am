@@ -2,9 +2,8 @@ import SwiftUI
 import HearIAmCore
 
 /// The step's how-to card over the camera (Figma 971:15416 · 971:15507 · 452:11233 ·
-/// 452:11339 · 452:12291 · 452:11746). Boundary takes three pages, objects two, the others one.
-/// The boundary step is the first that places points, so its last page is the Camera Control card that the
-/// objects step also shows (11/07).
+/// 452:12291 · 452:11746). Boundary takes two pages, the others one. The Camera Control card that
+/// followed boundary and objects is gone with the button itself (#152).
 struct PreparationIntro: View {
     let step: Int
     let page: Int
@@ -17,9 +16,7 @@ struct PreparationIntro: View {
         try? StageObstacle(name:"기물 2",kind:.platform,vertices:[FloorPoint(3.4,1),FloorPoint(5,1),FloorPoint(5,2.6),FloorPoint(3.4,2.6)],facingEdge:0),
         try? StageObstacle(name:"기물 3",kind:.box,vertices:[FloorPoint(9.2,1.2),FloorPoint(10.8,1.2),FloorPoint(10.8,2.8),FloorPoint(9.2,2.8)]),
     ].compactMap {$0}
-    static func pageCount(step: Int) -> Int {step == 1 ? 3 : step == 2 ? 2 : 1}
-    /// The page that explains the Camera Control button, with the glow over the button.
-    static func isCameraControlPage(step: Int, page: Int) -> Bool {(step == 1 && page == 2) || (step >= 2 && page == 1)}
+    static func pageCount(step: Int) -> Int {step == 1 ? 2 : 1}
     var body: some View {
         // Every page of the step is laid out underneath and only the current one shown, so the card keeps the
         // tallest page's size and does not jump between pages (11/07). The page dots hang 14pt under the card
@@ -54,7 +51,6 @@ private struct PreparationIntroPage: View {
     let step: Int
     let page: Int
     let show: (Int?) -> Void
-    private var cameraControlPage: Bool {PreparationIntro.isCameraControlPage(step:step,page:page)}
     private var last: Bool {page+1 >= PreparationIntro.pageCount(step:step)}
     var body: some View {
         HStack(spacing:28) {
@@ -78,7 +74,7 @@ private struct PreparationIntroPage: View {
     }
     /// The two boundary pages use their own darker squares (#1E1E23 · #282828); the rest the shared #222327.
     private var illustrationFill: Color {
-        guard step == 1, !cameraControlPage else {return ScanChrome.illustration}
+        guard step == 1 else {return ScanChrome.illustration}
         return page == 0 ? Color(red:30/255,green:30/255,blue:35/255) : Color(red:40/255,green:40/255,blue:40/255)
     }
 
@@ -90,9 +86,6 @@ private struct PreparationIntroPage: View {
                     .font(.system(size:44,weight:.light)).foregroundStyle(.white)
                 Text("천천히, 양손으로").font(.caption).foregroundStyle(.white.opacity(0.7))
             }.padding(.vertical,24)
-        case _ where cameraControlPage:
-            // The Camera Control button on the phone's edge (452:11339).
-            Color.clear.frame(width:220).overlay {Image("ScanCameraControl").resizable().scaledToFill()}.clipped()
         case 1:
             // Grey corner dots first; then every corner green with the front right one ringed (971:15416 · 971:15507).
             BoundaryIntroArt(placed:page == 1)
@@ -105,26 +98,23 @@ private struct PreparationIntroPage: View {
         }
     }
     private var title: String {
-        if cameraControlPage {return "물체의 포인트 추가"}
         switch step {
         case 0: return "공연장 전체를 스캔해주세요"
         case 1: return page == 0 ? "공연할 영역을 정해주세요" : "물체의 포인트 추가"
-        case 2: return page == 0 ? "기물을 미리 표시해주세요" : "물체의 포인트 추가"
+        case 2: return "기물을 미리 표시해주세요"
         case 3: return "움직일 동선 찍기"
         default: return "확인점 찍기"
         }
     }
     private var detail: String {
-        if cameraControlPage {return Self.cameraControlDetail}
         switch step {
         case 0: return "휴대폰을 양손으로 잡고 천천히 움직여주세요. 공연 확정 후에는 스캔 단계로 다시 되돌아 올 수 없어요."
         case 1: return page == 0 ? "실제로 공연할 영역을\n직사각형 모양의 영역으로 지정해주세요\n입장과 퇴장공간은 무대 밖에 있어도 괜찮아요" : "객석 기준 정면 오른쪽 → 정면 왼쪽\n→ 후면 왼쪽 → 후면 오른쪽 순서예요.\n각 점들은 자동으로 연결돼요."
         case 2: return "기물 추가를 통해 십자선을 기준으로 기물의 둘레를 따라 점을 추가한 후 바라볼 방향을 추가해주세요"
         case 3: return "출발점과 도착점은 무대 밖에서도 지정이 가능해요. 중간 지점은 무대 영역안에 놓아주세요. 모든 점들을 포함하여 최대 \(StageRoute.maxPointCount)개의 점을 지정할 수 있어요"
-        default: return Self.cameraControlDetail
+        default: return "+버튼을 눌러 십자선 위치에 확인점을 추가해주세요."
         }
     }
-    fileprivate static let cameraControlDetail="기기의 상단 카메라 컨트롤 버튼 혹은 +버튼을 통해서 점을 추가해주세요 우측 상단 빛나는 부분을 확인해주세요"
 }
 
 /// The boundary pages' picture (971:15416 · 971:15507): the 146×80 stage in 20% white with a 1pt white edge,

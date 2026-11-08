@@ -100,7 +100,6 @@ final class PreparationViewModel: ObservableObject {
             showingMore=ProcessInfo.processInfo.arguments.contains("--scan-more")
             choosingPlan=ProcessInfo.processInfo.arguments.contains("--scan-plans")
         }
-        session.onCaptureEvent={ [weak self] in self?.cameraControlPressed() }
         session.onReset={ [weak self] in
             guard let self else { return }
             draft=PreparationDraft(); scanConfirmed=false; pendingObjectWorld=[]; editingObjectID=nil
@@ -178,8 +177,8 @@ final class PreparationViewModel: ObservableObject {
         guard step == .scan, !scanIntroShown, supported else { return }
         scanIntroShown=true; intro=0
     }
-    /// The Camera Control button does what the step's + button does (Figma 452:11339 · 452:11746).
-    func cameraControlPressed() {
+    /// The bottom-right + places the step's next point. The Camera Control button no longer does (#152).
+    func plusPressed() {
         guard supported, intro == nil, !review, !choosingPlan, !editingDangerZones, !confirmingScan else { return }
         switch step {
         case .scan: break
@@ -195,7 +194,7 @@ final class PreparationViewModel: ObservableObject {
         if let selectedCheckpoint, selectedCheckpoint == 0 || draft.checkpoint != nil { return selectedCheckpoint }
         return draft.checkpoint == nil ? 0 : (draft.secondCheckpoint == nil ? 1 : nil)
     }
-    /// Whether the bottom-right + (the same as the Camera Control button) would place a point now (971:28541).
+    /// Whether the bottom-right + would place a point now (971:28541).
     var canPressPlus: Bool {
         guard canPlacePoint, !busy else { return false }
         switch step {
@@ -206,8 +205,6 @@ final class PreparationViewModel: ObservableObject {
         case .checkpoint: return draft.area != nil && nextCheckpoint != nil
         }
     }
-    /// Steps that place points from the Camera Control button show the glow at its position.
-    var cameraControlActive: Bool { supported && step != .scan && intro == nil && !review }
     /// The panel's ↺: clears the current step's input.
     func resetStep() {
         guard !busy else { return }

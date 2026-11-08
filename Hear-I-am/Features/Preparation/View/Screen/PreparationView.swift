@@ -72,11 +72,6 @@ struct PreparationView: View {
                 Color.black.opacity(0.25)
                 PreparationIntro(step:model.step.rawValue,page:intro) {model.intro=$0}.padding(16)
             }
-            // The soft blue pulse over the Camera Control button (top edge, right of centre in this orientation),
-            // whenever that button places a point and on the card that explains it (452:11339).
-            if model.cameraControlActive || model.intro.map({PreparationIntro.isCameraControlPage(step:model.step.rawValue,page:$0)}) == true {
-                CameraControlGlow().frame(maxWidth:.infinity,maxHeight:.infinity,alignment:.top).allowsHitTesting(false)
-            }
             if model.confirmingScan {
                 ScanConfirmCard(title:"공간 스캔을 확정할까요?",
                                 message:"공연장과 백스테이지가 충분히 포함됐는지 확인해주세요. 확정 후에는 스캔 단계로 돌아갈 수 없습니다.",
@@ -205,19 +200,5 @@ struct ScanConfirmCard: View {
                 .environment(\.colorScheme,.dark)
                 .accessibilityAddTraits(.isModal)
         }
-    }
-}
-
-/// Figma Ellipse 28: a #0088FF ellipse (134×60, blur 30, 86%) at the top edge over the Camera Control button,
-/// breathing so the eye finds it.
-struct CameraControlGlow: View {
-    @State private var bright=false
-    var body: some View {
-        GeometryReader { geometry in
-            Ellipse().fill(Color(red:0,green:136/255,blue:1).opacity(bright ? 0.86 : 0.35))
-                .frame(width:134,height:60).blur(radius:22)
-                .position(x:geometry.size.width*0.69,y:0)
-        }.ignoresSafeArea().accessibilityHidden(true)
-            .onAppear {withAnimation(.easeInOut(duration:1.1).repeatForever(autoreverses:true)) {bright=true}}
     }
 }
