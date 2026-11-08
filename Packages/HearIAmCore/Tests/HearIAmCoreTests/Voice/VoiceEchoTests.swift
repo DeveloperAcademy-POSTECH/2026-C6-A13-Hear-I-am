@@ -33,4 +33,16 @@ final class VoiceEchoTests: XCTestCase {
         XCTAssertEqual(VoiceEcho.strippingLeadingEcho("연습", of: [greeting]), "연습")
         XCTAssertEqual(VoiceEcho.strippingLeadingEcho("Look at me", of: [greeting]), "Look at me")
     }
+    /// 11/06 device log: answers said over the app's list were dropped as echo.
+    func testAnswerOverTheListIsAChoice() {
+        let names=["찐테스트1", "11월 2일 16:40 무대", "11월 2일 13:32 무대"]
+        let contexts=[["누리랩", "응가"], ["응가"], ["응가"]]
+        XCTAssertTrue(VoiceEcho.isChoice("찐 테스트 일", names: names, contexts: contexts))
+        XCTAssertTrue(VoiceEcho.isChoice("누리 랩", names: names, contexts: contexts))
+        XCTAssertTrue(VoiceEcho.isChoice("첫 번째", names: names, contexts: contexts))
+        // The app hearing its own list runs past one item; noise and the shared place are no answer.
+        XCTAssertFalse(VoiceEcho.isChoice("찐테스트1 누리랩 응가", names: names, contexts: contexts))
+        XCTAssertFalse(VoiceEcho.isChoice("응가", names: names, contexts: contexts))
+        XCTAssertFalse(VoiceEcho.isChoice("공연 이름이나 번호를 말씀해주세요", names: names, contexts: contexts))
+    }
 }

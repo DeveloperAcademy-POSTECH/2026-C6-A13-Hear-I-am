@@ -36,4 +36,12 @@ extension GuidanceViewModel {
             select(visibleVoiceStages[number-1])
         }
     }
+    /// Whether the words pick one item of the list on screen, by its name, its place or its number (#156).
+    func voiceHeardChoice(_ text:String) -> Bool {
+        guard phase == .selection, !voiceChoosingMode else {return false}
+        if showsVoicePerformances {return VoiceEcho.isChoice(text,names:voicePerformanceChoices.map(\.name))}
+        let candidates=voicePerformanceID == nil ? voiceStages : visibleVoiceStages
+        return VoiceEcho.isChoice(text,names:candidates.map(\.name),
+                                  contexts:candidates.map {(voiceStagePaths[$0.id] ?? [])+[voiceStageTitle($0)]})
+    }
 }

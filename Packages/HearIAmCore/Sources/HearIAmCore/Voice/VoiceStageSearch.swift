@@ -90,6 +90,9 @@ public enum VoiceStageSearch {
         keyword=keyword.replacingOccurrences(of: related, with: "", options: .regularExpression)
         let action=#"(?:을|를)?(?:검색해줘|검색해주세요|검색|찾아줘|찾아주세요|보여줘|보여주세요|열어줘|열어주세요|불러줘|불러주세요)$"#
         keyword=keyword.replacingOccurrences(of: action, with: "", options: .regularExpression)
+        // 「누리 랩 실행」 names the place and asks to go (11/06 device log): the ask is not part of the name.
+        let run=#"(?:으로|로|에서)?(?:실행해줘|실행해주세요|실행할게요|실행할게|실행|진행해줘|진행해주세요|진행)$"#
+        keyword=keyword.replacingOccurrences(of: run, with: "", options: .regularExpression)
         keyword=keyword.replacingOccurrences(of: #"(?:의)?(?:무대리스트|무대목록|공연목록|공연리스트|무대|공연|목록|리스트)$"#, with: "", options: .regularExpression)
         // 「효자아트홀에 저장된 공연 리스트 찾아줘」 is the new Home's example (IA 10/29); 「저장된 공연」 alone means all.
         let saved=#"(?:에|에서)?(?:저장된|저장한|저장해둔|저장되어있는|있는)$"#
@@ -99,6 +102,10 @@ public enum VoiceStageSearch {
         }
         guard !keyword.isEmpty else { return .none }
         let indices=names.indices.filter { index in (aliases[index]+paths[index]).contains {$0.contains(keyword)} }
+        // A place said on its own that only one stage belongs to is that stage: 「누리 랩」 under 응가 came
+        // back as a list of one and was asked again, twice (11/06 device log). A search asked for as a search
+        // (「대연습실 무대 찾아줘」) still answers with the list.
+        if indices.count == 1, !explicitSearch { return .selected(indices[0]) }
         return .results(query: keyword, indices: indices)
     }
 
