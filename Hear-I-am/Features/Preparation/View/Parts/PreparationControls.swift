@@ -63,7 +63,7 @@ struct PreparationToolGroup: View {
     }
 }
 
-/// Bottom right: the + that places the step's next point (the same as the Camera Control button), 10pt left of
+/// Bottom right: the + that places the step's next point, 10pt left of
 /// the 140pt 「지정 완료」 that finishes the step (Figma 971:28541 · 971:30334). Scanning has only 「스캔 완료」.
 struct PreparationControls: View {
     @ObservedObject var model: PreparationViewModel
@@ -71,7 +71,7 @@ struct PreparationControls: View {
         let draft=model.draft
         HStack(spacing:10) {
             if model.step != .scan {
-                ScanCircleButton(systemImage:"plus",label:plusLabel,size:50,enabled:model.canPressPlus) {model.cameraControlPressed()}
+                ScanCircleButton(systemImage:"plus",label:plusLabel,size:50,enabled:model.canPressPlus) {model.plusPressed()}
             }
             switch model.step {
             case .scan:

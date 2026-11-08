@@ -103,8 +103,6 @@ final class ARSessionController: ObservableObject {
     var meshHeld=false
     /// Bumped whenever a new ARSession is put on the view, so the coaching overlay can follow it.
     @Published var sessionGeneration=0
-    /// The Camera Control button was pressed over the camera view.
-    var onCaptureEvent: (() -> Void)?
     private var visibleGuidanceTarget: Int?
     private var guidanceCompleted=false
 

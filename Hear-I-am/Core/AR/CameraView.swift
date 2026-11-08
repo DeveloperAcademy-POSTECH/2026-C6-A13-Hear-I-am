@@ -1,6 +1,5 @@
 import SwiftUI
 import ARKit
-import AVKit
 import Combine
 import HearIAmCore
 
@@ -24,15 +23,6 @@ struct CameraView: UIViewRepresentable {
             context.coordinator.coaching=coaching
             context.coordinator.view=view
             context.coordinator.observe()
-            // The Camera Control button (and the volume buttons) place a point like the + button does.
-            if #available(iOS 17.2, *) {
-                let interaction=AVCaptureEventInteraction { [weak model] event in
-                    guard event.phase == .began else {return}
-                    Task { @MainActor in model?.onCaptureEvent?() }
-                }
-                interaction.isEnabled=true
-                view.addInteraction(interaction)
-            }
         }
         return view
     }
