@@ -20,12 +20,13 @@ settings:
     INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: 공간을 추가할 때 주변 공연장을 찾아 보여주기 위해 위치를 사용합니다.
     INFOPLIST_KEY_CFBundleDisplayName: Hear I am 히얼아이엠
     INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
+    INFOPLIST_KEY_UIRequiredDeviceCapabilities: arkit
     INFOPLIST_KEY_UILaunchScreen_Generation: YES
     INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
     INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
     INFOPLIST_KEY_UIFileSharingEnabled: YES
     INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace: YES
-    MARKETING_VERSION: "0.1.0"
+    MARKETING_VERSION: "1.0.0"
     CURRENT_PROJECT_VERSION: "1"
 targets:
   Hear-I-am:
