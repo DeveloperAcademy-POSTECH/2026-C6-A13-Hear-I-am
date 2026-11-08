@@ -132,12 +132,7 @@ struct PerformanceDetailView: View {
     /// Every route on this performance, in the order of the space list: each space's scanned scenes, the unfiled ones,
     /// then the reference routes drawn in the editor. Each says where it is from, 「공간(동선 이름)」.
     private var routeCards: [PerformanceRouteCard] {
-        let venues = (folder?.venues ?? []).sorted { $0.updatedAt > $1.updatedAt }
-        var cards = venues.flatMap { venue in
-            library.scans(in: performanceID, venueID: venue.id, includeAllVenues: false)
-                .compactMap { PerformanceRouteCard(scan: $0, venueName: venue.name, venueID: venue.id) }
-        }
-        cards += unfiled.compactMap { PerformanceRouteCard(scan: $0, venueName: "공간 미지정", venueID: nil) }
+        var cards = ScanRouteBridge.all(in: library, performanceID: performanceID).map(PerformanceRouteCard.init(scan:))
         cards += plans.map { PerformanceRouteCard(plan: $0) }
         return cards
     }
@@ -148,11 +143,8 @@ struct PerformanceDetailView: View {
             HStack {
                 PerformanceSectionTitle(text: "기본 동선")
                 Spacer()
-                // 편집 always opens the route editor; on a drawn route's card it opens on that route.
-                Button {
-                    selectedSceneID = plans.contains { $0.id == focused?.id } ? focused?.id : plans.first?.id
-                    editingScenes = true
-                } label: { PerformanceOutlineButtonLabel(title: "편집", systemImage: "pencil") }
+                // 편집 opens the route editor on the route the carousel is showing, scanned or drawn.
+                Button { selectedSceneID = focused?.id ?? cards.first?.id; editingScenes = true } label: { PerformanceOutlineButtonLabel(title: "편집", systemImage: "pencil") }
                     .buttonStyle(.plain).accessibilityIdentifier("performance.scenes.edit")
             }.padding(.horizontal, 20)
             if cards.isEmpty {
@@ -368,18 +360,10 @@ struct PerformanceRouteCard: Identifiable {
         id = plan.id; self.plan = plan; label = "기본 동선(\(plan.name))"; venueID = nil; isScan = false
         aspect = PerformancePlan.depth / PerformancePlan.width
     }
-    /// The scan's route, scaled from its measured stage onto the 12 × 8 schematic. Nil when it has no route yet.
-    init?(scan: ScanManifest, venueName: String, venueID: UUID?) {
-        guard let route = scan.route, route.points.count >= 2, route.area.width > 0.1, route.area.depth > 0.1 else { return nil }
-        let sx = PerformancePlan.width / route.area.width, sy = PerformancePlan.depth / route.area.depth
-        var plan = PerformancePlan(); plan.id = scan.id; plan.name = scan.name; plan.isReferenceOnly = true
-        for point in route.points { try? plan.append(FloorPoint(min(15, max(-3, point.x * sx)), min(9, max(-1, point.y * sy)))) }
-        plan.completeReference()
-        plan.objects = route.obstacles.compactMap {
-            try? StageObstacle(name: $0.name, kind: $0.kind, passage: $0.passage, vertices: $0.vertices.map { FloorPoint($0.x * sx, $0.y * sy) })
-        }
-        id = scan.id; self.plan = plan; label = "\(venueName)(\(scan.name))"; self.venueID = venueID; isScan = true
-        aspect = route.area.depth / route.area.width
+    /// The scan's route, scaled from its measured stage onto the 12 × 8 schematic, as the route editor opens it.
+    init(scan bridge: ScanRouteBridge) {
+        id = bridge.scanID; plan = bridge.plan; label = "\(bridge.venueName)(\(bridge.plan.name))"; venueID = bridge.venueID; isScan = true
+        aspect = bridge.route.area.depth / bridge.route.area.width
     }
     /// The schematic spans the stage plus both 1.4 m backstage strips; its height follows the stage's proportions.
     func height(width: CGFloat) -> CGFloat {
