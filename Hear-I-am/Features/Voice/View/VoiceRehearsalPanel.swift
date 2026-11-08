@@ -295,6 +295,9 @@ struct VoiceConversationView: View {
     /// The last line the logo stopped waiting under: words that get no answer (noise read as speech) must
     /// not leave it spinning for good.
     @State private var unanswered: VoiceChatEntry.ID?
+    /// The newest line is out of view because the performer scrolled up to read back (#158).
+    @State private var scrolledUp=false
+    @State private var showsJump=false
     var body: some View {
         ZStack(alignment:.top) {
             VoiceStyle.canvas.ignoresSafeArea()
@@ -327,6 +330,27 @@ struct VoiceConversationView: View {
                         .padding(.horizontal,16).padding(.top,32).padding(.bottom,48)
                     }
                     .scrollIndicators(.hidden).scrollDismissesKeyboard(.interactively)
+                    .modifier(VoiceScrolledUp(scrolledUp:$scrolledUp))
+                    // As in chat apps, a small button under the lines goes back to the newest one. It waits a
+                    // moment so a new line growing the list before the automatic scroll does not flash it.
+                    .task(id:scrolledUp) {
+                        if scrolledUp {try? await Task.sleep(for:.seconds(0.4))}
+                        if !Task.isCancelled {withAnimation(.easeOut(duration:0.2)) {showsJump=scrolledUp}}
+                    }
+                    .overlay(alignment:.bottom) {
+                        if showsJump {
+                            Button {
+                                withAnimation(.easeOut(duration:0.3)) {proxy.scrollTo("end",anchor:.bottom)}
+                            } label: {
+                                Image(systemName:"arrow.down").font(.system(size:15,weight:.semibold)).foregroundStyle(.white)
+                                    .frame(width:36,height:36).liquidGlass(Circle(),interactive:true)
+                                    .frame(width:44,height:44).contentShape(Circle())
+                            }
+                            .buttonStyle(.plain).padding(.bottom,8)
+                            .transition(.opacity.combined(with:.scale(scale:0.8)))
+                            .accessibilityLabel("맨 아래로 이동")
+                        }
+                    }
                     .task(id:model.voiceChat.last?.id) {
                         let id=model.voiceChat.last?.id
                         try? await Task.sleep(for:.seconds(12))
@@ -391,5 +415,18 @@ struct VoiceConversationView: View {
             }
         }
         .buttonStyle(.plain)
+    }
+}
+
+/// Whether the end of the conversation is more than a line's height below the screen. Before iOS 18 the
+/// position is not reported and the button never shows.
+private struct VoiceScrolledUp: ViewModifier {
+    @Binding var scrolledUp: Bool
+    func body(content: Content) -> some View {
+        if #available(iOS 18, *) {
+            content.onScrollGeometryChange(for:Bool.self) {geometry in
+                geometry.contentSize.height + geometry.contentInsets.bottom - geometry.visibleRect.maxY > 120
+            } action: {_,up in if scrolledUp != up {scrolledUp=up}}
+        } else {content}
     }
 }
