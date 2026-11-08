@@ -40,7 +40,12 @@ struct PerformanceTagManagementView:View {
         }.scrollContentBackground(.hidden).v3Screen().navigationTitle("공연장 태그 관리").navigationBarTitleDisplayMode(.inline)
             .searchable(text:$query,prompt:"공연장 이름 검색")
             .toolbar {ToolbarItem(placement:.topBarTrailing) {Button {creating=true} label:{Image(systemName:"plus")}.accessibilityLabel("새 공연장 태그")}}
-            .sheet(isPresented:$creating) {VenueEditorSheet(library:library,performanceID:performanceID) {_ in}.suspendsVoiceWake()}
+            .sheet(isPresented:$creating) {
+                PerformanceSpaceSearchSheet { name in
+                    creating = false
+                    Task { _ = try? await library.createVenue(name: name, in: performanceID) }
+                }.suspendsVoiceWake()
+            }
     }
 }
 

@@ -293,17 +293,12 @@ struct PerformanceEditorSheet: View {
     @State private var error: String?
     @State private var venue: String?
     @State private var addingVenue = false
-    @State private var newVenue = ""
     @Environment(\.dismiss) private var dismiss
     init(library: StageLibrary, folder: PerformanceFolder? = nil, onSaved: @escaping (UUID) -> Void) {
         self.library = library; self.folder = folder; self.onSaved = onSaved
         _name = State(initialValue: folder?.name ?? ""); _notes = State(initialValue: folder?.notes ?? "")
     }
     private var valid: Bool { !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && name.count <= 80 && notes.count <= 2000 }
-    /// Every venue name already used by a performance, for the new performance's 「공연 및 연습 장소」.
-    private var venueNames: [String] {
-        Array(Set(library.performanceFolders.flatMap(\.venues).map(\.name))).sorted { $0.localizedStandardCompare($1) == .orderedAscending }
-    }
     var body: some View {
         // Figma 971:32062: 공연 이름 and, for a new performance, 공연 상세정보 holding its venue. An existing one keeps
         // its description here; its venues are managed on its own page.
@@ -345,14 +340,11 @@ struct PerformanceEditorSheet: View {
                         .accessibilityLabel("공연 저장").accessibilityIdentifier("performance.editor.save")
                 }
                 .interactiveDismissDisabled(busy)
-                .alert("새 장소", isPresented: $addingVenue) {
-                    TextField("장소 이름", text: $newVenue)
-                    Button("취소", role: .cancel) { newVenue = "" }
-                    Button("추가") {
-                        let trimmed = newVenue.trimmingCharacters(in: .whitespacesAndNewlines)
-                        if !trimmed.isEmpty { venue = trimmed }
-                        newVenue = ""
-                    }
+                .sheet(isPresented: $addingVenue) {
+                    PerformanceSpaceSearchSheet { selectedName in
+                        venue = selectedName
+                        addingVenue = false
+                    }.suspendsVoiceWake()
                 }
                 .hearSheet()
     }
@@ -361,26 +353,20 @@ struct PerformanceEditorSheet: View {
         Text(text).font(HearFont.pretendard(.semibold, size: 20)).foregroundStyle(.white).padding(.horizontal, 4)
             .accessibilityAddTraits(.isHeader)
     }
-    /// The grouped row (971:32080): 「공연 및 연습 장소」 stays put and only the value on the right opens the choices,
-    /// the way a menu picker row does, so the menu grows out of 「선택 안 함」 instead of out of the whole row.
+    /// The grouped row (971:32080): 「공연 및 연습 장소」 opens the MapKit place search sheet (872:3484).
     private var venueRow: some View {
-        HStack(spacing: 8) {
-            Text("공연 및 연습 장소").font(.body).foregroundStyle(.white)
-            Spacer(minLength: 8)
-            Menu {
-                Picker("공연 및 연습 장소", selection: $venue) {
-                    Text("선택 안 함").tag(String?.none)
-                    ForEach(venueNames + [venue].compactMap { $0 }.filter { !venueNames.contains($0) }, id: \.self) { name in Text(name).tag(Optional(name)) }
-                }.pickerStyle(.inline)
-                Section { Button("새 장소 추가…", systemImage: "plus") { addingVenue = true } }
-            } label: {
+        Button { addingVenue = true } label: {
+            HStack(spacing: 8) {
+                Text("공연 및 연습 장소").font(.body).foregroundStyle(.white)
+                Spacer(minLength: 8)
                 HStack(spacing: 8) {
                     Text(venue ?? "선택 안 함").font(.body).lineLimit(1)
                     Image(systemName: "chevron.down").font(.system(size: 14, weight: .medium))
-                }.foregroundStyle(Self.detail).frame(minHeight: 44).contentShape(Rectangle())
-            }.accessibilityLabel("공연 및 연습 장소, \(venue ?? "선택 안 함")")
-        }.padding(.horizontal, 19).frame(height: 52)
-            .background(Self.field, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
+                }.foregroundStyle(Self.detail)
+            }.padding(.horizontal, 19).frame(height: 52)
+                .background(Self.field, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
+                .contentShape(Rectangle())
+        }.buttonStyle(.plain).accessibilityLabel("공연 및 연습 장소, \(venue ?? "선택 안 함")")
     }
     private static let detail = Color(red: 235/255, green: 235/255, blue: 245/255).opacity(0.7)
     private func save() {
