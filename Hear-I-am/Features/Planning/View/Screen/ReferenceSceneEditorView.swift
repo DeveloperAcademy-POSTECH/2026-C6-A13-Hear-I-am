@@ -70,11 +70,7 @@ struct ReferenceSceneEditorView: View {
                 .confirmationDialog("저장하지 않은 변경사항이 있어요", isPresented: $confirmExit, titleVisibility: .visible) {
                     Button("저장하지 않고 나가기", role: .destructive) { dismiss() }; Button("계속 편집", role: .cancel) { }
                 }
-                .alert(renameTarget?.title ?? "이름 변경", isPresented: Binding(get: { renameTarget != nil }, set: { if !$0 { renameTarget = nil } })) {
-                    TextField("이름", text: $renameText)
-                    Button("취소", role: .cancel) { renameTarget = nil }
-                    Button("저장") { rename() }.disabled(renameText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || renameText.count > 80)
-                }
+                .modifier(renameAlert(shown: !managing))
                 .alert("확인해주세요", isPresented: Binding(get: { message != nil }, set: { if !$0 { message = nil } })) {
                     Button("확인", role: .cancel) { message = nil }
                 } message: { Text(message ?? "") }
@@ -89,6 +85,10 @@ struct ReferenceSceneEditorView: View {
                         DispatchQueue.main.async { selectedObject = current?.objects.first?.id }
                     }
                     if args.contains("--editor-manage") { managing = true }
+                    if args.contains("--editor-rename"), let plan = scenes.first {
+                        managing = true
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { renameText = plan.name; renameTarget = .scene(plan.id) }
+                    }
                 }
                 #endif
         }.v3Screen()
@@ -153,11 +153,10 @@ struct ReferenceSceneEditorView: View {
             HistoryButton(systemImage: "arrow.uturn.forward", label: "다시 실행", enabled: !future.isEmpty) { redo() }
         }
     }
-    /// Figma 971:32821: the system segmented control, large, so it takes the system's own Liquid Glass.
+    /// Figma 971:32821: 포인트 · 장애물 on a glass track with a glass thumb, so it reads as Liquid Glass at rest too,
+    /// not only while the system control is being dragged. Tap a side or slide the thumb across.
     private var toolPicker: some View {
-        Picker("편집 대상", selection: $tool.animation(.snappy(duration: 0.2))) {
-            ForEach(ReferenceSceneTool.allCases) { Text($0.rawValue).tag($0) }
-        }.pickerStyle(.segmented).controlSize(.large)
+        ReferenceToolPicker(selection: $tool)
     }
     private func pointRows(_ plan: PerformancePlan) -> some View {
         VStack(spacing: 8) {
@@ -226,6 +225,8 @@ struct ReferenceSceneEditorView: View {
                 }
             }.padding(.horizontal, 16).padding(.top, 8)
         }.v3Screen().hearTopBar("동선 관리") { HearBackButton() } trailing: { EmptyView() }
+            // The rename box opens on this page; on the editor underneath it only appeared after going back.
+            .modifier(renameAlert(shown: managing))
             // Figma 971:36590: deleting a route asks like deleting a folder.
             .hearConfirm("‘\(deletingRoute?.name ?? "")’ 동선을 삭제할까요?", isPresented: Binding(get: { deletingRoute != nil }, set: { if !$0 { deletingRoute = nil } }),
                          message: "체크를 눌러 저장하면 이 동선이 삭제돼요.\n스캔한 무대에는 영향을 주지 않아요.") {
@@ -233,6 +234,12 @@ struct ReferenceSceneEditorView: View {
             }
     }
 
+    /// The rename box, attached to whichever page is on top: the editor or 「동선 관리」.
+    private func renameAlert(shown: Bool) -> ReferenceRenameAlert {
+        ReferenceRenameAlert(title: renameTarget?.title ?? "이름 변경",
+                             isPresented: Binding(get: { shown && renameTarget != nil }, set: { if !$0 { renameTarget = nil } }),
+                             text: $renameText, onCancel: { renameTarget = nil }, onSave: rename)
+    }
     /// A scanned route says which space it is from, 「CGV(커튼콜)」, as on the performance page.
     private func menuName(_ plan: PerformancePlan) -> String {
         scanned[plan.id].map { "\($0.venueName)(\(plan.name))" } ?? plan.name
@@ -517,5 +524,72 @@ struct ScanRouteBridge {
         return venues.flatMap { venue in
             library.scans(in: performanceID, venueID: venue.id, includeAllVenues: false).compactMap { ScanRouteBridge(scan: $0, venueName: venue.name, venueID: venue.id) }
         } + library.scans(in: performanceID, includeAllVenues: false).compactMap { ScanRouteBridge(scan: $0, venueName: "공간 미지정", venueID: nil) }
+    }
+}
+
+private struct ReferenceRenameAlert: ViewModifier {
+    let title: String
+    @Binding var isPresented: Bool
+    @Binding var text: String
+    let onCancel: () -> Void
+    let onSave: () -> Void
+    func body(content: Content) -> some View {
+        content.alert(title, isPresented: $isPresented) {
+            TextField("이름", text: $text)
+            Button("취소", role: .cancel, action: onCancel)
+            Button("저장", action: onSave).disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || text.count > 80)
+        }
+    }
+}
+
+/// Two-way glass switch for the editor's 포인트 · 장애물 (971:32821). The thumb follows the finger and swells a little
+/// while held, as the system control does, and lands on the side it is let go over.
+private struct ReferenceToolPicker: View {
+    @Binding var selection: ReferenceSceneTool
+    @State private var dragX: CGFloat?
+    @GestureState private var pressing = false
+    var body: some View {
+        GeometryReader { geometry in
+            let cases = ReferenceSceneTool.allCases
+            let inset: CGFloat = 4
+            let segment = (geometry.size.width - inset * 2) / CGFloat(cases.count)
+            let index = CGFloat(cases.firstIndex(of: selection) ?? 0)
+            let thumbX = dragX.map { min(max($0 - segment / 2, inset), geometry.size.width - inset - segment) } ?? inset + segment * index
+            ZStack(alignment: .leading) {
+                Capsule().fill(.clear).frame(width: segment, height: geometry.size.height - inset * 2)
+                    .liquidGlass(Capsule(), tint: .white.opacity(0.16), interactive: true)
+                    .scaleEffect(pressing ? 1.06 : 1)
+                    .offset(x: thumbX)
+                HStack(spacing: 0) {
+                    ForEach(cases) { item in
+                        Text(item.rawValue).font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(.white.opacity(item == selection ? 1 : 0.6)).frame(width: segment)
+                    }
+                }.padding(.horizontal, inset).allowsHitTesting(false)
+            }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+                .contentShape(Capsule())
+                .gesture(DragGesture(minimumDistance: 0)
+                    .updating($pressing) { _, state, _ in state = true }
+                    .onChanged { value in
+                        // A tap jumps on release; a slide carries the thumb under the finger.
+                        if abs(value.translation.width) > 4 || dragX != nil { dragX = value.location.x }
+                    }
+                    .onEnded { value in
+                        let picked = cases[min(cases.count - 1, max(0, Int((value.location.x - inset) / segment)))]
+                        withAnimation(.spring(duration: 0.35, bounce: 0.2)) { selection = picked; dragX = nil }
+                    })
+                .animation(.spring(duration: 0.3, bounce: 0.15), value: pressing)
+        }.frame(height: 48)
+            .liquidGlass(Capsule(), tint: .white.opacity(0.05))
+            .sensoryFeedback(.selection, trigger: selection)
+            .accessibilityElement(children: .ignore).accessibilityLabel("편집 대상").accessibilityValue(selection.rawValue)
+            .accessibilityAdjustableAction { direction in
+                let cases = ReferenceSceneTool.allCases, i = cases.firstIndex(of: selection) ?? 0
+                switch direction {
+                case .increment: selection = cases[min(cases.count - 1, i + 1)]
+                case .decrement: selection = cases[max(0, i - 1)]
+                @unknown default: break
+                }
+            }
     }
 }
