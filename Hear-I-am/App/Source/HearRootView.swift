@@ -44,7 +44,10 @@ struct HearRootView: View {
                 switch VoiceAppRequest.resolve(text) {
                 case .plans?: wake.answer(VoiceAppRequest.plansHandoff,request:text) {openHelper(tab:1)}
                 case .scan?: wake.answer(VoiceAppRequest.scanAnswer,request:text) {openScan()}
-                case nil:open(VoiceGuidanceLaunch(request:VoiceAppRequest.isRehearsal(text) ? nil : text,heard:text))
+                case nil:
+                    // 「연습용」 on Home is the mode too, so it is not asked again after the stage (#156).
+                    let rehearsal=VoiceAppRequest.isRehearsal(text)
+                    open(VoiceGuidanceLaunch(request:rehearsal ? nil : text,heard:text,mode:rehearsal ? .practice : nil))
                 }
             }
             syncWake()
