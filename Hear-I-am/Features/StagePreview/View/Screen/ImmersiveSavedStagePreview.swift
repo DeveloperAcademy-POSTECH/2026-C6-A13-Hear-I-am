@@ -86,6 +86,8 @@ struct ImmersiveSavedStagePreview: View {
             if let scanSelector {scanSelector}
             else {Label(model.record.name,systemImage:"movieclapper").labelStyle(.titleAndIcon).font(.caption.weight(.semibold)).lineLimit(1)}
         }) {HearBackButton()} trailing: {moreMenu}
+        // Over the 3D stage the glass is the thin material; the sheets below keep Liquid Glass.
+        .environment(\.hearThinMaterial,true)
         .task {
             await model.load()
             #if DEBUG
