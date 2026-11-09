@@ -86,6 +86,8 @@ struct ImmersiveSavedStagePreview: View {
             if let scanSelector {scanSelector}
             else {Label(model.record.name,systemImage:"movieclapper").labelStyle(.titleAndIcon).font(.caption.weight(.semibold)).lineLimit(1)}
         }) {HearBackButton()} trailing: {moreMenu}
+        // Over the 3D stage every glass is the see-through kind; the sheets below keep the regular one.
+        .environment(\.hearClearGlass,true)
         .task {
             await model.load()
             #if DEBUG
