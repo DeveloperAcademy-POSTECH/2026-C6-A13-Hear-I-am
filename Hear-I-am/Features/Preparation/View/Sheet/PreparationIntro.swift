@@ -209,14 +209,17 @@ private struct IntroStageArt: View {
 /// let go and go back, over and over.
 private struct ScanHandsIntroArt: View {
     let animates: Bool
-    static let period=6.4
+    /// Every move takes as long as the hands take to reach the phone (11/09: the shaking was too fast).
+    static let move=0.7
+    static let period=6.9
     var body: some View {
         IntroLoop(period:Self.period,animates:animates) {t in
-            let rest=t >= Self.period
-            // In 0.0–0.8 s the hands come to the phone; they let go at 5.2–5.9 s.
-            let grip=rest ? 0 : ease(t,0.2,0.7)*(1-ease(t,5.2,0.7))
-            let sway=rest ? 0 : sin(clamp01((t-1.1)/1.8)*2*Double.pi*2)*14
-            let lift=rest ? 0 : sin(clamp01((t-3.1)/1.8)*2*Double.pi*2)*8
+            let rest=t >= Self.period, m=Self.move
+            // The hands take the phone at 0.2 s and let go at 5.6 s. In between, one move at a time: left, right,
+            // back to the middle; then up, down, back to the middle.
+            let grip=rest ? 0 : ease(t,0.2,m)*(1-ease(t,5.6,m))
+            let sway=rest ? 0 : Self.moves(t,from:1.0,through:[-14,14,0])
+            let lift=rest ? 0 : Self.moves(t,from:3.2,through:[-8,8,0])
             VStack(spacing:22) {
                 ZStack {
                     ScanIntroPhone()
@@ -229,6 +232,15 @@ private struct ScanHandsIntroArt: View {
                 Text("천천히, 양손으로").font(HearFont.pretendard(.medium,size:11)).foregroundStyle(.white.opacity(0.6))
             }.frame(maxWidth:.infinity,maxHeight:.infinity).accessibilityHidden(true)
         }
+    }
+    /// Eased moves of `move` seconds each from 0 through the given offsets, starting at `from`.
+    private static func moves(_ t: Double, from: Double, through stops: [Double]) -> Double {
+        var value=0.0
+        for (i,stop) in stops.enumerated() {
+            let previous=i == 0 ? 0 : stops[i-1]
+            value+=(stop-previous)*ease(t,from+Double(i)*move,move)
+        }
+        return value
     }
     /// An outlined hand over a fill in the card's colour, so the phone does not show through the palm.
     private func hand(mirrored: Bool) -> some View {
@@ -259,13 +271,14 @@ private struct ScanIntroPhone: View {
 /// before draws in, and the last one closes the rectangle and fills it. It holds, fades and starts over.
 private struct BoundaryPlacingArt: View {
     let animates: Bool
-    static let period=4.6
+    /// A corner every 0.8 s (11/09: a little slower than the first 0.6 s).
+    static let period=5.8
     private static let green=Color(red:0,green:1,blue:64/255)                 // #00FF40
     private static let grey=Color(red:126/255,green:126/255,blue:126/255)     // #7E7E7E
     /// Corners in placing order, in the 146×80 stage: front right, front left, back left, back right.
     private static let order=[CGPoint(x:146,y:80),CGPoint(x:0,y:80),CGPoint(x:0,y:0),CGPoint(x:146,y:0)]
     /// When each corner is placed, in seconds into the loop.
-    private static let times=[0.4,1.0,1.6,2.2]
+    private static let times=[0.5,1.3,2.1,2.9]
     var body: some View {
         IntroLoop(period:Self.period,animates:animates) {t in
             let fade=t >= Self.period ? 1 : fadeOut(t,period:Self.period)
@@ -278,15 +291,15 @@ private struct BoundaryPlacingArt: View {
                     let count=placed.filter {$0}.count
                     var layer=context; layer.opacity=fade
                     // The fill comes in once the last side closes the shape.
-                    let closing=ease(t,Self.times[3]+0.05,0.35)
+                    let closing=ease(t,Self.times[3]+0.05,0.45)
                     var rect=Path(); rect.addLines(Self.order.map(at)); rect.closeSubpath()
                     layer.fill(rect,with:.color(.white.opacity(0.2*closing)))
                     // Each side runs from the corner before and reaches the next one as it is placed; the last
                     // side closes the shape right after.
                     for i in 1..<Self.order.count+1 {
                         let from=Self.order[i-1], to=Self.order[i % Self.order.count]
-                        let start=i < Self.order.count ? Self.times[i]-0.3 : Self.times[3]+0.05
-                        let drawn=ease(t,start,0.3)
+                        let start=i < Self.order.count ? Self.times[i]-0.4 : Self.times[3]+0.05
+                        let drawn=ease(t,start,0.4)
                         guard drawn > 0 else {continue}
                         var side=Path(); side.move(to:at(from)); side.addLine(to:at(to))
                         layer.stroke(side.trimmedPath(from:0,to:drawn),with:.color(.white),lineWidth:1.08)
