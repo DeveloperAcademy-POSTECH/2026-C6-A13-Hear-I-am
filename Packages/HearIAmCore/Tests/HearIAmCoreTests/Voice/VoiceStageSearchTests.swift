@@ -86,4 +86,17 @@ final class VoiceStageSearchTests: XCTestCase {
         XCTAssertNil(VoiceStageSearch.numbered("2번 머지테스트", names: ["머지테스트", "무대 스캔"]))
         XCTAssertNil(VoiceStageSearch.numbered("무대 스캔", names: same))
     }
+    /// 11/06 device log: 응가 held 찐테스트1 (at 누리랩) and two dated stages.
+    func testPlaceWithOneStageSelectsIt() {
+        let names=["찐테스트1", "11월 2일 16:40 무대", "11월 2일 13:32 무대"]
+        let contexts=[["누리랩", "응가"], ["응가"], ["응가"]]
+        XCTAssertEqual(VoiceStageSearch.resolve("누리 랩", names: names, contexts: contexts), .selected(0))
+        XCTAssertEqual(VoiceStageSearch.resolve("누리 랩 실행", names: names, contexts: contexts), .selected(0))
+        XCTAssertEqual(VoiceStageSearch.resolve("누리랩으로 실행해줘", names: names, contexts: contexts), .selected(0))
+        // A place several stages share is still a list, and so is a search asked for as one.
+        XCTAssertEqual(VoiceStageSearch.resolve("응가", names: names, contexts: contexts), .results(query: "응가", indices: [0, 1, 2]))
+        XCTAssertEqual(VoiceStageSearch.resolve("누리랩 무대 찾아줘", names: names, contexts: contexts), .results(query: "누리랩", indices: [0]))
+        // 「실행」 alone names nothing.
+        XCTAssertEqual(VoiceStageSearch.resolve("실행", names: names, contexts: contexts), .none)
+    }
 }

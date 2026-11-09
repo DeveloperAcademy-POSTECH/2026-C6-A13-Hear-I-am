@@ -194,7 +194,9 @@ import HearIAmCore
         }
         if voiceExperiment {
             voice.bufferedOutput={ [weak self] utterance, completion in
-                self?.voiceRecognition.speakNarration(utterance,completion:completion) ?? false
+                guard let self else {return false}
+                // While listening is still starting, the line waits for it rather than the system voice (#156).
+                return self.voiceRecognition.speakNarration(utterance,waitsForStart:self.voiceRecognitionRequested && self.voiceShouldListen,completion:completion)
             }
             voice.stopBufferedOutput={ [weak self] in self?.voiceRecognition.stopNarration() }
         }

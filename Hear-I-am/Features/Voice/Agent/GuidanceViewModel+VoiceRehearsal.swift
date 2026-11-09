@@ -296,6 +296,11 @@ extension GuidanceViewModel {
             let introduction=voiceModeFallback ? "실전용은 아직 준비 중이에요. 연습용으로 진행할게요." : "\(mode.title)을 선택했습니다."
             voiceModeFallback=false
             restore(voiceIntroduction:introduction)
+        } else if let mode=voiceInitialMode {
+            // 「연습용」 said on Home or before a stage was chosen is not asked again (11/06 device log).
+            voiceInitialMode=nil;voiceChoosingMode=true
+            logSignal("voice_mode_remembered","\(mode)")
+            selectVoiceMode(mode)
         } else {
             voiceChoosingMode=true
             readVoiceModeQuestion()
@@ -467,6 +472,8 @@ extension GuidanceViewModel {
     /// performer's cut the app's speech and get an answer; until 11/03 only requests this screen could act
     /// on did, and everything else was dropped while the app talked. Noise and echo return nil.
     func voiceBargeInRequest(_ text:String) -> String? {
+        // An item of the list being read is the answer it asks for, though the list holds the same words (#156).
+        if voiceHeardChoice(text) {return VoiceNoise.request(text)}
         let request=VoiceEcho.strippingLeadingEcho(text,of:narrationLines)
         guard !request.isEmpty, !VoiceEcho.isEcho(request,of:narrationLines) else {return nil}
         return VoiceNoise.request(request)
@@ -573,7 +580,7 @@ extension GuidanceViewModel {
         if voiceTurnOverNarration {
             voiceTurnOverNarration=false
             let own=text
-            text=VoiceEcho.strippingLeadingEcho(text,of:narrationLines)
+            if !voiceHeardChoice(text) {text=VoiceEcho.strippingLeadingEcho(text,of:narrationLines)}
             if text.isEmpty {logSignal("voice_ignored","echo \(own)");return}
         }
         logSignal("voice_heard",([text]+voiceRecognition.lastAlternatives.filter {$0 != text}).joined(separator:" | "))
@@ -591,6 +598,12 @@ extension GuidanceViewModel {
         }
         if VoiceCommandParser.parse(text) == nil,
            let better=alternatives.map({VoiceWakeWord.request(in:$0) ?? $0}).first(where:{VoiceCommandParser.parse($0) != nil}) {
+            logSignal("voice_alternative","\(text) -> \(better)");text=better
+        }
+        // A lower candidate may name a stage the best one missed: 「실행 | 누리 랩 실행」 was not understood
+        // and had to be said again (11/06 device log).
+        if VoiceCommandParser.parse(text) == nil, !voiceHeardChoice(text),
+           let better=alternatives.first(where:voiceHeardChoice) {
             logSignal("voice_alternative","\(text) -> \(better)");text=better
         }
         keepVoiceConversation()
@@ -693,7 +706,11 @@ extension GuidanceViewModel {
             switch command {
             case .practice,.performance:
                 if phase == .selection, voiceChoosingMode {selectVoiceMode(command == .practice ? .practice : .performance)}
-                else if phase == .selection {read(["먼저 사용할 무대를 선택해주세요. 장소 이름으로 검색하거나 무대 이름을 말씀해주세요."])}
+                else if phase == .selection {
+                    // Kept for when a stage is chosen, so the mode is not asked again (#156).
+                    voiceInitialMode = command == .practice ? .practice : .performance
+                    read(["먼저 사용할 무대를 선택해주세요. 장소 이름으로 검색하거나 무대 이름을 말씀해주세요."])
+                }
                 else {read(["사용 방식은 안내 시작 전에 선택할 수 있어요. 계속이라고 말씀하면 현재 안내를 이어갑니다."])}
             case .returnToPoint(let index): requestVoiceReturn(to:index)
             case .continueGuidance,.next,.start: advanceWithVoice()
