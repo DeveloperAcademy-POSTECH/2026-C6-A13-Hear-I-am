@@ -102,8 +102,6 @@ struct PreparationView: View {
         }.frame(width:safe.size.width+insets.leading+insets.trailing,height:safe.size.height+insets.top+insets.bottom)
             .animation(.smooth(duration:0.35),value:model.editingDangerZones)
             .ignoresSafeArea()
-            // Over the camera every glass is the see-through kind; the sheets below keep the regular one.
-            .environment(\.hearClearGlass,true)
         }.background(.black).preferredColorScheme(.light)
             .overlay {ScanVeil(on:veiled)}
             .sheet(isPresented:$model.showingPhotos) {PreparationPhotosSheet(model:model)}
