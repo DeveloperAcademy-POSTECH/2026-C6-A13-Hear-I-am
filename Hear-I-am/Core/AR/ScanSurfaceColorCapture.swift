@@ -7,48 +7,78 @@ final class ScanSurfaceColorCapture: @unchecked Sendable {
     static let anchorPrefix="HearIAm.surfaceColor."
     private let lock=NSLock()
     private var observations=SurfaceColorFrames()
+    // Only the opt-in Debug comparison keeps a second 48-frame buffer.
+    private var baseline: SurfaceColorFrames? = {
+        #if DEBUG
+        return ProcessInfo.processInfo.arguments.contains("--surface-color-compare") ? SurfaceColorFrames(policy:.viewpointDiversity) : nil
+        #else
+        return nil
+        #endif
+    }()
+    private var diagnostics=SurfaceColorCaptureDiagnostics()
     private var lastAttempt = -Double.infinity
     private var lastPose: simd_float4x4?
     private var finished=false
 
     func finish() {
         lock.lock();defer {lock.unlock()}
-        finished=true;observations=SurfaceColorFrames();lastPose=nil
+        finished=true;observations=SurfaceColorFrames();baseline=nil;lastPose=nil
     }
 
     func capture(_ frame: ARFrame, session: ARSession) {
         guard let configuration=session.configuration as? ARWorldTrackingConfiguration,
-              configuration.sceneReconstruction != [], configuration.frameSemantics.contains(.sceneDepth),
-              case .normal=frame.camera.trackingState else {return}
+              configuration.sceneReconstruction != [], configuration.frameSemantics.contains(.sceneDepth) else {return}
         lock.lock();defer {lock.unlock()}
         guard !finished,frame.timestamp-lastAttempt>=0.5 else {return}
         let previous=lastPose
         lastAttempt=frame.timestamp;lastPose=frame.camera.transform
+        diagnostics.attemptedFrames+=1
+        guard case .normal=frame.camera.trackingState else {diagnostics.trackingRejected+=1;lastPose=nil;return}
         if let previous {
             let current=frame.camera.transform
             // Fast pans/walking frames are likely blurred; a later stable observation can fill the surface.
             guard simd_distance(previous.columns.3,current.columns.3)<0.4,
-                  simd_dot(previous.columns.2,current.columns.2)>0.93 else {return}
+                  simd_dot(previous.columns.2,current.columns.2)>0.93 else {diagnostics.motionRejected+=1;return}
         }
-        guard let observation=Self.copy(frame),observation.valid else {return}
+        guard let observation=Self.copy(frame),observation.valid else {diagnostics.copyRejected+=1;return}
+        diagnostics.capturedFrames+=1
+        let previousIDs=Set(observations.frames.map(\.id)+(baseline?.frames.map(\.id) ?? []))
+        let selectionStart=ProcessInfo.processInfo.systemUptime
+        if observations.append(observation) != nil {diagnostics.evictedFrames+=1}
+        let elapsed=(ProcessInfo.processInfo.systemUptime-selectionStart)*1000
+        diagnostics.selectionMilliseconds+=elapsed
+        diagnostics.maximumSelectionMilliseconds=max(diagnostics.maximumSelectionMilliseconds,elapsed)
+        baseline?.append(observation)
+        let retainedIDs=Set(observations.frames.map(\.id)+(baseline?.frames.map(\.id) ?? []))
         let anchor=ARAnchor(name:Self.anchorPrefix+observation.id.uuidString,transform:observation.cameraTransform)
-        session.add(anchor:anchor)
-        if let removed=observations.append(observation),
-           let old=frame.anchors.first(where:{$0.name==Self.anchorPrefix+removed.uuidString}) {
-            session.remove(anchor:old)
+        if retainedIDs.contains(observation.id) {session.add(anchor:anchor)}
+        for removed in previousIDs.subtracting(retainedIDs) {
+            if let old=frame.anchors.first(where:{$0.name==Self.anchorPrefix+removed.uuidString}) {session.remove(anchor:old)}
         }
     }
 
-    /// Use refined poses from the SAME world map being saved. Missing anchors cannot safely color a wall.
-    func snapshot(map: ARWorldMap) -> [SurfaceColorFrame] {
-        let poses=Dictionary(map.anchors.compactMap {anchor -> (String,simd_float4x4)? in
+    /// The caller supplies the SAME anchor snapshot used to copy final mesh geometry.
+    func snapshot(anchors: [ARAnchor]) -> (frames: [SurfaceColorFrame], baseline: [SurfaceColorFrame]?, diagnostics: SurfaceColorCaptureDiagnostics, alignment: SurfaceColorAlignmentDiagnostics) {
+        let poses=Dictionary(anchors.compactMap {anchor -> (String,simd_float4x4)? in
             guard let name=anchor.name,name.hasPrefix(Self.anchorPrefix) else {return nil}
             return (name,anchor.transform)
         },uniquingKeysWith: {_,new in new})
         lock.lock();defer {lock.unlock()}
-        return observations.frames.compactMap {frame in
-            poses[Self.anchorPrefix+frame.id.uuidString].map {frame.withCameraTransform($0)}
+        func corrected(_ frames: [SurfaceColorFrame]) -> [SurfaceColorFrame] {
+            frames.compactMap {frame in
+                poses[Self.anchorPrefix+frame.id.uuidString].map {frame.withCameraTransform($0)}
+            }
         }
+        let frames=corrected(observations.frames)
+        var report=diagnostics
+        report.retainedFrames=frames.count;report.missingPoseFrames=observations.frames.count-frames.count
+        let coverage=observations.coverage
+        report.coveredRegions=coverage.regions;report.pairedRegions=coverage.paired
+        var alignment=SurfaceColorAlignmentDiagnostics()
+        for original in observations.frames {
+            if let pose=poses[Self.anchorPrefix+original.id.uuidString] {alignment.recordCameraPose(original:original.cameraTransform,final:pose)}
+        }
+        return (frames,baseline.map {corrected($0.frames)},report,alignment)
     }
 
     private static func copy(_ frame: ARFrame) -> SurfaceColorFrame? {
@@ -69,9 +99,11 @@ final class ScanSurfaceColorCapture: @unchecked Sendable {
               CVPixelBufferGetPixelFormatType(confidence)==kCVPixelFormatType_OneComponent8 else {return nil}
         let dw=CVPixelBufferGetWidth(depth),dh=CVPixelBufferGetHeight(depth)
         guard dw>0,dh>0,CVPixelBufferGetWidth(confidence)==dw,CVPixelBufferGetHeight(confidence)==dh else {return nil}
-        // At most 160 x 160 RGB/depth/confidence samples per view (~200 KB); at most 48 views.
-        let scale=min(1,160.0/Double(max(dw,dh)))
-        let width=Int(Double(dw)*scale),height=Int(Double(dh)*scale)
+        let iw=CVPixelBufferGetWidthOfPlane(image,0),ih=CVPixelBufferGetHeightOfPlane(image,0)
+        guard resolution.width==CGFloat(iw),resolution.height==CGFloat(ih),
+              let raster=SurfaceColorRasterMapping(imageWidth:iw,imageHeight:ih,depthWidth:dw,depthHeight:dh,intrinsics:k) else {return nil}
+        // An integer stride preserves exact depth rays (256x192 -> 128x96), with at most 160 per edge.
+        let width=raster.width,height=raster.height
         guard width>=3,height>=3 else {return nil}
         if let mask,CVPixelBufferGetPixelFormatType(mask) != kCVPixelFormatType_OneComponent8 {return nil}
         let buffers=[image,depth,confidence]+(mask.map {[$0]} ?? [])
@@ -84,7 +116,6 @@ final class ScanSurfaceColorCapture: @unchecked Sendable {
         guard let yBase=CVPixelBufferGetBaseAddressOfPlane(image,0),
               let uvBase=CVPixelBufferGetBaseAddressOfPlane(image,1),
               let dBase=CVPixelBufferGetBaseAddress(depth),let cBase=CVPixelBufferGetBaseAddress(confidence) else {return nil}
-        let iw=CVPixelBufferGetWidthOfPlane(image,0),ih=CVPixelBufferGetHeightOfPlane(image,0)
         let uw=CVPixelBufferGetWidthOfPlane(image,1),uh=CVPixelBufferGetHeightOfPlane(image,1)
         let yStride=CVPixelBufferGetBytesPerRowOfPlane(image,0),uvStride=CVPixelBufferGetBytesPerRowOfPlane(image,1)
         let dStride=CVPixelBufferGetBytesPerRow(depth),cStride=CVPixelBufferGetBytesPerRow(confidence)
@@ -102,29 +133,27 @@ final class ScanSurfaceColorCapture: @unchecked Sendable {
         var personValues=mask == nil ? nil : [UInt8](repeating:0,count:width*height)
         for y in 0..<height {for x in 0..<width {
             let index=y*width+x
-            let dx=min(dw-1,Int((Double(x)+0.5)*Double(dw)/Double(width)))
-            let dy=min(dh-1,Int((Double(y)+0.5)*Double(dh)/Double(height)))
+            let dx=raster.depthX(x),dy=raster.depthY(y)
             depths[index]=dBase.advanced(by:dy*dStride+dx*4).load(as:Float.self)
             confidenceValues[index]=cBase.advanced(by:dy*cStride+dx).load(as:UInt8.self)
             if let maskBase,mw>0,mh>0 {
-                let mx=min(mw-1,Int((Double(x)+0.5)*Double(mw)/Double(width)))
-                let my=min(mh-1,Int((Double(y)+0.5)*Double(mh)/Double(height)))
-                if maskBase.advanced(by:my*maskStride+mx).load(as:UInt8.self)>0 {
+                var person=false
+                for my in raster.maskRange(y,depthSize:dh,maskSize:mh) {for mx in raster.maskRange(x,depthSize:dw,maskSize:mw) {
+                    if maskBase.advanced(by:my*maskStride+mx).load(as:UInt8.self)>0 {person=true}
+                }}
+                if person {
                     confidenceValues[index]=0;personValues?[index]=1
                 }
             }
-            let ix=min(iw-1,Int((Double(x)+0.5)*Double(iw)/Double(width)))
-            let iy=min(ih-1,Int((Double(y)+0.5)*Double(ih)/Double(height)))
+            let ix=raster.imageX(x),iy=raster.imageY(y)
             let ux=min(uw-1,ix*uw/iw),uy=min(uh-1,iy*uh/ih)
             let luma=yBase.advanced(by:iy*yStride+ix).load(as:UInt8.self)
             let uv=uvBase.advanced(by:uy*uvStride+ux*2)
             let color=SurfaceCameraColor.rgb(y:luma,cb:uv.load(as:UInt8.self),cr:uv.advanced(by:1).load(as:UInt8.self),fullRange:fullRange,kr:kr,kb:kb)
             for channel in 0..<3 {rgb[index*3+channel]=UInt8(clamping:Int((color[channel]*255).rounded()))}
         }}
-        guard resolution.width>0,resolution.height>0 else {return nil}
-        let sx=Float(width)/Float(resolution.width),sy=Float(height)/Float(resolution.height)
         return SurfaceColorFrame(time:time,cameraTransform:cameraTransform,width:width,height:height,
-                                 fx:k[0][0]*sx,fy:k[1][1]*sy,cx:(k[2][0]+0.5)*sx-0.5,cy:(k[2][1]+0.5)*sy-0.5,
+                                 fx:raster.fx,fy:raster.fy,cx:raster.cx,cy:raster.cy,
                                  rgb:rgb,depth:depths,confidence:confidenceValues,personMask:personValues)
     }
 }

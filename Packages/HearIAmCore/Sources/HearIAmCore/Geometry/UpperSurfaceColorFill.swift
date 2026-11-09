@@ -17,16 +17,27 @@ public enum UpperSurfaceColorFill {
         public var candidateVertices=0, inferredVertices=0
         public var rejected: [String:Int]=[:]
         public var inferredTriangles=0, inferredAreaSquareMeters=0.0
+        /// Unique candidate vertices per reason; one candidate may have several hard vetoes.
+        public var blockedReasons: [String:Int]?=[:]
+        public var singleObservationCandidates: Int?=0
+        public var singleObservationFills: Int?=0
+        public var recoveredPlaneVertices: Int?=0
         public init() {}
         mutating func reject(_ reason: String) {rejected[reason,default:0]+=1}
         mutating func merge(_ other: Self) {
             candidateVertices+=other.candidateVertices;inferredVertices+=other.inferredVertices
             for (key,value) in other.rejected {rejected[key,default:0]+=value}
+            for (key,value) in other.blockedReasons ?? [:] {blockedReasons?[key,default:0]+=value}
+            singleObservationCandidates=(singleObservationCandidates ?? 0)+(other.singleObservationCandidates ?? 0)
+            singleObservationFills=(singleObservationFills ?? 0)+(other.singleObservationFills ?? 0)
+            recoveredPlaneVertices=(recoveredPlaneVertices ?? 0)+(other.recoveredPlaneVertices ?? 0)
         }
         public var summary: String {
             "inferredVertices=\(inferredVertices)/\(candidateVertices) inferredTriangles=\(inferredTriangles) " +
             "inferredAreaM2=\(inferredAreaSquareMeters) rejected={" +
-            rejected.keys.sorted().map {"\($0)=\(rejected[$0]!)"}.joined(separator:",")+"}"
+            rejected.keys.sorted().map {"\($0)=\(rejected[$0]!)"}.joined(separator:",")+"} " +
+            "blockedReasons={"+(blockedReasons ?? [:]).sorted {$0.key<$1.key}.map {"\($0.key)=\($0.value)"}.joined(separator:",")+"} " +
+            "singleCandidates=\(singleObservationCandidates ?? 0) singleFills=\(singleObservationFills ?? 0) recoveredPlaneVertices=\(recoveredPlaneVertices ?? 0)"
         }
     }
     public struct FillResult: Sendable {
@@ -34,7 +45,10 @@ public enum UpperSurfaceColorFill {
         public let diagnostics: Diagnostics
     }
 
-    public static func fill(_ mesh: MeshSnapshot,blockedVertices: Set<Int> = []) -> FillResult {
+    public static func fill(_ mesh: MeshSnapshot,blockedVertices: Set<Int> = [],
+                            blockedReasons: [Int:Set<String>] = [:],
+                            singleObservations: [Int:SIMD3<Float>] = [:],
+                            improvePlaneChecks: Bool = true) -> FillResult {
         var diagnostics=Diagnostics()
         guard (try? mesh.validate()) != nil,let direct=mesh.surfaceColors else {
             return FillResult(mesh:mesh,diagnostics:diagnostics)
@@ -47,23 +61,48 @@ public enum UpperSurfaceColorFill {
         }
         var incident=Array(repeating:[Int](),count:points.count)
         var faceNormals=Array(repeating:SIMD3<Double>.zero,count:mesh.indices.count/3)
+        var faceAreas=Array(repeating:0.0,count:faceNormals.count)
         for face in faceNormals.indices {
             let ids=(0..<3).map {Int(mesh.indices[face*3+$0])}
             let cross=simd_cross(points[ids[1]]-points[ids[0]],points[ids[2]]-points[ids[0]])
             let length=simd_length(cross)
             guard length>1e-8 else {continue}
             faceNormals[face]=cross/length
+            faceAreas[face]=length/2
             for id in ids {incident[id].append(face)}
         }
-        // A vertex shared by different planes is a barrier, even if their averaged normal looks vertical.
-        let normals=incident.map {faces -> SIMD3<Double> in
+        // Keep the old strict pass. Recover only a dominant, geometrically flat patch with a tiny
+        // isolated sliver normal. Never average two coherent planes into a fictitious wall.
+        var recovered=Set<Int>()
+        let normals=incident.enumerated().map {vertex,allFaces -> SIMD3<Double> in
+            let faces=allFaces.filter {faceAreas[$0]>0}
             guard let first=faces.first else {return .zero}
             let reference=faceNormals[first]
-            guard abs(reference.y)<=0.25,faces.allSatisfy({
+            if abs(reference.y)<=0.25,faces.allSatisfy({
                 abs(faceNormals[$0].y)<=0.25 && abs(simd_dot(reference,faceNormals[$0]))>=normalAgreement
-            }) else {return .zero}
-            return reference
+            }) {return reference}
+            guard improvePlaneChecks,let largest=faces.max(by:{faceAreas[$0]<faceAreas[$1]}) else {return .zero}
+            let seed=faceNormals[largest]
+            let support=faces.filter {abs(simd_dot(seed,faceNormals[$0]))>=normalAgreement}
+            let total=faces.reduce(0.0) {$0+faceAreas[$1]}
+            guard support.count>=2,support.reduce(0.0,{$0+faceAreas[$1]})>=total*0.85 else {return .zero}
+            let sum=support.reduce(SIMD3<Double>.zero) {value,face in
+                value+faceNormals[face]*faceAreas[face]*(simd_dot(seed,faceNormals[face])<0 ? -1 : 1)
+            }
+            let fitted=simd_normalize(sum)
+            guard abs(fitted.y)<=0.25 else {return .zero}
+            let outliers=faces.filter {abs(simd_dot(fitted,faceNormals[$0]))<normalAgreement}
+            // A second coherent group is an edge/fold even if its area is small.
+            for i in outliers.indices {for j in outliers.indices where j>i {
+                if abs(simd_dot(faceNormals[outliers[i]],faceNormals[outliers[j]]))>=normalAgreement {return .zero}
+            }}
+            for face in faces {for corner in 0..<3 {
+                let neighbor=Int(mesh.indices[face*3+corner])
+                guard abs(simd_dot(points[neighbor]-points[vertex],fitted))<=0.008 else {return .zero}
+            }}
+            recovered.insert(vertex);return fitted
         }
+        diagnostics.recoveredPlaneVertices=recovered.count
         var inferred=mesh.inferredSurfaceColors ?? Data(repeating:0,count:direct.count)
         func observed(_ id: Int) -> Bool {direct[id*4+3]==255}
         func blocked(_ id: Int) -> Bool {blockedVertices.contains(id) && !observed(id)}
@@ -84,7 +123,12 @@ public enum UpperSurfaceColorFill {
             // Floors and unused vertices are not inference candidates.
             guard incident[target].contains(where:{abs(faceNormals[$0].y)<=0.25}) else {continue}
             diagnostics.candidateVertices+=1
-            guard !blocked(target) else {diagnostics.reject("observationConflict");continue}
+            if singleObservations[target] != nil {diagnostics.singleObservationCandidates?+=1}
+            guard !blocked(target) else {
+                diagnostics.reject("observationConflict")
+                for reason in blockedReasons[target] ?? ["unspecified"] {diagnostics.blockedReasons?[reason,default:0]+=1}
+                continue
+            }
             let normal=normals[target],origin=points[target]
             guard simd_length_squared(normal)>0.9 else {diagnostics.reject("cornerOrNonVertical");continue}
             let tangent=simd_normalize(simd_cross(SIMD3(0.0,1,0),normal))
@@ -112,6 +156,8 @@ public enum UpperSurfaceColorFill {
                     context.append(current)
                     let rise=origin.y-points[current].y
                     if rise>=minimumRise && rise<=maximumRise+1e-8 {donors.append(current)}
+                } else if singleObservations[current] != nil {
+                    context.append(current) // A single sample constrains boundaries; it is NEVER a donor.
                 }
                 for face in incident[current] {for corner in 0..<3 {
                     let neighbor=Int(mesh.indices[face*3+corner])
@@ -136,15 +182,25 @@ public enum UpperSurfaceColorFill {
             }
             // All directly measured colors in the reachable patch (including at/above target height) agree.
             // Never discard a minority color at a boundary as an "outlier" to fill over it.
-            let colors=context.map(color)
+            let colors=context.map {id in observed(id) ? color(id) : SIMD3<Double>(singleObservations[id]!)}
             var consistent=true
             for i in colors.indices {
                 if colors[(i+1)...].contains(where:{simd_distance(colors[i],$0)>maximumColorDifference}) {consistent=false;break}
             }
-            guard consistent else {diagnostics.reject("colorBoundary");continue}
+            guard consistent else {
+                diagnostics.reject("colorBoundary")
+                if context.filter({!observed($0)}).contains(where:{id in
+                    let single=SIMD3<Double>(singleObservations[id]!)
+                    return colors.contains {simd_distance(single,$0)>maximumColorDifference}
+                }) {
+                    diagnostics.blockedReasons?["singleObservationColorConflict",default:0]+=1
+                }
+                continue
+            }
             let mean=donors.reduce(SIMD3<Double>.zero) {$0+color($1)}/Double(donors.count)
             for channel in 0..<3 {inferred[target*4+channel]=UInt8(clamping:Int((mean[channel]*255).rounded()))}
             inferred[target*4+3]=255;diagnostics.inferredVertices+=1
+            if singleObservations[target] != nil {diagnostics.singleObservationFills?+=1}
         }
         guard diagnostics.inferredVertices>0 else {return FillResult(mesh:mesh,diagnostics:diagnostics)}
         return FillResult(mesh:MeshSnapshot(id:mesh.id,transform:mesh.transform,vertices:mesh.vertices,indices:mesh.indices,

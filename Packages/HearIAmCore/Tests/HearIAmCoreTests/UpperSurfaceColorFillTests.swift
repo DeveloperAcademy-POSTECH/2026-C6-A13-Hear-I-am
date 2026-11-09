@@ -121,12 +121,100 @@ final class UpperSurfaceColorFillTests: XCTestCase {
         XCTAssertGreaterThan(after.diagnostics.upperFill?.inferredAreaSquareMeters ?? 0,0)
         XCTAssertNil(SurfaceColorBaker.bakeWithDiagnostics([mesh],frames:frames,policy:.strict).meshes[0].inferredSurfaceColors)
     }
+    func testOneCleanObservationCanConstrainInferenceButNeverBecomeDirect() {
+        let frames=[frame(time:1),frame(time:2,cy:4.25)]
+        let current=SurfaceColorBaker.bakeWithDiagnostics([wall(observe:false)],frames:frames)
+        let old=SurfaceColorBaker.bakeWithDiagnostics([wall(observe:false)],frames:frames,improveUpperFill:false)
+        XCTAssertEqual(current.meshes[0].surfaceColors,old.meshes[0].surfaceColors)
+        XCTAssertEqual(current.meshes[0].surfaceColors?[index(3)*4+3],0)
+        XCTAssertEqual(estimate(current.meshes[0],3),red)
+        XCTAssertNotEqual(estimate(old.meshes[0],3),red)
+        XCTAssertGreaterThan(current.diagnostics.upperFill?.singleObservationFills ?? 0,0)
+        XCTAssertGreaterThan(current.diagnostics.coloredAreaFraction,old.diagnostics.coloredAreaFraction)
+        XCTAssertEqual(current.diagnostics.directColoredTriangles,old.diagnostics.directColoredTriangles)
+        XCTAssertEqual(current.diagnostics.coloredTriangles,
+            (current.diagnostics.directColoredTriangles ?? 0)+(current.diagnostics.upperFill?.inferredTriangles ?? 0))
+        XCTAssertEqual(current.diagnostics.coloredAreaSquareMeters,
+            (current.diagnostics.directColoredAreaSquareMeters ?? 0)+(current.diagnostics.upperFill?.inferredAreaSquareMeters ?? 0),accuracy:1e-9)
+    }
+    func testSingleObservedBoundaryIsNeverOverwrittenAndCannotSupplyDonors() {
+        let target=index(2),redSample=SIMD3<Float>(180,30,40)/255,blueSample=SIMD3<Float>(30,40,180)/255
+        let same=UpperSurfaceColorFill.fill(wall(),singleObservations:[target:redSample])
+        XCTAssertEqual(estimate(same.mesh,2),red)
+        XCTAssertEqual(same.diagnostics.singleObservationFills,1)
+        let other=UpperSurfaceColorFill.fill(wall(),singleObservations:[target:blueSample])
+        XCTAssertNotEqual(estimate(other.mesh,2),red)
+        XCTAssertGreaterThan(other.diagnostics.blockedReasons?["singleObservationColorConflict"] ?? 0,0)
+        // A different color next to the target also blocks crossing the boundary.
+        let neighbor=UpperSurfaceColorFill.fill(wall(),singleObservations:[index(2,1):blueSample])
+        XCTAssertNotEqual(estimate(neighbor.mesh,2),red)
+        let noDirect=wall(colors:{_,_ in [0,0,0,0]})
+        let singles=Dictionary(uniqueKeysWithValues:(0..<10).map {($0,redSample)})
+        XCTAssertNil(UpperSurfaceColorFill.fill(noDirect,singleObservations:singles).mesh.inferredSurfaceColors)
+    }
+    func testSingleObservationCannotOverrideAnyHardConflict() {
+        let target=index(2),sample=SIMD3<Float>(180,30,40)/255
+        for reason in ["personMask","foregroundOcclusion","depthMismatch","clippedColor","inconsistentColor","insufficientTimeSeparation"] {
+            let result=UpperSurfaceColorFill.fill(wall(),blockedVertices:[target],
+                blockedReasons:[target:[reason]],singleObservations:[target:sample])
+            XCTAssertNotEqual(estimate(result.mesh,2),red)
+            XCTAssertEqual(result.diagnostics.blockedReasons?[reason],1)
+        }
+    }
+    func testBakerRetainsHardVetoDespiteOneCleanMatchingObservation() {
+        let base=frame(time:3,cy:4.25),count=base.width*base.height
+        for reason in ["personMask","foregroundOcclusion","depthMismatch","clippedColor"] {
+            let bad=SurfaceColorFrame(time:base.time,cameraTransform:base.cameraTransform,width:base.width,height:base.height,
+                fx:base.fx,fy:base.fy,cx:base.cx,cy:base.cy,
+                rgb:reason=="clippedColor" ? Array(repeating:255,count:count*3) : base.rgb,
+                depth:Array(repeating:reason=="foregroundOcclusion" ? 1 : reason=="depthMismatch" ? 3 : 2,count:count),
+                confidence:base.confidence,personMask:reason=="personMask" ? Array(repeating:1,count:count) : nil)
+            let result=SurfaceColorBaker.bakeWithDiagnostics([wall(observe:false)],frames:[frame(time:1),frame(time:2,cy:4.25),bad])
+            XCTAssertNotEqual(estimate(result.meshes[0],3),red)
+            XCTAssertGreaterThan(result.diagnostics.upperFill?.blockedReasons?[reason] ?? 0,0)
+            XCTAssertGreaterThan(result.diagnostics.coloredVertices,0) // Valid lower observations survive.
+        }
+    }
+    func testDepthDiagnosticsLeaveDirectAndInferredResultsIdentical() {
+        for frames in [[frame(time:1),frame(time:2,cy:4.25)],
+                       [frame(time:1,cy:12,occluder:true),frame(time:2,cy:12,occluder:true)]] {
+            let mesh=wall(observe:false)
+            let on=SurfaceColorBaker.bakeWithDiagnostics([mesh],frames:frames)
+            let off=SurfaceColorBaker.bakeWithDiagnostics([mesh],frames:frames,collectDepthDiagnostics:false)
+            XCTAssertEqual(on.meshes,off.meshes)
+            var d=on.diagnostics;d.depthAnalysis=nil
+            XCTAssertEqual(d,off.diagnostics)
+        }
+    }
+    func testSmallIsolatedSliverRecoversButRealFoldAndOffsetStayBlocked() {
+        let source=wall(),target=index(2)
+        func sliver(offset: Double,secondFace: Bool=false) -> MeshSnapshot {
+            let p=source.vertices[target]
+            var vertices=source.vertices+[Point3(p.x+0.003,p.y,p.z+offset),Point3(p.x,p.y+0.003,p.z)]
+            var indices=source.indices+[UInt32(target),30,31]
+            if secondFace {
+                vertices.append(Point3(p.x+0.003,p.y+0.003,p.z+offset));indices += [30,32,31]
+                // The second coherent tilted face must share the target to form its incident plane group.
+                indices += [UInt32(target),30,32]
+            }
+            return MeshSnapshot(id:source.id,transform:source.transform,vertices:vertices,indices:indices,
+                surfaceColors:source.surfaceColors!+Data(repeating:0,count:(vertices.count-source.vertices.count)*4))
+        }
+        let noisy=sliver(offset:0.002)
+        let current=UpperSurfaceColorFill.fill(noisy),old=UpperSurfaceColorFill.fill(noisy,improvePlaneChecks:false)
+        XCTAssertEqual(estimate(current.mesh,2),red)
+        XCTAssertNotEqual(estimate(old.mesh,2),red)
+        XCTAssertGreaterThan(current.diagnostics.recoveredPlaneVertices ?? 0,0)
+        XCTAssertNotEqual(estimate(UpperSurfaceColorFill.fill(sliver(offset:0.02)).mesh,2),red)
+        XCTAssertNotEqual(estimate(UpperSurfaceColorFill.fill(sliver(offset:0.002,secondFace:true)).mesh,2),red)
+    }
     func testPeopleAndForegroundRejectionsCannotBeOverwrittenByInference() {
         for mask in [false,true] {
             let frames=[frame(time:1,cy:12,mask:mask,occluder:!mask),frame(time:2,cy:12,mask:mask,occluder:!mask)]
             let result=SurfaceColorBaker.bakeWithDiagnostics([wall(observe:false)],frames:frames)
             XCTAssertNil(result.meshes[0].inferredSurfaceColors)
             XCTAssertGreaterThan(result.diagnostics.upperFill?.rejected["observationConflict"] ?? 0,0)
+            XCTAssertGreaterThan(result.diagnostics.upperFill?.blockedReasons?[mask ? "personMask" : "foregroundOcclusion"] ?? 0,0)
         }
     }
     func testProvenanceValidationLegacyDecodeAndStoreRoundTrip() async throws {

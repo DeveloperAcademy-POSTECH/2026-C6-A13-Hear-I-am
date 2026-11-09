@@ -217,10 +217,46 @@ struct StageReplayPreviewHarness: View {
               captured.confidence.allSatisfy({$0==2}),masked.confidence[0]==0,masked.confidence.last==2,
               captured.personMask==nil,masked.personMask?[0]==1,masked.personMask?.last==0,
               masked.withCameraTransform(matrix_identity_float4x4).personMask==masked.personMask,
-              abs(captured.fx-20)<0.001,abs(captured.cy-11.75)<0.001 else {
+              abs(captured.fx-20)<0.001,abs(captured.cy-12)<0.001 else {
             throw LabError.invalid("카메라 YCbCr·행 간격·상하 방향·사람 마스크 검증 실패")
         }
         print("SURFACE_CAPTURE_QA_OK: YCbCr buffers, depth, padded row strides, sensor orientation, intrinsics, person mask")
+        // Real depth-size regression: an integer stride must keep RGB and depth on exactly the same ray.
+        let largeImage=try buffer(512,384,kCVPixelFormatType_420YpCbCr8BiPlanarFullRange)
+        let largeDepth=try buffer(256,192,kCVPixelFormatType_DepthFloat32)
+        let largeConfidence=try buffer(256,192,kCVPixelFormatType_OneComponent8)
+        let largeMask=try buffer(256,192,kCVPixelFormatType_OneComponent8)
+        for value in [largeImage,largeDepth,largeConfidence,largeMask] {CVPixelBufferLockBaseAddress(value,[])}
+        for y in 0..<384 {for x in 0..<512 {
+            CVPixelBufferGetBaseAddressOfPlane(largeImage,0)!.advanced(by:y*CVPixelBufferGetBytesPerRowOfPlane(largeImage,0)+x)
+                .storeBytes(of:UInt8(x%251),as:UInt8.self)
+        }}
+        for y in 0..<192 {for x in 0..<256 {
+            let uv=CVPixelBufferGetBaseAddressOfPlane(largeImage,1)!.advanced(by:y*CVPixelBufferGetBytesPerRowOfPlane(largeImage,1)+x*2)
+            uv.storeBytes(of:UInt8(128),as:UInt8.self);uv.advanced(by:1).storeBytes(of:UInt8(128),as:UInt8.self)
+            CVPixelBufferGetBaseAddress(largeDepth)!.advanced(by:y*CVPixelBufferGetBytesPerRow(largeDepth)+x*4)
+                .storeBytes(of:Float(2)+Float(x)*0.001+Float(y)*0.002,as:Float.self)
+            CVPixelBufferGetBaseAddress(largeConfidence)!.advanced(by:y*CVPixelBufferGetBytesPerRow(largeConfidence)+x)
+                .storeBytes(of:UInt8(2),as:UInt8.self)
+            CVPixelBufferGetBaseAddress(largeMask)!.advanced(by:y*CVPixelBufferGetBytesPerRow(largeMask)+x)
+                .storeBytes(of:UInt8(x==3 && y==3 ? 1 : 0),as:UInt8.self)
+        }}
+        for value in [largeImage,largeDepth,largeConfidence,largeMask] {CVPixelBufferUnlockBaseAddress(value,[])}
+        let largeK=simd_float3x3(columns:(SIMD3(400,0,0),SIMD3(0,400,0),SIMD3(256,192,1)))
+        guard let aligned=ScanSurfaceColorCapture.copy(image:largeImage,depth:largeDepth,confidence:largeConfidence,
+            mask:largeMask,intrinsics:largeK,resolution:CGSize(width:512,height:384),cameraTransform:matrix_identity_float4x4,time:1),
+            aligned.width==128,aligned.height==96,aligned.fx==100,aligned.cx==64,aligned.cy==48,
+            aligned.personMask?[129]==1,aligned.confidence[129]==0 else {throw LabError.invalid("깊이 광선 축소·마스크 보존 검증 실패")}
+        for y in 0..<96 {for x in 0..<128 {
+            let i=y*128+x
+            guard abs(aligned.depth[i]-(2+Float(x*2)*0.001+Float(y*2)*0.002))<1e-6,
+                  abs(Int(aligned.rgb[i*3])-((x*4)%251))<=1 else {throw LabError.invalid("RGB·깊이 광선 정렬 검증 실패")}
+        }}
+        guard ScanSurfaceColorCapture.copy(image:largeImage,depth:largeDepth,confidence:largeConfidence,mask:nil,
+            intrinsics:largeK,resolution:CGSize(width:640,height:480),cameraTransform:matrix_identity_float4x4,time:1)==nil else {
+            throw LabError.invalid("카메라 해상도 불일치 차단 검증 실패")
+        }
+        print("SURFACE_ALIGNMENT_QA_OK: 256x192 native depth rays, 128x96 integer stride, aligned RGB, skipped-pixel person mask, calibration mismatch rejection")
     }
     /// One figure transform moves the spotlight at the same pace, without steering the camera or changing saved data.
     private func verifyImmersiveFocusLighting(_ scan: LoadedScan,cleanSurfaces: [ReplaySurfaceMesh]) async throws {

@@ -94,6 +94,246 @@ final class SurfaceColorTests: XCTestCase {
         XCTAssertEqual(buffer.frames.count,SurfaceColorFrames.capacity)
         XCTAssertTrue(buffer.frames.contains {$0.id==distinct.id})
     }
+    func testWallObservationPairSurvivesLongScanAndStillColorsFinalMesh() {
+        var paired=SurfaceColorFrames(),legacy=SurfaceColorFrames(policy:.viewpointDiversity)
+        let first=frame(time:1),second=frame(time:2)
+        for f in [first,second] {paired.append(f);legacy.append(f)}
+        for n in 1...70 {
+            var pose=matrix_identity_float4x4;pose.columns.3.x=Float(n)*8
+            let f=frame(time:Double(n+10),pose:pose)
+            paired.append(f);legacy.append(f)
+        }
+        XCTAssertEqual(paired.frames.count,48)
+        XCTAssertTrue(paired.frames.contains {$0.id==first.id})
+        XCTAssertTrue(paired.frames.contains {$0.id==second.id})
+        XCTAssertGreaterThan(paired.coverage.paired,0)
+        XCTAssertEqual(SurfaceColorBaker.bakeWithDiagnostics([mesh()],frames:paired.frames).diagnostics.coloredTriangles,1)
+        XCTAssertEqual(SurfaceColorBaker.bakeWithDiagnostics([mesh()],frames:legacy.frames).diagnostics.coloredTriangles,0)
+    }
+    func testRegionPairsNeedTimeColorAndUnmaskedDepth() {
+        for second in [frame(time:1.1),frame(time:2,color:[30,40,180]),frame(time:2,confidence:0),
+                       edited(frame(time:2),people:Array(0..<(32*24)))] {
+            var buffer=SurfaceColorFrames();buffer.append(frame());buffer.append(second)
+            XCTAssertEqual(buffer.coverage.paired,0)
+        }
+        var buffer=SurfaceColorFrames();buffer.append(frame());buffer.append(frame(time:2))
+        XCTAssertGreaterThan(buffer.coverage.paired,0)
+    }
+    func testFullPairedBufferStillAdmitsANewWallPair() {
+        var buffer=SurfaceColorFrames()
+        for n in 0..<24 {
+            var pose=matrix_identity_float4x4;pose.columns.3.x=Float(n)*8
+            buffer.append(frame(time:Double(n)*2,pose:pose))
+            buffer.append(frame(time:Double(n)*2+1,pose:pose))
+        }
+        var newPose=matrix_identity_float4x4;newPose.columns.3.x=300
+        let first=frame(time:60,pose:newPose),second=frame(time:61,pose:newPose)
+        buffer.append(first)
+        XCTAssertTrue(buffer.frames.contains {$0.id==first.id})
+        buffer.append(second)
+        XCTAssertTrue(buffer.frames.contains {$0.id==first.id})
+        XCTAssertTrue(buffer.frames.contains {$0.id==second.id})
+        XCTAssertEqual(buffer.frames.count,48)
+    }
+    func testFullResolutionLongStreamKeepsBoundedPairedCoverage() {
+        var buffer=SurfaceColorFrames()
+        let count=160*120
+        let rgb: [UInt8]=Array(repeating:[180,30,40],count:count).flatMap {$0}
+        let start=ProcessInfo.processInfo.systemUptime
+        for n in 0..<90 {
+            let f=SurfaceColorFrame(time:Double(n)*0.5,cameraTransform:matrix_identity_float4x4,
+                width:160,height:120,fx:100,fy:100,cx:80,cy:60,rgb:rgb,
+                depth:Array(repeating:2,count:count),confidence:Array(repeating:2,count:count))
+            buffer.append(f)
+        }
+        print("SURFACE_RETENTION_BENCHMARK: 160x120 frames=90 meanMs=\((ProcessInfo.processInfo.systemUptime-start)*1000/90)")
+        XCTAssertEqual(buffer.frames.count,48)
+        XCTAssertGreaterThan(buffer.coverage.paired,0)
+    }
+    func testCaptureReportsAndObservationBucketsRoundTripWithoutChangingOldReports() throws {
+        let d=SurfaceColorBaker.bakeWithDiagnostics([mesh()],frames:[frame()]).diagnostics
+        XCTAssertEqual(d.observationCounts,["one":3])
+        XCTAssertEqual(SurfaceColorBaker.bakeWithDiagnostics([mesh()],frames:[]).diagnostics.observationCounts,["zero":3])
+        XCTAssertEqual(SurfaceColorBaker.bakeWithDiagnostics([mesh()],frames:[frame(),frame(time:2)]).diagnostics.observationCounts,["twoOrMore":3])
+        var report=d;report.capture=SurfaceColorCaptureDiagnostics()
+        XCTAssertEqual(try JSONDecoder().decode(SurfaceColorDiagnostics.self,from:JSONEncoder().encode(report)),report)
+        var old=try XCTUnwrap(JSONSerialization.jsonObject(with:JSONEncoder().encode(report)) as? [String:Any])
+        old["version"]=2
+        for key in ["capture","observationCounts","directColoredTriangles","directColoredAreaSquareMeters","depthAnalysis"] {old.removeValue(forKey:key)}
+        let decoded=try JSONDecoder().decode(SurfaceColorDiagnostics.self,from:JSONSerialization.data(withJSONObject:old))
+        XCTAssertNil(decoded.capture);XCTAssertNil(decoded.observationCounts)
+        XCTAssertNil(decoded.directColoredTriangles);XCTAssertNil(decoded.directColoredAreaSquareMeters)
+        XCTAssertNil(decoded.depthAnalysis)
+    }
+    func testDepthDiagnosticsSeparateSmallOffsetsFromBroadDepthDifferences() throws {
+        for (depth,pattern,excess): (Float,String,String) in [
+            (1.92,"mostlyNearSmallOffset","upTo0.02"),(1,"mostlyNearLargeOffset","over0.15"),
+            (2.08,"mostlyFarSmallOffset","upTo0.02"),(3,"mostlyFarLargeOffset","over0.15")] {
+            let result=SurfaceColorBaker.bakeWithDiagnostics([mesh()],frames:[frame(depth:depth),frame(time:2,depth:depth)])
+            let d=try XCTUnwrap(result.diagnostics.depthAnalysis)
+            XCTAssertEqual(d.rejectedObservations,6)
+            XCTAssertEqual(d.firstFailureLocation,["center":6])
+            XCTAssertEqual(d.footprintPatterns,[pattern:6])
+            XCTAssertEqual(d.firstExcessOverToleranceMeters,[excess:6])
+            XCTAssertEqual(d.reliablePixelsPerFootprint,["9":6])
+            XCTAssertEqual(d.uncoloredVerticesWithDepthConflict,3)
+            XCTAssertEqual(d.uncoloredAcceptedViews,["zero":3])
+            XCTAssertEqual(d.framesWithoutPersonMask,2)
+            XCTAssertNil(result.meshes[0].surfaceColors) // Small offsets still reject; diagnostics never relax tolerance.
+        }
+    }
+    func testDepthDiagnosticsDetectNeighborOnlyAndMixedFootprints() throws {
+        let near=15*32+10,far=15*32+12
+        for mixed in [false,true] {
+            let changes: [Int:Float]=mixed ? [near:1,far:3] : [near:1]
+            let result=SurfaceColorBaker.bakeWithDiagnostics([mesh()],frames:[edited(frame(),depthChanges:changes)])
+            let d=try XCTUnwrap(result.diagnostics.depthAnalysis)
+            XCTAssertEqual(d.rejectedObservations,1)
+            XCTAssertEqual(d.firstFailureReason,["foregroundOcclusion":1])
+            XCTAssertEqual(d.firstFailureLocation,["neighbor":1])
+            XCTAssertEqual(d.footprintPatterns,[mixed ? "mixedSigns" : "neighborOnlyConflict":1])
+            XCTAssertEqual(d.uncoloredSignPatterns,[mixed ? "mixedWithinView" : "nearOnly":1])
+        }
+        let masked=SurfaceColorBaker.bakeWithDiagnostics([mesh()],frames:[edited(frame(),people:[near])]).diagnostics
+        XCTAssertEqual(masked.rejectedObservations["personMask"],1)
+        XCTAssertEqual(masked.depthAnalysis?.rejectedObservations,0) // Person rejection is not relabeled as depth error.
+        XCTAssertEqual(masked.depthAnalysis?.framesWithPersonMask,1)
+    }
+    func testDepthDiagnosticsDistinguishViewSignChangesAndCleanObservations() throws {
+        let conflicting=[frame(depth:1.92),frame(time:2,depth:2.08),frame(time:3)]
+        for cleanPair in [false,true] {
+            let result=SurfaceColorBaker.bakeWithDiagnostics([mesh()],frames:conflicting+(cleanPair ? [frame(time:4)] : []))
+            let d=try XCTUnwrap(result.diagnostics.depthAnalysis)
+            XCTAssertEqual(d.verticesWithDepthConflict,3)
+            XCTAssertEqual(d.conflictViewsPerVertex,["twoOrThree":3])
+            XCTAssertEqual(d.signPatternsAcrossViews,["signChangesAcrossViews":3])
+            XCTAssertEqual(d.acceptedViewsAtConflictedVertices,[cleanPair ? "twoOrMore" : "one":3])
+            XCTAssertEqual(d.directVerticesWithDepthConflict,cleanPair ? 3 : 0)
+            XCTAssertEqual(d.uncoloredVerticesWithDepthConflict,cleanPair ? 0 : 3)
+        }
+    }
+    func testInvalidPlanePredictionHasSeparateDiagnosticBucket() throws {
+        let source=frame()
+        let observation=SurfaceColorFrame(time:1,cameraTransform:source.cameraTransform,width:32,height:24,
+            fx:0.1,fy:20,cx:16,cy:12,rgb:source.rgb,depth:source.depth,confidence:source.confidence)
+        let slanted=mesh(vertices:[.init(-0.5,-0.4,-2.55),.init(0.5,-0.4,-1.45),.init(0,0.4,-2)])
+        let d=try XCTUnwrap(SurfaceColorBaker.bakeWithDiagnostics([slanted],frames:[observation]).diagnostics.depthAnalysis)
+        XCTAssertEqual(d.footprintPatterns,["invalidPrediction":3])
+        XCTAssertEqual(d.firstResidualMagnitudeMeters,["invalidPrediction":3])
+        XCTAssertEqual(d.firstFailureReason,["depthMismatch":3])
+    }
+    func testDepthDiagnosticsDoNotChangeAnyColorOrExistingRejectionMetric() throws {
+        let source=mesh(),neighbor=15*32+10
+        let cases: [[SurfaceColorFrame]]=[
+            [frame(),frame(time:2)],[frame(depth:1.92),frame(time:2,depth:2.08)],
+            [frame(),frame(time:2),frame(time:3,depth:1)],
+            [edited(frame(),depthChanges:[neighbor:1])],[edited(frame(),people:[neighbor])],
+            [edited(frame(),missing:[neighbor])],[frame(confidence:0)],
+            [frame(color:[255,255,255])],[frame(),frame(time:2,color:[30,40,180])]]
+        for policy: SurfaceColorBaker.SamplingPolicy in [.relaxed,.strict] {for frames in cases {
+            let on=SurfaceColorBaker.bakeWithDiagnostics([source],frames:frames,policy:policy)
+            let off=SurfaceColorBaker.bakeWithDiagnostics([source],frames:frames,policy:policy,collectDepthDiagnostics:false)
+            XCTAssertEqual(on.meshes,off.meshes)
+            var report=on.diagnostics;report.depthAnalysis=nil
+            XCTAssertEqual(report,off.diagnostics)
+            let d=try XCTUnwrap(on.diagnostics.depthAnalysis)
+            XCTAssertEqual(d.rejectedObservations,
+                (on.diagnostics.rejectedObservations["foregroundOcclusion"] ?? 0)+(on.diagnostics.rejectedObservations["depthMismatch"] ?? 0))
+            XCTAssertEqual(d.rejectedObservations,d.footprintPatterns.values.reduce(0,+))
+            XCTAssertEqual(d.rejectedObservations,d.firstResidualMagnitudeMeters.values.reduce(0,+))
+            XCTAssertEqual(d.verticesWithDepthConflict,d.uncoloredVerticesWithDepthConflict+d.directVerticesWithDepthConflict)
+        }}
+    }
+    func testDepthDiagnosticsVersionThreeCompatibilityAndRoundTrip() throws {
+        let report=SurfaceColorBaker.bakeWithDiagnostics([mesh()],frames:[frame(depth:1.92)]).diagnostics
+        XCTAssertEqual(report.version,5)
+        XCTAssertEqual(try JSONDecoder().decode(SurfaceColorDiagnostics.self,from:JSONEncoder().encode(report)),report)
+        var legacy=try XCTUnwrap(JSONSerialization.jsonObject(with:JSONEncoder().encode(report)) as? [String:Any])
+        legacy["version"]=3;legacy.removeValue(forKey:"depthAnalysis")
+        XCTAssertNil(try JSONDecoder().decode(SurfaceColorDiagnostics.self,from:JSONSerialization.data(withJSONObject:legacy)).depthAnalysis)
+    }
+    func testNativeDepthRasterKeepsRGBAndDepthOnTheSameRay() throws {
+        let k=simd_float3x3(columns:(SIMD3(1200,0,0),SIMD3(0,1200,0),SIMD3(960,720,1)))
+        let raster=try XCTUnwrap(SurfaceColorRasterMapping(imageWidth:1920,imageHeight:1440,
+            depthWidth:256,depthHeight:192,intrinsics:k))
+        XCTAssertEqual(raster.width,128);XCTAssertEqual(raster.height,96)
+        XCTAssertEqual(raster.cx,64,accuracy:1e-5);XCTAssertEqual(raster.cy,48,accuracy:1e-5)
+        for y in 0..<raster.height {for x in 0..<raster.width {
+            let rayX=(Float(x)-raster.cx)/raster.fx,rayY=(Float(y)-raster.cy)/raster.fy
+            XCTAssertEqual(rayX,(Float(raster.depthX(x))-128)/160,accuracy:1e-6)
+            XCTAssertEqual(rayY,(Float(raster.depthY(y))-96)/160,accuracy:1e-6)
+            XCTAssertEqual(rayX,(Float(raster.imageX(x))-960)/1200,accuracy:1e-6)
+            XCTAssertEqual(rayY,(Float(raster.imageY(y))-720)/1200,accuracy:1e-6)
+        }}
+        // Original 256 -> 160 nearest sampling paired a depth ray at native x=2 with RGB x=18.
+        let oldDepthX=Int((1.5)*256/160),oldImageX=Int((1.5)*1920/160)
+        XCTAssertNotEqual(Float(oldDepthX)/256,Float(oldImageX)/1920)
+        // Sampling may skip native depth pixels, but a person mask on that ray must survive.
+        XCTAssertTrue(raster.maskRange(1,depthSize:256,maskSize:256).contains(3))
+    }
+    func testNativeRasterHandlesOddDimensionsAndRejectsInvalidCalibration() throws {
+        let k=simd_float3x3(columns:(SIMD3(400,0,0),SIMD3(0,400,0),SIMD3(320,240,1)))
+        let r=try XCTUnwrap(SurfaceColorRasterMapping(imageWidth:640,imageHeight:480,depthWidth:255,depthHeight:191,intrinsics:k))
+        XCTAssertLessThan(r.depthX(r.width-1),255);XCTAssertLessThan(r.depthY(r.height-1),191)
+        XCTAssertEqual((Float(r.width-1)-r.cx)/r.fx,(Float(r.depthX(r.width-1))-320*255/640)/(400*255/640),accuracy:1e-6)
+        XCTAssertNil(SurfaceColorRasterMapping(imageWidth:0,imageHeight:480,depthWidth:256,depthHeight:192,intrinsics:k))
+    }
+    func testSlantedNativeDepthRaysMatchCenterAndNeighborsWithoutToleranceChange() throws {
+        let k=simd_float3x3(columns:(SIMD3(40,0,0),SIMD3(0,40,0),SIMD3(32,24,1)))
+        let r=try XCTUnwrap(SurfaceColorRasterMapping(imageWidth:64,imageHeight:48,depthWidth:32,depthHeight:24,intrinsics:k))
+        let slope: Float=1.1
+        let source=mesh(vertices:[.init(-0.5,-0.4,-2.55),.init(0.5,-0.4,-1.45),.init(0,0.4,-2)])
+        var depths=[Float]()
+        for _ in 0..<r.height {for x in 0..<r.width {depths.append(2/(1+slope*(Float(r.depthX(x))-16)/20))}}
+        func observation(_ time: Double) -> SurfaceColorFrame {
+            SurfaceColorFrame(time:time,cameraTransform:matrix_identity_float4x4,width:r.width,height:r.height,
+                fx:r.fx,fy:r.fy,cx:r.cx,cy:r.cy,rgb:frame().rgb,depth:depths,confidence:frame().confidence)
+        }
+        let result=SurfaceColorBaker.bakeWithDiagnostics([source],frames:[observation(1),observation(2)])
+        XCTAssertEqual(result.diagnostics.coloredTriangles,1)
+        XCTAssertEqual(result.diagnostics.depthAnalysis?.rejectedObservations,0)
+        let bad=edited(observation(3),depthChanges:[7*32+15:0.5])
+        let veto=SurfaceColorBaker.bakeWithDiagnostics([source],frames:[bad,edited(observation(4),depthChanges:[7*32+15:0.5])])
+        XCTAssertEqual(veto.diagnostics.coloredTriangles,0)
+        XCTAssertGreaterThan(veto.diagnostics.rejectedObservations["foregroundOcclusion"] ?? 0,0)
+    }
+    func testLargeWorldPoseCorrectionNeedsCoherentMeshAndCameraSnapshot() throws {
+        let original=mesh(),base=frame(),second=frame(time:2)
+        var pose=matrix_identity_float4x4;pose.columns.3.z=0.8
+        let transformed=mesh(transform:(0..<4).flatMap {c in (0..<4).map {pose[c][$0]}})
+        let corrected=[base.withCameraTransform(pose),second.withCameraTransform(pose)]
+        let stale=SurfaceColorBaker.bakeWithDiagnostics([original],frames:corrected)
+        XCTAssertEqual(stale.diagnostics.coloredTriangles,0)
+        XCTAssertGreaterThan(stale.diagnostics.depthAnalysis?.firstResidualMagnitudeMeters["over0.50"] ?? 0,0)
+        let coherent=SurfaceColorBaker.bakeWithDiagnostics([transformed],frames:corrected)
+        XCTAssertEqual(coherent.diagnostics.coloredTriangles,1)
+        XCTAssertEqual(coherent.meshes[0].surfaceColors,SurfaceColorBaker.bake([original],frames:[base,second])[0].surfaceColors)
+        var report=SurfaceColorAlignmentDiagnostics()
+        report.recordCameraPose(original:base.cameraTransform,final:pose)
+        XCTAssertEqual(report.cameraTranslationMeters["over0.50"],1)
+        XCTAssertEqual(report.maximumCameraTranslationMeters,0.8,accuracy:1e-6)
+        XCTAssertEqual(report.maximumCameraRotationDegrees,0,accuracy:1e-6)
+        // Existing reports do not need alignment data to decode.
+        var json=try XCTUnwrap(JSONSerialization.jsonObject(with:JSONEncoder().encode(coherent.diagnostics)) as? [String:Any])
+        json["version"]=4;json.removeValue(forKey:"alignment")
+        XCTAssertNil(try JSONDecoder().decode(SurfaceColorDiagnostics.self,from:JSONSerialization.data(withJSONObject:json)).alignment)
+    }
+    func testDepthDiagnosticCostAndReportSizeStayBoundedAcrossRepeatedConflicts() throws {
+        let base=mesh()
+        let vertices=(0..<300).flatMap {_ in base.vertices}
+        let source=MeshSnapshot(id:UUID(),transform:identity,vertices:vertices,indices:(0..<vertices.count).map {UInt32($0)})
+        let frames=(0..<48).map {frame(time:Double($0),depth:$0%2==0 ? 1.92 : 2)}
+        let start=ProcessInfo.processInfo.systemUptime
+        let off=SurfaceColorBaker.bakeWithDiagnostics([source],frames:frames,collectDepthDiagnostics:false)
+        let middle=ProcessInfo.processInfo.systemUptime
+        let on=SurfaceColorBaker.bakeWithDiagnostics([source],frames:frames)
+        let end=ProcessInfo.processInfo.systemUptime
+        XCTAssertEqual(on.meshes,off.meshes)
+        XCTAssertEqual(on.diagnostics.depthAnalysis?.rejectedObservations,21600)
+        let data=try JSONEncoder().encode(on.diagnostics)
+        XCTAssertLessThan(data.count,16000) // Aggregates only; no per-attempt data accumulates in the report.
+        print("SURFACE_DEPTH_DIAGNOSTICS_BENCHMARK: attempts=43200 offMs=\((middle-start)*1000) onMs=\((end-middle)*1000) reportBytes=\(data.count)")
+    }
     func testYCbCrRangeAndMatrixConversion() {
         for full in [true,false] {
             let black=SurfaceCameraColor.rgb(y:full ? 0 : 16,cb:128,cr:128,fullRange:full,kr:0.299,kb:0.114)
@@ -107,7 +347,8 @@ final class SurfaceColorTests: XCTestCase {
         let root=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer {try? FileManager.default.removeItem(at:root)}
         let store=ScanStore(root:root),source=mesh()
-        let result=SurfaceColorBaker.bakeWithDiagnostics([source],frames:[frame(),frame(time:2)])
+        let result=SurfaceColorBaker.bakeWithDiagnostics([source],frames:[frame(),frame(time:2),frame(time:3,depth:1.92)])
+        XCTAssertEqual(result.diagnostics.depthAnalysis?.rejectedObservations,3)
         let colored=result.meshes[0]
         let saved=try await store.save(id:UUID(),name:"벽 색상",frame:StageFrame(origin:.init(0,0,0),front:.init(0,0,-1)),
                                        checkpoint:.init(2,0,0),worldMap:Data([1]),meshes:[colored],device:"test",appVersion:"1",
