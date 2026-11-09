@@ -32,38 +32,14 @@ struct V3PrimaryButtonStyle: ButtonStyle {
     }
 }
 
-extension EnvironmentValues {
-    /// True inside a screen whose glass should be the see-through 「Clear」 kind instead of 「Regular」: the scan camera
-    /// and the 3D stage view (11/09).
-    @Entry var hearClearGlass=false
-}
-
 extension View {
-    /// Liquid Glass on iOS 26 (the design's 「Liquid Glass - Regular」 fills, or 「Clear」 under `hearClearGlass`); a thin
-    /// material in the same shape before that.
-    func liquidGlass<S: Shape>(_ shape: S, tint: Color? = nil, interactive: Bool = false) -> some View {
-        modifier(LiquidGlass(shape:shape,tint:tint,interactive:interactive))
-    }
-}
-
-private struct LiquidGlass<S: Shape>: ViewModifier {
-    let shape: S
-    let tint: Color?
-    let interactive: Bool
-    @Environment(\.hearClearGlass) private var clear
-    func body(content: Content) -> some View {
-        if #available(iOS 26, *), clear {
-            // Clear glass on its own reads as a faint smear over the camera (11/09). A dark layer under it gives it a
-            // body and a hairline edge gives it a shape; the glass itself and its press response stay as they are.
-            let glass=tint.map {Glass.clear.tint($0)} ?? .clear
-            content.glassEffect(interactive ? glass.interactive() : glass, in: shape)
-                .background(shape.fill(Color.black.opacity(0.25)))
-                .overlay(shape.stroke(Color.white.opacity(0.35),lineWidth:0.5).allowsHitTesting(false))
-        } else if #available(iOS 26, *) {
-            let glass=tint.map {Glass.regular.tint($0)} ?? .regular
-            content.glassEffect(interactive ? glass.interactive() : glass, in: shape)
+    /// Liquid Glass on iOS 26 (the design's 「Liquid Glass - Regular」 fills); a thin material in the same shape before that.
+    @ViewBuilder func liquidGlass<S: Shape>(_ shape: S, tint: Color? = nil, interactive: Bool = false) -> some View {
+        if #available(iOS 26, *) {
+            let glass: Glass = tint.map {Glass.regular.tint($0)} ?? .regular
+            self.glassEffect(interactive ? glass.interactive() : glass, in: shape)
         } else {
-            content.background(tint ?? .clear, in: shape).background(.ultraThinMaterial, in: shape)
+            self.background(tint ?? .clear, in: shape).background(.ultraThinMaterial, in: shape)
         }
     }
 }
