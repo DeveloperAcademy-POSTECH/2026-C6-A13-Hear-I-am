@@ -23,7 +23,7 @@ struct PreparationIntro: View {
         // without moving it off centre (971:15416 · 971:15507).
         ZStack {
             ForEach(0..<Self.pageCount(step:step),id:\.self) {index in
-                PreparationIntroPage(step:step,page:index,show:show).hidden()
+                PreparationIntroPage(step:step,page:index,show:show,animates:false).hidden()
             }
         }.fixedSize()
             .overlay {PreparationIntroPage(step:step,page:page,show:show)}
@@ -51,6 +51,8 @@ private struct PreparationIntroPage: View {
     let step: Int
     let page: Int
     let show: (Int?) -> Void
+    /// The measuring copies under the card stay still; only the page on show moves.
+    var animates=true
     private var last: Bool {page+1 >= PreparationIntro.pageCount(step:step)}
     var body: some View {
         HStack(spacing:28) {
@@ -81,20 +83,12 @@ private struct PreparationIntroPage: View {
     @ViewBuilder private var illustration: some View {
         switch step {
         case 0:
-            VStack(spacing:14) {
-                HStack(spacing:14) {Image(systemName:"hand.raised"); Image(systemName:"iphone.gen3.landscape"); Image(systemName:"hand.raised").scaleEffect(x:-1,y:1)}
-                    .font(.system(size:44,weight:.light)).foregroundStyle(.white)
-                Text("천천히, 양손으로").font(.caption).foregroundStyle(.white.opacity(0.7))
-            }.padding(.vertical,24)
+            ScanHandsIntroArt(animates:animates)
         case 1:
-            // Grey corner dots first; then every corner green with the front right one ringed (971:15416 · 971:15507).
-            BoundaryIntroArt(placed:page == 1)
-        case 2:
-            ScanStageMap(width:12,depth:8,objects:[PreparationIntro.objects[1]],cornerStates:[false,false,false,false],selectedObject:PreparationIntro.objects[1].id).padding(12)
-        case 3:
-            ScanStageMap(width:12,depth:8,points:PreparationIntro.route,objects:[PreparationIntro.objects[0],PreparationIntro.objects[2]],cornerStates:[false,false,false,false],dimCorners:true).padding(12)
+            // Grey corner dots first; then the four corners placed in order (971:15416 · 452:12490).
+            if page == 0 {BoundaryIntroArt(placed:false)} else {BoundaryPlacingArt(animates:animates)}
         default:
-            ScanStageMap(style:.checkpoint,width:12,depth:8,points:PreparationIntro.route,objects:PreparationIntro.objects,checkpoint:FloorPoint(3.6,5.6),secondCheckpoint:FloorPoint(7.2,3.2),cornerStates:[false,false,false,false],dimCorners:true).padding(12)
+            IntroLoop(period:IntroStageArt.period(step:step),animates:animates) {t in IntroStageArt(step:step,time:t)}
         }
     }
     private var title: String {
@@ -146,6 +140,188 @@ private struct BoundaryIntroArt: View {
     private var dot: some View {
         Circle().fill(.white).frame(width:dotSize+ring*2,height:dotSize+ring*2)
             .overlay {Circle().fill(placed ? Self.green : Self.grey).frame(width:dotSize,height:dotSize)}
+    }
+}
+
+/// A looping clock for the intro drawings (#163): seconds into the current loop, or the finished picture when
+/// motion is reduced or the page is only measured.
+private struct IntroLoop<Content: View>: View {
+    let period: Double
+    let animates: Bool
+    @ViewBuilder let content: (Double) -> Content
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Each card starts its drawing from the beginning when it opens.
+    @State private var start=Date()
+    var body: some View {
+        if animates && !reduceMotion {
+            TimelineView(.animation) {timeline in
+                content(max(0,timeline.date.timeIntervalSince(start)).truncatingRemainder(dividingBy:period))
+            }
+        } else {content(period)}
+    }
+}
+
+private func clamp01(_ value: Double) -> Double {min(1,max(0,value))}
+/// Ease in and out over [start, start+length].
+private func ease(_ t: Double, _ start: Double, _ length: Double) -> Double {
+    let x=clamp01((t-start)/length); return x*x*(3-2*x)
+}
+/// The last part of every loop fades what was drawn before it starts over.
+private func fadeOut(_ t: Double, period: Double) -> Double {1-ease(t,period-0.35,0.3)}
+
+/// The objects, route and checkpoint cards' maps, drawn over time (#163). Objects: the square's four sides one
+/// after another, then its facing side in red. Route: from the start, one point at a time. Checkpoints: the
+/// route as it is, then the two checkpoints one by one. Each holds the full picture before fading to start over.
+private struct IntroStageArt: View {
+    let step: Int
+    let time: Double
+    static func period(step: Int) -> Double {
+        switch step {
+        case 2: return 4.2
+        case 3: return 5.6
+        default: return 3.6
+        }
+    }
+    var body: some View {
+        let period=Self.period(step:step)
+        let fade=time >= period ? 1 : fadeOut(time,period:period)
+        switch step {
+        case 2:
+            ScanStageMap(width:12,depth:8,objects:[PreparationIntro.objects[1]],cornerStates:[false,false,false,false],
+                         selectedObject:PreparationIntro.objects[1].id,
+                         objectReveal:ease(time,0.3,1.8),facingReveal:ease(time,2.25,0.5),revealOpacity:fade).padding(12)
+        case 3:
+            // Six points 0.55 s apart, after a short pause on the empty stage.
+            ScanStageMap(width:12,depth:8,points:PreparationIntro.route,objects:[PreparationIntro.objects[0],PreparationIntro.objects[2]],
+                         cornerStates:[false,false,false,false],dimCorners:true,
+                         routeReveal:max(0,(time-0.3)/0.55),revealOpacity:fade).padding(12)
+        default:
+            ScanStageMap(style:.checkpoint,width:12,depth:8,points:PreparationIntro.route,objects:PreparationIntro.objects,
+                         checkpoint:time >= 0.6 ? FloorPoint(3.6,5.6) : nil,secondCheckpoint:time >= 1.3 ? FloorPoint(7.2,3.2) : nil,
+                         cornerStates:[false,false,false,false],dimCorners:true,revealOpacity:fade).padding(12)
+        }
+    }
+}
+
+/// The scan card's picture (Figma 452:12825): two open hands either side of a phone held sideways, and
+/// 「천천히, 양손으로」 under them. The design's picture is one image, so the hands and phone are drawn here to
+/// move on their own (#163): the hands come in and take the phone, move it left and right, then up and down,
+/// let go and go back, over and over.
+private struct ScanHandsIntroArt: View {
+    let animates: Bool
+    /// Every move takes as long as the hands take to reach the phone (11/09: the shaking was too fast).
+    static let move=0.7
+    static let period=6.9
+    var body: some View {
+        IntroLoop(period:Self.period,animates:animates) {t in
+            let rest=t >= Self.period, m=Self.move
+            // The hands take the phone at 0.2 s and let go at 5.6 s. In between, one move at a time: left, right,
+            // back to the middle; then up, down, back to the middle.
+            let grip=rest ? 0 : ease(t,0.2,m)*(1-ease(t,5.6,m))
+            let sway=rest ? 0 : Self.moves(t,from:1.0,through:[-14,14,0])
+            let lift=rest ? 0 : Self.moves(t,from:3.2,through:[-8,8,0])
+            VStack(spacing:22) {
+                ZStack {
+                    ScanIntroPhone()
+                    // Holding, the fingertips just cover the phone's ends.
+                    hand(mirrored:false).offset(x:-72+grip*30)
+                    hand(mirrored:true).offset(x:72-grip*30)
+                }
+                .offset(x:sway,y:lift)
+                .frame(width:220,height:56)
+                Text("천천히, 양손으로").font(HearFont.pretendard(.medium,size:11)).foregroundStyle(.white.opacity(0.6))
+            }.frame(maxWidth:.infinity,maxHeight:.infinity).accessibilityHidden(true)
+        }
+    }
+    /// Eased moves of `move` seconds each from 0 through the given offsets, starting at `from`.
+    private static func moves(_ t: Double, from: Double, through stops: [Double]) -> Double {
+        var value=0.0
+        for (i,stop) in stops.enumerated() {
+            let previous=i == 0 ? 0 : stops[i-1]
+            value+=(stop-previous)*ease(t,from+Double(i)*move,move)
+        }
+        return value
+    }
+    /// An outlined hand over a fill in the card's colour, so the phone does not show through the palm.
+    private func hand(mirrored: Bool) -> some View {
+        ZStack {
+            Image(systemName:"hand.raised.fill").foregroundStyle(ScanChrome.illustration)
+            Image(systemName:"hand.raised").foregroundStyle(.white)
+        }
+        .font(.system(size:46,weight:.medium))
+        .scaleEffect(x:mirrored ? -1 : 1,y:1)
+    }
+}
+
+/// The phone held sideways in the scan card: white edge, grey screen, the camera island on the left and the
+/// home bar along the bottom (452:12825).
+private struct ScanIntroPhone: View {
+    var body: some View {
+        RoundedRectangle(cornerRadius:8,style:.continuous)
+            .fill(LinearGradient(colors:[Color(white:0.36),Color(white:0.26)],startPoint:.top,endPoint:.bottom))
+            .overlay {RoundedRectangle(cornerRadius:8,style:.continuous).strokeBorder(.white,lineWidth:2.6)}
+            .overlay(alignment:.leading) {Capsule().fill(.black).frame(width:3,height:8).padding(.leading,6)}
+            .overlay(alignment:.bottom) {Capsule().fill(.white).frame(width:15,height:2).padding(.bottom,5)}
+            .frame(width:52,height:31)
+    }
+}
+
+/// The second boundary page (Figma 452:12490), placed corner by corner (#163): front right, front left, back
+/// left, back right, as the copy says. Each corner turns green with the ring on it, the side from the corner
+/// before draws in, and the last one closes the rectangle and fills it. It holds, fades and starts over.
+private struct BoundaryPlacingArt: View {
+    let animates: Bool
+    /// A corner every 0.8 s (11/09: a little slower than the first 0.6 s).
+    static let period=5.8
+    private static let green=Color(red:0,green:1,blue:64/255)                 // #00FF40
+    private static let grey=Color(red:126/255,green:126/255,blue:126/255)     // #7E7E7E
+    /// Corners in placing order, in the 146×80 stage: front right, front left, back left, back right.
+    private static let order=[CGPoint(x:146,y:80),CGPoint(x:0,y:80),CGPoint(x:0,y:0),CGPoint(x:146,y:0)]
+    /// When each corner is placed, in seconds into the loop.
+    private static let times=[0.5,1.3,2.1,2.9]
+    var body: some View {
+        IntroLoop(period:Self.period,animates:animates) {t in
+            let fade=t >= Self.period ? 1 : fadeOut(t,period:Self.period)
+            // The same place as the first page's stage and label, so the picture does not shift between pages.
+            VStack(spacing:4) {
+                Canvas {context,size in
+                    let origin=CGPoint(x:(size.width-146)/2,y:(size.height-80)/2)
+                    let at={(p: CGPoint) in CGPoint(x:origin.x+p.x,y:origin.y+p.y)}
+                    let placed=Self.times.map {t >= $0}
+                    let count=placed.filter {$0}.count
+                    var layer=context; layer.opacity=fade
+                    // The fill comes in once the last side closes the shape.
+                    let closing=ease(t,Self.times[3]+0.05,0.45)
+                    var rect=Path(); rect.addLines(Self.order.map(at)); rect.closeSubpath()
+                    layer.fill(rect,with:.color(.white.opacity(0.2*closing)))
+                    // Each side runs from the corner before and reaches the next one as it is placed; the last
+                    // side closes the shape right after.
+                    for i in 1..<Self.order.count+1 {
+                        let from=Self.order[i-1], to=Self.order[i % Self.order.count]
+                        let start=i < Self.order.count ? Self.times[i]-0.4 : Self.times[3]+0.05
+                        let drawn=ease(t,start,0.4)
+                        guard drawn > 0 else {continue}
+                        var side=Path(); side.move(to:at(from)); side.addLine(to:at(to))
+                        layer.stroke(side.trimmedPath(from:0,to:drawn),with:.color(.white),lineWidth:1.08)
+                    }
+                    for i in Self.order.indices {
+                        let p=at(Self.order[i]), done=placed[i]
+                        let size: CGFloat=done ? 10 : 8.66, ring: CGFloat=2.16
+                        var dot=context; if done {dot.opacity=fade}
+                        dot.fill(Path(ellipseIn:CGRect(x:p.x-size/2-ring,y:p.y-size/2-ring,width:size+ring*2,height:size+ring*2)),with:.color(.white))
+                        dot.fill(Path(ellipseIn:CGRect(x:p.x-size/2,y:p.y-size/2,width:size,height:size)),with:.color(done ? Self.green : Self.grey))
+                    }
+                    // The ring marks the corner just placed; it pops in a little larger and settles.
+                    if count > 0 {
+                        let p=at(Self.order[count-1])
+                        let pop=1+0.35*(1-ease(t,Self.times[count-1],0.25))
+                        let r=22.3/2*pop
+                        layer.stroke(Path(ellipseIn:CGRect(x:p.x-r+1.08,y:p.y-r+1.08,width:r*2-2.16,height:r*2-2.16)),with:.color(Self.green),lineWidth:2.16)
+                    }
+                }.frame(width:180,height:104).padding(.top,-12)
+                Text("객석").font(HearFont.pretendard(.semibold,size:16)).foregroundStyle(.white)
+            }.frame(maxWidth:.infinity,maxHeight:.infinity).accessibilityHidden(true)
+        }
     }
 }
 
