@@ -75,8 +75,10 @@ import HearIAmCore
     }
     private func buildTrace() {
         guard let replay=record.replay else {return}
-        var vertices=[SCNVector3](),indices=[UInt32]()
-        for (a,b) in zip(replay.samples,replay.samples.dropFirst()) {
+        // Green where the walk followed the route, easing through yellow to orange where it strayed or lingered (#165).
+        let strain=GuidanceReplayStrain.values(replay:replay,path:record.guidancePath)
+        var vertices=[SCNVector3](),colors=[SIMD4<Float>](),indices=[UInt32]()
+        for (i,(a,b)) in zip(replay.samples,replay.samples.dropFirst()).enumerated() {
             guard replay.connects(a,b),let p=a.position,let q=b.position else {continue}
             let dx=q.x-p.x,dz=p.y-q.y,length=hypot(dx,dz)
             guard length>0.001 else {continue}
@@ -84,24 +86,39 @@ import HearIAmCore
             let y1=height(p,target:a.targetIndex)+0.065,y2=height(q,target:b.targetIndex)+0.065
             vertices += [.init(p.x+x,y1,-p.y+z),.init(p.x-x,y1,-p.y-z),
                          .init(q.x+x,y2,-q.y+z),.init(q.x-x,y2,-q.y-z)]
+            let from=Self.trailColor(strain[i]),to=Self.trailColor(strain[i+1])
+            colors += [from,from,to,to]
             indices += [index,index+1,index+2,index+1,index+3,index+2]
             segmentTimes.append(b.time)
         }
         guard !indices.isEmpty else {return}
         let source=SCNGeometrySource(vertices:vertices)
-        func makeNode(_ color: UIColor) -> (SCNNode,SCNGeometryElement) {
+        let colorSource=SCNGeometrySource(data:colors.withUnsafeBufferPointer {Data(buffer:$0)},semantic:.color,
+            vectorCount:colors.count,usesFloatComponents:true,componentsPerVector:4,bytesPerComponent:MemoryLayout<Float>.size,
+            dataOffset:0,dataStride:MemoryLayout<SIMD4<Float>>.stride)
+        func makeNode(_ opacity: CGFloat) -> (SCNNode,SCNGeometryElement) {
             let element=SCNGeometryElement(indices:indices,primitiveType:.triangles)
-            let geometry=SCNGeometry(sources:[source],elements:[element]),material=SCNMaterial()
-            material.diffuse.contents=color;material.lightingModel = .constant;material.isDoubleSided=true
+            let geometry=SCNGeometry(sources:[source,colorSource],elements:[element]),material=SCNMaterial()
+            material.diffuse.contents=UIColor.white;material.transparency=opacity
+            material.lightingModel = .constant;material.isDoubleSided=true
             material.readsFromDepthBuffer=false;material.writesToDepthBuffer=false
             geometry.firstMaterial=material
             let node=SCNNode(geometry:geometry);node.renderingOrder=7
             return (node,element)
         }
-        let full=makeNode(UIColor.systemBlue.withAlphaComponent(0.22)).0
+        let full=makeNode(0.22).0
         full.name="record-entire-trace";scene.rootNode.addChildNode(full)
-        (played,playedElement)=makeNode(.systemBlue)
+        (played,playedElement)=makeNode(1)
         played.name="record-played-trace";played.renderingOrder=8;scene.rootNode.addChildNode(played)
+    }
+    /// Green (on the route) → yellow → orange (off it), the system's dark-mode hues. Blended in sRGB, then handed to
+    /// SceneKit in linear values: vertex colours are read as linear, so sRGB numbers would come out washed pale.
+    static func trailColor(_ strain: Double) -> SIMD4<Float> {
+        let green=SIMD3<Float>(48,209,88)/255,yellow=SIMD3<Float>(255,214,10)/255,orange=SIMD3<Float>(255,120,10)/255
+        let t=Float(max(0,min(1,strain)))
+        let c=t<0.5 ? green+(yellow-green)*(t/0.5) : yellow+(orange-yellow)*((t-0.5)/0.5)
+        func linear(_ v: Float) -> Float {v<=0.04045 ? v/12.92 : pow((v+0.055)/1.055,2.4)}
+        return SIMD4(linear(c.x),linear(c.y),linear(c.z),1)
     }
     func show(time: Double) {
         SCNTransaction.begin();SCNTransaction.disableActions=true
