@@ -36,7 +36,7 @@ struct HelperScanHomeView:View {
                     Image(systemName:"viewfinder").font(.system(size:18,weight:.semibold))
                     Text("스캔하러 가기").font(HearFont.pretendard(.semibold,size:18))
                 }.foregroundStyle(ScanHomeStyle.buttonText).frame(width:258,height:50)
-                    .liquidGlass(Capsule(),tint:.white,interactive:true).contentShape(Capsule())
+                    .liquidGlass(Capsule(),tint:.white,interactive:true).environment(\.hearClearGlass,true).contentShape(Capsule())
             }.buttonStyle(.plain).accessibilityIdentifier("scan.start").padding(.top,44)
         }.offset(y:ScanHomeStyle.groupOffset)
             // Centred on the whole screen, not the safe area: the tab bar hides while the information page is pushed
