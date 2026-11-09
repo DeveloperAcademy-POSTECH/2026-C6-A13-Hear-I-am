@@ -6,9 +6,11 @@ import HearIAmCore
 final class SessionBridge: NSObject, ARSessionDelegate {
     weak var controller: ARSessionController?
     let token: UUID
+    let surfaceColors=ScanSurfaceColorCapture()
     init(controller: ARSessionController, token: UUID) { self.controller=controller; self.token=token }
     func session(_ session: ARSession, didUpdate frame: ARFrame) {
         let sample=CameraSample(frame)
+        surfaceColors.capture(frame,session:session)
         Task { @MainActor [weak self] in
             guard let self else { return }; self.controller?.receive(sample,token:self.token)
         }

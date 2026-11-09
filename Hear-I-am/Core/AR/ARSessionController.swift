@@ -154,7 +154,14 @@ final class ARSessionController: ObservableObject {
         let config=ARWorldTrackingConfiguration()
         config.worldAlignment = .gravity; config.planeDetection=[.horizontal]
         // Mesh creation only in pre-scan when LiDAR is available. During restoration use the saved snapshot.
-        if mode == .scanning && supportsMesh && !meshHeld { config.sceneReconstruction = .mesh }
+        if mode == .scanning && supportsMesh && !meshHeld {
+            config.sceneReconstruction = .mesh
+            if ARWorldTrackingConfiguration.supportsFrameSemantics(.sceneDepth) {
+                config.frameSemantics.insert(.sceneDepth)
+                let withPeople=config.frameSemantics.union(.personSegmentation)
+                if ARWorldTrackingConfiguration.supportsFrameSemantics(withPeople) {config.frameSemantics=withPeople}
+            }
+        }
         config.initialWorldMap=map
         return config
     }
@@ -179,6 +186,7 @@ final class ARSessionController: ObservableObject {
         stopLog()
         saveRecoveryPending=false
         session?.delegate=nil; session?.pause()
+        bridge?.surfaceColors.finish();bridge=nil
         token=UUID(); gate=TrackingGate(); restorationValidation = .checkpoints; latest=nil
         clearPhotos()
         if purpose == .preparation { preparedDraft=PreparationDraft(); savedID=nil; onReset?() }
