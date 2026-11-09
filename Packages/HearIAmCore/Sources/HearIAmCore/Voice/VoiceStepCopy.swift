@@ -25,15 +25,6 @@ public enum VoiceStepCopy {
     /// Both checkpoints measured; the helper's 「완료」 (1028:18968) moves on.
     public static let performanceCheckpointsDone = ["확인점 2번을 확인했어요.", "두 확인점을 모두 확인했어요. ‘완료’를 눌러주세요."]
 
-    /// After 「착용 완료」 by voice the walking screen waits (1028:18921) while the start is reached, and guidance
-    /// starts by itself there (#167). Performance mode closes the microphone at that start, so it says so.
-    public static func approachStart(performance: Bool) -> [String] {
-        ["출발 준비. 출발점까지 안내할게요. 출발점에 도착해 잠시 멈추면 \(performance ? "실전 " : "")안내가 바로 시작돼요.",
-         performance ? "실전 중에는 호출어를 듣지 않고 이동 안내만 전달해요." : "안내 중에 다른 요청이 필요하면 ‘히얼아이엠’을 불러주세요."]
-    }
-
-    /// At the start after the approach; guidance follows by itself once the start is held.
-    public static let atStart = "출발점에 도착했어요. 잠시 멈춰주세요. 곧 안내를 시작해요."
 
     public static let wear = ["두 확인점 보정을 마쳤어요.", "허리띠 착용.", GuidanceCopy.doNotDisturb,
                               "휴대폰을 허리 앞쪽에 세로로 고정해주세요. 후면 카메라는 몸 바깥쪽을 향하고 렌즈는 가리지 말아주세요.",

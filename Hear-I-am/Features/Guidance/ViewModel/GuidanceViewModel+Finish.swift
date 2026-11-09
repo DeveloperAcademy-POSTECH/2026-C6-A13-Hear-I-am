@@ -54,7 +54,7 @@ extension GuidanceViewModel {
             } catch {
                 saveError="기록을 저장하지 못했어요. 다시 시도해주세요. \(error.localizedDescription)"
                 // The voice walking screen has no buttons at the end; its back button saves again and closes.
-                if voiceAutoStart {read(["안내 기록을 저장하지 못했어요. 도와주시는 분이 왼쪽 위 뒤로 버튼을 누르면 다시 저장하고 처음 화면으로 돌아가요."])}
+                if voiceExperiment, !helperPreparation {read(["안내 기록을 저장하지 못했어요. 도와주시는 분이 왼쪽 위 뒤로 버튼을 누르면 다시 저장하고 처음 화면으로 돌아가요."])}
                 else if voiceExperiment {read(["안내 기록을 저장하지 못했어요. 도와주시는 분이 화면 아래 기록 저장 다시 시도를 눌러주세요."])}
             }
         }

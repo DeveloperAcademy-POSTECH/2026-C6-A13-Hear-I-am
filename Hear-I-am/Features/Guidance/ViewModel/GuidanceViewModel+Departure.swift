@@ -12,12 +12,9 @@ extension GuidanceViewModel {
             if let issue=practiceEntryIssue {return issue}
             return departureReady ? "‘출발’이라고 말하면 현재 위치에서 P1으로 안내해요." : "현재 위치에서 P1까지 경로를 확인하고 있어요. 잠시 멈춰주세요."
         }
-        if isPractice, started, let entry=guide.practiceEntry {
+        if usesPracticeEntry, started, let entry=guide.practiceEntry {
             do {try entry.validateRemaining(from:pose.point,route:guide.route,settings:guide.settings)}
             catch {return error.localizedDescription}
-        }
-        if !started, voiceAutoStart, pose.point.distance(to:guide.route.points[0]) > guide.settings.startRadius {
-            return "출발점으로 가는 중이에요. 소리를 따라 이동해주세요."
         }
         if !started, pose.point.distance(to:guide.route.points[0]) > guide.settings.startRadius {
             return "출발점까지 안내 버튼을 눌러 이동해주세요. 무대 안팎의 스캔한 공간에서 접근할 수 있어요."
@@ -43,7 +40,7 @@ extension GuidanceViewModel {
         else if !started, usesPracticeEntry {lines=["현재 위치에서 P1으로 안내합니다."]}
         else if !started, guide?.route.facing(at:0) != nil { lines=["안내를 시작합니다. 출발점에서 바라볼 방향을 먼저 맞춥니다."] }
         else if resumingHold { lines=["공연 대기를 이어갑니다."] }
-        else { lines=[started ? "안내를 다시 시작합니다." : voicePerformanceFlow ? "실전 안내를 시작합니다." : "안내를 시작합니다.",SignalCopy.start] }
+        else { lines=[started ? "안내를 다시 시작합니다." : "안내를 시작합니다.",SignalCopy.start] }
         read(lines) { [weak self] in
             guard let self, self.phase == .starting, var guide=self.guide else { return }
             guard let pose=self.freshPose() else { self.interrupt("현재 위치를 확인할 수 없어요. \(self.recoveryInstruction)");return }
@@ -103,19 +100,6 @@ extension GuidanceViewModel {
             if readyAnnounced && !voiceTurnActive {read(["출발 위치 또는 방향이 달라졌습니다. 다시 확인해주세요."])}
             readyAnnounced=false
         }
-        // By voice nobody presses 「출발점까지 안내」 or says 「출발」 (#167): the performer is led to the start, and
-        // holding it begins the walk once the line being read has finished.
-        if voiceAutoStart, !started {
-            if departureReady, instructionDone, !speaking {
-                logSignal("voice_autostart","held start");startGuidance();return
-            }
-            let now=ProcessInfo.processInfo.systemUptime
-            if !eligible, approachGuide == nil, instructionDone, !speaking, !voiceTurnActive,
-               pose.point.distance(to:guide.route.points[0]) > guide.settings.startRadius, (approachRetryAt ?? 0) <= now {
-                approachRetryAt=now+4;startApproach()
-            }
-            return
-        }
         if departureReady, !readyAnnounced, instructionDone, !speaking, !voiceTurnActive {
             readyAnnounced=true
             read(voiceShouldListen ? VoiceStepCopy.departureReady(started:started,performance:voiceMode == .performance) : [started ? "재개 준비가 완료됐습니다. 안내 다시 시작 버튼을 눌러주세요." : "출발 준비가 완료됐습니다. 안내 시작 버튼을 눌러주세요."])
@@ -123,7 +107,7 @@ extension GuidanceViewModel {
     }
 
     /// Availability is separate from route eligibility: a tap must be able to explain why guidance cannot start.
-    var canApproachStart: Bool { (!isPractice || voiceAutoStart) && !started && phase == .departure && guide != nil && active }
+    var canApproachStart: Bool { !usesPracticeEntry && !started && phase == .departure && guide != nil && active }
     func startApproach() {
         guard canApproachStart, canAdvanceInstruction else { return }
         // Stop the wear/departure explanation immediately, even when the pose is not usable yet.
@@ -158,7 +142,7 @@ extension GuidanceViewModel {
         approachGuide=approach
         cue=approach.cue(position:pose.point,headingDegrees:pose.heading)
         if result.state == .completed {
-            stopApproach(voiceAutoStart ? VoiceStepCopy.atStart : "출발점에 도착했습니다. 잠시 멈춘 뒤 안내 시작 버튼을 눌러주세요.")
+            stopApproach("출발점에 도착했습니다. 잠시 멈춘 뒤 안내 시작 버튼을 눌러주세요.")
         } else if result.state == .paused {
             stopApproach("잠시 멈춰주세요. LiDAR 스캔 범위나 접근 경로를 벗어났거나 위치 확인이 중단됐어요. 현재 위치와 기물을 확인한 뒤 다시 시작해주세요.")
         } else { signal(pose:pose,guide:approach) }

@@ -46,18 +46,14 @@ extension GuidanceViewModel {
     }
 }
 
-/// 실전용 by voice (#167). The space is found as in 연습용; the helper then aims at the two checkpoints on the
-/// camera screen (Figma 1028:18949 · 18930 · 18968) and taps 「완료」. Both modes then go through 「착용 완료」 and
-/// are led to the start, where guidance begins by itself; the walking screen waits meanwhile (1028:18921).
+/// 실전용 by voice (#167) is 연습용 as released (1.0.0, db61192) with the checkpoints added: the space is found,
+/// the helper aims at the two checkpoints on the camera screen (Figma 1028:18949 · 18930 · 18968) and taps 「완료」,
+/// then 「착용 완료」 and 「출발」 lead from where the performer stands to P1. The microphone closes at the start.
 extension GuidanceViewModel {
     /// The performer's own voice flow in 실전용, as opposed to the helper's preparation opened from a performance.
     var voicePerformanceFlow: Bool {voiceExperiment && !helperPreparation && voiceMode == .performance}
-    /// The performer's voice flow, where nobody presses 「출발점까지 안내」 or 「안내 시작」.
-    var voiceAutoStart: Bool {voiceExperiment && !helperPreparation}
-    /// 연습용 used to start from wherever the performer stood (practice entry); by voice it now goes via the start.
-    var usesPracticeEntry: Bool {isPractice && !voiceAutoStart}
-    /// After 「착용 완료」 and before the first start: the walking screen waits while the start is reached.
-    var voiceWaitingForStart: Bool {voiceAutoStart && !started && phase == .departure}
+    /// Starts from where the performer stands, without the start point: 연습용, and 실전용 by voice.
+    var usesPracticeEntry: Bool {isPractice || voicePerformanceFlow}
 
     /// A tap on the camera screen measures the checkpoint under the crosshair.
     func capturePerformanceCheckpoint() {
@@ -68,7 +64,7 @@ extension GuidanceViewModel {
         }
         verifyCheckpoint()
     }
-    /// 「완료」: on to 착용, as after the checkpoints in the button flow.
+    /// 「완료」: on to 착용, as after the space is found in 연습용.
     func confirmPerformanceCheckpoints() {
         guard voicePerformanceFlow, phase == .checkpoint, performanceCheckpointsDone, tracking.ready, canAdvanceInstruction else {return}
         prepareForVoiceTouch()
@@ -76,6 +72,7 @@ extension GuidanceViewModel {
         performanceCheckpointsDone=false
         phase = .wear;message="두 확인점 기준으로 위치와 방향을 보정했습니다."
         logSignal("voice_performance_confirmed","checkpoints=2")
-        read(VoiceStepCopy.wear)
+        // 「두 확인점 보정을 마쳤어요」 was just said before 「완료」; the wear lines follow without it.
+        read(Array(VoiceStepCopy.wear.dropFirst()))
     }
 }
