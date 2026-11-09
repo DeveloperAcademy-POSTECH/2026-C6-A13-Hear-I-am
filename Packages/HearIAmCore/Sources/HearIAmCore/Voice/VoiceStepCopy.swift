@@ -16,6 +16,20 @@ public enum VoiceStepCopy {
          "확인점 \(number)번. 저장한 확인점 \(number)번에 조준점을 맞추고 ‘다음’이라고 말해주세요."]
     }
 
+    /// 실전용 by voice (#167): the helper aims the phone and taps the camera screen (Figma 1028:18949 · 18930).
+    public static func performanceCheckpoint(_ number: Int) -> [String] {
+        [number == 1 ? "공연장을 찾았어요." : "확인점 1번을 확인했어요.",
+         "확인점 \(number)번. 조력자가 저장한 확인점 \(number)번에 화면 가운데 조준점을 맞추고 화면을 눌러주세요."]
+    }
+
+    /// Both checkpoints measured; the helper's 「완료」 (1028:18968) moves on.
+    public static let performanceCheckpointsDone = ["확인점 2번을 확인했어요.", "두 확인점을 모두 확인했어요. ‘완료’를 눌러주세요."]
+
+    /// After 「완료」 the walking screen waits (1028:18921) and guidance starts by itself once the start is held.
+    public static let performanceWaiting = ["확인점 확인을 마쳤어요. 잠시 후 실전 안내가 시작됩니다.", GuidanceCopy.doNotDisturb,
+                                            "휴대폰을 허리 앞쪽에 세로로 고정하고 출발점에 서주세요. 잠시 멈추면 안내가 바로 시작돼요.",
+                                            "실전 중에는 호출어를 듣지 않고 이동 안내만 전달해요."]
+
     public static let wear = ["두 확인점 보정을 마쳤어요.", "허리띠 착용.", GuidanceCopy.doNotDisturb,
                               "휴대폰을 허리 앞쪽에 세로로 고정해주세요. 후면 카메라는 몸 바깥쪽을 향하고 렌즈는 가리지 말아주세요.",
                               "다 차면 ‘착용 완료’라고 말해주세요."]

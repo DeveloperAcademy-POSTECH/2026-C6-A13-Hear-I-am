@@ -98,8 +98,8 @@ import HearIAmCore
     var voiceChatSeededRequest: String?
     /// The next lines read aloud already have a chat entry of their own (cards), so `read` adds no text for them.
     var voiceChatSuppressNextLine=false
-    /// 실전용 was asked for by voice; it is held back for now, so 연습용 runs and the intro says so (IA 11/02).
-    var voiceModeFallback=false
+    /// 실전용 by voice (#167): both checkpoints are measured and the helper's 「완료」 is awaited (Figma 1028:18968).
+    @Published var performanceCheckpointsDone=false
     let voiceRecognition=VoiceRecognitionService()
     let listeningChime=VoiceListeningChime()
     var voiceSubscriptions=Set<AnyCancellable>()

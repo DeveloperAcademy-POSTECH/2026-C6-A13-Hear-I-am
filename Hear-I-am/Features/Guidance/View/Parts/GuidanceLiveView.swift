@@ -110,71 +110,234 @@ struct GuidanceV3PreviewHarness: View {
         }.preferredColorScheme(model.isPractice ? .light : .dark)
     }
 }
+
+/// Camera-free rendering of the voice walking and checkpoint screens (#167) for simulator checks:
+/// `--voice-walk-preview <wait|walk|grow|done|check0|check1|check2>`, with `practice` in the name for 연습 안내.
+/// `grow` waits 1.5 s and then starts, to watch the circle open and the light tighten.
+struct VoiceWalkPreviewHarness: View {
+    @StateObject private var model: GuidanceViewModel
+    private let screen: String
+    init(screen: String) {
+        self.screen=screen
+        let model=GuidanceViewModel()
+        model.active=false
+        model.voiceMode=screen.contains("practice") ? .practice : .performance
+        let area=PerformancePlan.area
+        let route=try! StageRoute(area:area,points:[.init(2,2),.init(4,2),.init(6,2),.init(8,2)],obstacles:[])
+        var guide=RouteGuide(route:route,settings:GuideSettings(),usesRouteCorridor:true)
+        _=guide.start(position:route.points[0],headingDegrees:0,trackingValid:true)
+        model.guide=guide
+        let frame=try! StageFrame(origin:area.world(.init(0,0)),front:area.world(.init(0,-1)))
+        model.selected=ScanManifest(id:UUID(),name:"긴장감 고조 장면",frame:frame,checkpoint:area.world(.init(1,1)),worldMapHash:"",meshHash:"",meshCount:1,vertexCount:3,device:"Preview",appVersion:"1",route:route)
+        model.cue=GuidanceCue(position:.init(2,1.5),goal:.init(2,2),headingDegrees:0,sector:0)
+        if screen.contains("walk") {model.started=true;model.phase = .guiding}
+        else if screen.contains("done") {model.started=true;model.phase = .completed}
+        else if screen.contains("check") {
+            model.phase = .checkpoint
+            let count=Int(String(screen.last ?? "0")) ?? 0
+            model.tracking.measuredCheckpoints=Array(repeating:Point3(0,0,0),count:min(count,1))
+            model.performanceCheckpointsDone=count >= 2
+        } else {model.phase = .starting}
+        _model=StateObject(wrappedValue:model)
+    }
+    var body: some View {
+        NavigationStack {
+            Group {
+                if model.phase == .checkpoint {
+                    ZStack {
+                        LinearGradient(colors:[Color(white:0.35),Color(white:0.12)],startPoint:.top,endPoint:.bottom).ignoresSafeArea()
+                        PerformanceCheckpointView(model:model,tracking:model.tracking)
+                    }
+                } else {VoiceGuidanceWalkView(model:model,previewLit:true)}
+            }
+            .navigationTitle(model.phase == .checkpoint ? "" : model.isPractice ? "연습 안내" : "실전 안내").navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(.hidden,for:.navigationBar)
+            .toolbar {
+                ToolbarItem(placement:.topBarLeading) {VoiceBackButton {}}
+                if model.phase == .checkpoint {
+                    ToolbarItem(placement:.principal) {PerformanceScenePill(name:model.selected?.name ?? "")}
+                    ToolbarItem(placement:.topBarTrailing) {Image(systemName:"ellipsis")}
+                }
+            }
+        }
+        .preferredColorScheme(.dark)
+        .task {
+            guard screen.contains("grow") else {return}
+            try? await Task.sleep(nanoseconds:1_500_000_000)
+            model.started=true;model.phase = .guiding
+        }
+    }
+}
 #endif
 
-/// 연습 안내 by voice (Figma 495:5555 · 5569): the next point's direction as the arrow in the raised circle and
-/// as the 정면 찾기 light, which sits straight ahead in green and slides to the side the point is on. The
-/// camera keeps tracking behind the canvas; nothing of it is shown.
-struct VoicePracticeGuidanceView: View {
+/// 연습 안내 · 실전 안내 by voice (Figma 1028:18921 · 18910 · 18900). Before the walk the small circle waits over
+/// the wide grey light with 「잠시 후 안내가 시작됩니다」. When guidance starts the circle opens to 130pt with the
+/// direction arrow while the light tightens into the 정면 찾기 disc, and the next point and the distance come in;
+/// at the end the light settles into a small white one under 「도착」. Colours and movement are the earlier
+/// 연습 안내's (495:5555): the arrow turns to the next point and the disc slides to its side. The camera keeps
+/// tracking behind the canvas; nothing of it is shown.
+struct VoiceGuidanceWalkView: View {
     @ObservedObject var model: GuidanceViewModel
+    /// The simulator preview keeps the model inactive, so nothing is read aloud, but still shows the lit disc.
+    var previewLit=false
     private let deadband=DirectionTickGate.defaultDeadbandDegrees
     private var walking: Bool {model.phase == .guiding && model.arrivedName == nil && model.guide?.facingPointIndex == nil && model.performanceHoldRemaining == 0}
     private var cue: GuidanceCue? {walking ? model.cue : nil}
+    private var finished: Bool {[.finishing,.completed].contains(model.phase)}
+    /// From the first 「안내를 시작합니다」 on, the circle stays open and the labels stay in.
+    private var begun: Bool {model.started || finished}
+    private static let grey=Color(red:118/255,green:118/255,blue:118/255)
 
     var body: some View {
         GeometryReader {geometry in
             let w=geometry.size.width
             ZStack(alignment:.top) {
-                VoiceStyle.canvas.ignoresSafeArea()
-                FrontGlow(phase:.finding,hasReference:model.phase == .guiding && model.active,bearing:model.voiceGlowBearing,
-                          deadband:deadband,discOffsetY:182.5)
-                    .ignoresSafeArea().accessibilityHidden(true)
-                VStack(spacing:0) {
-                    ZStack {
-                        Circle().fill(.white.opacity(0.05))
-                        Circle().strokeBorder(LinearGradient(colors:[.white.opacity(0.35),.white.opacity(0.04)],startPoint:.top,endPoint:.bottom),lineWidth:1)
-                        VoiceGuidanceArrow().stroke(VoiceStyle.arrow,style:StrokeStyle(lineWidth:6,lineCap:.round,lineJoin:.round))
-                            .frame(width:130,height:130)
-                            .rotationEffect(.degrees(Double(cue?.sector ?? 0)*45))
-                            .opacity(cue == nil ? 0.35 : 1)
-                    }
-                    .frame(width:130,height:130)
-                    .shadow(color:.black.opacity(0.35),radius:16,y:10)
-                    .animation(.easeInOut(duration:0.35),value:cue?.sector)
-                    .padding(.top,max(0,185-geometry.safeAreaInsets.top-44))
-                    Text(subtitle).font(.system(size:20,weight:.semibold)).foregroundStyle(.white).padding(.top,62)
-                    Text(title).font(.system(size:32,weight:.semibold)).foregroundStyle(.white)
-                        .multilineTextAlignment(.center).fixedSize(horizontal:false,vertical:true).padding(.top,6).padding(.horizontal,24)
+                VoiceStyle.canvas
+                FrontGlow(phase:.finding,hasReference:model.phase == .guiding && (model.active || previewLit),bearing:model.voiceGlowBearing,
+                          deadband:deadband,discOffsetY:182.5,finished:finished)
+                    .accessibilityHidden(true)
+                // Positions are the design's, measured from the top of the 874pt frame.
+                if !begun {
+                    Text("잠시 후\n안내가 시작됩니다").font(HearFont.pretendard(.semibold,size:32)).tracking(-0.96).lineSpacing(9.6)
+                        .multilineTextAlignment(.center).foregroundStyle(.white)
+                        .frame(width:w).padding(.top,148).transition(.opacity)
+                } else if finished {
+                    Text("안내를 종료합니다").font(HearFont.pretendard(.semibold,size:32)).tracking(-0.96).foregroundStyle(.white)
+                        .frame(width:w).padding(.top,156).transition(.opacity.combined(with:.offset(y:-6)))
+                } else {
+                    VStack(spacing:0) {
+                        Text(model.targetName).font(HearFont.pretendard(.semibold,size:32)).tracking(-0.96).foregroundStyle(.white)
+                            .frame(height:42)
+                        Text("다음 포인트").font(HearFont.pretendard(.regular,size:20)).tracking(-0.6).foregroundStyle(Self.grey)
+                            .frame(height:26)
+                    }.frame(width:w).padding(.top,148).transition(.opacity.combined(with:.offset(y:-8)))
+                }
+                circle.position(x:w/2,y:begun ? 304 : 299)
+                if begun {
+                    Text(value).font(HearFont.pretendard(.bold,size:valueIsShort ? 46 : 30)).tracking(valueIsShort ? -1.38 : -0.9)
+                        .monospacedDigit().foregroundStyle(.white).multilineTextAlignment(.center)
+                        .lineLimit(2).minimumScaleFactor(0.6).padding(.horizontal,24)
+                        .frame(width:w).padding(.top,408).transition(.opacity.combined(with:.offset(y:8)))
                     if let issue=model.voiceInputError {
                         Text(issue).font(.system(size:15)).foregroundStyle(VoiceStyle.status).multilineTextAlignment(.center)
-                            .padding(.top,16).padding(.horizontal,32)
+                            .frame(width:w-64).padding(.top,480)
                     }
-                    Spacer(minLength:0)
                 }
-                .frame(width:w)
-                .accessibilityElement(children:.combine)
-                .accessibilityLabel("\(subtitle). \(title)")
                 LinearGradient(stops:[.init(color:VoiceStyle.canvas,location:0.036),.init(color:VoiceStyle.canvas.opacity(0),location:0.596)],
                                startPoint:.top,endPoint:.bottom)
-                    .frame(height:156).ignoresSafeArea(edges:.top).allowsHitTesting(false).accessibilityHidden(true)
+                    .frame(height:156).allowsHitTesting(false).accessibilityHidden(true)
             }
-        }
+            .animation(.smooth(duration:0.9),value:begun)
+            .animation(.smooth(duration:0.6),value:finished)
+            .accessibilityElement(children:.ignore)
+            .accessibilityLabel(accessibilityText)
+        }.ignoresSafeArea()
     }
-    private var subtitle: String {
-        switch model.phase {
-        case .finishing,.completed: return "연습 안내"
-        default: return "다음 포인트 · \(model.targetName)"
+    /// 52pt while waiting (1028:18926), 130pt with the arrow once guidance runs (1028:18914).
+    private var circle: some View {
+        let size: CGFloat = begun ? 130 : 52
+        return ZStack {
+            Circle().fill(.white.opacity(0.05))
+            Circle().strokeBorder(LinearGradient(colors:[.white.opacity(0.35),.white.opacity(0.04)],startPoint:.top,endPoint:.bottom),lineWidth:1)
         }
+        .frame(width:size,height:size)
+        // The arrow is drawn at full size and scaled with the circle, so it never sets the circle's size.
+        .overlay {
+            VoiceGuidanceArrow().stroke(VoiceStyle.arrow,style:StrokeStyle(lineWidth:6,lineCap:.round,lineJoin:.round))
+                .frame(width:130,height:130)
+                .rotationEffect(.degrees(finished ? 0 : Double(cue?.sector ?? 0)*45))
+                .opacity(!begun ? 0 : cue == nil && !finished ? 0.35 : 1)
+                .scaleEffect(size/130)
+                .animation(.easeInOut(duration:0.35),value:cue?.sector)
+        }
+        .shadow(color:.black.opacity(begun ? 0.35 : 0.2),radius:begun ? 16 : 8,y:begun ? 10 : 4)
     }
-    private var title: String {
+    private var value: String {
+        if finished {return "도착"}
+        if let cue {return "\(cue.distance.formatted(.number.precision(.fractionLength(1))))m"}
         switch model.phase {
-        case .starting: return "안내를 시작하고 있어요"
-        case .paused: return "일시정지 중"
-        case .finishing,.completed: return "안내를 마쳤어요"
+        case .paused: return "일시정지"
+        case .starting: return "안내를 다시 시작해요"
         default:
-            if let cue {return "\(cue.direction) \(cue.distance.formatted(.number.precision(.fractionLength(1))))m"}
             return model.arrivedName == nil && model.guide?.facingPointIndex == nil && model.performanceHoldRemaining == 0 ? "안내하는 중" : model.headline.title.replacingOccurrences(of:"\n",with:" ")
         }
+    }
+    private var valueIsShort: Bool {finished || cue != nil}
+    private var accessibilityText: String {
+        if !begun {return "잠시 후 안내가 시작됩니다"}
+        if finished {return "안내를 종료합니다. 도착"}
+        if let cue {return "다음 포인트 \(model.targetName). \(cue.direction) \(value)"}
+        return "다음 포인트 \(model.targetName). \(value)"
+    }
+}
+
+/// 실전용 확인점 찾기 (Figma 1028:18949 · 18930 · 18968): the camera with the crosshair, the two checkpoints filling
+/// as the helper taps for each, and 「다음으로」 that turns into a white 「완료」 once both are taken.
+struct PerformanceCheckpointView: View {
+    @ObservedObject var model: GuidanceViewModel
+    @ObservedObject var tracking: ARSessionController
+    private var measured: Int {model.performanceCheckpointsDone ? 2 : min(2,tracking.measuredCheckpoints.count)}
+
+    var body: some View {
+        GeometryReader {geometry in
+            ZStack(alignment:.top) {
+                // The whole camera takes the tap that measures the checkpoint under the crosshair.
+                Color.clear.contentShape(Rectangle())
+                    .onTapGesture {model.capturePerformanceCheckpoint()}
+                    .accessibilityElement().accessibilityLabel("확인점 \(min(measured+1,2))번 확인")
+                    .accessibilityAddTraits(.isButton).accessibilityHidden(model.performanceCheckpointsDone)
+                LinearGradient(stops:[.init(color:VoiceStyle.canvas,location:0.036),.init(color:VoiceStyle.canvas.opacity(0),location:0.596)],
+                               startPoint:.top,endPoint:.bottom)
+                    .frame(height:156).allowsHitTesting(false).accessibilityHidden(true)
+                Image(systemName:"plus").font(.system(size:30,weight:.regular)).foregroundStyle(.white)
+                    .shadow(color:.black.opacity(0.5),radius:2)
+                    .position(x:geometry.size.width/2,y:geometry.size.height/2+11)
+                    .allowsHitTesting(false).accessibilityHidden(true)
+                HStack(spacing:8) {
+                    ForEach(1...2,id:\.self) {number in
+                        let done=number <= measured
+                        Text("\(number)").font(HearFont.pretendard(.semibold,size:14))
+                            .foregroundStyle(done ? Color(white:17/255) : .white)
+                            .frame(width:23,height:23)
+                            .background(done ? Color.white : Color.black.opacity(0.4),in:Circle())
+                    }
+                }
+                .padding(.horizontal,10).padding(.vertical,6)
+                .background(.black.opacity(0.2),in:Capsule())
+                .padding(.top,179)
+                .animation(.smooth(duration:0.3),value:measured)
+                .accessibilityElement(children:.ignore).accessibilityLabel("확인점 2개 중 \(measured)개 확인")
+                VStack {
+                    Spacer()
+                    Button {model.confirmPerformanceCheckpoints()} label: {
+                        Text(model.performanceCheckpointsDone ? "완료" : "다음으로")
+                            .font(HearFont.pretendard(.semibold,size:18)).foregroundStyle(Color(white:38/255))
+                            .frame(maxWidth:.infinity,minHeight:50)
+                            .background(.white,in:Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!model.performanceCheckpointsDone)
+                    .opacity(model.performanceCheckpointsDone ? 1 : 0.3)
+                    .padding(.horizontal,16).padding(.bottom,46)
+                    .accessibilityIdentifier("performance.checkpoints.done")
+                }
+            }
+        }.ignoresSafeArea()
+    }
+}
+
+/// The scene being prepared, as the pill in the middle of the top bar (1028:18941).
+struct PerformanceScenePill: View {
+    let name: String
+    var body: some View {
+        HStack(spacing:12) {
+            Image(systemName:"movieclapper").font(.system(size:15,weight:.medium))
+            Text(name).font(.system(size:12,weight:.semibold)).lineLimit(1)
+            Image(systemName:"chevron.down").font(.system(size:9,weight:.bold))
+                .frame(width:18,height:18).background(.white.opacity(0.2),in:Circle())
+        }
+        .foregroundStyle(.white).padding(.horizontal,14).frame(height:44)
+        .accessibilityElement(children:.combine)
     }
 }
 

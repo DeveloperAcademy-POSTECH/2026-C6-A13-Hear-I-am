@@ -40,7 +40,7 @@ extension GuidanceViewModel {
         else if !started, isPractice {lines=["현재 위치에서 P1으로 안내합니다."]}
         else if !started, guide?.route.facing(at:0) != nil { lines=["안내를 시작합니다. 출발점에서 바라볼 방향을 먼저 맞춥니다."] }
         else if resumingHold { lines=["공연 대기를 이어갑니다."] }
-        else { lines=[started ? "안내를 다시 시작합니다." : "안내를 시작합니다.",SignalCopy.start] }
+        else { lines=[started ? "안내를 다시 시작합니다." : voicePerformanceFlow ? "실전 안내를 시작합니다." : "안내를 시작합니다.",SignalCopy.start] }
         read(lines) { [weak self] in
             guard let self, self.phase == .starting, var guide=self.guide else { return }
             guard let pose=self.freshPose() else { self.interrupt("현재 위치를 확인할 수 없어요. \(self.recoveryInstruction)");return }
@@ -99,6 +99,10 @@ extension GuidanceViewModel {
         if !eligible {
             if readyAnnounced && !voiceTurnActive {read(["출발 위치 또는 방향이 달라졌습니다. 다시 확인해주세요."])}
             readyAnnounced=false
+        }
+        // 실전용 by voice has no one to say 「출발」 (#167): holding the start begins the walk once the wait is read.
+        if performanceWaiting, !started, departureReady, instructionDone, !speaking {
+            logSignal("voice_performance_autostart","held start");startGuidance();return
         }
         if departureReady, !readyAnnounced, instructionDone, !speaking, !voiceTurnActive {
             readyAnnounced=true

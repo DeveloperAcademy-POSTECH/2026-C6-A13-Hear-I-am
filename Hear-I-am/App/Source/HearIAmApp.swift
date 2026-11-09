@@ -13,6 +13,8 @@ import SwiftUI
                 GuidanceReplayPreviewHarness()
             } else if ProcessInfo.processInfo.arguments.contains("--stage-replay-preview") {
                 StageReplayPreviewHarness()
+            } else if let index=ProcessInfo.processInfo.arguments.firstIndex(of:"--voice-walk-preview") {
+                VoiceWalkPreviewHarness(screen:ProcessInfo.processInfo.arguments.dropFirst(index+1).first ?? "walk")
             } else if ProcessInfo.processInfo.arguments.contains("--guidance-v3-practice-preview") {
                 GuidanceV3PreviewHarness(practice:true)
             } else if ProcessInfo.processInfo.arguments.contains("--guidance-v3-preview") {
