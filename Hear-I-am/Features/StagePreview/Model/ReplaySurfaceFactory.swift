@@ -22,7 +22,7 @@ enum ReplaySurfaceFactory {
         return material
     }()
 
-    static func nodes(_ mesh: ReplaySurfaceMesh) -> [SCNNode] {
+    static func nodes(_ mesh: ReplaySurfaceMesh, useCapturedColors: Bool = false) -> [SCNNode] {
         var nodes=[SCNNode]()
         if !mesh.floorIndices.isEmpty {
             let vertices=mesh.vertices.map {SCNVector3($0.x,0,$0.z)}
@@ -30,7 +30,19 @@ enum ReplaySurfaceFactory {
         }
         if !mesh.surfaceIndices.isEmpty {
             let vertices=mesh.vertices.map {SCNVector3($0.x,$0.y,$0.z)}
-            nodes.append(node(vertices:vertices,indices:mesh.surfaceIndices,wood:false))
+            var colored=[UInt32](),gray=[UInt32]()
+            if useCapturedColors,let colors=mesh.displaySurfaceColors,colors.count==vertices.count*4 {
+                for i in stride(from:0,to:mesh.surfaceIndices.count,by:3) {
+                    let ids=Array(mesh.surfaceIndices[i..<i+3])
+                    let a=SIMD3<Float>(vertices[Int(ids[0])]),b=SIMD3<Float>(vertices[Int(ids[1])]),c=SIMD3<Float>(vertices[Int(ids[2])])
+                    let normal=simd_cross(b-a,c-a),length=simd_length(normal)
+                    if length>1e-8,abs(normal.y)/length<0.65,ids.allSatisfy({colors[Int($0)*4+3]==255}) {
+                        colored.append(contentsOf:ids)
+                    } else {gray.append(contentsOf:ids)}
+                }
+            } else {gray=mesh.surfaceIndices}
+            if !gray.isEmpty {nodes.append(node(vertices:vertices,indices:gray,wood:false))}
+            if !colored.isEmpty {nodes.append(node(vertices:vertices,indices:colored,wood:false,colors:mesh.displaySurfaceColors))}
         }
         return nodes
     }
@@ -42,7 +54,7 @@ enum ReplaySurfaceFactory {
                        .init(area.width,-0.002,-area.depth),.init(0,-0.002,-area.depth)],
              indices:[0,1,2,0,2,3],wood:true)
     }
-    private static func node(vertices: [SCNVector3],indices: [UInt32],wood: Bool) -> SCNNode {
+    private static func node(vertices: [SCNVector3],indices: [UInt32],wood: Bool,colors: Data? = nil) -> SCNNode {
         var sources=[SCNGeometrySource(vertices:vertices)]
         if wood {
             sources.append(SCNGeometrySource(normals:Array(repeating:SCNVector3(0,1,0),count:vertices.count)))
@@ -63,6 +75,26 @@ enum ReplaySurfaceFactory {
         }
         let geometry=SCNGeometry(sources:sources,elements:[SCNGeometryElement(indices:indices,primitiveType:.triangles)])
         geometry.firstMaterial=wood ? self.wood : surrounding
+        if let colors,!wood {
+            // Float components avoid ambiguity about normalized integer color attributes in SceneKit.
+            // Geometry color attributes are linear; camera bytes are sRGB. Without decoding gamma,
+            // SceneKit makes dark curtains and saturated colors visibly too bright.
+            let rgba=colors.enumerated().map {index,byte -> Float in
+                let s=Float(byte)/255
+                return index%4==3 ? s : s<=0.04045 ? s/12.92 : pow((s+0.055)/1.055,2.4)
+            }
+            let data=rgba.withUnsafeBufferPointer {Data(buffer:$0)}
+            sources.append(SCNGeometrySource(data:data,semantic:.color,vectorCount:vertices.count,
+                                             usesFloatComponents:true,componentsPerVector:4,bytesPerComponent:4,
+                                             dataOffset:0,dataStride:16))
+            let coloredGeometry=SCNGeometry(sources:sources,elements:geometry.elements)
+            let material=SCNMaterial()
+            // Camera colors already include real-world lighting. Avoid adding the folder's blue stage lights.
+            material.diffuse.contents=UIColor.white;material.lightingModel = .constant;material.isDoubleSided=true
+            coloredGeometry.firstMaterial=material
+            let node=SCNNode(geometry:coloredGeometry);node.name="captured-scan-surroundings"
+            return node
+        }
         let node=SCNNode(geometry:geometry)
         node.name=wood ? "clean-oak-floor" : "clean-scan-surroundings"
         return node

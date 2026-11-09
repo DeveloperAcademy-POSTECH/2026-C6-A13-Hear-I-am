@@ -47,16 +47,42 @@ extension ARSessionController {
                 self.session?.pause(); self.gate.invalidate(); self.ready=false
                 self.position=nil; self.heading=nil
                 do {
-                    let data=try NSKeyedArchiver.archivedData(withRootObject:map,requiringSecureCoding:true)
                     self.archiveWriteInProgress=true
+                    let colorFrames=self.bridge?.surfaceColors.snapshot(map:map) ?? []
+                    #if DEBUG
+                    let compareColors=ProcessInfo.processInfo.arguments.contains("--surface-color-compare")
+                    #else
+                    let compareColors=false
+                    #endif
+                    // Bake off the UI thread against the final mesh and corrected camera poses.
+                    let colorResult=await Task.detached(priority:.userInitiated) {
+                        let current=SurfaceColorBaker.bakeWithDiagnostics(parts,frames:colorFrames,route:route)
+                        let baseline=compareColors ? SurfaceColorBaker.bakeWithDiagnostics(parts,frames:colorFrames,route:route,policy:.strict).diagnostics : nil
+                        return (current:current,baseline:baseline)
+                    }.value
+                    guard self.token==operation else {return}
+                    guard self.saveAttempt==attempt,self.active else {
+                        self.archiveWriteInProgress=false;self.busy=false;return
+                    }
+                    // Capture-only anchors and images are not part of a saved scan or later guidance session.
+                    map.anchors.removeAll {$0.name?.hasPrefix(ScanSurfaceColorCapture.anchorPrefix)==true}
+                    let data=try NSKeyedArchiver.archivedData(withRootObject:map,requiringSecureCoding:true)
                     let photoOwner=self.photoCapture
                     let photos=self.photosForSaving(route:route,map:map)
                     let result=try await self.store.save(id:id,name:name,frame:stage,checkpoint:checkpoint,
-                        worldMap:data,meshes:parts,device:UIDevice.current.model+" / "+UIDevice.current.systemVersion,
+                        worldMap:data,meshes:colorResult.current.meshes,device:UIDevice.current.model+" / "+UIDevice.current.systemVersion,
                         appVersion:Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown",
-                        route:route,settings:self.settings,photos:photos,secondCheckpoint:secondCheckpoint)
+                        route:route,settings:self.settings,photos:photos,secondCheckpoint:secondCheckpoint,
+                        surfaceColorDiagnostics:colorResult.current.diagnostics)
                     withExtendedLifetime(photoOwner) {}
                     guard self.token==operation else { return }
+                    self.event("surface_color_bake",detail:colorResult.current.diagnostics.summary)
+                    if let baseline=colorResult.baseline {self.event("surface_color_baseline",detail:baseline.summary)}
+                    #if DEBUG
+                    print("SURFACE_COLOR_REPORT: \(colorResult.current.diagnostics.summary)")
+                    if let baseline=colorResult.baseline {print("SURFACE_COLOR_BASELINE: \(baseline.summary)")}
+                    #endif
+                    self.bridge?.surfaceColors.finish()
                     self.saveRecoveryPending=false
                     self.mode = .saved; self.savedID=result.id; self.manifest=result; self.status="저장 완료 · 앱 재실행 후 저장 공간을 불러와 확인점 1·2를 확인하세요"
                     self.event("scan_saved",detail:result.id.uuidString); self.stopLog()

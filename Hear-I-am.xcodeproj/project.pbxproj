@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		C01000000000000000000002 /* ScanSurfaceColorCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = C01000000000000000000001 /* ScanSurfaceColorCapture.swift */; };
 		991410000000000000000002 /* ReplayStageLighting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 991410000000000000000001 /* ReplayStageLighting.swift */; };
 		A13700000000000000000002 /* DiagnosticLogMaintenance.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13700000000000000000001 /* DiagnosticLogMaintenance.swift */; };
 		A14AECEE7CA1F72613D268E9 /* Pretendard-Regular.otf in Resources */ = {isa = PBXBuildFile; fileRef = 0D89E22907286EC43454D305 /* Pretendard-Regular.otf */; };
@@ -177,6 +178,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		C01000000000000000000001 /* ScanSurfaceColorCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanSurfaceColorCapture.swift; sourceTree = "<group>"; };
 		991410000000000000000001 /* ReplayStageLighting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReplayStageLighting.swift; sourceTree = "<group>"; };
 		A13700000000000000000001 /* DiagnosticLogMaintenance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticLogMaintenance.swift; sourceTree = "<group>"; };
 		0D89E22907286EC43454D305 /* Pretendard-Regular.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Pretendard-Regular.otf"; sourceTree = "<group>"; };
@@ -454,6 +456,7 @@
 				16CD1DF032786D48C6CB3E06 /* CameraSample.swift */,
 				C34640BEB642B9BB9BB35D85 /* CameraView.swift */,
 				F981725F347959DFE8E81B6F /* MeshSnapshot+SceneKit.swift */,
+				C01000000000000000000001 /* ScanSurfaceColorCapture.swift */,
 				3D67B6843CBC3F6EAAB79896 /* ScanPhotoCapture.swift */,
 				A6E2835565ECB9A2EF455409 /* SessionBridge.swift */,
 				B4CE088502A93FA42A78A0DC /* StageDangerZoneOverlay.swift */,
@@ -1371,6 +1374,7 @@
 				DA44470139ED6DFC8ED2B9DD /* SavedPhotoImage.swift in Sources */,
 				D9D0A74C0159862B2C3D7C18 /* SavedStagePreview.swift in Sources */,
 				71561858F684178D7DBF87A7 /* SavedStagePreviewModel.swift in Sources */,
+				C01000000000000000000002 /* ScanSurfaceColorCapture.swift in Sources */,
 				F476B18BC3F90D9743A82ADE /* ScanPhotoCapture.swift in Sources */,
 				C923F71DB3EF15C01ACD2FA2 /* ScreenOrientation.swift in Sources */,
 				9A971287D83B12DC1AE774A1 /* SessionBridge.swift in Sources */,

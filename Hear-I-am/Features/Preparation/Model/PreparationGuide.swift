@@ -11,7 +11,7 @@ struct PreparationGuide {
         switch step {
         case .scan:
             title="공간을 천천히 둘러보세요"
-            description="휴대폰을 양손으로 잡고 공연장과 백스테이지까지 충분히 담아주세요."
+            description="휴대폰을 양손으로 잡고 공연장과 백스테이지까지 충분히 담아주세요. 벽과 커튼의 색도 담을 수 있도록 잠시 멈춰가며 천천히 비춰주세요."
         case .boundary:
             title=nextCorner.map {"무대 \(names[$0])을 지정해주세요"} ?? "네 모서리가 연결됐어요"
             if nextCorner == 2, draft.corners[0] != nil, draft.corners[1] != nil, draft.corners[3] != nil {
