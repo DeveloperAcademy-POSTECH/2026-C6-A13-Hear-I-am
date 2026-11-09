@@ -48,7 +48,8 @@ struct GuidanceView: View {
         if model.phase == .selection {return library.records.isEmpty}
         if conversation {return [.failed,.interrupted].contains(model.phase)}
         if checkpointScreen {return false}
-        if voiceWalk {return [.paused,.finishing,.completed].contains(model.phase)}
+        // The end shows only 「안내를 종료합니다 · 도착」: closing and saving happen by themselves (11/09).
+        if voiceWalk {return model.phase == .paused}
         return true
     }
 
