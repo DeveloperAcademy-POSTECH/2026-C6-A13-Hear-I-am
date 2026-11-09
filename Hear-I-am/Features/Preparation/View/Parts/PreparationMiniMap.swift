@@ -58,6 +58,13 @@ struct ScanStageMap: View {
     var dimCorners=false
     /// Narrower margins, for the side panel where the stage should fill the space (Figma 971:15599).
     var tight=false
+    /// The intro cards' looping drawings (#163). How much of the selected object's outline is drawn (0–1), then
+    /// of its facing edge in red; how far along the route the drawing is, in points (nil: all of it); and the
+    /// opacity of what is being drawn, which fades before the loop starts over.
+    var objectReveal=1.0
+    var facingReveal=1.0
+    var routeReveal: Double?
+    var revealOpacity=1.0
 
     static let green=Color(red:48/255,green:209/255,blue:88/255)
     static let mint=Color(red:0,green:200/255,blue:179/255)
@@ -107,10 +114,12 @@ struct ScanStageMap: View {
                     var polygon=Path(); polygon.addLines(object.vertices.map(project)); polygon.closeSubpath()
                     if selected || style == .review {
                         // Mint outline with the facing edge in red (452:11604); the review colours every object.
-                        context.stroke(polygon,with:.color(Self.mint),lineWidth:3)
-                        if let facing=object.facingEdge, object.vertices.indices.contains(facing) {
+                        var layer=context
+                        if selected {layer.opacity=revealOpacity}
+                        layer.stroke(selected ? polygon.trimmedPath(from:0,to:objectReveal) : polygon,with:.color(Self.mint),lineWidth:3)
+                        if let facing=object.facingEdge, object.vertices.indices.contains(facing), !selected || facingReveal > 0 {
                             var edge=Path(); edge.move(to:project(object.vertices[facing])); edge.addLine(to:project(object.vertices[(facing+1)%object.vertices.count]))
-                            context.stroke(edge,with:.color(Self.red),lineWidth:3)
+                            layer.stroke(selected ? edge.trimmedPath(from:0,to:facingReveal) : edge,with:.color(Self.red),lineWidth:3)
                         }
                     } else {
                         context.stroke(polygon,with:.color(dimCorners ? Self.grey.opacity(0.9) : Self.objectOutline.opacity(0.5)),lineWidth:3)
@@ -118,14 +127,22 @@ struct ScanStageMap: View {
                 }
                 let routeColor: Color = style == .checkpoint ? Self.grey : (style == .review ? .white : Self.green)
                 let dotColor: Color = style == .checkpoint ? Self.grey : Self.green
+                // Drawn one point at a time on the route card: the line runs to the next point, then its dot appears.
+                let shown=routeReveal ?? Double(points.count+1)
+                var route=context
+                if routeReveal != nil {route.opacity=revealOpacity}
                 for i in points.indices {
                     let p=project(points[i])
                     if i > 0 {
-                        var line=Path(); line.move(to:project(points[i-1])); line.addLine(to:p)
-                        context.stroke(line,with:.color(routeColor),lineWidth:2)
+                        let drawn=min(1,max(0,(shown-Double(i))/0.6))
+                        if drawn > 0 {
+                            var line=Path(); line.move(to:project(points[i-1])); line.addLine(to:p)
+                            route.stroke(line.trimmedPath(from:0,to:drawn),with:.color(routeColor),lineWidth:2)
+                        }
                     }
+                    guard shown >= (i == 0 ? 0.3 : Double(i)+0.6) else {continue}
                     let color: Color = style == .checkpoint ? Self.grey : (i == 0 ? Self.blue : (finished && i == points.count-1 ? Self.yellow : dotColor))
-                    context.fill(Path(ellipseIn:CGRect(x:p.x-4,y:p.y-4,width:8,height:8)),with:.color(color))
+                    route.fill(Path(ellipseIn:CGRect(x:p.x-4,y:p.y-4,width:8,height:8)),with:.color(color))
                     if selectedPoint == i {
                         context.fill(Path(ellipseIn:CGRect(x:p.x-4,y:p.y-4,width:8,height:8)),with:.color(.white))
                         context.stroke(Path(ellipseIn:CGRect(x:p.x-7,y:p.y-7,width:14,height:14)),with:.color(.white),lineWidth:1.5)
@@ -146,9 +163,11 @@ struct ScanStageMap: View {
                     let p=project(aim)
                     context.stroke(Path(ellipseIn:CGRect(x:p.x-6,y:p.y-6,width:12,height:12)),with:.color(aimBlocked ? Self.red : Self.green),lineWidth:2)
                 }
+                var checkpoints=context
+                checkpoints.opacity=revealOpacity
                 for point in [checkpoint,secondCheckpoint].compactMap({$0}) {
                     let p=project(point)
-                    context.fill(Path(ellipseIn:CGRect(x:p.x-5,y:p.y-5,width:10,height:10)),with:.color(style == .review ? Self.yellow : Self.green))
+                    checkpoints.fill(Path(ellipseIn:CGRect(x:p.x-5,y:p.y-5,width:10,height:10)),with:.color(style == .review ? Self.yellow : Self.green))
                 }
             }
         }
