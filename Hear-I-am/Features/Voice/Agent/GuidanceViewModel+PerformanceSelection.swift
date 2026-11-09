@@ -45,3 +45,35 @@ extension GuidanceViewModel {
                                   contexts:candidates.map {(voiceStagePaths[$0.id] ?? [])+[voiceStageTitle($0)]})
     }
 }
+
+/// 실전용 by voice (#167). The space is found as in 연습용; the helper then aims at the two checkpoints on the
+/// camera screen (Figma 1028:18949 · 18930 · 18968) and taps 「완료」. From there the walking screen waits
+/// (1028:18921) with the microphone closed, and guidance starts by itself once the performer holds the start.
+extension GuidanceViewModel {
+    /// The performer's own voice flow in 실전용, as opposed to the helper's preparation opened from a performance.
+    var voicePerformanceFlow: Bool {voiceExperiment && !helperPreparation && voiceMode == .performance}
+    /// After 「완료」: the waiting walking screen stands in for the wear and departure steps.
+    var performanceWaiting: Bool {voicePerformanceFlow && [.wear,.departure].contains(phase)}
+
+    /// A tap on the camera screen measures the checkpoint under the crosshair.
+    func capturePerformanceCheckpoint() {
+        guard voicePerformanceFlow, phase == .checkpoint, !performanceCheckpointsDone else {return}
+        prepareForVoiceTouch()
+        guard canVerify else {
+            read([tracking.canVerify ? "확인점을 아직 확인할 수 없어요." : "위치 추적이 안정될 때까지 잠시 기다려주세요."]);return
+        }
+        verifyCheckpoint()
+    }
+    /// 「완료」: the wear step folds into the wait, so the departure gate starts counting at once.
+    func confirmPerformanceCheckpoints() {
+        guard voicePerformanceFlow, phase == .checkpoint, performanceCheckpointsDone, tracking.ready, canAdvanceInstruction else {return}
+        prepareForVoiceTouch()
+        invalidateTasks();approachNotice=nil
+        voicePerformanceInputClosed=true
+        voiceRecognition.discardPendingSpeech();voiceTurnActive=false
+        performanceCheckpointsDone=false
+        phase = .departure;departureReady=false;departureGate.reset();readyAnnounced=false;lastPoseTime=nil
+        logSignal("voice_performance_confirmed","checkpoints=2")
+        read(VoiceStepCopy.performanceWaiting)
+    }
+}
