@@ -119,7 +119,9 @@ struct ScanStageMap: View {
                         layer.stroke(selected ? polygon.trimmedPath(from:0,to:objectReveal) : polygon,with:.color(Self.mint),lineWidth:3)
                         if let facing=object.facingEdge, object.vertices.indices.contains(facing), !selected || facingReveal > 0 {
                             var edge=Path(); edge.move(to:project(object.vertices[facing])); edge.addLine(to:project(object.vertices[(facing+1)%object.vertices.count]))
-                            layer.stroke(selected ? edge.trimmedPath(from:0,to:facingReveal) : edge,with:.color(Self.red),lineWidth:3)
+                            // Square ends cover the corners, so the whole side is red, not cut short at both ends (11/09).
+                            layer.stroke(selected ? edge.trimmedPath(from:0,to:facingReveal) : edge,with:.color(Self.red),
+                                         style:StrokeStyle(lineWidth:3,lineCap:.square))
                         }
                     } else {
                         context.stroke(polygon,with:.color(dimCorners ? Self.grey.opacity(0.9) : Self.objectOutline.opacity(0.5)),lineWidth:3)
