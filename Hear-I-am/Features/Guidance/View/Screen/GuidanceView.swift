@@ -36,8 +36,8 @@ struct GuidanceView: View {
     private var voiceFlow: Bool {model.voiceExperiment && !model.helperPreparation}
     /// 실전용 by voice: the helper aims at the checkpoints with the camera in view.
     private var checkpointScreen: Bool {voiceFlow && model.voicePerformanceFlow && model.phase == .checkpoint}
-    /// The walking screen, also while the performer is led to the start after 「착용 완료」.
-    private var voiceWalk: Bool {voiceFlow && (model.phase.showsRouteCamera || model.voiceWaitingForStart)}
+    /// The walking screen from 「출발」: 「잠시 후 안내가 시작됩니다」 while the start is read, then the walk (#167).
+    private var voiceWalk: Bool {voiceFlow && model.phase.showsRouteCamera}
     private var conversation: Bool {voiceFlow && !voiceWalk && !checkpointScreen}
     private var lightPractice: Bool {model.phase.showsRouteCamera && model.isPractice && !model.voiceExperiment}
     private var paper: Color {voiceFlow ? VoiceStyle.canvas : lightPractice ? Color.white : HearV3.canvas}
