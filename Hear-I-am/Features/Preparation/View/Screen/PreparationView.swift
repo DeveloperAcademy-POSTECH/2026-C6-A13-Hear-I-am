@@ -15,7 +15,6 @@ struct PreparationView: View {
     /// Black until the window has turned to landscape; black again while it turns back (see `ScanTransition`).
     @State private var veiled=true
     @State private var closing=false
-    @State private var showingSettings=false
     init(library: StageLibrary, initialPlan: PerformancePlan? = nil, performanceID: UUID? = nil, sceneName: String = "", onSaved: ((UUID) -> Void)? = nil) {
         self.library=library
         self.onSaved=onSaved
@@ -105,7 +104,6 @@ struct PreparationView: View {
             .ignoresSafeArea()
         }.background(.black).preferredColorScheme(.light)
             .overlay {ScanVeil(on:veiled)}
-            .sheet(isPresented:$showingSettings) {NavigationStack {HomeSettingsView()}}
             .sheet(isPresented:$model.showingPhotos) {PreparationPhotosSheet(model:model)}
             .onAppear {
                 ScreenOrientation.set(.landscape); model.appear()
@@ -136,7 +134,7 @@ struct PreparationView: View {
         if model.showingMore {
             Color.black.opacity(0.001)
                 .onTapGesture {withAnimation(.snappy(duration:0.3)) {model.showingMore=false}}
-            PreparationMorePanel(model:model) {showingSettings=true}
+            PreparationMorePanel(model:model)
                 .padding(.top,26+44+8).padding(.trailing,edge(insets).trailing)
                 .frame(maxWidth:.infinity,maxHeight:.infinity,alignment:.topTrailing)
                 .transition(.scale(scale:0.85,anchor:.topTrailing).combined(with:.opacity))

@@ -119,6 +119,8 @@ final class PreparationViewModel: ObservableObject {
     static let layoutPreview: Int? = nil
     #endif
     var supportsMesh: Bool { session.supportsMesh }
+    /// The ⋯ panel's switches: the scanned-mesh overlay up to the objects step, and the reference afterimage.
+    var hasMoreOptions: Bool { (step <= .objects && supportsMesh) || canShowPlanReference }
     var busy: Bool { session.busy || session.photoCapturing }
     var interrupted: Bool { session.preparationInterrupted }
     var canPlacePoint: Bool { session.canPlacePoint && !session.photoCapturing }
