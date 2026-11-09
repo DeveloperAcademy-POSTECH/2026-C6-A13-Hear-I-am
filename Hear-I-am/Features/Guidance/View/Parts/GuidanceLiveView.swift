@@ -137,7 +137,9 @@ struct VoiceWalkPreviewHarness: View {
             let count=Int(String(screen.last ?? "0")) ?? 0
             model.tracking.measuredCheckpoints=Array(repeating:Point3(0,0,0),count:min(count,1))
             model.performanceCheckpointsDone=count >= 2
-        } else {model.phase = .starting}
+            model.checkpointAimed=count == 1
+        } else if screen.contains("approach") {model.phase = .approaching}
+        else {model.phase = .starting}
         _model=StateObject(wrappedValue:model)
     }
     var body: some View {
@@ -145,19 +147,15 @@ struct VoiceWalkPreviewHarness: View {
             Group {
                 if model.phase == .checkpoint {
                     ZStack {
-                        LinearGradient(colors:[Color(white:0.35),Color(white:0.12)],startPoint:.top,endPoint:.bottom).ignoresSafeArea()
+                        LinearGradient(colors:[Color(white:0.55),Color(white:0.2)],startPoint:.top,endPoint:.bottom).ignoresSafeArea()
                         PerformanceCheckpointView(model:model,tracking:model.tracking)
-                    }
+                    }.toolbar(.hidden,for:.navigationBar)
                 } else {VoiceGuidanceWalkView(model:model,previewLit:true)}
             }
             .navigationTitle(model.phase == .checkpoint ? "" : model.isPractice ? "연습 안내" : "실전 안내").navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.hidden,for:.navigationBar)
             .toolbar {
                 ToolbarItem(placement:.topBarLeading) {VoiceBackButton {}}
-                if model.phase == .checkpoint {
-                    ToolbarItem(placement:.principal) {PerformanceScenePill(name:model.selected?.name ?? "")}
-                    ToolbarItem(placement:.topBarTrailing) {Image(systemName:"ellipsis")}
-                }
             }
         }
         .preferredColorScheme(.dark)
@@ -180,11 +178,15 @@ struct VoiceGuidanceWalkView: View {
     @ObservedObject var model: GuidanceViewModel
     /// The simulator preview keeps the model inactive, so nothing is read aloud, but still shows the lit disc.
     var previewLit=false
-    private var walking: Bool {model.phase == .guiding && model.arrivedName == nil && model.guide?.facingPointIndex == nil && model.performanceHoldRemaining == 0}
+    private var walking: Bool {
+        model.phase == .approaching ||
+            model.phase == .guiding && model.arrivedName == nil && model.guide?.facingPointIndex == nil && model.performanceHoldRemaining == 0
+    }
     private var cue: GuidanceCue? {walking ? model.cue : nil}
     private var finished: Bool {[.finishing,.completed].contains(model.phase)}
-    /// The circle is open, with the arrow and the labels, from the first start until the end.
-    private var open: Bool {model.started && !finished}
+    /// The circle is open, with the arrow and the labels, while led to the start (실전용) and from the first start
+    /// until the end; at the start it closes to the waiting look until guidance begins.
+    private var open: Bool {(model.started || model.phase == .approaching) && !finished}
     private static let grey=Color(red:118/255,green:118/255,blue:118/255)
 
     var body: some View {
@@ -193,7 +195,7 @@ struct VoiceGuidanceWalkView: View {
             ZStack(alignment:.top) {
                 VoiceStyle.canvas
                 FrontGlow(phase:model.walkGlow.phase == .aligned ? .completed : .finding,
-                          hasReference:model.phase == .guiding && (model.active || previewLit),bearing:model.walkGlow.bearing,
+                          hasReference:[.guiding,.approaching].contains(model.phase) && (model.active || previewLit),bearing:model.walkGlow.bearing,
                           deadband:SignalPlayer.directionDeadbandDegrees,discOffsetY:182.5)
                     .accessibilityHidden(true)
                 // Positions are the design's, measured from the top of the 874pt frame.
@@ -271,58 +273,85 @@ struct VoiceGuidanceWalkView: View {
     }
 }
 
-/// 실전용 확인점 찾기 (Figma 1028:18949 · 18930 · 18968): the camera with the crosshair, the two checkpoints filling
-/// as the helper taps for each, and 「다음으로」 that turns into a white 「완료」 once both are taken.
+/// 실전용 확인점 찾기 (Figma 1028:18949 · 18930 · 18968) over the whole camera, as the scan screen is, with the scan
+/// screen's glass. 「확인점 1 확인」 lights up once the crosshair is on the saved checkpoint 1 and measures it; the
+/// same for 2; then 「완료」 confirms both, as the button flow's 「확인점 n 확인하기」 did.
 struct PerformanceCheckpointView: View {
     @ObservedObject var model: GuidanceViewModel
     @ObservedObject var tracking: ARSessionController
+    var onBack: () -> Void = {}
+    var onSettings: () -> Void = {}
     private var measured: Int {model.performanceCheckpointsDone ? 2 : min(2,tracking.measuredCheckpoints.count)}
+    private var done: Bool {model.performanceCheckpointsDone}
+    private var enabled: Bool {done || model.checkpointAimed}
 
     var body: some View {
         GeometryReader {geometry in
+            let insets=geometry.safeAreaInsets
             ZStack(alignment:.top) {
-                // The whole camera takes the tap that measures the checkpoint under the crosshair.
-                Color.clear.contentShape(Rectangle())
-                    .onTapGesture {model.capturePerformanceCheckpoint()}
-                    .accessibilityElement().accessibilityLabel("확인점 \(min(measured+1,2))번 확인")
-                    .accessibilityAddTraits(.isButton).accessibilityHidden(model.performanceCheckpointsDone)
-                LinearGradient(stops:[.init(color:VoiceStyle.canvas,location:0.036),.init(color:VoiceStyle.canvas.opacity(0),location:0.596)],
-                               startPoint:.top,endPoint:.bottom)
-                    .frame(height:156).allowsHitTesting(false).accessibilityHidden(true)
-                Image(systemName:"plus").font(.system(size:30,weight:.regular)).foregroundStyle(.white)
-                    .shadow(color:.black.opacity(0.5),radius:2)
-                    .position(x:geometry.size.width/2,y:geometry.size.height/2+11)
+                Image(systemName:"plus").font(.system(size:34,weight:.light))
+                    .foregroundStyle(model.checkpointAimed || done ? Color.white : Color.white.opacity(0.75))
+                    .shadow(color:.black.opacity(0.5),radius:1.5)
+                    .frame(maxWidth:.infinity,maxHeight:.infinity)
                     .allowsHitTesting(false).accessibilityHidden(true)
-                HStack(spacing:8) {
-                    ForEach(1...2,id:\.self) {number in
-                        let done=number <= measured
-                        Text("\(number)").font(HearFont.pretendard(.semibold,size:14))
-                            .foregroundStyle(done ? Color(white:17/255) : .white)
-                            .frame(width:23,height:23)
-                            .background(done ? Color.white : Color.black.opacity(0.4),in:Circle())
+                VStack(spacing:0) {
+                    HStack(alignment:.top) {
+                        ScanCircleButton(systemImage:"chevron.backward",label:"뒤로",action:onBack)
+                        Spacer(minLength:12)
+                        VStack(spacing:8) {
+                            if let name=model.selected?.name {
+                                Menu {
+                                    Button("무대 다시 선택",systemImage:"arrow.uturn.backward") {model.prepareForVoiceTouch();model.chooseAgain()}
+                                } label: {PerformanceScenePill(name:name).liquidGlass(Capsule(),tint:ScanChrome.capsuleTint).contentShape(Capsule())}
+                                .accessibilityLabel("\(name), 무대 바꾸기")
+                            }
+                            dots
+                        }
+                        Spacer(minLength:12)
+                        Menu {
+                            Button("설정",systemImage:"gearshape",action:onSettings)
+                            Button("안내 끝내기",systemImage:"xmark",action:onBack)
+                        } label: {ScanCircleLabel(systemImage:"ellipsis")}
+                        .accessibilityLabel("안내 설정 및 종료")
                     }
-                }
-                .padding(.horizontal,10).padding(.vertical,6)
-                .background(.black.opacity(0.2),in:Capsule())
-                .padding(.top,179)
-                .animation(.smooth(duration:0.3),value:measured)
-                .accessibilityElement(children:.ignore).accessibilityLabel("확인점 2개 중 \(measured)개 확인")
-                VStack {
                     Spacer()
-                    Button {model.confirmPerformanceCheckpoints()} label: {
-                        Text(model.performanceCheckpointsDone ? "완료" : "다음으로")
-                            .font(HearFont.pretendard(.semibold,size:18)).foregroundStyle(Color(white:38/255))
+                    Button {
+                        if done {model.confirmPerformanceCheckpoints()} else {model.capturePerformanceCheckpoint()}
+                    } label: {
+                        Text(done ? "완료" : "확인점 \(min(measured+1,2)) 확인")
+                            .font(HearFont.pretendard(.semibold,size:18)).foregroundStyle(enabled ? ScanChrome.darkText : .white)
                             .frame(maxWidth:.infinity,minHeight:50)
-                            .background(.white,in:Capsule())
+                            .background(enabled ? Color.white : Color.clear,in:Capsule())
+                            .liquidGlass(Capsule(),tint:enabled ? nil : ScanChrome.panelTint)
+                            .contentShape(Capsule())
                     }
                     .buttonStyle(.plain)
-                    .disabled(!model.performanceCheckpointsDone)
-                    .opacity(model.performanceCheckpointsDone ? 1 : 0.3)
-                    .padding(.horizontal,16).padding(.bottom,46)
+                    .disabled(!enabled)
+                    .animation(.smooth(duration:0.25),value:enabled)
+                    .accessibilityHint(enabled ? "" : "가운데 조준점을 저장한 확인점에 맞추면 켜져요.")
                     .accessibilityIdentifier("performance.checkpoints.done")
                 }
+                .padding(.horizontal,16).padding(.top,insets.top+6).padding(.bottom,max(insets.bottom,16)+12)
             }
-        }.ignoresSafeArea()
+            .frame(width:geometry.size.width+insets.leading+insets.trailing,height:geometry.size.height+insets.top+insets.bottom)
+            .ignoresSafeArea()
+        }
+    }
+    /// The two checkpoints, white once measured (1028:18930).
+    private var dots: some View {
+        HStack(spacing:8) {
+            ForEach(1...2,id:\.self) {number in
+                let done=number <= measured
+                Text("\(number)").font(HearFont.pretendard(.semibold,size:14))
+                    .foregroundStyle(done ? Color(white:17/255) : .white)
+                    .frame(width:23,height:23)
+                    .background(done ? Color.white : Color.black.opacity(0.4),in:Circle())
+            }
+        }
+        .padding(.horizontal,10).padding(.vertical,6)
+        .liquidGlass(Capsule(),tint:ScanChrome.panelTint)
+        .animation(.smooth(duration:0.3),value:measured)
+        .accessibilityElement(children:.ignore).accessibilityLabel("확인점 2개 중 \(measured)개 확인")
     }
 }
 

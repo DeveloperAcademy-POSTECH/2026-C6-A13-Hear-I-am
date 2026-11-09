@@ -100,6 +100,12 @@ import HearIAmCore
     var voiceChatSuppressNextLine=false
     /// 실전용 by voice (#167): both checkpoints are measured and the helper's 「완료」 is awaited (Figma 1028:18968).
     @Published var performanceCheckpointsDone=false
+    /// The crosshair is on the checkpoint to be measured next, so its button is enabled (#167).
+    @Published var checkpointAimed=false
+    /// 실전용 by voice tries the approach to the start again after a failed attempt, not on every frame.
+    var approachRetryAt: Double?
+    /// When the start's ding rang; 「출발점에 도착했어요」 waits for it to ring out (as at the last point).
+    var startChimeAt: Double?
     /// Where the walking screen's light sits, kept by the 정면 찾기 rule (#167).
     @Published var walkGlow=WalkGlowDirection()
     let voiceRecognition=VoiceRecognitionService()
