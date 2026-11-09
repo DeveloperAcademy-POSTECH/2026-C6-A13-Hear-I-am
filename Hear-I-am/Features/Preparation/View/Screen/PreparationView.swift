@@ -102,8 +102,8 @@ struct PreparationView: View {
         }.frame(width:safe.size.width+insets.leading+insets.trailing,height:safe.size.height+insets.top+insets.bottom)
             .animation(.smooth(duration:0.35),value:model.editingDangerZones)
             .ignoresSafeArea()
-            // Over the camera the glass is the thin material; the sheets below keep Liquid Glass.
-            .environment(\.hearThinMaterial,true)
+            // Over the camera the glass is the ultra thin material; the sheets below keep Liquid Glass.
+            .environment(\.hearMaterial,true)
         }.background(.black).preferredColorScheme(.light)
             .overlay {ScanVeil(on:veiled)}
             .sheet(isPresented:$model.showingPhotos) {PreparationPhotosSheet(model:model)}

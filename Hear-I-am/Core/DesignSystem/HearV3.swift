@@ -33,14 +33,14 @@ struct V3PrimaryButtonStyle: ButtonStyle {
 }
 
 extension EnvironmentValues {
-    /// True inside a screen whose glass is the flat dark 「thin material」 instead of Liquid Glass: the scan camera and
-    /// the 3D stage view (11/09).
-    @Entry var hearThinMaterial=false
+    /// True inside a screen whose glass is the flat dark 「ultra thin material」 instead of Liquid Glass: the scan camera
+    /// and the 3D stage view (11/09).
+    @Entry var hearMaterial=false
 }
 
 extension View {
-    /// Liquid Glass on iOS 26 (the design's 「Liquid Glass - Regular」 fills); a thin material in the same shape before that,
-    /// and under `hearThinMaterial`.
+    /// Liquid Glass on iOS 26 (the design's 「Liquid Glass - Regular」 fills); an ultra thin material in the same shape
+    /// before that, and under `hearMaterial`.
     func liquidGlass<S: Shape>(_ shape: S, tint: Color? = nil, interactive: Bool = false) -> some View {
         modifier(LiquidGlass(shape:shape,tint:tint,interactive:interactive))
     }
@@ -50,15 +50,15 @@ private struct LiquidGlass<S: Shape>: ViewModifier {
     let shape: S
     let tint: Color?
     let interactive: Bool
-    @Environment(\.hearThinMaterial) private var thinMaterial
+    @Environment(\.hearMaterial) private var material
     func body(content: Content) -> some View {
-        if #available(iOS 26, *), !thinMaterial {
+        if #available(iOS 26, *), !material {
             let glass: Glass = tint.map {Glass.regular.tint($0)} ?? .regular
             content.glassEffect(interactive ? glass.interactive() : glass, in: shape)
         } else {
             // Always the dark material: the scan screen runs in light mode, where the material would turn white.
             content.background(tint ?? .clear, in: shape)
-                .background {shape.fill(thinMaterial ? .thinMaterial : .ultraThinMaterial).environment(\.colorScheme,.dark)}
+                .background {shape.fill(.ultraThinMaterial).environment(\.colorScheme,.dark)}
         }
     }
 }
