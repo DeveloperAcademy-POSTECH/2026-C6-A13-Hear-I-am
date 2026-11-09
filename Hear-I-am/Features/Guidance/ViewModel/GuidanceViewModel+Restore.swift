@@ -53,6 +53,12 @@ extension GuidanceViewModel {
     }
     func tickCheckpoint() {
         if tracking.mode == .idle { fail(tracking.status); return }
+        if voicePerformanceFlow {
+            // On within 50 cm, off past 80 cm, so the button does not flicker at the edge.
+            let distance=tracking.canVerify && !performanceCheckpointsDone ? tracking.nextCheckpointAimDistance() : nil
+            let aimed=distance.map {$0 <= (checkpointAimed ? 0.8 : 0.5)} ?? false
+            if aimed != checkpointAimed {checkpointAimed=aimed}
+        }
         if performanceCheckpointsDone, !tracking.ready {
             performanceCheckpointsDone=false;message="추적이 변경됐어요. 확인점 1번부터 다시 확인해주세요."
             read([message]);return

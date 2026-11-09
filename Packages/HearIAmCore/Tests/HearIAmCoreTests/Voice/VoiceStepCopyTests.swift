@@ -23,7 +23,7 @@ final class VoiceStepCopyTests: XCTestCase {
     func testPerformanceCheckpointsAreTappedByTheHelper() {
         XCTAssertEqual(VoiceStepCopy.performanceCheckpoint(1)[0], "공연장을 찾았어요.")
         XCTAssertTrue(VoiceStepCopy.performanceCheckpoint(2)[1].hasPrefix("확인점 2번. 조력자가"))
-        XCTAssertTrue(VoiceStepCopy.performanceCheckpoint(1)[1].contains("화면을 눌러주세요"))
+        XCTAssertTrue(VoiceStepCopy.performanceCheckpoint(1)[1].contains("아래 버튼을 눌러주세요"))
         XCTAssertTrue(VoiceStepCopy.performanceCheckpointsDone.last!.contains("‘완료’"))
         XCTAssertTrue(VoiceStepCopy.departureReady(started: false, performance: true)[1].contains("호출어를 듣지 않고"))
     }

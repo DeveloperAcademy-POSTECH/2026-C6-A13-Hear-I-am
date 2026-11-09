@@ -241,7 +241,8 @@ extension GuidanceViewModel {
     }
     /// Where the next point lies against the body's heading, for the front-finding light on the walking screen.
     var voiceGlowBearing: Double? {
-        guard phase == .guiding, let guide, let pose=signalPose, guide.route.points.indices.contains(guide.targetIndex),
+        let leading=phase == .approaching ? approachGuide : guide
+        guard phase == .guiding || phase == .approaching, let guide=leading, let pose=signalPose, guide.route.points.indices.contains(guide.targetIndex),
               ProcessInfo.processInfo.systemUptime-pose.time <= 1 else {return nil}
         return StageHeading.bearing(from:pose.point,to:guide.route.points[guide.targetIndex],headingDegrees:pose.heading)
     }

@@ -19,7 +19,7 @@ public enum VoiceStepCopy {
     /// 실전용 by voice (#167): the helper aims the phone and taps the camera screen (Figma 1028:18949 · 18930).
     public static func performanceCheckpoint(_ number: Int) -> [String] {
         [number == 1 ? "공연장을 찾았어요." : "확인점 1번을 확인했어요.",
-         "확인점 \(number)번. 조력자가 저장한 확인점 \(number)번에 화면 가운데 조준점을 맞추고 화면을 눌러주세요."]
+         "확인점 \(number)번. 조력자가 저장한 확인점 \(number)번에 화면 가운데 조준점을 맞추고 아래 버튼을 눌러주세요."]
     }
 
     /// Both checkpoints measured; the helper's 「완료」 (1028:18968) moves on.
