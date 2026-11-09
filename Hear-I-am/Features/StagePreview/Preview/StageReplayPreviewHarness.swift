@@ -17,7 +17,7 @@ struct StageReplayPreviewHarness: View {
             if let record {
                 let args=ProcessInfo.processInfo.arguments
                 if args.contains("--replay-immersive") {
-                    ImmersiveSavedStagePreview(record:record,store:store)
+                    ImmersiveSavedStagePreview(record:record,store:store).id(record.id)
                 } else {
                     SavedStagePreview(record:record,store:store,camera:args.contains("--replay-top") ? .overhead : .overview,
                                       display:args.contains("--replay-clean") ? .clean : .scan,
@@ -106,9 +106,121 @@ struct StageReplayPreviewHarness: View {
                 try await verifyImmersiveFocusLighting(loaded,cleanSurfaces:model.cleanSurfaces)
                 try verifyArrivalFacing(loaded)
                 try await verifyImmersiveIsolation(loaded,cleanSurfaces:model.cleanSurfaces)
+                try verifyCapturedSurfaceColors(loaded)
+                try verifySurfaceColorCapture()
+                if ProcessInfo.processInfo.arguments.contains("--replay-colors") {
+                    self.record=try await store.save(id:UUID(),name:"벽·커튼 색상 · 검증용 공간",frame:record.frame,
+                        checkpoint:record.checkpoint,worldMap:loaded.worldMap,meshes:loaded.meshes.map(colorFixture),
+                        device:"Simulator color fixture",appVersion:"QA",route:record.route)
+                }
                 print("REPLAY_QA_OK: oak asset, clean surroundings, raw restoration, camera round trips, photo capture, saved route heights, orbit limits, camera reset, clean markers, bundled models, calibrated photos, frustum and first-person comparison")
             }
         } catch {record=nil;self.error=error.localizedDescription;print("REPLAY_QA_FAILED: \(error.localizedDescription)")}
+    }
+    /// Camera-derived colors are tested independently of LiDAR hardware; no user archives are changed.
+    private func colorFixture(_ mesh: MeshSnapshot) -> MeshSnapshot {
+        var vertices=[Point3](),indices=[UInt32](),rgba=[UInt8]()
+        for i in stride(from:0,to:mesh.indices.count,by:3) {
+            let points=(0..<3).map {mesh.vertices[Int(mesh.indices[i+$0])]}
+            let normal=simd_cross(points[1].vector-points[0].vector,points[2].vector-points[0].vector)
+            let vertical=abs(normal.y)<simd_length(normal)*0.65
+            let color: [UInt8]=abs(normal.z)>abs(normal.x) ? [180,30,40,255] : [220,215,205,255]
+            for point in points {
+                indices.append(UInt32(vertices.count));vertices.append(point)
+                rgba += vertical ? color : [0,0,0,0]
+            }
+        }
+        return MeshSnapshot(id:mesh.id,transform:mesh.transform,vertices:vertices,indices:indices,surfaceColors:Data(rgba))
+    }
+    private func verifyCapturedSurfaceColors(_ scan: LoadedScan) throws {
+        guard let route=scan.manifest.route else {throw LabError.invalid("색상 검증용 무대 누락")}
+        let colored=LoadedScan(manifest:scan.manifest,worldMap:scan.worldMap,meshes:scan.meshes.map(colorFixture))
+        let surfaces=colored.meshes.map {ReplaySurfaceMesh(mesh:$0,route:route)}
+        let folder=ReplaySceneController(scan:colored,cleanSurfaces:surfaces,immersive:true)
+        folder.update(display:.clean,wireframe:false,showPhotos:false,selection:nil,cameraMode:.overview,revision:0)
+        let colorNodes=folder.surroundings.childNodes.filter {$0.name=="captured-scan-surroundings"}
+        guard !colorNodes.isEmpty,colorNodes.allSatisfy({node in
+            node.geometry?.sources(for:.color).first != nil &&
+            node.geometry?.firstMaterial?.lightingModel == .constant &&
+            node.geometry?.firstMaterial?.multiply.contents as? UIColor != UIColor(red:0.50,green:0.62,blue:0.70,alpha:1)
+        }),folder.floor.childNodes.allSatisfy({$0.geometry?.sources(for:.color).isEmpty==true}) else {
+            throw LabError.invalid("폴더 표면 색상·조명·바닥 분리 검증 실패")
+        }
+        let legacy=ReplaySceneController(scan:scan,cleanSurfaces:scan.meshes.map {ReplaySurfaceMesh(mesh:$0,route:route)},immersive:true)
+        legacy.update(display:.clean,wireframe:false,showPhotos:false,selection:nil,cameraMode:.overview,revision:0)
+        guard legacy.surroundings.childNodes.allSatisfy({$0.name != "captured-scan-surroundings"}),
+              surfaces.flatMap({ReplaySurfaceFactory.nodes($0)}).allSatisfy({$0.name != "captured-scan-surroundings"}) else {
+            throw LabError.invalid("기존 스캔·일반 보기 회색 호환 검증 실패")
+        }
+        // Render a red wall with an inferred top vertex; verify composition without losing provenance.
+        let area=try StageArea(corners:[.init(0,0,0),.init(3,0,0),.init(3,0,-3),.init(0,0,-3)])
+        let testRoute=try StageRoute(area:area,points:[.init(0.2,0.2),.init(1,1)],obstacles:[])
+        let wall=MeshSnapshot(id:UUID(),transform:[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1],
+                             vertices:[.init(-1,-1,-2),.init(1,-1,-2),.init(0,1,-2)],indices:[0,1,2],
+                             surfaceColors:Data([180,30,40,255,180,30,40,255,0,0,0,0]),
+                             inferredSurfaceColors:Data([0,0,0,0,0,0,0,0,180,30,40,255]))
+        let wallSurface=ReplaySurfaceMesh(mesh:wall,route:testRoute)
+        guard wallSurface.surfaceColors?[11]==0,wallSurface.inferredSurfaceColors?[11]==255,
+              wallSurface.displaySurfaceColors?[11]==255 else {throw LabError.invalid("관측·추정 색상 분리 검증 실패")}
+        let scene=SCNScene()
+        for node in ReplaySurfaceFactory.nodes(wallSurface,useCapturedColors:true) {scene.rootNode.addChildNode(node)}
+        let camera=SCNNode();camera.camera=SCNCamera();camera.camera?.usesOrthographicProjection=true;camera.camera?.orthographicScale=1.2
+        scene.rootNode.addChildNode(camera)
+        let renderer=SCNRenderer(device:nil,options:nil);renderer.scene=scene;renderer.pointOfView=camera
+        let image=renderer.snapshot(atTime:0,with:CGSize(width:64,height:64),antialiasingMode:.none)
+        guard let cgImage=image.cgImage else {throw LabError.invalid("색상 렌더 검증 이미지 누락")}
+        var pixel=[UInt8](repeating:0,count:4)
+        let drawn=pixel.withUnsafeMutableBytes {bytes -> Bool in
+            guard let context=CGContext(data:bytes.baseAddress,width:1,height:1,bitsPerComponent:8,bytesPerRow:4,
+                                        space:CGColorSpace(name:CGColorSpace.sRGB)!,bitmapInfo:CGImageAlphaInfo.premultipliedLast.rawValue) else {return false}
+            context.draw(cgImage,in:CGRect(x:-32,y:-32,width:64,height:64));return true
+        }
+        guard drawn,abs(Int(pixel[0])-180)<=5,abs(Int(pixel[1])-30)<=5,abs(Int(pixel[2])-40)<=5 else {
+            throw LabError.invalid("카메라 색상 실제 렌더 검증 실패: \(pixel)")
+        }
+        print("SURFACE_COLOR_QA_OK: legacy gray, folder-only colors, unchanged oak, direct/inferred provenance, untinted material, rendered pixel \(pixel)")
+    }
+    private func verifySurfaceColorCapture() throws {
+        func buffer(_ width: Int,_ height: Int,_ format: OSType) throws -> CVPixelBuffer {
+            var value: CVPixelBuffer?
+            guard CVPixelBufferCreate(kCFAllocatorDefault,width,height,format,nil,&value)==kCVReturnSuccess,let value else {
+                throw LabError.invalid("색상 수집 검증 버퍼 생성 실패")
+            }
+            return value
+        }
+        let image=try buffer(64,48,kCVPixelFormatType_420YpCbCr8BiPlanarFullRange)
+        let depth=try buffer(32,24,kCVPixelFormatType_DepthFloat32)
+        let confidence=try buffer(32,24,kCVPixelFormatType_OneComponent8)
+        let mask=try buffer(32,24,kCVPixelFormatType_OneComponent8)
+        for value in [image,depth,confidence,mask] {CVPixelBufferLockBaseAddress(value,[])}
+        let yBase=CVPixelBufferGetBaseAddressOfPlane(image,0)!,uvBase=CVPixelBufferGetBaseAddressOfPlane(image,1)!
+        for y in 0..<48 {for x in 0..<64 {
+            yBase.advanced(by:y*CVPixelBufferGetBytesPerRowOfPlane(image,0)+x).storeBytes(of:UInt8(y<24 ? 29 : 76),as:UInt8.self)
+        }}
+        for y in 0..<24 {for x in 0..<32 {
+            let uv=uvBase.advanced(by:y*CVPixelBufferGetBytesPerRowOfPlane(image,1)+x*2)
+            uv.storeBytes(of:UInt8(y<12 ? 255 : 85),as:UInt8.self)
+            uv.advanced(by:1).storeBytes(of:UInt8(y<12 ? 107 : 255),as:UInt8.self)
+            CVPixelBufferGetBaseAddress(depth)!.advanced(by:y*CVPixelBufferGetBytesPerRow(depth)+x*4).storeBytes(of:Float(2),as:Float.self)
+            CVPixelBufferGetBaseAddress(confidence)!.advanced(by:y*CVPixelBufferGetBytesPerRow(confidence)+x).storeBytes(of:UInt8(2),as:UInt8.self)
+            CVPixelBufferGetBaseAddress(mask)!.advanced(by:y*CVPixelBufferGetBytesPerRow(mask)+x).storeBytes(of:UInt8(y<12 ? 255 : 0),as:UInt8.self)
+        }}
+        for value in [image,depth,confidence,mask] {CVPixelBufferUnlockBaseAddress(value,[])}
+        let intrinsics=simd_float3x3(columns:(SIMD3(40,0,0),SIMD3(0,40,0),SIMD3(32,24,1)))
+        func copy(_ mask: CVPixelBuffer?) -> SurfaceColorFrame? {
+            ScanSurfaceColorCapture.copy(image:image,depth:depth,confidence:confidence,mask:mask,
+                intrinsics:intrinsics,resolution:CGSize(width:64,height:48),cameraTransform:matrix_identity_float4x4,time:1)
+        }
+        guard let captured=copy(nil),captured.valid,let masked=copy(mask),masked.valid,
+              captured.rgb[2]>240,captured.rgb[0]<10,captured.rgb[(32*24-1)*3]>240,
+              captured.rgb[(32*24-1)*3+2]<10,captured.depth.allSatisfy({$0==2}),
+              captured.confidence.allSatisfy({$0==2}),masked.confidence[0]==0,masked.confidence.last==2,
+              captured.personMask==nil,masked.personMask?[0]==1,masked.personMask?.last==0,
+              masked.withCameraTransform(matrix_identity_float4x4).personMask==masked.personMask,
+              abs(captured.fx-20)<0.001,abs(captured.cy-11.75)<0.001 else {
+            throw LabError.invalid("카메라 YCbCr·행 간격·상하 방향·사람 마스크 검증 실패")
+        }
+        print("SURFACE_CAPTURE_QA_OK: YCbCr buffers, depth, padded row strides, sensor orientation, intrinsics, person mask")
     }
     /// One figure transform moves the spotlight at the same pace, without steering the camera or changing saved data.
     private func verifyImmersiveFocusLighting(_ scan: LoadedScan,cleanSurfaces: [ReplaySurfaceMesh]) async throws {

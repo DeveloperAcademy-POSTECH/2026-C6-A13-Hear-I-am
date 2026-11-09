@@ -15,7 +15,8 @@ public actor ScanStore {
     public init(root: URL) { self.root=root }
     public static func hash(_ data: Data) -> String { SHA256.hash(data: data).map { String(format:"%02x",$0) }.joined() }
     public func save(id: UUID, name: String, frame: StageFrame, checkpoint: Point3,
-                     worldMap: Data, meshes: [MeshSnapshot], device: String, appVersion: String, route: StageRoute? = nil, settings: GuideSettings = GuideSettings(), photos: [ScanPhotoSource] = [], secondCheckpoint: Point3? = nil) throws -> ScanManifest {
+                     worldMap: Data, meshes: [MeshSnapshot], device: String, appVersion: String, route: StageRoute? = nil, settings: GuideSettings = GuideSettings(), photos: [ScanPhotoSource] = [], secondCheckpoint: Point3? = nil,
+                     surfaceColorDiagnostics: SurfaceColorDiagnostics? = nil) throws -> ScanManifest {
         guard !worldMap.isEmpty, !meshes.isEmpty, Set(meshes.map(\.id)).count == meshes.count else {
             throw LabError.invalid("공간 지도 또는 메시가 없습니다.")
         }
@@ -35,6 +36,10 @@ public actor ScanStore {
         do {
             try worldMap.write(to:temp.appendingPathComponent("worldmap.bin"),options:.atomic)
             try meshData.write(to:temp.appendingPathComponent("mesh.json"),options:.atomic)
+            if let surfaceColorDiagnostics {
+                // Informational sidecar; old scans/loaders need no migration and guidance never reads it.
+                try encoder.encode(surfaceColorDiagnostics).write(to:temp.appendingPathComponent("surface-colors.json"),options:.atomic)
+            }
             if !photos.isEmpty {
                 let photoDir=temp.appendingPathComponent("photos",isDirectory:true)
                 try fm.createDirectory(at:photoDir,withIntermediateDirectories:true)

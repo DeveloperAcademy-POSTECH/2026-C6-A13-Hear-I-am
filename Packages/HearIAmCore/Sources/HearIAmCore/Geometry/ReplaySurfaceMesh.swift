@@ -7,9 +7,15 @@ public struct ReplaySurfaceMesh: Sendable {
     public let vertices: [Point3]
     public let floorIndices: [UInt32]
     public let surfaceIndices: [UInt32]
+    public let surfaceColors: Data?
+    public let inferredSurfaceColors: Data?
+    public let displaySurfaceColors: Data?
     public static let textureRepeatMetres = 2.4
 
     public init(mesh: MeshSnapshot, route: StageRoute) {
+        surfaceColors=mesh.surfaceColors
+        inferredSurfaceColors=mesh.inferredSurfaceColors
+        displaySurfaceColors=mesh.displaySurfaceColors
         let t=mesh.transform, area=route.area
         vertices=mesh.vertices.map { p in
             let world=Point3(Double(t[0])*p.x+Double(t[4])*p.y+Double(t[8])*p.z+Double(t[12]),
