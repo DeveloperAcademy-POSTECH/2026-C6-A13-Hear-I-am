@@ -109,8 +109,6 @@ struct FrontGlow: View {
     let deadband: Double
     /// Where the disc sits below the screen's centre: 59.5pt in 정면 찾기, 182.5pt on the walking screen (495:5562).
     var discOffsetY: CGFloat = 59.5
-    /// The walk is over: the disc settles into the design's small white light (Figma 1028:18909, 75pt).
-    var finished = false
     @State private var smoother=GlowSmoother()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -123,12 +121,10 @@ struct FrontGlow: View {
                 let side=abs(state.x), sign: CGFloat = state.x >= 0 ? 1 : -1
                 let leak=smoothstep(0.15,0.55,side), spread=smoothstep(0.3,1,side)
                 // 253pt haze (blur 130) → 165pt disc (blur 10) → pressed flat sideways into the blade (blur 21, Figma).
-                // At the end the disc shrinks to 75pt (1028:18909).
-                let disc=mix(165,75,state.done)
-                let discWidth=mix(disc*(1+0.6*spread),253,n), discHeight=mix(disc*(1-0.45*spread),253,n)
+                let discWidth=mix(165*(1+0.6*spread),253,n), discHeight=mix(165*(1-0.45*spread),253,n)
                 // The flattened disc keeps sliding past the edge and dissolves, so at 90° only the blade is left (Figma).
                 let discX=mix(w/2+sign*side*(1.1+0.6*spread)*(w/2),w/2,n), discY=mix(h/2+discOffsetY,h*0.6,n)
-                let blur=mix(mix(10,17,state.done)+11*side,130,n)
+                let blur=mix(10+11*side,130,n)
                 ZStack {
                     Ellipse().fill(state.color.opacity(max(0,1-spread/0.8)))
                         .frame(width:discWidth,height:discHeight).position(x:discX,y:discY)
@@ -142,7 +138,6 @@ struct FrontGlow: View {
     }
 
     private var target: GlowSmoother.Target {
-        if finished {return .init(x:0,severity:0,neutral:false,done:true)}
         guard hasReference else {return .init(x:0,severity:0,neutral:true)}
         guard phase == .finding, let bearing else {return .init(x:0,severity:0,neutral:false)}
         // bearing > 0: the front is to the right of where the phone points.
@@ -186,11 +181,9 @@ struct EdgeBlade: Shape {
 
 /// Exponential easing of the light's position, colour stage and grey→colour change.
 final class GlowSmoother {
-    struct Target {
-        let x: Double; let severity: Double; let neutral: Bool; var done=false
-    }
-    struct State {let x: Double; let color: Color; let opacity: Double; let neutral: Double; var done=0.0}
-    private var x=0.0, severity=0.0, neutral=1.0, done=0.0
+    struct Target {let x: Double; let severity: Double; let neutral: Bool}
+    struct State {let x: Double; let color: Color; let opacity: Double; let neutral: Double}
+    private var x=0.0, severity=0.0, neutral=1.0
     private var last: Date?
 
     func step(to target: Target, at date: Date, instant: Bool) -> State {
@@ -203,15 +196,14 @@ final class GlowSmoother {
         x+=(tx-x)*k
         severity+=(target.severity-severity)*k
         neutral+=((target.neutral ? 1 : 0)-neutral)*(instant ? 1 : 1-exp(-dt*2.5))
-        done+=((target.done ? 1 : 0)-done)*(instant ? 1 : 1-exp(-dt*2.5))
-        return State(x:x,color:color,opacity:0.95,neutral:neutral,done:done)
+        return State(x:x,color:color,opacity:0.95,neutral:neutral)
     }
     /// Green at the front, yellow halfway, red at 90° and beyond; grey before a front is set.
     private var color: Color {
         let s=max(0,min(1,severity))
         let hue=s < 0.5 ? 0.36+(0.14-0.36)*(s*2) : 0.14+(0.0-0.14)*((s-0.5)*2)
-        let saturation=(0.62+0.12*s)*(1-neutral)*(1-done)
-        let brightness=0.92+0.08*neutral-0.07*done
+        let saturation=(0.62+0.12*s)*(1-neutral)
+        let brightness=0.92+0.08*neutral
         return Color(hue:hue,saturation:saturation,brightness:brightness)
     }
 }
