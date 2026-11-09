@@ -52,11 +52,16 @@ private struct LiquidGlass<S: Shape>: ViewModifier {
     let interactive: Bool
     @Environment(\.hearClearGlass) private var clear
     func body(content: Content) -> some View {
-        if #available(iOS 26, *) {
-            let kind: Glass=clear ? .clear : .regular
-            let glass=tint.map {kind.tint($0)} ?? kind
-            // Clear glass does not stretch or wobble under a finger (11/09: too jelly-like).
-            content.glassEffect(interactive && !clear ? glass.interactive() : glass, in: shape)
+        if #available(iOS 26, *), clear {
+            // Clear glass on its own reads as a faint smear over the camera (11/09). A dark layer under it gives it a
+            // body and a hairline edge gives it a shape; the glass itself and its press response stay as they are.
+            let glass=tint.map {Glass.clear.tint($0)} ?? .clear
+            content.glassEffect(interactive ? glass.interactive() : glass, in: shape)
+                .background(shape.fill(Color.black.opacity(0.25)))
+                .overlay(shape.stroke(Color.white.opacity(0.35),lineWidth:0.5).allowsHitTesting(false))
+        } else if #available(iOS 26, *) {
+            let glass=tint.map {Glass.regular.tint($0)} ?? .regular
+            content.glassEffect(interactive ? glass.interactive() : glass, in: shape)
         } else {
             content.background(tint ?? .clear, in: shape).background(.ultraThinMaterial, in: shape)
         }
