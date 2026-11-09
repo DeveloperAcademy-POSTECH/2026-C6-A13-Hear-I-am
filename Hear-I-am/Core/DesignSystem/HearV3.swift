@@ -32,32 +32,14 @@ struct V3PrimaryButtonStyle: ButtonStyle {
     }
 }
 
-extension EnvironmentValues {
-    /// True inside a screen whose glass should be the see-through 「Clear」 kind instead of 「Regular」: the scan camera
-    /// and the 3D stage view (11/09).
-    @Entry var hearClearGlass=false
-}
-
 extension View {
-    /// Liquid Glass on iOS 26 (the design's 「Liquid Glass - Regular」 fills, or 「Clear」 under `hearClearGlass`); a thin
-    /// material in the same shape before that.
-    func liquidGlass<S: Shape>(_ shape: S, tint: Color? = nil, interactive: Bool = false) -> some View {
-        modifier(LiquidGlass(shape:shape,tint:tint,interactive:interactive))
-    }
-}
-
-private struct LiquidGlass<S: Shape>: ViewModifier {
-    let shape: S
-    let tint: Color?
-    let interactive: Bool
-    @Environment(\.hearClearGlass) private var clear
-    func body(content: Content) -> some View {
+    /// Liquid Glass on iOS 26 (the design's 「Liquid Glass - Regular」 fills); a thin material in the same shape before that.
+    @ViewBuilder func liquidGlass<S: Shape>(_ shape: S, tint: Color? = nil, interactive: Bool = false) -> some View {
         if #available(iOS 26, *) {
-            let kind: Glass=clear ? .clear : .regular
-            let glass=tint.map {kind.tint($0)} ?? kind
-            content.glassEffect(interactive ? glass.interactive() : glass, in: shape)
+            let glass: Glass = tint.map {Glass.regular.tint($0)} ?? .regular
+            self.glassEffect(interactive ? glass.interactive() : glass, in: shape)
         } else {
-            content.background(tint ?? .clear, in: shape).background(.ultraThinMaterial, in: shape)
+            self.background(tint ?? .clear, in: shape).background(.ultraThinMaterial, in: shape)
         }
     }
 }
