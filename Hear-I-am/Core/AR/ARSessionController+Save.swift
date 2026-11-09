@@ -32,7 +32,7 @@ extension ARSessionController {
                       self.referenceAnchorsPresent(sample) else {
                     self.awaitSaveRecovery(error?.localizedDescription ?? "tracking or map not ready"); return
                 }
-                let parts=self.meshes.isEmpty ? Self.fallbackFloorMesh(area:area) : Array(self.meshes.values)
+                let cachedParts=self.meshes.isEmpty ? Self.fallbackFloorMesh(area:area) : Array(self.meshes.values)
                 let id=self.scanID, name=rawName.trimmingCharacters(in:.whitespacesAndNewlines)
                 guard !name.isEmpty else {self.busy=false; self.errorMessage="스캔 이름을 입력하세요."; return}
                 guard [".origin",".front",".check",".check2"].allSatisfy({suffix in map.anchors.contains {$0.name==self.referencePrefix+suffix}}) else {
@@ -48,7 +48,22 @@ extension ARSessionController {
                 self.position=nil; self.heading=nil
                 do {
                     self.archiveWriteInProgress=true
-                    let colorFrames=self.bridge?.surfaceColors.snapshot(map:map) ?? []
+                    // receiveMeshes intentionally ignores callbacks while busy. Never pair that older cache
+                    // with newer corrected camera anchors. Copy geometry and poses from ONE final snapshot.
+                    let mapMeshes=map.anchors.compactMap {$0 as? ARMeshAnchor}
+                    let finalAnchors=mapMeshes.isEmpty ? (session.currentFrame?.anchors ?? []) : map.anchors
+                    let meshAnchors=finalAnchors.compactMap {$0 as? ARMeshAnchor}
+                    let finalParts=meshAnchors.compactMap(SessionBridge.copy)
+                    let coherent = !finalParts.isEmpty && finalParts.count==meshAnchors.count &&
+                        finalParts.reduce(0,{$0+$1.vertices.count})<=800_000
+                    let parts=coherent ? finalParts : cachedParts
+                    // Geometry fallback still saves as before, but cannot safely receive camera colors.
+                    let colorCapture=coherent ? self.bridge?.surfaceColors.snapshot(anchors:finalAnchors) : nil
+                    var colorAlignment=colorCapture?.alignment ?? SurfaceColorAlignmentDiagnostics()
+                    colorAlignment.meshSource=coherent ? (mapMeshes.isEmpty ? "currentFrame" : "worldMap") : "cacheWithoutColors"
+                    colorAlignment.recordMeshes(final:parts,cached:cachedParts)
+                    let alignmentReport=colorAlignment
+                    let colorFrames=colorCapture?.frames ?? []
                     #if DEBUG
                     let compareColors=ProcessInfo.processInfo.arguments.contains("--surface-color-compare")
                     #else
@@ -56,8 +71,13 @@ extension ARSessionController {
                     #endif
                     // Bake off the UI thread against the final mesh and corrected camera poses.
                     let colorResult=await Task.detached(priority:.userInitiated) {
-                        let current=SurfaceColorBaker.bakeWithDiagnostics(parts,frames:colorFrames,route:route)
-                        let baseline=compareColors ? SurfaceColorBaker.bakeWithDiagnostics(parts,frames:colorFrames,route:route,policy:.strict).diagnostics : nil
+                        let baked=SurfaceColorBaker.bakeWithDiagnostics(parts,frames:colorFrames,route:route)
+                        var report=baked.diagnostics
+                        report.capture=colorCapture?.diagnostics
+                        report.alignment=alignmentReport
+                        let current=(meshes:baked.meshes,diagnostics:report)
+                        let baseline=compareColors ? SurfaceColorBaker.bakeWithDiagnostics(parts,
+                            frames:colorCapture?.baseline ?? colorFrames,route:route,improveUpperFill:false).diagnostics : nil
                         return (current:current,baseline:baseline)
                     }.value
                     guard self.token==operation else {return}

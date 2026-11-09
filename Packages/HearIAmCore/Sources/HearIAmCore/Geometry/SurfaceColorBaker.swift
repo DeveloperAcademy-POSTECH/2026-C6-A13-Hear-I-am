@@ -19,16 +19,23 @@ public enum SurfaceColorBaker {
     private enum Sample {
         case accepted(SIMD3<Float>,Float,Int)
         case rejected(SurfaceColorDiagnostics.Rejection)
+        case depthRejected(SurfaceColorDiagnostics.Rejection,SurfaceDepthEvidence)
     }
     public static func bake(_ meshes: [MeshSnapshot], frames: [SurfaceColorFrame]) -> [MeshSnapshot] {
         bakeWithDiagnostics(meshes,frames:frames).meshes
     }
     public static func bakeWithDiagnostics(_ meshes: [MeshSnapshot],frames: [SurfaceColorFrame],
                                            route: StageRoute? = nil,policy: SamplingPolicy = .relaxed,
-                                           fillUpperSurfaces: Bool = true) -> BakeResult {
+                                           fillUpperSurfaces: Bool = true, improveUpperFill: Bool = true,
+                                           collectDepthDiagnostics: Bool = true) -> BakeResult {
         let views=frames.filter(\.valid).map {View(frame:$0,inverse:simd_inverse($0.cameraTransform))}
         var diagnostics=SurfaceColorDiagnostics(policy:policy.rawValue)
         diagnostics.validFrames=views.count;diagnostics.invalidFrames=frames.count-views.count
+        if collectDepthDiagnostics {
+            diagnostics.depthAnalysis=SurfaceDepthDiagnostics()
+            diagnostics.depthAnalysis?.framesWithPersonMask=views.filter {$0.frame.personMask != nil}.count
+            diagnostics.depthAnalysis?.framesWithoutPersonMask=views.filter {$0.frame.personMask == nil}.count
+        }
         let infer=fillUpperSurfaces && policy == .relaxed && views.count>=2
         if infer {diagnostics.upperFill=UpperSurfaceColorFill.Diagnostics()}
         let baked=meshes.map {mesh in
@@ -55,14 +62,20 @@ public enum SurfaceColorBaker {
             }
             var rgba=Array(repeating:UInt8(0),count:world.count*4),covered=false
             var inferenceBlocked=Set<Int>()
+            var blockedReasons=[Int:Set<String>](),singleObservations=[Int:SIMD3<Float>]()
+            func block(_ vertex: Int,_ reason: String) {
+                inferenceBlocked.insert(vertex);blockedReasons[vertex,default:[]].insert(reason)
+            }
             for i in world.indices where eligible[i] {
                 if i%1024==0 && Task.isCancelled {return mesh}
                 diagnostics.eligibleVertices+=1
                 let normal=simd_normalize(normals[i])
                 var observations=[(color:SIMD3<Float>,weight:Float,time:Double)]()
+                var vertexDepth=SurfaceVertexDepthEvidence()
+                defer {diagnostics.depthAnalysis?.record(vertexDepth,accepted:observations.count,direct:rgba[i*4+3]==255)}
                 for view in views {
                     diagnostics.attemptedObservations+=1
-                    switch sample(world[i],normal:normal,view:view,policy:policy) {
+                    switch sample(world[i],normal:normal,view:view,policy:policy,collectDepthDiagnostics:collectDepthDiagnostics) {
                     case .accepted(let color,let weight,let neighbors):
                         diagnostics.acceptedObservations+=1
                         if neighbors<9 {diagnostics.partialNeighborhoodObservations+=1}
@@ -70,14 +83,24 @@ public enum SurfaceColorBaker {
                     case .rejected(let reason):
                         diagnostics.reject(reason)
                         switch reason {
-                        case .personMask,.foregroundOcclusion,.depthMismatch,.clippedColor: inferenceBlocked.insert(i)
+                        case .personMask,.foregroundOcclusion,.depthMismatch,.clippedColor: block(i,reason.rawValue)
                         default: break
                         }
+                    case .depthRejected(let reason,let evidence):
+                        // Same rejection and hard inference veto as before; evidence never affects a decision.
+                        diagnostics.reject(reason);block(i,reason.rawValue)
+                        diagnostics.depthAnalysis?.record(evidence,reason:reason)
+                        vertexDepth.record(evidence)
                     }
                 }
+                let countKey=observations.isEmpty ? "zero" : observations.count==1 ? "one" : "twoOrMore"
+                diagnostics.observationCounts?[countKey,default:0]+=1
                 guard observations.count>=2 else {
-                    // A lone measured color isn't established, but must not be overwritten by an assumption.
-                    if !observations.isEmpty {inferenceBlocked.insert(i)}
+                    // One clean observation can constrain an estimate, but never becomes a direct donor.
+                    if let observation=observations.first {
+                        singleObservations[i]=observation.color
+                        if !improveUpperFill {block(i,"singleObservation")}
+                    }
                     diagnostics.miss(.insufficientObservations);continue
                 }
                 // Robust channel median rejects a transient different-colored observation.
@@ -86,9 +109,9 @@ public enum SurfaceColorBaker {
                                  observations.map {$0.color.y}.sorted()[middle],
                                  observations.map {$0.color.z}.sorted()[middle])
                 let stable=observations.filter {simd_length($0.color-median)<0.22}
-                guard stable.count>=2 else {inferenceBlocked.insert(i);diagnostics.miss(.inconsistentColor);continue}
+                guard stable.count>=2 else {block(i,"inconsistentColor");diagnostics.miss(.inconsistentColor);continue}
                 guard let first=stable.map(\.time).min(),let last=stable.map(\.time).max(),last-first>=0.3 else {
-                    inferenceBlocked.insert(i);diagnostics.miss(.insufficientTimeSeparation);continue
+                    block(i,"insufficientTimeSeparation");diagnostics.miss(.insufficientTimeSeparation);continue
                 }
                 let weight=stable.reduce(Float(0)) {$0+$1.weight}
                 let color=stable.reduce(SIMD3<Float>.zero) {$0+$1.color*$1.weight}/weight
@@ -100,14 +123,17 @@ public enum SurfaceColorBaker {
             let observedMesh=MeshSnapshot(id:mesh.id,transform:mesh.transform,vertices:mesh.vertices,indices:mesh.indices,
                                          surfaceColors:covered ? Data(rgba) : nil)
             guard infer else {return observedMesh}
-            let result=UpperSurfaceColorFill.fill(observedMesh,blockedVertices:inferenceBlocked)
+            let result=UpperSurfaceColorFill.fill(observedMesh,blockedVertices:inferenceBlocked,
+                blockedReasons:blockedReasons,singleObservations:improveUpperFill ? singleObservations : [:],
+                improvePlaneChecks:improveUpperFill)
             diagnostics.upperFill?.merge(result.diagnostics)
             return result.mesh
         }
         diagnostics.measureCoverage(baked,route:route)
         return BakeResult(meshes:baked,diagnostics:diagnostics)
     }
-    private static func sample(_ world: SIMD3<Float>,normal: SIMD3<Float>,view: View,policy: SamplingPolicy) -> Sample {
+    private static func sample(_ world: SIMD3<Float>,normal: SIMD3<Float>,view: View,policy: SamplingPolicy,
+                               collectDepthDiagnostics: Bool) -> Sample {
         let f=view.frame,p=view.inverse*SIMD4(world,1),z = -p.z
         guard z>=0.25,z<=5 else {return .rejected(.outOfRange)}
         let camera=f.cameraTransform.columns.3
@@ -145,7 +171,33 @@ public enum SurfaceColorBaker {
             if depth>expected+tolerance {return .depthMismatch}
             return nil
         }
-        if let reason=mismatch(f.depth[center],expectedDepth(x,y)) {return .rejected(reason)}
+        func depthFailure(_ reason: SurfaceColorDiagnostics.Rejection,_ px: Int,_ py: Int) -> Sample {
+            guard collectDepthDiagnostics else {return .rejected(reason)}
+            let first=py*f.width+px,expected=expectedDepth(px,py)
+            let predictionValid=expected.isFinite && expected>=0.25 && expected<=5.25
+            var evidence=SurfaceDepthEvidence(isCenter:px==x && py==y,confidence:f.confidence[first],
+                cameraDepth:z,facing:facing,residual:predictionValid ? f.depth[first]-expected : nil,
+                tolerance:predictionValid ? 0.035+expected*0.015 : nil)
+            // Inspect the rest of the footprint ONLY after the original rejection is decided.
+            // No RGB is sampled here, and none of these diagnostic thresholds change the veto.
+            for dy in -1...1 {for dx in -1...1 {
+                let i=(y+dy)*f.width+x+dx,depth=f.depth[i]
+                guard f.confidence[i]>=1,depth.isFinite,depth>0 else {continue}
+                evidence.reliablePixels+=1
+                let expected=expectedDepth(x+dx,y+dy)
+                guard expected.isFinite,expected>=0.25,expected<=5.25 else {evidence.invalidPredictions+=1;continue}
+                evidence.residualMagnitudes.append(abs(depth-expected))
+                switch mismatch(depth,expected) {
+                case .foregroundOcclusion: evidence.nearPixels+=1
+                case .depthMismatch: evidence.farPixels+=1
+                default:
+                    evidence.matchedPixels+=1
+                    if dx==0 && dy==0 {evidence.centerMatches=true}
+                }
+            }}
+            return .depthRejected(reason,evidence)
+        }
+        if let reason=mismatch(f.depth[center],expectedDepth(x,y)) {return depthFailure(reason,x,y)}
         var colors=[SIMD3<Float>]()
         for dy in -1...1 {for dx in -1...1 {
             let index=(y+dy)*f.width+x+dx,depth=f.depth[index]
@@ -154,7 +206,7 @@ public enum SurfaceColorBaker {
                 continue // Unknown neighbors contribute NO color; central depth was already required.
             }
             // Reliable foreground/background disagreement is still a veto, even with eight matching neighbors.
-            if let reason=mismatch(depth,expectedDepth(x+dx,y+dy)) {return .rejected(reason)}
+            if let reason=mismatch(depth,expectedDepth(x+dx,y+dy)) {return depthFailure(reason,x+dx,y+dy)}
             let color=SIMD3(Float(f.rgb[index*3]),Float(f.rgb[index*3+1]),Float(f.rgb[index*3+2]))/255
             colors.append(color)
         }}
