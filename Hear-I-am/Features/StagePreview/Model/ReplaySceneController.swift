@@ -263,7 +263,7 @@ final class ReplaySceneController: NSObject {
         let raw=display == .scan || scan.manifest.route == nil
         if !raw && !builtCleanSurfaces {
             for part in cleanSurfaces {
-                for node in ReplaySurfaceFactory.nodes(part) {surroundings.addChildNode(node)}
+                for node in ReplaySurfaceFactory.nodes(part,useCapturedColors:immersive) {surroundings.addChildNode(node)}
             }
             if immersive { tintImmersiveSurroundings() }
             builtCleanSurfaces=true
@@ -384,8 +384,10 @@ final class ReplaySceneController: NSObject {
         ambient.light?.color=UIColor(red:0.72,green:0.82,blue:0.90,alpha:1)
     }
     private func tintImmersiveSurroundings() {
-        alterMaterials(in:surroundings) { material in
-            material.multiply.contents=UIColor(red:0.50,green:0.62,blue:0.70,alpha:1)
+        for node in surroundings.childNodes where node.name != "captured-scan-surroundings" {
+            alterMaterials(in:node) { material in
+                material.multiply.contents=UIColor(red:0.50,green:0.62,blue:0.70,alpha:1)
+            }
         }
     }
     private func startProjectionUpdates() {
