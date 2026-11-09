@@ -100,6 +100,10 @@ import HearIAmCore
     var voiceChatSuppressNextLine=false
     /// 실전용 by voice (#167): both checkpoints are measured and the helper's 「완료」 is awaited (Figma 1028:18968).
     @Published var performanceCheckpointsDone=false
+    /// Where the walking screen's light sits, kept by the 정면 찾기 rule (#167).
+    @Published var walkGlow=WalkGlowDirection()
+    /// By voice the approach to the start begins by itself; a failed attempt waits until then to try again.
+    var approachRetryAt: Double?
     let voiceRecognition=VoiceRecognitionService()
     let listeningChime=VoiceListeningChime()
     var voiceSubscriptions=Set<AnyCancellable>()
@@ -354,6 +358,7 @@ import HearIAmCore
         if phase == .departure, let guide { tickDeparture(pose:pose,guide:guide);return }
         if phase == .paused, escape != nil, let guide { tickEscape(pose:pose,guide:guide);return }
         guard phase == .guiding, let guide else { return }
+        walkGlow.update(bearing:voiceGlowBearing,time:pose.time)
         tickGuiding(pose:pose,guide:guide)
     }
 

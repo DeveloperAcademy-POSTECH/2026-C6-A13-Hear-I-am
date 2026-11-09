@@ -170,22 +170,21 @@ struct VoiceWalkPreviewHarness: View {
 }
 #endif
 
-/// 연습 안내 · 실전 안내 by voice (Figma 1028:18921 · 18910 · 18900). Before the walk the small circle waits over
-/// the wide grey light with 「잠시 후 안내가 시작됩니다」. When guidance starts the circle opens to 130pt with the
-/// direction arrow while the light tightens into the 정면 찾기 disc, and the next point and the distance come in;
-/// at the end the light settles into a small white one under 「도착」. Colours and movement are the earlier
-/// 연습 안내's (495:5555): the arrow turns to the next point and the disc slides to its side. The camera keeps
-/// tracking behind the canvas; nothing of it is shown.
+/// 연습 안내 · 실전 안내 by voice (Figma 1028:18921 · 18910 · 18900). While the performer is led to the start the
+/// small circle waits over the wide grey light with 「잠시 후 안내가 시작됩니다」. When guidance starts the circle
+/// opens to 130pt with the direction arrow while the light tightens into the 정면 찾기 disc, and the next point and
+/// the distance come in. At the end it all goes back to the waiting look under 「안내를 종료합니다 · 도착」.
+/// The light moves as in 정면 찾기 (`WalkGlowDirection`): centred once the body faces the point, to the side only
+/// after a clear turn away. The camera keeps tracking behind the canvas; nothing of it is shown.
 struct VoiceGuidanceWalkView: View {
     @ObservedObject var model: GuidanceViewModel
     /// The simulator preview keeps the model inactive, so nothing is read aloud, but still shows the lit disc.
     var previewLit=false
-    private let deadband=DirectionTickGate.defaultDeadbandDegrees
     private var walking: Bool {model.phase == .guiding && model.arrivedName == nil && model.guide?.facingPointIndex == nil && model.performanceHoldRemaining == 0}
     private var cue: GuidanceCue? {walking ? model.cue : nil}
     private var finished: Bool {[.finishing,.completed].contains(model.phase)}
-    /// From the first 「안내를 시작합니다」 on, the circle stays open and the labels stay in.
-    private var begun: Bool {model.started || finished}
+    /// The circle is open, with the arrow and the labels, from the first start until the end.
+    private var open: Bool {model.started && !finished}
     private static let grey=Color(red:118/255,green:118/255,blue:118/255)
 
     var body: some View {
@@ -193,17 +192,18 @@ struct VoiceGuidanceWalkView: View {
             let w=geometry.size.width
             ZStack(alignment:.top) {
                 VoiceStyle.canvas
-                FrontGlow(phase:.finding,hasReference:model.phase == .guiding && (model.active || previewLit),bearing:model.voiceGlowBearing,
-                          deadband:deadband,discOffsetY:182.5,finished:finished)
+                FrontGlow(phase:model.walkGlow.phase == .aligned ? .completed : .finding,
+                          hasReference:model.phase == .guiding && (model.active || previewLit),bearing:model.walkGlow.bearing,
+                          deadband:SignalPlayer.directionDeadbandDegrees,discOffsetY:182.5)
                     .accessibilityHidden(true)
                 // Positions are the design's, measured from the top of the 874pt frame.
-                if !begun {
+                if finished {
+                    Text("안내를 종료합니다").font(HearFont.pretendard(.semibold,size:32)).tracking(-0.96).foregroundStyle(.white)
+                        .frame(width:w).padding(.top,156).transition(.opacity)
+                } else if !open {
                     Text("잠시 후\n안내가 시작됩니다").font(HearFont.pretendard(.semibold,size:32)).tracking(-0.96).lineSpacing(9.6)
                         .multilineTextAlignment(.center).foregroundStyle(.white)
                         .frame(width:w).padding(.top,148).transition(.opacity)
-                } else if finished {
-                    Text("안내를 종료합니다").font(HearFont.pretendard(.semibold,size:32)).tracking(-0.96).foregroundStyle(.white)
-                        .frame(width:w).padding(.top,156).transition(.opacity.combined(with:.offset(y:-6)))
                 } else {
                     VStack(spacing:0) {
                         Text(model.targetName).font(HearFont.pretendard(.semibold,size:32)).tracking(-0.96).foregroundStyle(.white)
@@ -212,8 +212,8 @@ struct VoiceGuidanceWalkView: View {
                             .frame(height:26)
                     }.frame(width:w).padding(.top,148).transition(.opacity.combined(with:.offset(y:-8)))
                 }
-                circle.position(x:w/2,y:begun ? 304 : 299)
-                if begun {
+                circle.position(x:w/2,y:open ? 304 : 299)
+                if open || finished {
                     Text(value).font(HearFont.pretendard(.bold,size:valueIsShort ? 46 : 30)).tracking(valueIsShort ? -1.38 : -0.9)
                         .monospacedDigit().foregroundStyle(.white).multilineTextAlignment(.center)
                         .lineLimit(2).minimumScaleFactor(0.6).padding(.horizontal,24)
@@ -227,15 +227,15 @@ struct VoiceGuidanceWalkView: View {
                                startPoint:.top,endPoint:.bottom)
                     .frame(height:156).allowsHitTesting(false).accessibilityHidden(true)
             }
-            .animation(.smooth(duration:0.9),value:begun)
-            .animation(.smooth(duration:0.6),value:finished)
+            .animation(.smooth(duration:0.9),value:open)
+            .animation(.smooth(duration:0.9),value:finished)
             .accessibilityElement(children:.ignore)
             .accessibilityLabel(accessibilityText)
         }.ignoresSafeArea()
     }
-    /// 52pt while waiting (1028:18926), 130pt with the arrow once guidance runs (1028:18914).
+    /// 52pt while waiting and after the end (1028:18926), 130pt with the arrow while guidance runs (1028:18914).
     private var circle: some View {
-        let size: CGFloat = begun ? 130 : 52
+        let size: CGFloat = open ? 130 : 52
         return ZStack {
             Circle().fill(.white.opacity(0.05))
             Circle().strokeBorder(LinearGradient(colors:[.white.opacity(0.35),.white.opacity(0.04)],startPoint:.top,endPoint:.bottom),lineWidth:1)
@@ -245,12 +245,12 @@ struct VoiceGuidanceWalkView: View {
         .overlay {
             VoiceGuidanceArrow().stroke(VoiceStyle.arrow,style:StrokeStyle(lineWidth:6,lineCap:.round,lineJoin:.round))
                 .frame(width:130,height:130)
-                .rotationEffect(.degrees(finished ? 0 : Double(cue?.sector ?? 0)*45))
-                .opacity(!begun ? 0 : cue == nil && !finished ? 0.35 : 1)
+                .rotationEffect(.degrees(Double(cue?.sector ?? 0)*45))
+                .opacity(!open ? 0 : cue == nil ? 0.35 : 1)
                 .scaleEffect(size/130)
                 .animation(.easeInOut(duration:0.35),value:cue?.sector)
         }
-        .shadow(color:.black.opacity(begun ? 0.35 : 0.2),radius:begun ? 16 : 8,y:begun ? 10 : 4)
+        .shadow(color:.black.opacity(open ? 0.35 : 0.2),radius:open ? 16 : 8,y:open ? 10 : 4)
     }
     private var value: String {
         if finished {return "도착"}
@@ -264,8 +264,8 @@ struct VoiceGuidanceWalkView: View {
     }
     private var valueIsShort: Bool {finished || cue != nil}
     private var accessibilityText: String {
-        if !begun {return "잠시 후 안내가 시작됩니다"}
         if finished {return "안내를 종료합니다. 도착"}
+        if !open {return "잠시 후 안내가 시작됩니다"}
         if let cue {return "다음 포인트 \(model.targetName). \(cue.direction) \(value)"}
         return "다음 포인트 \(model.targetName). \(value)"
     }
