@@ -122,7 +122,8 @@ struct PreparationStepBar: View {
             Spacer(minLength:12)
             HStack(spacing:10) {
                 ScanCircleButton(systemImage:"questionmark",label:"단계 안내 다시 보기") {model.intro=0}
-                moreMenu
+                // Without the settings shortcut the panel can be empty; then there is no ⋯ button.
+                if model.hasMoreOptions {moreMenu}
             }
         }
     }
@@ -255,10 +256,9 @@ struct PreparationStepBar: View {
 }
 
 /// The more panel (Figma 452:12878): a dark glass card of 44pt rows, each an icon, a title and, for the
-/// display switches, a green toggle. The last row opens the app settings for testing.
+/// display switches, a green toggle.
 struct PreparationMorePanel: View {
     @ObservedObject var model: PreparationViewModel
-    let openSettings: () -> Void
     private static let label=Color(red:245/255,green:245/255,blue:245/255)
     private static let green=Color(red:48/255,green:209/255,blue:88/255)
 
@@ -270,12 +270,6 @@ struct PreparationMorePanel: View {
             if model.canShowPlanReference {
                 toggleRow("square.on.square.dashed","참고 잔상 표시",isOn:$model.showPlanReference)
             }
-            Button {
-                withAnimation(.snappy(duration:0.3)) {model.showingMore=false}
-                openSettings()
-            } label: {
-                row("gearshape","설정 바로가기(개발자 용)") {EmptyView()}
-            }.buttonStyle(.plain)
         }
         .padding(.horizontal,16).padding(.vertical,8)
         .frame(width:330)
