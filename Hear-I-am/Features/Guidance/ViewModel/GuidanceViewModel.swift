@@ -218,6 +218,8 @@ import HearIAmCore
     }
 
     /// Re-reads the instruction for the current phase.
+    /// 방해 금지 is asked for once per app run (#174).
+    static var doNotDisturbSaid=false
     func replay() {
         guard active else { return }
         if voiceExperiment, phase == .selection {

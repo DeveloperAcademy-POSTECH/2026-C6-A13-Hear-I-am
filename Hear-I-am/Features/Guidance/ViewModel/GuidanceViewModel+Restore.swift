@@ -42,7 +42,11 @@ extension GuidanceViewModel {
         if isPractice, tracking.ready, canAdvanceInstruction {
             invalidateTasks();phase = .wear
             message="저장한 공간을 찾았어요. 확인점 보정 없이 연습을 시작해요."
-            read(["공연장을 찾았어요.",GuidanceCopy.doNotDisturb,"휴대폰을 허리 앞쪽에 세로로 고정해주세요. 후면 카메라는 몸 바깥쪽을 향하고 렌즈는 가리지 말아주세요.","다 차면 ‘착용 완료’라고 말해주세요."])
+            // Said in one breath before (11/09–10): 방해 금지 once per app run, the wearing in one sentence.
+            // 「다시 말해줘」 still gives the whole wearing instruction (replay).
+            let doNotDisturb=Self.doNotDisturbSaid ? [] : ["방해 금지 모드를 켜주세요."]
+            Self.doNotDisturbSaid=true
+            read(["공연장을 찾았어요."]+doNotDisturb+["휴대폰을 허리 앞에 세로로 차고, 다 차면 ‘착용 완료’라고 말해주세요."])
             return
         }
         if tracking.canVerify, canAdvanceInstruction {
