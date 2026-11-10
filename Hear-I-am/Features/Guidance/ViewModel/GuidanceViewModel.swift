@@ -98,8 +98,16 @@ import HearIAmCore
     var voiceChatSeededRequest: String?
     /// The next lines read aloud already have a chat entry of their own (cards), so `read` adds no text for them.
     var voiceChatSuppressNextLine=false
-    /// 실전용 was asked for by voice; it is held back for now, so 연습용 runs and the intro says so (IA 11/02).
-    var voiceModeFallback=false
+    /// 실전용 by voice (#167): both checkpoints are measured and the helper's 「완료」 is awaited (Figma 1028:18968).
+    @Published var performanceCheckpointsDone=false
+    /// The crosshair is on the checkpoint to be measured next, so its button is enabled (#167).
+    @Published var checkpointAimed=false
+    /// 실전용 by voice tries the approach to the start again after a failed attempt, not on every frame.
+    var approachRetryAt: Double?
+    /// When the start's ding rang; 「출발점에 도착했어요」 waits for it to ring out (as at the last point).
+    var startChimeAt: Double?
+    /// Where the walking screen's light sits, kept by the 정면 찾기 rule (#167).
+    @Published var walkGlow=WalkGlowDirection()
     let voiceRecognition=VoiceRecognitionService()
     let listeningChime=VoiceListeningChime()
     var voiceSubscriptions=Set<AnyCancellable>()
@@ -165,7 +173,7 @@ import HearIAmCore
         if phase == .guiding, performanceHoldRemaining > 0 {
             return GuidanceHeadline(holdingSeconds:performanceHoldRemaining,pointName:guide?.route.pointLabel(at:max(1,targetIndex-1)) ?? SignalCopy.point(max(1,targetIndex-1)))
         }
-        if phase == .departure, isPractice, !started {
+        if phase == .departure, usesPracticeEntry, !started {
             return GuidanceHeadline(title:departureReady ? "준비되면\n‘출발’이라고 말해주세요" : "현재 위치에서\n출발을 준비해요",detail:departureStatus,symbol:departureReady ? "checkmark.circle" : "location.circle")
         }
         return GuidanceHeadline(phase:phase,targetName:targetName,hasStarted:started,departureReady:departureReady,
@@ -354,6 +362,9 @@ import HearIAmCore
         if phase == .departure, let guide { tickDeparture(pose:pose,guide:guide);return }
         if phase == .paused, escape != nil, let guide { tickEscape(pose:pose,guide:guide);return }
         guard phase == .guiding, let guide else { return }
+        // Within the arrival radius the bearing swings with every step onto the point; the light and arrow hold,
+        // as the direction sound does there.
+        if !voiceGlowAtTarget(pose:pose,guide:guide) {walkGlow.update(bearing:voiceGlowBearing,time:pose.time)}
         tickGuiding(pose:pose,guide:guide)
     }
 

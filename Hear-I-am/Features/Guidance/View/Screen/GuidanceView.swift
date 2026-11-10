@@ -3,8 +3,9 @@ import HearIAmCore
 
 /// Portrait guidance. One AR view stays attached for the whole flow.
 /// By voice (Figma 「apple intellenge」) the performer sees the conversation until the walk starts and then the
-/// 연습 안내 screen; the camera keeps relocalising behind the canvas and is never shown. The helper's 실전용
-/// preparation keeps the camera screens.
+/// 연습 안내 · 실전 안내 screen (1028:18921 · 18910 · 18900); the camera keeps relocalising behind the canvas and is
+/// never shown. In 실전용 the helper takes the checkpoints on the camera screen in between (1028:18949, #167).
+/// The helper's own 실전용 preparation keeps the earlier camera screens.
 struct GuidanceView: View {
     @ObservedObject var library: StageLibrary
     @StateObject private var model: GuidanceViewModel
@@ -33,8 +34,11 @@ struct GuidanceView: View {
 
     /// The performer's own voice flow, as opposed to the helper's preparation and the button-only flow.
     private var voiceFlow: Bool {model.voiceExperiment && !model.helperPreparation}
-    private var conversation: Bool {voiceFlow && !model.phase.showsRouteCamera}
-    private var practiceWalk: Bool {voiceFlow && model.phase.showsRouteCamera && model.isPractice}
+    /// 실전용 by voice: the helper aims at the checkpoints with the camera in view.
+    private var checkpointScreen: Bool {voiceFlow && model.voicePerformanceFlow && model.phase == .checkpoint}
+    /// The walking screen from 「출발」: 「잠시 후 안내가 시작됩니다」 while the start is read, then the walk (#167).
+    private var voiceWalk: Bool {voiceFlow && (model.phase.showsRouteCamera || model.voicePerformanceToStart)}
+    private var conversation: Bool {voiceFlow && !voiceWalk && !checkpointScreen}
     private var lightPractice: Bool {model.phase.showsRouteCamera && model.isPractice && !model.voiceExperiment}
     private var paper: Color {voiceFlow ? VoiceStyle.canvas : lightPractice ? Color.white : HearV3.canvas}
     /// By voice the buttons appear only when the microphone cannot carry the step or a step needs a decision.
@@ -43,7 +47,9 @@ struct GuidanceView: View {
         if model.voiceSelectionControlsVisible || model.audioIssue != nil || model.voiceInputError != nil {return true}
         if model.phase == .selection {return library.records.isEmpty}
         if conversation {return [.failed,.interrupted].contains(model.phase)}
-        if practiceWalk {return [.paused,.finishing,.completed].contains(model.phase)}
+        if checkpointScreen {return false}
+        // The end shows only 「안내를 종료합니다 · 도착」: closing and saving happen by themselves (11/09).
+        if voiceWalk {return model.phase == .paused}
         return true
     }
 
@@ -55,9 +61,15 @@ struct GuidanceView: View {
                 }
                 ZStack {
                     // Keep one AR view attached throughout the flow, including when the screen shows instructions.
+                    // The checkpoint screen shows the whole camera, as the scan screen does (11/09).
                     CameraView(model:model.tracking).frame(maxWidth:.infinity,maxHeight:.infinity).accessibilityHidden(true)
+                        .ignoresSafeArea(edges:checkpointScreen ? .all : [])
                     if conversation {VoiceConversationView(library:library,model:model)}
-                    else if practiceWalk {VoicePracticeGuidanceView(model:model)}
+                    else if checkpointScreen {
+                        PerformanceCheckpointView(model:model,tracking:model.tracking,onBack:{exit()},
+                                                  onSettings:{model.beginSettings();showingSettings=true})
+                    }
+                    else if voiceWalk {VoiceGuidanceWalkView(model:model)}
                     // Listening while paused keeps the route camera in view; the slim voice card shows it (#90).
                     else if model.phase.showsRouteCamera { GuidanceLiveView(model:model) }
                     else if model.phase.isCameraStep { GuidanceCameraPrompt(model:model) }
@@ -68,17 +80,19 @@ struct GuidanceView: View {
                     else { HearV3.canvas; GuidanceInstruction(model:model) }
                 }
             }
-            .navigationTitle(practiceWalk ? "연습 안내" : conversation ? "" : model.helperPreparation ? "출발 준비" : "Hear I am").navigationBarTitleDisplayMode(.inline)
+            .navigationTitle(voiceWalk ? (model.isPractice ? "연습 안내" : "실전 안내") : conversation || checkpointScreen ? "" : model.helperPreparation ? "출발 준비" : "Hear I am").navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(voiceFlow ? .hidden : .automatic,for:.navigationBar)
+            .toolbar(checkpointScreen ? .hidden : .automatic,for:.navigationBar)
             .toolbar {
                 ToolbarItem(placement:.topBarLeading) {
-                    if conversation {
+                    if conversation || voiceWalk {
                         VoiceBackButton {exit()}.accessibilityIdentifier("voice.back")
                     } else if model.voiceShouldListen && (model.voiceAwake || model.voiceTurnActive) {
                         Button("대화 닫기",systemImage:"xmark.circle") {model.dismissVoiceConversation()}.labelStyle(.iconOnly)
                     }
                 }
-                ToolbarItem(placement:.topBarTrailing) {
+                // The walking screen has only the back button (1028:18910); the checkpoint screen draws its own row.
+                if !voiceWalk && !checkpointScreen { ToolbarItem(placement:.topBarTrailing) {
                     Menu {
                         Button("설정",systemImage:"gearshape") {
                             model.beginSettings()
@@ -88,7 +102,7 @@ struct GuidanceView: View {
                     } label: {Image(systemName:"gearshape")}
                     .accessibilityLabel("안내 설정 및 종료")
                     .disabled(model.phase == .finishing || model.savingRecord || (model.phase == .completed && model.speaking))
-                }
+                } }
             }
             .safeAreaInset(edge:.bottom,spacing:0) {
                 VStack(spacing:0) {
