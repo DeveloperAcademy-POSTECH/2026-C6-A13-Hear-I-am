@@ -18,6 +18,10 @@ struct ScanPreparationFlow: View {
     @State private var busy = false
     @State private var error: String?
     @Environment(\.dismiss) private var dismiss
+    /// Nothing to save before the scan: no name, performance or space. Only 「건너뛰기」 makes sense then (#170).
+    private var nothingEntered: Bool {
+        sceneName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && performanceID == nil && venueID == nil
+    }
 
     init(library: StageLibrary, performanceID: UUID? = nil, venueID: UUID? = nil, onSaved: @escaping (UUID) -> Void) {
         self.library = library; self.onSaved = onSaved
@@ -55,7 +59,7 @@ struct ScanPreparationFlow: View {
                             StageInfoButton(title: "건너뛰기", primary: false) { sceneName = ""; performanceID = nil; venueID = nil; beginScan() }
                                 .disabled(requestingCamera || busy || savedID != nil)
                             StageInfoButton(title: busy ? "무대를 불러오는 중…" : requestingCamera ? "카메라 확인 중…" : "저장 후 스캔하기", primary: true, action: beginScan)
-                                .disabled(requestingCamera || busy || sceneName.count > 80 || savedID != nil)
+                                .disabled(requestingCamera || busy || nothingEntered || sceneName.count > 80 || savedID != nil)
                                 .accessibilityIdentifier("scan.beginWithInformation")
                         }.padding(.horizontal, 16)
                     }
