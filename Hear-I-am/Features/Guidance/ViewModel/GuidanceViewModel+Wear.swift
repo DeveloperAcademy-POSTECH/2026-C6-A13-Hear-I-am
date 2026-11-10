@@ -6,7 +6,7 @@ extension GuidanceViewModel {
     func finishWear() {
         guard phase == .wear, canAdvanceInstruction, tracking.ready, active else { return }
         invalidateTasks();approachNotice=nil;phase = .departure;departureGate.reset();readyAnnounced=false
-        if isPractice, !started {
+        if usesPracticeEntry, !started {
             read(["현재 위치에서 출발을 준비해요. 잠시 멈춰주세요. ‘출발’이라고 말하면 출발점을 거치지 않고 P1부터 안내해요."])
             return
         }

@@ -18,6 +18,15 @@ final class VoiceStepCopyTests: XCTestCase {
         XCTAssertEqual(VoiceStepCopy.checkpoint(2)[0], "확인점 1번을 확인했어요.")
         XCTAssertTrue(VoiceStepCopy.checkpoint(2)[1].hasPrefix("확인점 2번."))
     }
+    /// 실전용 (#167): the helper taps the camera screen for each checkpoint, then 「완료」; then 「착용 완료」 and
+    /// 「출발」 as in 연습용.
+    func testPerformanceCheckpointsAreTappedByTheHelper() {
+        XCTAssertEqual(VoiceStepCopy.performanceCheckpoint(1)[0], "공연장을 찾았어요.")
+        XCTAssertTrue(VoiceStepCopy.performanceCheckpoint(2)[1].hasPrefix("확인점 2번. 조력자가"))
+        XCTAssertTrue(VoiceStepCopy.performanceCheckpoint(1)[1].contains("아래 버튼을 눌러주세요"))
+        XCTAssertTrue(VoiceStepCopy.performanceCheckpointsDone.last!.contains("‘완료’"))
+        XCTAssertTrue(VoiceStepCopy.departureReady(started: false, performance: true)[1].contains("호출어를 듣지 않고"))
+    }
     /// Performance mode closes the microphone at the start, so it does not ask for the call.
     func testDepartureReadyTellsHowToSpeakDuringGuidance() {
         XCTAssertTrue(VoiceStepCopy.departureReady(started: false, performance: false)[1].contains("히얼아이엠"))

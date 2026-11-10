@@ -241,9 +241,14 @@ extension GuidanceViewModel {
     }
     /// Where the next point lies against the body's heading, for the front-finding light on the walking screen.
     var voiceGlowBearing: Double? {
-        guard phase == .guiding, let guide, let pose=signalPose, guide.route.points.indices.contains(guide.targetIndex),
+        let leading=phase == .approaching ? approachGuide : guide
+        guard phase == .guiding || phase == .approaching, let guide=leading, let pose=signalPose, guide.route.points.indices.contains(guide.targetIndex),
               ProcessInfo.processInfo.systemUptime-pose.time <= 1 else {return nil}
         return StageHeading.bearing(from:pose.point,to:guide.route.points[guide.targetIndex],headingDegrees:pose.heading)
+    }
+    func voiceGlowAtTarget(pose: (point: FloorPoint, heading: Double, time: Double), guide: RouteGuide) -> Bool {
+        guard guide.route.points.indices.contains(guide.targetIndex) else {return false}
+        return pose.point.distance(to:guide.route.points[guide.targetIndex]) <= guide.settings.arrivalRadius
     }
     func resumeVoiceAfterSettings() {
         guard active else {return}
@@ -261,13 +266,10 @@ extension GuidanceViewModel {
         guard voiceExperiment, phase == .selection, voiceChoosingMode, selected != nil else {return}
         voiceRecognition.discardPendingSpeech();voiceTurnActive=false
         voicePerformanceInputClosed=false
-        // 실전용 asked for by voice is held back for now (IA 11/02: 「일단, 현재는 실전용 막아두기」); the
-        // helper's own 안내 시작 keeps it.
-        let fallback = mode == .performance && voiceStartedAsHelper != true
-        if fallback {logSignal("voice_mode_fallback","performance -> practice")}
-        voiceModeFallback=fallback
-        voiceMode=fallback ? .practice : mode
-        helperPreparation=voiceMode == .performance
+        // 실전용 chosen by the performer stays in the voice flow (#167): the space is found as in 연습용, then the
+        // helper takes the checkpoints on the camera screen. Opened by the helper, it keeps the helper's preparation.
+        voiceMode=mode
+        helperPreparation=mode == .performance && voiceStartedAsHelper == true
         if helperPreparation {stopVoiceExperiment();voiceListeningEnabled=false}
         else {voiceListeningEnabled=true;syncVoiceListening()}
         voiceSelectionControlsVisible = !advanceAutomatically
@@ -293,8 +295,7 @@ extension GuidanceViewModel {
             // Selection does not depend on a working microphone or finishing a spoken prompt.
             // Subsequent position, checkpoint and output-audio checks are still enforced.
             audioIssue=nil
-            let introduction=voiceModeFallback ? "실전용은 아직 준비 중이에요. 연습용으로 진행할게요." : "\(mode.title)을 선택했습니다."
-            voiceModeFallback=false
+            let introduction="\(mode.title)을 선택했습니다."
             restore(voiceIntroduction:introduction)
         } else if let mode=voiceInitialMode {
             // 「연습용」 said on Home or before a stage was chosen is not asked again (11/06 device log).
@@ -338,7 +339,7 @@ extension GuidanceViewModel {
         invalidateTasks()
         if phase != .selection {
             tracking.endSession();tracking.errorMessage=nil
-            voiceMode=nil;voicePerformanceInputClosed=false;voiceChoosingMode=selected != nil;phase = .selection
+            voiceMode=nil;voicePerformanceInputClosed=false;performanceCheckpointsDone=false;voiceChoosingMode=selected != nil;phase = .selection
             read(["사용 방식 선택으로 돌아왔어요.","연습용 또는 실전용이라고 말씀해주세요. 취소하면 무대를 다시 선택합니다."])
         } else if voiceChoosingMode {
             voiceChoosingMode=false;voiceMode=nil;selected=nil;guide=nil;run=nil;pendingRecord=nil
@@ -782,7 +783,8 @@ extension GuidanceViewModel {
             if canContinueVoiceSelection {voiceSelectionControlsVisible=false;continueVoiceSelection();return}
             read([voiceChoosingMode ? "연습용 또는 실전용이라고 말씀하면 바로 다음 단계로 넘어갑니다." : "사용할 무대 이름이나 목록 번호를 말씀해주세요."])
         case .checkpoint:
-            if canVerify {verifyCheckpoint()} else {read(["확인점을 아직 확인할 수 없어요. 휴대폰 조준점을 저장한 확인점에 맞춰주세요."])}
+            if performanceCheckpointsDone {confirmPerformanceCheckpoints()}
+            else if canVerify {verifyCheckpoint()} else {read(["확인점을 아직 확인할 수 없어요. 휴대폰 조준점을 저장한 확인점에 맞춰주세요."])}
         case .wear:
             if canAdvanceInstruction && tracking.ready {finishWear()} else {read(["위치 추적과 착용 상태를 먼저 확인해주세요."])}
         case .departure:

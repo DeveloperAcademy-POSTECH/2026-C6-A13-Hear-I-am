@@ -19,6 +19,13 @@ extension ARSessionController {
               point.y < latest.world.y-0.15 else { throw LabError.invalid("휴대폰보다 15cm 이상 아래에 있는 수평면을 5m 이내에서 선택해주세요.") }
         return point
     }
+    /// How far, along the floor, the crosshair is from the checkpoint to be measured next (#167). The checkpoint
+    /// screen enables 「확인점 n 확인」 only while the crosshair is on it, as the scan screen does for its points.
+    func nextCheckpointAimDistance() -> Double? {
+        guard measuredCheckpoints.count < 2, let target=measuredCheckpoints.isEmpty ? checkpoint : secondCheckpoint,
+              let point=try? centerFloorPoint() else {return nil}
+        return hypot(point.x-target.x,point.z-target.z)
+    }
     /// Lets the route step tell whether a point can go here before it is placed (#38). Changes under 1 cm
     /// are not published, so the screen does not redraw while the phone is held still.
     func updateAim() {
