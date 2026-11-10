@@ -262,7 +262,7 @@ extension GuidanceViewModel {
         voiceReadyChimePending=voiceShouldListen
         syncVoiceListening()
     }
-    func selectVoiceMode(_ mode:VoiceUsageMode, advanceAutomatically: Bool = true) {
+    func selectVoiceMode(_ mode:VoiceUsageMode, advanceAutomatically: Bool = true, namingStage: Bool = false) {
         guard voiceExperiment, phase == .selection, voiceChoosingMode, selected != nil else {return}
         voiceRecognition.discardPendingSpeech();voiceTurnActive=false
         voicePerformanceInputClosed=false
@@ -273,7 +273,7 @@ extension GuidanceViewModel {
         if helperPreparation {stopVoiceExperiment();voiceListeningEnabled=false}
         else {voiceListeningEnabled=true;syncVoiceListening()}
         voiceSelectionControlsVisible = !advanceAutomatically
-        if advanceAutomatically {continueVoiceSelection()}
+        if advanceAutomatically {continueVoiceSelection(namingStage:namingStage)}
         else {
             generation=UUID();voice.stop();instructionDone=true
         }
@@ -288,14 +288,15 @@ extension GuidanceViewModel {
         generation=UUID();voice.stop();instructionDone=true
         voiceRecognition.discardPendingSpeech();voiceTurnActive=false
     }
-    func continueVoiceSelection() {
+    func continueVoiceSelection(namingStage: Bool = false) {
         guard voiceExperiment, active, canContinueVoiceSelection else {return}
         prepareForVoiceTouch()
         if voiceChoosingMode, let mode=voiceMode {
             // Selection does not depend on a working microphone or finishing a spoken prompt.
             // Subsequent position, checkpoint and output-audio checks are still enforced.
             audioIssue=nil
-            let introduction="\(mode.title)을 선택했습니다."
+            // Chosen with the stage in one request, the stage is named too: nothing else confirmed it (#174).
+            let introduction=namingStage && selected != nil ? "\(selected!.name), \(mode.title)을 선택했습니다." : "\(mode.title)을 선택했습니다."
             restore(voiceIntroduction:introduction)
         } else if let mode=voiceInitialMode {
             // 「연습용」 said on Home or before a stage was chosen is not asked again (11/06 device log).
@@ -640,6 +641,13 @@ extension GuidanceViewModel {
         }
         let parsed=VoiceCommandParser.parse(text)
         if parsed == .cancel, !started {voiceSelectionControlsVisible=false;cancelVoiceSelection();return}
+        // 「뱀파이어 연습용」: the mode is kept and the rest finds the stage, which then starts in that mode (#174).
+        if phase == .selection, !voiceChoosingMode, parsed == nil, let split=voiceModeWithStage(text) {
+            voiceInitialMode = split.mode == .practice ? .practice : .performance
+            logSignal("voice_mode_with_stage","\(split.mode) | \(split.rest)")
+            if selectStageWithVoice(split.rest) {return}
+            voiceInitialMode=nil
+        }
         if phase == .selection, !voiceChoosingMode, parsed != .practice, parsed != .performance,
            parsed != .repeatInstruction, parsed != .pause, parsed != .next, parsed != .start, parsed != .continueGuidance,
            parsed != .back, parsed != .chooseStageAgain,
@@ -666,7 +674,7 @@ extension GuidanceViewModel {
         if request != text {logSignal("voice_point_spelling","\(text) -> \(request)")}
         voicePendingRequest=text
         Task { [weak self] in
-            var decision=await AppleIntelligenceVoiceIntentResolver().resolve(request,screen:screen)
+            var decision=await AppleIntelligenceVoiceIntentResolver().resolve(request,screen:screen).checked(heard:request)
             guard let self, self.voiceShouldListen, self.voicePendingRequest == text, self.voiceScreen == screen else {return}
             self.voicePendingRequest=nil
             let seconds=String(format:"%.2fs",ProcessInfo.processInfo.systemUptime-began)
@@ -744,6 +752,13 @@ extension GuidanceViewModel {
                 resetSignals();voicePausedNavigation=false;voicePerformanceID=nil
                 chooseAgain()
             }
+    }
+    /// The mode said with a stage, unless a name on offer holds that word itself (a stage called 「연습 무대」).
+    private func voiceModeWithStage(_ text:String) -> (mode:VoiceCommand,rest:String)? {
+        guard let split=VoiceCommandParser.splitMode(text) else {return nil}
+        let names=voiceSelectionNames+voiceStages.map(\.name)
+        guard !names.contains(where:{$0.contains(split.stem)}) else {return nil}
+        return (split.mode,split.rest)
     }
     private func selectStageWithVoice(_ text:String) -> Bool {
         if let ordinal=VoiceStageSearch.ordinal(text) ?? VoiceStageSearch.numbered(text,names:voiceSelectionNames) {
