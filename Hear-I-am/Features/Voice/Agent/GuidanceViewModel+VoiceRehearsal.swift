@@ -246,6 +246,10 @@ extension GuidanceViewModel {
               ProcessInfo.processInfo.systemUptime-pose.time <= 1 else {return nil}
         return StageHeading.bearing(from:pose.point,to:guide.route.points[guide.targetIndex],headingDegrees:pose.heading)
     }
+    func voiceGlowAtTarget(pose: (point: FloorPoint, heading: Double, time: Double), guide: RouteGuide) -> Bool {
+        guard guide.route.points.indices.contains(guide.targetIndex) else {return false}
+        return pose.point.distance(to:guide.route.points[guide.targetIndex]) <= guide.settings.arrivalRadius
+    }
     func resumeVoiceAfterSettings() {
         guard active else {return}
         if voicePreparationDeferredBySettings {

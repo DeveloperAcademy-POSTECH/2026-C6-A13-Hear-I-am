@@ -362,7 +362,9 @@ import HearIAmCore
         if phase == .departure, let guide { tickDeparture(pose:pose,guide:guide);return }
         if phase == .paused, escape != nil, let guide { tickEscape(pose:pose,guide:guide);return }
         guard phase == .guiding, let guide else { return }
-        walkGlow.update(bearing:voiceGlowBearing,time:pose.time)
+        // Within the arrival radius the bearing swings with every step onto the point; the light and arrow hold,
+        // as the direction sound does there.
+        if !voiceGlowAtTarget(pose:pose,guide:guide) {walkGlow.update(bearing:voiceGlowBearing,time:pose.time)}
         tickGuiding(pose:pose,guide:guide)
     }
 
