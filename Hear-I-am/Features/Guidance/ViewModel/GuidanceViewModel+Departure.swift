@@ -165,7 +165,7 @@ extension GuidanceViewModel {
         let result=approach.observe(time:pose.time,position:pose.point,headingDegrees:pose.heading,trackingValid:true)
         approachGuide=approach
         cue=approach.cue(position:pose.point,headingDegrees:pose.heading)
-        walkGlow.update(bearing:voiceGlowBearing,time:pose.time)
+        if !voiceGlowAtTarget(pose:pose,guide:approach) {walkGlow.update(bearing:voiceGlowBearing,time:pose.time)}
         if result.state == .completed {
             // By voice the arrival is said with the start of guidance, after the start's ding.
             stopApproach(voicePerformanceFlow ? nil : "출발점에 도착했습니다. 잠시 멈춘 뒤 안내 시작 버튼을 눌러주세요.")

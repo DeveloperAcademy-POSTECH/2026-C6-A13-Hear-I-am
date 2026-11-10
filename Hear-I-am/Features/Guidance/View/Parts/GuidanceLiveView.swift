@@ -178,6 +178,9 @@ struct VoiceGuidanceWalkView: View {
     @ObservedObject var model: GuidanceViewModel
     /// The simulator preview keeps the model inactive, so nothing is read aloud, but still shows the lit disc.
     var previewLit=false
+    /// The arrow's angle as drawn; it turns the short way to `walkGlow.arrowDegrees`, so going from just left of
+    /// ahead to just right no longer spins it all the way round (the 0…315° sector did, 11/10).
+    @State private var arrowAngle: Double=0
     private var walking: Bool {
         model.phase == .approaching ||
             model.phase == .guiding && model.arrivedName == nil && model.guide?.facingPointIndex == nil && model.performanceHoldRemaining == 0
@@ -229,6 +232,12 @@ struct VoiceGuidanceWalkView: View {
                                startPoint:.top,endPoint:.bottom)
                     .frame(height:156).allowsHitTesting(false).accessibilityHidden(true)
             }
+            .onChange(of:model.walkGlow.arrowDegrees) {_,target in
+                // While the circle is still opening the arrow takes its direction without turning.
+                let turn=WalkGlowDirection.wrap(target-arrowAngle)
+                if open {withAnimation(.smooth(duration:0.45)) {arrowAngle+=turn}} else {arrowAngle+=turn}
+            }
+            .onChange(of:open) {_,_ in arrowAngle=model.walkGlow.arrowDegrees}
             .animation(.smooth(duration:0.9),value:open)
             .animation(.smooth(duration:0.9),value:finished)
             .accessibilityElement(children:.ignore)
@@ -247,10 +256,9 @@ struct VoiceGuidanceWalkView: View {
         .overlay {
             VoiceGuidanceArrow().stroke(VoiceStyle.arrow,style:StrokeStyle(lineWidth:6,lineCap:.round,lineJoin:.round))
                 .frame(width:130,height:130)
-                .rotationEffect(.degrees(Double(cue?.sector ?? 0)*45))
+                .rotationEffect(.degrees(arrowAngle))
                 .opacity(!open ? 0 : cue == nil ? 0.35 : 1)
                 .scaleEffect(size/130)
-                .animation(.easeInOut(duration:0.35),value:cue?.sector)
         }
         .shadow(color:.black.opacity(open ? 0.35 : 0.2),radius:open ? 16 : 8,y:open ? 10 : 4)
     }
