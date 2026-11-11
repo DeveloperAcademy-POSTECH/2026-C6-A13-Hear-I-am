@@ -44,6 +44,19 @@ public struct PerformancePlan: Codable, Equatable, Identifiable, Sendable {
         if let last = points.last, last.distance(to: point) < 0.05 { throw LabError.invalid("서로 다른 위치를 선택해주세요.") }
         points.append(point);pointSettings.append(.init())
     }
+    /// Puts a point at `index` in a reference route, moving the later points along with their settings. Taking the
+    /// later points off and appending them again reset the hold of whichever was last for a moment, and refused
+    /// to put back a point that holds (#179).
+    public mutating func insertPoint(_ point: FloorPoint, at index: Int) throws {
+        guard isReferenceOnly else {throw LabError.invalid("이 동선에는 지점을 끼워 넣을 수 없어요.")}
+        guard (0...points.count).contains(index), points.count < StageRoute.maxPointCount, point.valid, (-3...15).contains(point.x), (-1...9).contains(point.y) else {
+            throw LabError.invalid("시작점 제외 최대 20점(도착점 포함)까지, 동선 영역 안에 지정해주세요.")
+        }
+        guard [index-1,index].filter({points.indices.contains($0)}).allSatisfy({points[$0].distance(to:point) >= 0.05}) else {
+            throw LabError.invalid("서로 다른 위치를 선택해주세요.")
+        }
+        points.insert(point,at:index);pointSettings.insert(.init(),at:index)
+    }
     public mutating func resumeEditing() {finished=false}
     public mutating func undoPoint() {
         guard !points.isEmpty else { return }
