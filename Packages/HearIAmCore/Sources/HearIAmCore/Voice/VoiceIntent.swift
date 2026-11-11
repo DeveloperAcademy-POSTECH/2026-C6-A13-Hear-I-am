@@ -94,6 +94,13 @@ public enum VoiceIntentDecision: Equatable, Sendable {
         return sure ? .command(command) : .confirm(command)
     }
 
+    /// A command the model is sure of is still asked back when the words do not sound like it
+    /// (`VoiceCommandParser.soundsLike`): noise and other speech must not move the run on (11/09–10).
+    public func checked(heard: String) -> VoiceIntentDecision {
+        guard case .command(let command) = self, !VoiceCommandParser.soundsLike(heard, command) else { return self }
+        return .confirm(command)
+    }
+
     /// Model instructions listing only the current screen's actions.
     public static func instructions(for screen: VoiceScreen) -> String {
         let lines = screen.actions.map { "\($0.rawValue): \($0.meaning)" }

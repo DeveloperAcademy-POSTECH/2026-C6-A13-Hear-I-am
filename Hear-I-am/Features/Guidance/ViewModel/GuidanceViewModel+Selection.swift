@@ -31,7 +31,13 @@ extension GuidanceViewModel {
             voiceRecognition.discardPendingSpeech();voiceTurnActive=false
             voiceMode=nil;voicePerformanceInputClosed=false;voiceChoosingMode=advanceAutomatically
             voiceSelectionControlsVisible = !advanceAutomatically
-            if advanceAutomatically {readVoiceModeQuestion()}
+            // A mode said before or with the stage (「뱀파이어 연습용」, or 「연습용」 then a name) is not asked again (#174).
+            if advanceAutomatically, let mode=voiceInitialMode {
+                voiceInitialMode=nil
+                logSignal("voice_mode_remembered","\(mode)")
+                selectVoiceMode(mode,namingStage:true)
+            }
+            else if advanceAutomatically {readVoiceModeQuestion()}
             else {prepareForVoiceTouch()}
             return
         }
