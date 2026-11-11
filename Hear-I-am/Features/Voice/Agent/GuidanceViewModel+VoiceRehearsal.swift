@@ -17,7 +17,7 @@ extension GuidanceViewModel {
     }
 
     var voiceCanOfferInput: Bool {
-        guard voiceExperiment, !helperPreparation, !isSettingsPresented, active, !showExit, !savingRecord, escape == nil, audioIssue == nil else {return false}
+        guard voiceExperiment, !helperPreparation, !helperStart, !isSettingsPresented, active, !showExit, !savingRecord, escape == nil, audioIssue == nil else {return false}
         if voiceMode == .performance && voicePerformanceInputClosed {return false}
         return [.selection,.restoring,.checkpoint,.wear,.departure,.starting,.guiding,.paused,.failed,.interrupted].contains(phase)
     }
@@ -131,6 +131,19 @@ extension GuidanceViewModel {
         voiceCatalog=catalog
         voiceStagePaths=contexts
         guard !isSettingsPresented else {voicePreparationDeferredBySettings=true;return}
+        if helperStart {
+            // Neither the scene nor the mode is asked: the space is looked for at once on the checkpoint screen.
+            guard let id=voiceInitialStageID, let item=records.first(where:{$0.id == id}) else {
+                read(["준비할 무대를 찾을 수 없어요. 목록에서 다시 선택해주세요."]);return
+            }
+            voiceInitialStageID=nil;voiceInitialMode=nil
+            select(item,advanceAutomatically:false)
+            guard selected != nil else {return}
+            voiceChoosingMode=true;voiceMode = .performance;voiceSelectionControlsVisible=false
+            prepareForVoiceTouch();audioIssue=nil
+            restore()
+            return
+        }
         if helperPreparation {
             if let id=voiceInitialStageID, let item=records.first(where:{$0.id == id}) {
                 voiceInitialStageID=nil;voiceInitialMode=nil
@@ -320,7 +333,7 @@ extension GuidanceViewModel {
         }
     }
     var canCancelVoiceSelection: Bool {
-        voiceExperiment && !started && (selected != nil || voiceChoosingMode || voicePerformanceID != nil || voiceSearchQuery != nil || phase != .selection)
+        voiceExperiment && !helperStart && !started && (selected != nil || voiceChoosingMode || voicePerformanceID != nil || voiceSearchQuery != nil || phase != .selection)
             && ![.starting,.finishing,.completed].contains(phase)
     }
     /// Restore the caller's role, not the temporary helper handoff selected by live mode.

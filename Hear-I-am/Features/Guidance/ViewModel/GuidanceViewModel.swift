@@ -41,6 +41,9 @@ import HearIAmCore
     @Published var helperPreparation=false
     /// Captured before selecting a usage mode; a performer handing off for live use remains a performer on Back.
     var voiceStartedAsHelper: Bool?
+    /// Opened by the helper from a performance (#175): straight to 실전용's checkpoint camera screen for the chosen
+    /// scene, then on as the performer's 실전용. The helper goes by the buttons, so nothing is listened to.
+    var helperStart=false
     var isPractice: Bool {voiceMode == .practice}
     var practiceEntryIssue: String?
     var recoveryInstruction: String {
