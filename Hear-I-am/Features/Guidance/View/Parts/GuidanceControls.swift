@@ -84,7 +84,8 @@ struct GuidanceControls: View {
         case .interrupted:
             GuidanceButton(title:model.isPractice ? "공간 다시 찾기" : "확인점 다시 확인") {touch {model.restore()}}
         case .failed:
-            GuidanceButton(title:"무대 다시 선택",secondary:true) {touch {model.chooseAgain()}}
+            // Opened by the helper, the scene is chosen again in the performance it came from.
+            GuidanceButton(title:"무대 다시 선택",secondary:true) {touch {if model.helperStart {close()} else {model.chooseAgain()}}}
             GuidanceButton(title:"공간 다시 확인",enabled:!model.tracking.busy) {touch {model.restore()}}
         case .finishing: GuidanceButton(title:"안내 종료 중…",enabled:false) {}
         case .completed: GuidanceButton(title:model.saveError == nil ? "종료하고 기록 저장" : "기록 저장 다시 시도",enabled:!model.savingRecord,action:saveAndClose)
