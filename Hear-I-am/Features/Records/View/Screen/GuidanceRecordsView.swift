@@ -74,9 +74,16 @@ struct GuidanceRecordsView: View {
         }.v3Screen()
     }
 
-    /// The performance the run's stage belongs to; the stage's own name when it is not filed under one.
-    private func title(_ record: GuidanceRecord) -> String {library.catalog.folder(for:record.stageID)?.name ?? record.stageName}
-    private func venue(_ record: GuidanceRecord) -> String? {library.catalog.venue(for:record.stageID)?.name}
+    /// The performance the run's stage belonged to when it finished; the stage's own name when it was not filed under
+    /// one. Records saved before #179 have no names of their own and still look them up.
+    private func title(_ record: GuidanceRecord) -> String {
+        if let name=record.performanceName {return name.isEmpty ? record.stageName : name}
+        return library.catalog.folder(for:record.stageID)?.name ?? record.stageName
+    }
+    private func venue(_ record: GuidanceRecord) -> String? {
+        if let name=record.venueName {return name.isEmpty ? nil : name}
+        return library.catalog.venue(for:record.stageID)?.name
+    }
     private var filtering: Bool {!query.isEmpty || !venueFilter.isEmpty || period != .all}
     private var records: [GuidanceRecord] {
         let search=query.trimmingCharacters(in:.whitespacesAndNewlines)
