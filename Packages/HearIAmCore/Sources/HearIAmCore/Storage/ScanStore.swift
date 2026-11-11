@@ -130,12 +130,16 @@ public actor ScanStore {
         return manifest
     }
     /// Replaces a saved scan's route, as edited on the performance's route editor. The stage frame, world map and
-    /// meshes stay as scanned; only the route over that stage changes.
-    public func replaceRoute(_ id: UUID, with route: StageRoute) throws -> ScanManifest {
+    /// meshes stay as scanned; only the route over that stage changes. A route guidance would refuse is not saved,
+    /// and with `origins` (see `ScanPhoto.following`) the photos taken at route points move with their points (#179).
+    public func replaceRoute(_ id: UUID, with route: StageRoute, origins: [Int?]? = nil) throws -> ScanManifest {
         let url=root.appendingPathComponent(id.uuidString,isDirectory:true).appendingPathComponent("manifest.json")
         var manifest=try JSONDecoder().decode(ScanManifest.self,from:Data(contentsOf:url))
         guard manifest.id == id, manifest.route != nil else { throw LabError.invalid("저장된 무대 경로를 찾을 수 없습니다.") }
         try route.validate()
+        let conflicts=route.guidanceConflicts(manifest.settings)
+        guard conflicts.isEmpty else { throw LabError.invalid("안내에 쓸 수 없는 동선이에요. "+conflicts.joined(separator:" ")) }
+        if let origins, origins.count == route.points.count {manifest.photos=ScanPhoto.following(manifest.photos,origins:origins)}
         manifest.route=route;try manifest.validate()
         let encoder=JSONEncoder();encoder.outputFormatting=[.sortedKeys]
         try encoder.encode(manifest).write(to:url,options:.atomic)

@@ -340,6 +340,7 @@ struct VenueChoiceSheet: View {
     let onSelect: (UUID?) -> Void
     @State private var query = ""
     @State private var creating = false
+    @State private var error: String?
     @Environment(\.dismiss) private var dismiss
     private var folder: PerformanceFolder? { library.performanceFolders.first { $0.id == performanceID } }
     var body: some View {
@@ -369,20 +370,27 @@ struct VenueChoiceSheet: View {
                     saveVenue(named: name)
                 }.suspendsVoiceWake()
             }
+            .alert("공간을 추가하지 못했어요", isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
+                Button("확인", role: .cancel) { error = nil }
+            } message: { Text(error ?? "") }
     }
     private func saveVenue(named name: String) {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        if let existing = folder?.venues.first(where: { $0.name == trimmed }) {
+        // The same name as the store compares them: 「CKL Stage」 is 「ckl  stage」. Matching exactly let such a name
+        // through to a save that refused it, with nothing on screen (#179).
+        let key = PlaceSearch.normalized(trimmed)
+        if let existing = folder?.venues.first(where: { PlaceSearch.normalized($0.name) == key }) {
             onSelect(existing.id)
             dismiss()
             return
         }
         Task {
-            if let created = try? await library.createVenue(name: trimmed, in: performanceID) {
+            do {
+                let created = try await library.createVenue(name: trimmed, in: performanceID)
                 onSelect(created.id)
                 dismiss()
-            }
+            } catch { self.error = error.localizedDescription }
         }
     }
 }

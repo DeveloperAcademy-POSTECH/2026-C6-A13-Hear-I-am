@@ -351,17 +351,36 @@ struct ReferenceSceneEditorView: View {
         catch { message = error.localizedDescription }
     }
     private func save() {
-        guard !saving else { return }; saving = true
+        guard !saving else { return }
+        // A scanned route guidance would refuse is named before anything is written, so nothing is half saved (#179).
+        var routes: [UUID: StageRoute] = [:]
+        do {
+            for var plan in scenes {
+                plan.completeReference()
+                guard let bridge = scanned[plan.id] else { continue }
+                var opened = bridge.plan; opened.completeReference()
+                var geometry = plan; geometry.name = opened.name
+                guard geometry != opened else { continue }
+                let route = try bridge.route(from: plan)
+                let conflicts = route.guidanceConflicts(library.records.first { $0.id == plan.id }?.settings ?? GuideSettings())
+                guard conflicts.isEmpty else {
+                    message = "‘\(plan.name)’ 동선은 안내에 쓸 수 없어요. \(conflicts.joined(separator: " "))"; return
+                }
+                routes[plan.id] = route
+            }
+        } catch { message = "저장하지 못한 동선이 있어요. 편집 내용은 유지됩니다. \(error.localizedDescription)"; return }
+        saving = true
         Task {
             do {
                 for var plan in scenes {
                     plan.completeReference()
                     if let bridge = scanned[plan.id] {
-                        // A scanned route is written back to its scan, and only when it changed.
-                        var opened = bridge.plan; opened.completeReference()
-                        var geometry = plan; geometry.name = opened.name
-                        if geometry != opened { try await library.updateScanRoute(plan.id, route: bridge.route(from: plan)) }
-                        if plan.name != opened.name { try await library.renameStage(plan.id, to: plan.name) }
+                        // A scanned route is written back to its scan, and only when it changed. Its photos follow
+                        // the points they were taken at.
+                        if let route = routes[plan.id] {
+                            try await library.updateScanRoute(plan.id, route: route, origins: plan.points.indices.map { plan.settings(at: $0).sourceIndex })
+                        }
+                        if plan.name != bridge.plan.name { try await library.renameStage(plan.id, to: plan.name) }
                     } else { try await library.savePerformancePlan(plan, for: performanceID) }
                 }
                 for id in removedSceneIDs {
@@ -389,17 +408,9 @@ struct ReferenceSceneEditorView: View {
         scenes = state; removedSceneIDs.subtract(state.map(\.id)); selectedObject = nil; selectedPoint = nil; dirty = true
         if !scenes.contains(where: { $0.id == selectedID }) { selectedID = scenes.first?.id }
     }
-    /// Puts a point at `index`, keeping every later point and its settings: the plan only appends at the end.
+    /// Puts a point at `index`, keeping every later point and its settings (#179).
     static func insert(_ plan: inout PerformancePlan, _ point: FloorPoint, at index: Int) throws {
-        let wasFinished = plan.finished
-        let tail = (index..<plan.points.count).map { (plan.points[$0], plan.settings(at: $0)) }
-        for _ in tail { plan.removePoint(at: plan.points.count - 1) }
-        plan.resumeEditing()
-        try plan.append(point)
-        for (offset, item) in tail.enumerated() {
-            try plan.append(item.0); try plan.setPointSettings(item.1, at: index + 1 + offset)
-        }
-        if wasFinished { plan.completeReference() }
+        try plan.insertPoint(point, at: index)
     }
     static func reshape(_ plan: inout PerformancePlan, _ id: UUID, to shape: ReferenceShape) throws {
         guard let i = plan.objects.firstIndex(where: { $0.id == id }) else { return }
@@ -495,7 +506,9 @@ struct ScanRouteBridge {
         let defaults = StageRoute.pointLabels(points: route.points, obstacles: route.obstacles)
         for index in plan.points.indices where route.points.indices.contains(index) {
             let name = route.pointNames.indices.contains(index) && route.pointNames[index] != defaults[index] ? route.pointNames[index] : ""
-            try? plan.setPointSettings(.init(name: name, holdSeconds: route.holdSeconds(at: index), facing: route.facing(at: index)), at: index)
+            var settings = PerformancePlanPointSettings(name: name, holdSeconds: route.holdSeconds(at: index), facing: route.facing(at: index))
+            settings.sourceIndex = index
+            try? plan.setPointSettings(settings, at: index)
         }
         self.plan = plan
     }

@@ -97,8 +97,9 @@ import HearIAmCore
         if let index=records.firstIndex(where:{$0.id==id}) {records[index]=updated}
     }
     /// Saves a scanned scene's route edited on the performance's route editor.
-    func updateScanRoute(_ id: UUID, route: StageRoute) async throws {
-        let updated=try await scans.replaceRoute(id,with:route)
+    /// `origins` lets the photos taken at route points follow their points (see `ScanPhoto.following`).
+    func updateScanRoute(_ id: UUID, route: StageRoute, origins: [Int?]? = nil) async throws {
+        let updated=try await scans.replaceRoute(id,with:route,origins:origins)
         if let index=records.firstIndex(where:{$0.id==id}) {records[index]=updated}
     }
     func deleteStage(_ id: UUID) async throws {
@@ -163,8 +164,15 @@ extension StageLibrary {
     }
     func deletePerformance(_ id: UUID) async throws {
         defer {refreshVoiceMetadata()}
+        let planIDs=catalog.performances.first {$0.id==id}?.referencePlanIDs ?? []
         catalog=try await catalogStore.deletePerformance(id)
         try await synchronizeLegacyPlaces()
+        // The confirmation says the performance's routes go with it. They stayed on disk and came back in the route
+        // list of an unfiled scan (#179). A route another performance still uses stays.
+        for planID in planIDs where !catalog.performances.contains(where:{$0.referencePlanIDs.contains(planID)}) {
+            try await planStore.delete(planID)
+            plans.removeAll {$0.id==planID}
+        }
     }
     @discardableResult func createVenue(name: String, in performanceID: UUID) async throws -> PerformanceVenueTag {
         defer {refreshVoiceMetadata()}
