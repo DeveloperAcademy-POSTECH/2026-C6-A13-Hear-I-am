@@ -29,6 +29,11 @@ struct HearRootView: View {
                         HomeView(library:library,wake:wake,start:{open(VoiceGuidanceLaunch())},isPresented:guidance == nil)
                             .environment(\.hearChangeRole,chooseRole)
                     }
+                } else if let request=guidance, request.helperPreparation {
+                    // The helper's guidance takes the tabs' place too, as the performer's takes Home's (#175). Opened
+                    // as a cover over the space page, whose 3D stage stays alive underneath, the saved space was never
+                    // found (11/11 POS: 0 of 9 from the helper, 5 of 5 by voice at the same place).
+                    guidanceView(request).id(request.id)
                 } else {helperTabs}
             } else {
                 // The role page plays the launch logo itself the first time (see RoleSelectionView.runLaunch).
@@ -37,8 +42,6 @@ struct HearRootView: View {
         }
         // Black over tabs and bars while the scan screen comes and goes (see ScanTransition).
         .overlay {ScanVeil(on:scanTransition.veiled)}
-        // The helper's preparation is its own screen over the tabs.
-        .fullScreenCover(item:helperGuidance,onDismiss:{openSiriRequest();syncWake()}) {request in guidanceView(request)}
         .onAppear {
             wake.onRequest={text in
                 switch VoiceAppRequest.resolve(text) {
@@ -84,10 +87,7 @@ struct HearRootView: View {
         GuidanceView(library:library,voiceExperiment:true,request:request.request,heard:request.heard,
                      stageID:request.stageID,mode:request.mode,helperPreparation:request.helperPreparation,
                      openPlans:{guidance=nil;openHelper(tab:1)},openScan:{guidance=nil;openScan()},
-                     onClose:request.helperPreparation ? nil : {guidance=nil;openSiriRequest();syncWake()})
-    }
-    private var helperGuidance: Binding<VoiceGuidanceLaunch?> {
-        Binding(get:{guidance?.helperPreparation == true ? guidance : nil},set:{guidance=$0})
+                     onClose:{guidance=nil;openSiriRequest();syncWake()})
     }
 
     private var helperTabs: some View {
@@ -105,7 +105,7 @@ struct HearRootView: View {
     private func openHelper(tab:Int) {wake.stop();role = .helper;self.tab=tab}
     private func openScan() {scanRequested=true;openHelper(tab:0)}
     /// The performer's conversation carries on from Home in place, like one chat, instead of a new screen
-    /// sliding up over it (11/03). The helper's preparation still comes up as its own screen.
+    /// sliding up over it (11/03). The helper's guidance takes the tabs' place in the same way (#175).
     private func open(_ value:VoiceGuidanceLaunch) {wake.stop();guidance=value}
     private func openSiriRequest() {
         guard !showsLaunch,role != nil,let value=launch.pending,guidance == nil,gate.open else {return}
