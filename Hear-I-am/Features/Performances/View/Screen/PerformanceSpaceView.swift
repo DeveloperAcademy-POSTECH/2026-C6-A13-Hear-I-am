@@ -45,11 +45,15 @@ struct PerformanceSpaceView: View {
             .onAppear {if selectedScanID == nil {selectedScanID = initialScanID}}
             .task {await library.refresh()}
             .fullScreenCover(isPresented:$scanning,onDismiss:{Task {await library.refresh()}}) {
-                ScanPreparationFlow(library:library,performanceID:performanceID,venueID:venueID) {id in
-                    Task {
-                        await library.refresh()
-                        // A person can classify the new scan into a different folder in the save form.
-                        if records.contains(where:{$0.id==id}) {selectedScanID=id}
+                // The flow has no stack of its own since it is pushed on the scan tab (22caa2d); here it needs one,
+                // or the performance and place fields, which push their pickers, do nothing (#179).
+                NavigationStack {
+                    ScanPreparationFlow(library:library,performanceID:performanceID,venueID:venueID) {id in
+                        Task {
+                            await library.refresh()
+                            // A person can classify the new scan into a different folder in the save form.
+                            if records.contains(where:{$0.id==id}) {selectedScanID=id}
+                        }
                     }
                 }.suspendsVoiceWake()
             }

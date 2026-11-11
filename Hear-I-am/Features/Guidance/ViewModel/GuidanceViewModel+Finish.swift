@@ -16,9 +16,17 @@ extension GuidanceViewModel {
         if arriving, let guide {
             signals.play(.arrival);logSignal("signal_arrival","\(GuidanceCopy.target(guide.targetIndex,last:guide.route.points.count-1)) final")
         }
-        phase = .finishing;cue=nil;message="종료 안내를 읽고 있어요."
+        phase = .finishing;cue=nil
         // Guidance stops now; the validation camera stays live until the user finishes.
-        audioIssue=nil
+        // Let the ding ring out before the closing line covers it.
+        readCompletion(after:arriving ? Self.dingBeforeSpeech : 0)
+    }
+    /// The closing line; heard to the end, guidance is complete and the record is saved. Cut off by leaving the app,
+    /// a call or the audio route, it is said again on coming back or on Back: before, the run stayed 「finishing」
+    /// with no way out and no record (#179).
+    func readCompletion(after delay: Double = 0) {
+        guard phase == .finishing else { return }
+        audioIssue=nil;message="종료 안내를 읽고 있어요."
         let operation=generation
         let speak={ [weak self] in
             guard let self, self.generation == operation, self.active else { return }
@@ -27,9 +35,8 @@ extension GuidanceViewModel {
                 self.phase = .completed;self.instructionDone=true;self.message=GuidanceCopy.completed
             }
         }
-        // Let the ding ring out before the closing line covers it.
-        if arriving {
-            Task { @MainActor in try? await Task.sleep(nanoseconds:UInt64(Self.dingBeforeSpeech*1e9));speak() }
+        if delay > 0 {
+            Task { @MainActor in try? await Task.sleep(nanoseconds:UInt64(delay*1e9));speak() }
         } else { speak() }
     }
     func completedRecord() throws -> GuidanceRecord {
@@ -37,7 +44,9 @@ extension GuidanceViewModel {
             throw LabError.invalid("마지막 도착 안내가 끝난 후 종료해주세요.")
         }
         if let pendingRecord { return pendingRecord }
-        let record=try run.record(completionSpoken:true,finishedAt:Date())
+        // The names it is filed under now stay with the record (#179).
+        let record=try run.record(completionSpoken:true,finishedAt:Date(),performanceName:selected.flatMap {voiceCatalog.folder(for:$0.id)?.name} ?? "",
+                                  venueName:selected.flatMap {voiceCatalog.venue(for:$0.id)?.name} ?? "")
         pendingRecord=record;return record
     }
     /// Saves the completion record once, then calls `onSaved`. Failures stay in `saveError`.

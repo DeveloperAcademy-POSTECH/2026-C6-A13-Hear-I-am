@@ -59,13 +59,15 @@ public struct GuidanceRun: Sendable {
         replaySamples.append(value)
     }
     private static let sampleIntervalTolerance=GuidanceReplay.sampleInterval-0.0001
-    public func record(completionSpoken: Bool, finishedAt: Date) throws -> GuidanceRecord {
+    /// `performanceName` and `venueName` are where the stage is filed now, empty when it is not (see `GuidanceRecord`).
+    public func record(completionSpoken: Bool, finishedAt: Date, performanceName: String? = nil, venueName: String? = nil) throws -> GuidanceRecord {
         guard completionSpoken, let startedAt, let completedAt else {
             throw LabError.invalid("마지막 지점의 도착 안내가 끝난 후 기록을 저장할 수 있습니다.")
         }
         let replay: GuidanceReplay? = replaySamples.isEmpty ? nil : GuidanceReplay(duration:replayEnd ?? 0,samples:replaySamples,truncated:replayTruncated)
         let value=GuidanceRecord(version:replay == nil ? 1 : 2,id:id,stageID:stageID,stageName:stageName,route:route,
-                                 startedAt:startedAt,completedAt:completedAt,finishedAt:max(finishedAt,completedAt),activeSeconds:activeSeconds,replay:replay,firstGuidedPointIndex:firstGuidedPointIndex,practiceOrigin:practiceOrigin)
+                                 startedAt:startedAt,completedAt:completedAt,finishedAt:max(finishedAt,completedAt),activeSeconds:activeSeconds,replay:replay,firstGuidedPointIndex:firstGuidedPointIndex,practiceOrigin:practiceOrigin,
+                                 performanceName:performanceName,venueName:venueName)
         try value.validate(); return value
     }
 }

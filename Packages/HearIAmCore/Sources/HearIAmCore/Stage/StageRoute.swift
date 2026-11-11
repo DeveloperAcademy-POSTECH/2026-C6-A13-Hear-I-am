@@ -121,6 +121,28 @@ public struct StageRoute: Codable, Equatable, Sendable {
         guard points.indices.contains(index) else { return nil }
         return obstacles.first { $0.isStep && $0.contains(points[index]) }
     }
+    /// What guidance refuses a route for (see the stage selection), said for people, with the points named as on
+    /// screen: 출발, P1…, 도착.
+    public func guidanceConflicts(_ settings: GuideSettings) -> [String] {
+        let label={(text: String) -> String in
+            guard let i=Int(text) else {return text}
+            return i == 0 ? "출발" : i == points.count-1 ? "도착" : "P\(i)"
+        }
+        let rules: [(String,([String]) -> String)] = [
+            (#"^p(\d+)가 무대 경계 여유 밖입니다$"#, {"\(label($0[0])) 지점이 무대 가장자리에 너무 가까워요."}),
+            (#"^p(\d+)→p(\d+) 선분이 너무 짧습니다$"#, {"\(label($0[0]))→\(label($0[1])) 구간이 너무 짧아요."}),
+            (#"^p(\d+)→p(\d+)이 (.+) 통과 금지 측면 또는 여유 영역과 겹칩니다$"#, {"\(label($0[0]))→\(label($0[1])) 구간이 \($0[2])에 너무 가까워요."}),
+        ]
+        return conflicts(boundaryMargin:settings.boundaryMargin,obstacleClearance:settings.obstacleClearance).map {line in
+            let range=NSRange(line.startIndex...,in:line)
+            for (pattern,say) in rules {
+                guard let match=try? NSRegularExpression(pattern:pattern).firstMatch(in:line,range:range) else {continue}
+                let parts=(1..<match.numberOfRanges).compactMap {Range(match.range(at:$0),in:line).map {String(line[$0])}}
+                return say(parts)
+            }
+            return line
+        }
+    }
     public func conflicts(boundaryMargin: Double, obstacleClearance: Double) -> [String] {
         guard boundaryMargin >= 0, obstacleClearance >= 0 else { return ["여유 거리 설정 오류"] }
         var result=[String]()
