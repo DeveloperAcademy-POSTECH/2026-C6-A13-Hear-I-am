@@ -97,8 +97,9 @@ import HearIAmCore
         if let index=records.firstIndex(where:{$0.id==id}) {records[index]=updated}
     }
     /// Saves a scanned scene's route edited on the performance's route editor.
-    func updateScanRoute(_ id: UUID, route: StageRoute) async throws {
-        let updated=try await scans.replaceRoute(id,with:route)
+    /// `origins` lets the photos taken at route points follow their points (see `ScanPhoto.following`).
+    func updateScanRoute(_ id: UUID, route: StageRoute, origins: [Int?]? = nil) async throws {
+        let updated=try await scans.replaceRoute(id,with:route,origins:origins)
         if let index=records.firstIndex(where:{$0.id==id}) {records[index]=updated}
     }
     func deleteStage(_ id: UUID) async throws {
