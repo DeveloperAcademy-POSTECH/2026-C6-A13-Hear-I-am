@@ -389,17 +389,9 @@ struct ReferenceSceneEditorView: View {
         scenes = state; removedSceneIDs.subtract(state.map(\.id)); selectedObject = nil; selectedPoint = nil; dirty = true
         if !scenes.contains(where: { $0.id == selectedID }) { selectedID = scenes.first?.id }
     }
-    /// Puts a point at `index`, keeping every later point and its settings: the plan only appends at the end.
+    /// Puts a point at `index`, keeping every later point and its settings (#179).
     static func insert(_ plan: inout PerformancePlan, _ point: FloorPoint, at index: Int) throws {
-        let wasFinished = plan.finished
-        let tail = (index..<plan.points.count).map { (plan.points[$0], plan.settings(at: $0)) }
-        for _ in tail { plan.removePoint(at: plan.points.count - 1) }
-        plan.resumeEditing()
-        try plan.append(point)
-        for (offset, item) in tail.enumerated() {
-            try plan.append(item.0); try plan.setPointSettings(item.1, at: index + 1 + offset)
-        }
-        if wasFinished { plan.completeReference() }
+        try plan.insertPoint(point, at: index)
     }
     static func reshape(_ plan: inout PerformancePlan, _ id: UUID, to shape: ReferenceShape) throws {
         guard let i = plan.objects.firstIndex(where: { $0.id == id }) else { return }
