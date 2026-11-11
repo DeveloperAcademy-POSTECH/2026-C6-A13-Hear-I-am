@@ -44,7 +44,9 @@ extension GuidanceViewModel {
             throw LabError.invalid("마지막 도착 안내가 끝난 후 종료해주세요.")
         }
         if let pendingRecord { return pendingRecord }
-        let record=try run.record(completionSpoken:true,finishedAt:Date())
+        // The names it is filed under now stay with the record (#179).
+        let record=try run.record(completionSpoken:true,finishedAt:Date(),performanceName:selected.flatMap {voiceCatalog.folder(for:$0.id)?.name} ?? "",
+                                  venueName:selected.flatMap {voiceCatalog.venue(for:$0.id)?.name} ?? "")
         pendingRecord=record;return record
     }
     /// Saves the completion record once, then calls `onSaved`. Failures stay in `saveError`.

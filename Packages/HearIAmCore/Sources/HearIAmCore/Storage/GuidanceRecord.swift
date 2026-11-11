@@ -16,10 +16,16 @@ public struct GuidanceRecord: Codable, Equatable, Identifiable, Sendable {
     /// A direct practice entry skips the saved start and any chair/stair points before P1.
     public let firstGuidedPointIndex: Int?
     public let practiceOrigin: FloorPoint?
+    /// The performance and space the stage was filed under when the run finished, so a later move or deletion of the
+    /// stage does not rename past runs (#179). Empty when it was not filed; nil on records saved before.
+    public let performanceName: String?
+    public let venueName: String?
     public init(version: Int,id: UUID,stageID: UUID,stageName: String,route: StageRoute,startedAt: Date,completedAt: Date,
-                finishedAt: Date,activeSeconds: Double,replay: GuidanceReplay? = nil,firstGuidedPointIndex: Int? = nil,practiceOrigin: FloorPoint? = nil) {
+                finishedAt: Date,activeSeconds: Double,replay: GuidanceReplay? = nil,firstGuidedPointIndex: Int? = nil,practiceOrigin: FloorPoint? = nil,
+                performanceName: String? = nil,venueName: String? = nil) {
         self.version=version;self.id=id;self.stageID=stageID;self.stageName=stageName;self.route=route
         self.startedAt=startedAt;self.completedAt=completedAt;self.finishedAt=finishedAt;self.activeSeconds=activeSeconds;self.replay=replay;self.firstGuidedPointIndex=firstGuidedPointIndex;self.practiceOrigin=practiceOrigin
+        self.performanceName=performanceName;self.venueName=venueName
     }
     public var reachedPointCount: Int { route.points.count - (firstGuidedPointIndex ?? 1) }
     /// The planned polyline for this run, including its temporary entry but excluding unvisited earlier points.
