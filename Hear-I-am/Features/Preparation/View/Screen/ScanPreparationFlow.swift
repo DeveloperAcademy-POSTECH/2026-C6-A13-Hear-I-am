@@ -3,7 +3,8 @@ import AVFoundation
 import HearIAmCore
 
 /// One owner for pre-scan choices, the camera cover, and the already-saved scan's classification.
-/// Pushed onto the scan tab's navigation stack, so it has no stack of its own.
+/// Pushed onto the scan tab's navigation stack, so it has no stack of its own; opened as a cover from a space folder,
+/// the caller wraps it in one.
 struct ScanPreparationFlow: View {
     @ObservedObject var library: StageLibrary
     let onSaved: (UUID) -> Void
