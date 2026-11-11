@@ -72,7 +72,7 @@ public enum VoiceAutocorrect {
     private static func syllables(_ word: String) -> Int { word.filter(isHangul).count }
 
     /// Each syllable as its initial, medial and (when present) final letter.
-    private static func letters(_ word: String) -> [Int] {
+    static func letters(_ word: String) -> [Int] {
         var result: [Int] = []
         for scalar in word.unicodeScalars {
             let v = Int(scalar.value)
@@ -83,6 +83,22 @@ public enum VoiceAutocorrect {
             if index % 28 != 0 { result.append(3000 + index % 28) }
         }
         return result
+    }
+    /// How far `phrase` is from the closest stretch of `text`, letter by letter: 「연수병」 holds 「연습」
+    /// one vowel away. Text around the phrase costs nothing.
+    static func distance(of phrase: [Int], within text: [Int]) -> Int {
+        guard !phrase.isEmpty else { return 0 }
+        guard !text.isEmpty else { return phrase.count }
+        var row = Array(repeating: 0, count: text.count + 1)
+        for i in 1...phrase.count {
+            var previous = row[0]; row[0] = i
+            for j in 1...text.count {
+                let current = row[j]
+                row[j] = min(row[j] + 1, row[j - 1] + 1, previous + (phrase[i - 1] == text[j - 1] ? 0 : 1))
+                previous = current
+            }
+        }
+        return row.min() ?? phrase.count
     }
     private static func distance(_ a: [Int], _ b: [Int]) -> Int {
         if a.isEmpty { return b.count }

@@ -37,8 +37,8 @@ public enum VoiceStepCopy {
     /// Once the start is held. Performance mode closes the microphone when guidance starts, so it says so.
     public static func departureReady(started: Bool, performance: Bool) -> [String] {
         if started { return ["재개 준비가 됐어요. ‘계속’이라고 말하면 이어서 안내해요."] }
-        return ["준비가 되셨다면 ‘출발’이라고 말해주세요. 첫 번째 지점으로 안내해요.",
-                performance ? "실전 중에는 호출어를 듣지 않고 이동 안내만 전달해요." : "안내 중에 다른 요청이 필요하면 ‘히얼아이엠’을 불러주세요."]
+        return ["준비됐어요. ‘출발’이라고 말하면 첫 번째 지점으로 안내해요.",
+                performance ? "실전 중에는 호출어를 듣지 않고 이동 안내만 전달해요." : "안내 중에 필요하면 ‘히얼아이엠’을 불러주세요."]
     }
 
     public static let paused = "안내를 일시정지했어요. ‘계속’이라고 말하면 이어서 안내해요."

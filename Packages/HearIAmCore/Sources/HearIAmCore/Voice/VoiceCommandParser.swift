@@ -46,7 +46,9 @@ public enum VoiceCommandParser {
         (.continueGuidance,["계속","계속해","계속해줘","계속해주세요","계속진행","계속진행해줘","계속진행해주세요","계속안내해줘","이어서","이어서안내해줘","이어서해주세요","다시시작","재개","continue","resume","keepgoing"]),
         (.pause,["멈춰","멈춰줘","멈춰주세요","잠깐","잠시멈춰","잠시멈춰주세요","잠깐멈춰","잠깐멈춰줘","일시정지","정지","stop","pause"]),
         (.repeatInstruction,["다시말해줘","다시말해주세요","다시들려줘","다시들려주세요","다시듣기","설명다시","설명다시해줘","한번더말해줘","repeat","saythatagain"]),
-        (.next,["다음","다음으로","다음단계","다음으로넘어가","다음으로넘어가줘","다음으로넘어가주세요","다음단계로","확인","착용완료","next","nextstep"]),
+        (.next,["다음","다음으로","다음단계","다음으로넘어가","다음으로넘어가줘","다음으로넘어가주세요","다음단계로","확인","착용완료","착용완료요","착용했어","착용했어요",
+                 // 「착용 완료」 is often heard as 「작용 완료」 and went through the model, 2.6–2.9 s late (11/09).
+                 "작용완료","작용완료요","next","nextstep"]),
         (.start,["시작","시작해","시작해줘","시작해주세요","안내시작","안내시작해줘","안내시작해주세요","출발","출발할게","출발할게요","출발해","출발해줘","출발하자","start","startguidance"]),
         (.practice,["연습","연습용","연습모드","연습으로","연습할게","연습할게요","연습용으로","연습용으로할게","연습용으로할게요","practice","rehearsal"]),
         (.performance,["실전","실전용","실전모드","공연","공연용","공연모드","실전으로","실전용으로","실전으로할게","실전용으로할게요","공연용으로","performance","liveperformance"]),
@@ -54,6 +56,53 @@ public enum VoiceCommandParser {
         (.back,["이전","이전으로","이전단계","이전단계로","이전으로가줘","이전으로돌아가","이전으로돌아가줘","이전단계로가줘","이전단계로돌아가","이전단계로돌아가줘","이전으로가","전단계","전단계로","전단계로가줘","뒤로가기","이전선택","back","goback"]),
         (.chooseStageAgain,["무대다시선택","무대다시선택해줘","무대다시선택할래","무대다시고를래","무대다시골라줘","무대다시고르기","다른무대","다른무대로","다른무대선택","다른무대로할래","무대바꿔","무대바꿔줘","무대변경","무대변경해줘"])
     ]
+
+    /// 연습용 or 실전용 said in the same breath as a stage: 「뱀파이어 연습용」, 「김이안 실전용으로 열어줘」 (11/09–10
+    /// device logs, where the mode was dropped and asked again). Returns the mode, the words left for the stage
+    /// search and the mode's stem (연습 · 실전 · 공연), so a stage whose own name holds that word can keep it.
+    /// A word that only begins with the stem, such as 연습장, is no mode.
+    public static func splitMode(_ text: String) -> (mode: VoiceCommand, rest: String, stem: String)? {
+        let pattern = #"(연습|실전|공연)\s*(용|모드)?(?:으로|로)?(?:\s*(?:열어\s*줘요?|열어\s*주세요|해\s*줘요?|해\s*주세요|할게요?|할래요?|시작(?:해\s*줘요?|해\s*주세요)?|부탁해요?|가자|갈게요?))?(?=$|[\s.,!?])"#
+        guard let expression = try? NSRegularExpression(pattern: pattern) else { return nil }
+        let whole = NSRange(text.startIndex..., in: text)
+        var modes: Set<String> = [], stems: [String] = [], ranges: [Range<String.Index>] = []
+        for match in expression.matches(in: text, range: whole) {
+            guard let stemRange = Range(match.range(at: 1), in: text), let range = Range(match.range, in: text) else { continue }
+            let stem = String(text[stemRange])
+            let suffixed = match.range(at: 2).location != NSNotFound
+            // Run together with the word before it (「뱀파이어연습용」) only with 용 or 모드; 「훈련연습」 is no mode.
+            if !suffixed, stemRange.lowerBound > text.startIndex,
+               text[text.index(before: stemRange.lowerBound)].unicodeScalars.allSatisfy({ (0xAC00...0xD7A3).contains($0.value) }) { continue }
+            // 「공연」 alone is an everyday word (「공연 찾기」, a performance's name); only 공연용 · 공연 모드 count.
+            if stem == "공연", !suffixed { continue }
+            modes.insert(stem == "연습" ? "practice" : "performance"); stems.append(stem); ranges.append(range)
+        }
+        guard modes.count == 1, let stem = stems.first else { return nil }
+        var rest = text
+        for range in ranges.reversed() { rest.replaceSubrange(range, with: " ") }
+        rest = rest.replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: CharacterSet.whitespacesAndNewlines.union(.punctuationCharacters))
+        guard !rest.isEmpty else { return nil }
+        return (modes.first == "practice" ? .practice : .performance, rest, stem)
+    }
+
+    /// Whether the heard words sound like one of the command's own phrases (#87 guesses). A model guess for
+    /// 「Siri야」 started 연습용 and 「헬로」 · 「해피벌스데이」 went to the next step (11/09–10), so a guess is acted on
+    /// only when the words are near the command; otherwise it is asked back. Commands without a phrase list
+    /// (a stage, a point, the whole list) are judged elsewhere.
+    public static func soundsLike(_ text: String, _ command: VoiceCommand) -> Bool {
+        guard let phrases = vocabulary.first(where: { $0.0 == command })?.1 else { return true }
+        let compact = text.lowercased().replacingOccurrences(of: #"[\s.!?。！？,~]"#, with: "", options: .regularExpression)
+        let heard = VoiceAutocorrect.letters(compact)
+        guard !heard.isEmpty else { return false }
+        return phrases.contains { phrase in
+            let words = VoiceAutocorrect.letters(phrase)
+            // Two-syllable words such as 아니 match too much of anything; they need to be heard as they are.
+            guard words.count >= 5 else { return compact.contains(phrase) }
+            let near = VoiceAutocorrect.distance(of: words, within: heard)
+            return Double(near) <= Double(words.count) * 0.34
+        }
+    }
 
     private struct PointToken { let range: NSRange; let index: Int }
     static let sinoKorean=["일":1,"이":2,"삼":3,"사":4,"오":5,"육":6,"칠":7,"팔":8,"구":9,"십":10]
