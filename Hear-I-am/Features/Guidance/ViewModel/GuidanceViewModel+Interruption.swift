@@ -32,13 +32,15 @@ extension GuidanceViewModel {
         } else {
             tracking.setActive(true)
             if phase == .interrupted { read(["안내를 멈췄습니다. \(recoveryInstruction)"]) }
+            else if phase == .finishing, !speaking { readCompletion() }
             // Back from the lock screen or Siri, a question already heard in full is not said again; the
             // listening chime says the app is ready (11/09: the stage line was said three times in two minutes).
             else if phase == .selection, !voiceExperiment || !instructionDone { replay() }
         }
     }
     func requestExit() {
-        guard phase != .finishing else { return }
+        // The run has ended; Back says the closing line again (when it was cut off) so it can complete and save.
+        guard phase != .finishing else { if !speaking {readCompletion()};return }
         if phase == .guiding || phase == .starting || phase == .approaching { guide?.pause();phase = started ? .paused : .departure }
         invalidateTasks();showExit=true
         syncVoiceListening()
