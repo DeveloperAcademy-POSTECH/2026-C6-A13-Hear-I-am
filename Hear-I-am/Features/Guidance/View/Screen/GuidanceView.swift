@@ -5,7 +5,7 @@ import HearIAmCore
 /// By voice (Figma 「apple intellenge」) the performer sees the conversation until the walk starts and then the
 /// 연습 안내 · 실전 안내 screen (1028:18921 · 18910 · 18900); the camera keeps relocalising behind the canvas and is
 /// never shown. In 실전용 the helper takes the checkpoints on the camera screen in between (1028:18949, #167).
-/// The helper's own 실전용 preparation keeps the earlier camera screens.
+/// Opened by the helper from a performance, it starts at that checkpoint screen and goes on as 실전용 (#175).
 struct GuidanceView: View {
     @ObservedObject var library: StageLibrary
     @StateObject private var model: GuidanceViewModel
@@ -18,7 +18,9 @@ struct GuidanceView: View {
         let model=GuidanceViewModel(voiceExperiment:voiceExperiment)
         model.voiceInitialRequest=request
         model.onOpenPlans=openPlans;model.onOpenScan=openScan
-        model.voiceInitialStageID=stageID;model.voiceInitialMode=mode;model.helperPreparation=helperPreparation
+        model.voiceInitialStageID=stageID;model.voiceInitialMode=mode
+        // The helper's preparation is now 실전용's own flow from the checkpoints, not the earlier button screens (#175).
+        model.helperStart=voiceExperiment && helperPreparation;model.helperPreparation=helperPreparation && !voiceExperiment
         // What was said on Home is on screen from the first frame, so the chat does not flash empty.
         if voiceExperiment, !helperPreparation, let heard=heard ?? request, !heard.isEmpty {
             model.voiceChat=[VoiceChatEntry(kind:.user(heard))]
@@ -35,7 +37,12 @@ struct GuidanceView: View {
     /// The performer's own voice flow, as opposed to the helper's preparation and the button-only flow.
     private var voiceFlow: Bool {model.voiceExperiment && !model.helperPreparation}
     /// 실전용 by voice: the helper aims at the checkpoints with the camera in view.
-    private var checkpointScreen: Bool {voiceFlow && model.voicePerformanceFlow && model.phase == .checkpoint}
+    /// Opened by the helper, it is on screen from the start, while the space is still being looked for.
+    private var checkpointScreen: Bool {
+        guard voiceFlow else {return false}
+        if model.helperStart, [.selection,.restoring].contains(model.phase) {return true}
+        return model.voicePerformanceFlow && model.phase == .checkpoint
+    }
     /// The walking screen from 「출발」: 「잠시 후 안내가 시작됩니다」 while the start is read, then the walk (#167).
     private var voiceWalk: Bool {voiceFlow && (model.phase.showsRouteCamera || model.voicePerformanceToStart)}
     private var conversation: Bool {voiceFlow && !voiceWalk && !checkpointScreen}

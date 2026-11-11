@@ -307,7 +307,10 @@ struct PerformanceCheckpointView: View {
                         ScanCircleButton(systemImage:"chevron.backward",label:"뒤로",action:onBack)
                         Spacer(minLength:12)
                         VStack(spacing:8) {
-                            if let name=model.selected?.name {
+                            if let name=model.selected?.name, model.helperStart {
+                                // Chosen in the performance already; another scene is chosen there.
+                                PerformanceScenePill(name:name,choosable:false).liquidGlass(Capsule(),tint:ScanChrome.capsuleTint)
+                            } else if let name=model.selected?.name {
                                 Menu {
                                     Button("무대 다시 선택",systemImage:"arrow.uturn.backward") {model.prepareForVoiceTouch();model.chooseAgain()}
                                 } label: {PerformanceScenePill(name:name).liquidGlass(Capsule(),tint:ScanChrome.capsuleTint).contentShape(Capsule())}
@@ -326,7 +329,7 @@ struct PerformanceCheckpointView: View {
                     Button {
                         if done {model.confirmPerformanceCheckpoints()} else {model.capturePerformanceCheckpoint()}
                     } label: {
-                        Text(done ? "완료" : "확인점 \(min(measured+1,2)) 확인")
+                        Text(model.selected == nil ? "무대를 찾을 수 없어요" : model.phase != .checkpoint ? "공연장을 찾는 중…" : done ? "완료" : "확인점 \(min(measured+1,2)) 확인")
                             .font(HearFont.pretendard(.semibold,size:18)).foregroundStyle(enabled ? ScanChrome.darkText : .white)
                             .frame(maxWidth:.infinity,minHeight:50)
                             .background(enabled ? Color.white : Color.clear,in:Capsule())
@@ -366,12 +369,15 @@ struct PerformanceCheckpointView: View {
 /// The scene being prepared, as the pill in the middle of the top bar (1028:18941).
 struct PerformanceScenePill: View {
     let name: String
+    var choosable=true
     var body: some View {
         HStack(spacing:12) {
             Image(systemName:"movieclapper").font(.system(size:15,weight:.medium))
             Text(name).font(.system(size:12,weight:.semibold)).lineLimit(1)
-            Image(systemName:"chevron.down").font(.system(size:9,weight:.bold))
-                .frame(width:18,height:18).background(.white.opacity(0.2),in:Circle())
+            if choosable {
+                Image(systemName:"chevron.down").font(.system(size:9,weight:.bold))
+                    .frame(width:18,height:18).background(.white.opacity(0.2),in:Circle())
+            }
         }
         .foregroundStyle(.white).padding(.horizontal,14).frame(height:44)
         .accessibilityElement(children:.combine)
