@@ -167,6 +167,10 @@ public struct PerformancePlanPointSettings: Codable, Equatable, Sendable {
     public var name: String
     public var holdSeconds: Int
     public var facing: StageFacing?
+    /// The scanned route's index this point came from, kept only while editing a scan's route so its photos can
+    /// follow their points (#179). Not saved.
+    public var sourceIndex: Int?
+    enum CodingKeys: String, CodingKey {case name,holdSeconds,facing}
     public init(name: String = "", holdSeconds: Int = 0, facing: StageFacing? = nil) {
         self.name=name;self.holdSeconds=holdSeconds;self.facing=facing
     }

@@ -24,6 +24,16 @@ public struct ScanPhoto: Codable, Equatable, Identifiable, Sendable {
         self.imageHash=imageHash; self.thumbnailHash=thumbnailHash
         self.objectID=objectID; self.routePointIndex=routePointIndex; self.projection=projection
     }
+    /// The photos of an edited route, each following its point: `origins[i]` is the scanned index of the edited
+    /// route's point `i`, nil for a point added in the editor. A photo whose point was removed keeps no point (#179).
+    public static func following(_ photos: [ScanPhoto], origins: [Int?]) -> [ScanPhoto] {
+        photos.map {photo in
+            guard let index=photo.routePointIndex else {return photo}
+            return ScanPhoto(id:photo.id,capturedAt:photo.capturedAt,frameTimestamp:photo.frameTimestamp,cameraTransform:photo.cameraTransform,
+                             pixelWidth:photo.pixelWidth,pixelHeight:photo.pixelHeight,imageHash:photo.imageHash,thumbnailHash:photo.thumbnailHash,
+                             objectID:photo.objectID,routePointIndex:origins.firstIndex(of:index),projection:photo.projection)
+        }
+    }
     public var position: Point3 { Point3(Double(cameraTransform[12]),Double(cameraTransform[13]),Double(cameraTransform[14])) }
     public var forward: Point3 { Point3(-Double(cameraTransform[8]),-Double(cameraTransform[9]),-Double(cameraTransform[10])) }
     public func validate() throws {
