@@ -209,21 +209,30 @@ final class SignalRuleTests: XCTestCase {
             if let mark=gate.update(position:.init(0,y),target:target) { said.append(mark) }
         }
         XCTAssertEqual(said,[2,1,0.5])
-        // Swaying back across 0.5 m does not say it again.
+        // Swaying back across 0.5 m does not say it again, and stays in near-arrival until 0.7 m.
+        XCTAssertTrue(gate.isNearArrival)
         XCTAssertNil(gate.update(position:.init(0,0.6),target:target))
+        XCTAssertTrue(gate.isNearArrival)
+        XCTAssertNil(gate.update(position:.init(0,0.75),target:target))
+        XCTAssertFalse(gate.isNearArrival)
         XCTAssertNil(gate.update(position:.init(0,0.45),target:target))
+        XCTAssertTrue(gate.isNearArrival)
         XCTAssertEqual(said.map(SignalCopy.distance),["2미터","1미터","50센티"])
     }
     func testDistanceStartsBelowTheStartAndRestartsForANewTarget() {
         var gate=DistanceGate()
         // Starting 1.05 m away: 1 m is too close to the start to be news.
         XCTAssertNil(gate.update(position:.init(0,1.05),target:.init(0,0)))
+        XCTAssertFalse(gate.isNearArrival)
         XCTAssertNil(gate.update(position:.init(0,0.95),target:.init(0,0)))
         // A jump past several marks says only the nearest.
         XCTAssertEqual(gate.update(position:.init(0,0.4),target:.init(0,0)),0.5)
+        XCTAssertTrue(gate.isNearArrival)
         XCTAssertNil(gate.update(position:.init(0,0.4),target:.init(0,2.5)))
+        XCTAssertFalse(gate.isNearArrival)
         XCTAssertEqual(gate.update(position:.init(0,1.55),target:.init(0,2.5)),1)
         gate.reset()
+        XCTAssertFalse(gate.isNearArrival)
         XCTAssertNil(gate.update(position:.init(0,1.55),target:.init(0,2.5)))
     }
 

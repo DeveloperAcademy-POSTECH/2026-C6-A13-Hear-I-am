@@ -112,15 +112,17 @@ extension GuidanceViewModel {
         let target=guide.route.points[guide.targetIndex]
         let distance=pose.point.distance(to:target)
         let inArrivalZone=distance <= guide.settings.arrivalRadius
+        let inNearArrivalZone=inArrivalZone || distance <= DistanceGate.nearArrivalDistance || distances.isNearArrival
         let bearing=StageHeading.bearing(from:pose.point,to:target,headingDegrees:pose.heading)
         // Direction (#44): silent within ±n° of the target; outside it 「왼쪽」 or 「오른쪽」 once, then ticks that
         // quicken as the body turns toward it. The moment the ticks stop because the body faces the target,
         // the aligned chime says so. Chairs and stairs use the exact same direction guidance (#76).
-        // Once inside `arrivalRadius` (waiting for the 0.8s arrival dwell, #88), do not start a new direction
-        // correction for the point being stepped on so it never gets cut off by the imminent arrival speech.
+        // Once inside `arrivalRadius` (waiting for the 0.8s arrival dwell, #88) or the 50 cm near-arrival window (#187),
+        // do not start a new direction correction for the point being stepped on so 「50센티」 is never cut off and no
+        // half-spoken 「왼쪽」/「오른쪽」 gets chopped by the imminent arrival speech.
         let wasTicking=directionTicks.activeSide != nil
         let cue: DirectionTickGate.Cue?
-        if inArrivalZone && !announceNextSide {
+        if (inArrivalZone || (inNearArrivalZone && !wasTicking)) && !announceNextSide {
             directionTicks.reset()
             pendingTurnSide=false
             if wasTicking { signals.stopDirection() }
@@ -128,13 +130,14 @@ extension GuidanceViewModel {
         } else {
             cue=directionTicks.update(time:pose.time,bearing:bearing)
         }
+        if inNearArrivalZone && !announceNextSide { pendingTurnSide=false }
         // The side waits for the point announcement and for any line being spoken; facing the target already needs no word.
         if announceNextSide, !quiet, !speaking {
             announceNextSide=false
             if let cue {
                 sayDirection(cue.word,volume:SignalVolume.nextSide,bearing:bearing,guide:guide)
             }
-        } else if !announceNextSide, !inArrivalZone, let cue, cue.spokenWord != nil || pendingTurnSide {
+        } else if !announceNextSide, !inNearArrivalZone, let cue, cue.spokenWord != nil || pendingTurnSide {
             // Turned away from the target, or over to its other side. Not while the next side waits to be said.
             // A line still being spoken used to drop the word, and it comes only once (#57: lost twice after
             // 「1미터」·「50센티」). A distance or an earlier side is cut for it; an instruction or a step is not,
