@@ -30,6 +30,9 @@ import HearIAmCore
                 GuidanceV3PreviewHarness(practice:true)
             } else if ProcessInfo.processInfo.arguments.contains("--guidance-v3-preview") {
                 GuidanceV3PreviewHarness(practice:false)
+            } else if ProcessInfo.processInfo.arguments.contains("--permissions-preview") {
+                // 「권한 상태」 alone, to look at the dictation section (#189) without walking through Settings.
+                NavigationStack {V3PermissionView()}
             } else {HearRootView()}
             #else
             HearRootView()
