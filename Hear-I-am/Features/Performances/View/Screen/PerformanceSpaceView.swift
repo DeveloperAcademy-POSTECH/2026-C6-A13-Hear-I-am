@@ -22,7 +22,7 @@ struct PerformanceSpaceView: View {
     }
     private var record: ScanManifest? {records.first {$0.id==selectedScanID} ?? records.first}
     private var spaceName: String {
-        library.catalog.performances.first {$0.id==performanceID}?.venues.first {$0.id==venueID}?.name ?? "공간 미분류"
+        library.catalog.performances.first {$0.id==performanceID}?.venues.first {$0.id==venueID}?.name ?? "공간 미지정"
     }
     var body: some View {
         Group {

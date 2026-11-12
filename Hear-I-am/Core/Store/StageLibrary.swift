@@ -165,6 +165,9 @@ extension StageLibrary {
     func deletePerformance(_ id: UUID) async throws {
         defer {refreshVoiceMetadata()}
         let planIDs=catalog.performances.first {$0.id==id}?.referencePlanIDs ?? []
+        // No stage is left without a performance (#181): its stages and their photos go first, so a failure
+        // part way leaves the performance in place to try again.
+        for scan in scans(in:id) {try await deleteStage(scan.id)}
         catalog=try await catalogStore.deletePerformance(id)
         try await synchronizeLegacyPlaces()
         // The confirmation says the performance's routes go with it. They stayed on disk and came back in the route
