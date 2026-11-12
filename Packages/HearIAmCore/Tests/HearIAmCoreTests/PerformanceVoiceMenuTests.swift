@@ -10,11 +10,10 @@ final class PerformanceVoiceMenuTests:XCTestCase {
         let choices=PerformanceVoiceMenu.choices(catalog:catalog,stageIDs:[second,first])
         XCTAssertEqual(choices.count,1);XCTAssertEqual(choices.first?.stageIDs,[second,first])
     }
-    func testUnassignedScanRemainsReachableAndEmptyFolderDoesNotOfferGuidance() {
+    /// There are no unfiled stages any more (#181): one left behind is not offered, nor is an empty folder.
+    func testUnassignedScanAndEmptyFolderAreNotOffered() {
         let scan=UUID();var catalog=PerformanceCatalog();catalog.performances=[.init(name:"빈 공연")]
-        let choices=PerformanceVoiceMenu.choices(catalog:catalog,stageIDs:[scan])
-        XCTAssertEqual(choices.map(\.id),[PerformanceVoiceMenu.unassignedID])
-        XCTAssertEqual(choices.first?.stageIDs,[scan])
+        XCTAssertEqual(PerformanceVoiceMenu.choices(catalog:catalog,stageIDs:[scan]),[])
     }
     func testVenueSearchOnlyOffersMatchingPerformances() {
         let a=UUID(),b=UUID();let first=PerformanceFolder(name:"A"),second=PerformanceFolder(name:"B")

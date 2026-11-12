@@ -29,7 +29,8 @@ struct StageEntityQuery: EntityStringQuery {
         let docs=FileManager.default.urls(for:.documentDirectory,in:.userDomainMask)[0]
         let records=(try? await ScanStore(root:docs.appendingPathComponent("Scans",isDirectory:true)).list()) ?? []
         let catalog=(try? await PerformanceCatalogStore(root:docs.appendingPathComponent("Performances",isDirectory:true)).load()) ?? PerformanceCatalog()
-        return records.filter(\.supportsAlignment).map { record in
+        // Stages outside every performance are not offered (#181).
+        return records.filter { $0.supportsAlignment && catalog.folder(for:$0.id) != nil }.map { record in
             let names=[catalog.folder(for:record.id)?.name,catalog.venue(for:record.id)?.name,record.name].compactMap {$0}
             var unique:[String]=[]
             for name in names where !unique.contains(name) {unique.append(name)}

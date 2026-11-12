@@ -65,14 +65,6 @@ struct PerformanceLibraryView: View {
                             }
                         }
                     }
-                    if !library.unassignedScans.isEmpty {
-                        NavigationLink {
-                            PerformanceScanSelectionView(library: library, title: "미분류 무대", scanIDs: [], onlyUnassigned: true, onStartGuidance: onStartGuidance)
-                        } label: {
-                            HStack { Label("미분류 무대", systemImage: "tray"); Spacer(); Text("\(library.unassignedScans.count)"); Image(systemName: "chevron.right") }
-                                .font(.subheadline).padding(20).background(HearV3.surface, in: RoundedRectangle(cornerRadius: 16))
-                        }.buttonStyle(.plain)
-                    }
                 }.padding(.horizontal, 16).padding(.top, 24).padding(.bottom, 24)
             }
             #if DEBUG
@@ -96,7 +88,7 @@ struct PerformanceLibraryView: View {
                     PerformanceVenueFilterSheet(names: venueNames, selection: venueFilter) { venueFilter = $0 }
                 }
                 .hearConfirm("‘\(deleting?.name ?? "")’ 공연 폴더를 삭제할까요?", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }),
-                             message: "기본 동선과 공연 및 연습 공간이 함께 삭제돼요.\n스캔한 무대와 사진은 미분류로 남아요.") {
+                             message: "스캔한 무대와 사진, 기본 동선, 공연 및 연습 공간이 함께 삭제돼요.\n안내 기록은 남아요.") {
                     guard let id = deleting?.id else { return }
                     Task { do { try await library.deletePerformance(id) } catch { self.error = error.localizedDescription } }
                 }
@@ -386,3 +378,4 @@ struct PerformanceEditorSheet: View {
         }
     }
 }
+

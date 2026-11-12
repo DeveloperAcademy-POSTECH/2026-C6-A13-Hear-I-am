@@ -121,7 +121,7 @@ struct PerformanceDetailView: View {
             // 971:36590: an alert over the page. The message says what really goes: the folder, its scenes and
             // spaces; the scans themselves stay, unfiled.
             .hearConfirm("‘\(folder?.name ?? "")’ 공연 폴더를 삭제할까요?", isPresented: $deleting,
-                         message: "기본 동선과 공연 및 연습 공간이 함께 삭제돼요.\n스캔한 무대와 사진은 미분류로 남아요.") { deleteFolder() }
+                         message: "스캔한 무대와 사진, 기본 동선, 공연 및 연습 공간이 함께 삭제돼요.\n안내 기록은 남아요.") { deleteFolder() }
             .onChange(of: plans.map(\.id)) { _, ids in
                 if let selectedSceneID, !ids.contains(selectedSceneID) { self.selectedSceneID = ids.first }
             }
@@ -601,7 +601,7 @@ struct PerformanceLinkStagesView: View {
                 ForEach(scans,id:\.id) {scan in
                     Button {if selected.contains(scan.id) {selected.remove(scan.id)} else {selected.insert(scan.id)}} label:{
                         HStack {
-                            VStack(alignment:.leading,spacing:5) {Text(scan.name);Text(library.catalog.folder(for:scan.id)?.name ?? "미분류 무대").font(.caption).foregroundStyle(.secondary)}
+                            VStack(alignment:.leading,spacing:5) {Text(scan.name);Text(library.catalog.folder(for:scan.id)?.name ?? "분류 필요").font(.caption).foregroundStyle(.secondary)}
                             Spacer();Image(systemName:selected.contains(scan.id) ? "checkmark.circle.fill" : "circle")
                         }.frame(minHeight:48)
                     }.buttonStyle(.plain).accessibilityAddTraits(selected.contains(scan.id) ? .isSelected : [])

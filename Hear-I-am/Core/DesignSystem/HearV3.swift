@@ -141,6 +141,19 @@ extension View {
     }
 }
 
+/// Screens that must ask before they are left (an unsaved scan, #181) hold the edge swipe off while shown.
+@MainActor enum HearSwipeBack {
+    static var holds = 0
+}
+
+extension View {
+    /// While this view is on screen, the edge swipe does not go back; its own back button decides.
+    func holdsSwipeBack(_ active: Bool = true) -> some View {
+        onAppear { if active { HearSwipeBack.holds += 1 } }
+            .onDisappear { if active { HearSwipeBack.holds = max(0, HearSwipeBack.holds - 1) } }
+    }
+}
+
 extension UINavigationController: @retroactive UIGestureRecognizerDelegate {
     override open func viewDidLoad() {
         super.viewDidLoad()
@@ -148,7 +161,7 @@ extension UINavigationController: @retroactive UIGestureRecognizerDelegate {
     }
 
     public func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
-        viewControllers.count > 1 && transitionCoordinator == nil
+        viewControllers.count > 1 && transitionCoordinator == nil && HearSwipeBack.holds == 0
     }
 
     public func gestureRecognizer(
