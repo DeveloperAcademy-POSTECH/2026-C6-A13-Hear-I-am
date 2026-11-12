@@ -282,6 +282,8 @@
 "광주" = "Gwangju";
 "구" = "nine";
 "권한 상태" = "Permissions";
+"권한 상태 보기" = "View Permissions";
+"권한 상태 화면을 열어요" = "Opens the Permissions screen";
 "그" = "well";
 "그 자리에서 %@ 방향을 바라봐주세요." = "Stay where you are and face %@.";
 "그려놓은" = "sketched";
