@@ -7,19 +7,31 @@ import Foundation
 /// Each mark is said at most once per leg, so swaying across a mark does not repeat it. Marks at or
 /// above the starting distance (less `startMargin`) are never said.
 public struct DistanceGate: Sendable {
-    public static let marks: [Double]=[0.5]+(1...10).map(Double.init)
+    public static let nearArrivalDistance=0.5
+    public static let nearArrivalReleaseDistance=0.7
+    public static let marks: [Double]=[nearArrivalDistance]+(1...10).map(Double.init)
     public static let startMargin=0.1
     private var target: FloorPoint?
     private var pending: [Double]=[]
+    /// True once the performer enters the 50 cm near-arrival window for the current target,
+    /// staying true across slight sway unless they step back past `nearArrivalReleaseDistance`.
+    public private(set) var isNearArrival=false
     public init() {}
-    public mutating func reset() { target=nil;pending=[] }
+    public mutating func reset() { target=nil;pending=[];isNearArrival=false }
 
     /// The mark just reached, or nil. When a jump passes several marks only the nearest one is returned.
     public mutating func update(position: FloorPoint, target goal: FloorPoint) -> Double? {
         guard position.valid, goal.valid else { return nil }
         let distance=position.distance(to:goal)
         if target != goal {
-            target=goal;pending=Self.marks.filter { $0 < distance-Self.startMargin };return nil
+            target=goal;pending=Self.marks.filter { $0 < distance-Self.startMargin }
+            isNearArrival=distance <= Self.nearArrivalDistance
+            return nil
+        }
+        if distance <= Self.nearArrivalDistance {
+            isNearArrival=true
+        } else if distance > Self.nearArrivalReleaseDistance {
+            isNearArrival=false
         }
         let due=pending.filter { distance <= $0 }
         guard let nearest=due.min() else { return nil }
