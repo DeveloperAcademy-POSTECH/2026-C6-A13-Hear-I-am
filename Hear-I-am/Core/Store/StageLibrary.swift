@@ -131,7 +131,6 @@ import HearIAmCore
 // MARK: - Performance folders and venue classification
 extension StageLibrary {
     var performanceFolders: [PerformanceFolder] {catalog.performances.sorted {$0.updatedAt>$1.updatedAt}}
-    var unassignedScans: [ScanManifest] {records.filter {catalog.folder(for:$0.id)==nil}}
     func scans(in performanceID: UUID, venueID: UUID? = nil, includeAllVenues: Bool = true) -> [ScanManifest] {
         records.filter {
             guard let assignment=catalog.assignments[$0.id],assignment.performanceID==performanceID else {return false}
