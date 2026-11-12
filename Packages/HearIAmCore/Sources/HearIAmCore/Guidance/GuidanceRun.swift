@@ -62,7 +62,7 @@ public struct GuidanceRun: Sendable {
     /// `performanceName` and `venueName` are where the stage is filed now, empty when it is not (see `GuidanceRecord`).
     public func record(completionSpoken: Bool, finishedAt: Date, performanceName: String? = nil, venueName: String? = nil) throws -> GuidanceRecord {
         guard completionSpoken, let startedAt, let completedAt else {
-            throw LabError.invalid("마지막 지점의 도착 안내가 끝난 후 기록을 저장할 수 있습니다.")
+            throw LabError.invalid(L("마지막 지점의 도착 안내가 끝난 후 기록을 저장할 수 있습니다."))
         }
         let replay: GuidanceReplay? = replaySamples.isEmpty ? nil : GuidanceReplay(duration:replayEnd ?? 0,samples:replaySamples,truncated:replayTruncated)
         let value=GuidanceRecord(version:replay == nil ? 1 : 2,id:id,stageID:stageID,stageName:stageName,route:route,

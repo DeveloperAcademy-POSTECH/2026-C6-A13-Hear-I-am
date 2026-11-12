@@ -18,7 +18,7 @@ public actor ScanStore {
                      worldMap: Data, meshes: [MeshSnapshot], device: String, appVersion: String, route: StageRoute? = nil, settings: GuideSettings = GuideSettings(), photos: [ScanPhotoSource] = [], secondCheckpoint: Point3? = nil,
                      surfaceColorDiagnostics: SurfaceColorDiagnostics? = nil) throws -> ScanManifest {
         guard !worldMap.isEmpty, !meshes.isEmpty, Set(meshes.map(\.id)).count == meshes.count else {
-            throw LabError.invalid("공간 지도 또는 메시가 없습니다.")
+            throw LabError.invalid(L("공간 지도 또는 메시가 없습니다."))
         }
         for m in meshes { try m.validate() }
         let encoder=JSONEncoder(); encoder.outputFormatting=[.sortedKeys]
@@ -30,7 +30,7 @@ public actor ScanStore {
         let fm=FileManager.default
         try fm.createDirectory(at:root, withIntermediateDirectories:true)
         let dest=root.appendingPathComponent(id.uuidString, isDirectory:true)
-        guard !fm.fileExists(atPath:dest.path) else { throw LabError.invalid("같은 스캔을 덮어쓸 수 없습니다. 새 스캔으로 저장하세요.") }
+        guard !fm.fileExists(atPath:dest.path) else { throw LabError.invalid(L("같은 스캔을 덮어쓸 수 없습니다. 새 스캔으로 저장하세요.")) }
         let temp=root.appendingPathComponent(".saving-"+UUID().uuidString,isDirectory:true)
         try fm.createDirectory(at:temp,withIntermediateDirectories:true)
         do {
@@ -60,7 +60,7 @@ public actor ScanStore {
         let dir=root.appendingPathComponent(scanID.uuidString,isDirectory:true)
         let manifest=try JSONDecoder().decode(ScanManifest.self,from:Data(contentsOf:dir.appendingPathComponent("manifest.json")))
         guard manifest.id==scanID, let photo=manifest.photos.first(where:{$0.id==photoID}) else {
-            throw LabError.invalid("사진을 찾을 수 없습니다.")
+            throw LabError.invalid(L("사진을 찾을 수 없습니다."))
         }
         try photo.validate()
         let url=dir.appendingPathComponent("photos").appendingPathComponent(photoID.uuidString+(thumbnail ? "-thumb.jpg" : ".jpg"))
@@ -70,9 +70,9 @@ public actor ScanStore {
     private static func checkedPhotoData(_ url: URL, hash: String, limit: Int) throws -> Data {
         let values=try url.resourceValues(forKeys:[.fileSizeKey,.isRegularFileKey,.isSymbolicLinkKey])
         guard values.isRegularFile==true, values.isSymbolicLink != true,
-              let size=values.fileSize, size>0, size<=limit else { throw LabError.invalid("사진 파일 크기가 올바르지 않습니다.") }
+              let size=values.fileSize, size>0, size<=limit else { throw LabError.invalid(L("사진 파일 크기가 올바르지 않습니다.")) }
         let data=try Data(contentsOf:url)
-        guard data.count<=limit, Self.hash(data)==hash else { throw LabError.invalid("사진 파일이 변경되었거나 손상되었습니다.") }
+        guard data.count<=limit, Self.hash(data)==hash else { throw LabError.invalid(L("사진 파일이 변경되었거나 손상되었습니다.")) }
         return data
     }
     public func list() throws -> [ScanManifest] {
@@ -83,7 +83,7 @@ public actor ScanStore {
         return try urls.filter { UUID(uuidString:$0.lastPathComponent) != nil }.map {
             let m=try JSONDecoder().decode(ScanManifest.self,from:Data(contentsOf:$0.appendingPathComponent("manifest.json")))
             try m.validate()
-            guard m.id.uuidString==$0.lastPathComponent else { throw LabError.invalid("스캔 ID 불일치") }
+            guard m.id.uuidString==$0.lastPathComponent else { throw LabError.invalid(L("스캔 ID 불일치")) }
             return m
         }.sorted {$0.date>$1.date}
     }
@@ -91,11 +91,11 @@ public actor ScanStore {
     public func rename(_ id: UUID, to name: String) throws -> ScanManifest {
         let trimmed=name.trimmingCharacters(in:.whitespacesAndNewlines)
         guard !trimmed.isEmpty, trimmed.count<=80 else {
-            throw LabError.invalid("무대 이름은 1~80자로 입력해주세요.")
+            throw LabError.invalid(L("무대 이름은 1~80자로 입력해주세요."))
         }
         let url=root.appendingPathComponent(id.uuidString,isDirectory:true).appendingPathComponent("manifest.json")
         var manifest=try JSONDecoder().decode(ScanManifest.self,from:Data(contentsOf:url))
-        guard manifest.id==id else {throw LabError.invalid("스캔 ID 불일치")}
+        guard manifest.id==id else {throw LabError.invalid(L("스캔 ID 불일치"))}
         try manifest.validate()
         manifest.name=trimmed
         let encoder=JSONEncoder();encoder.outputFormatting=[.sortedKeys]
@@ -106,7 +106,7 @@ public actor ScanStore {
     public func setPointHold(_ id: UUID, index: Int, seconds: Int) throws -> ScanManifest {
         let url=root.appendingPathComponent(id.uuidString,isDirectory:true).appendingPathComponent("manifest.json")
         var manifest=try JSONDecoder().decode(ScanManifest.self,from:Data(contentsOf:url))
-        guard manifest.id==id, var route=manifest.route else { throw LabError.invalid("저장된 무대 경로를 찾을 수 없습니다.") }
+        guard manifest.id==id, var route=manifest.route else { throw LabError.invalid(L("저장된 무대 경로를 찾을 수 없습니다.")) }
         try manifest.validate()
         try route.setHoldSeconds(seconds,at:index)
         manifest.route=route
@@ -119,11 +119,11 @@ public actor ScanStore {
     public func setPointPerformance(_ id: UUID, index: Int, facing: StageFacing?, seconds: Int) throws -> ScanManifest {
         let url=root.appendingPathComponent(id.uuidString,isDirectory:true).appendingPathComponent("manifest.json")
         var manifest=try JSONDecoder().decode(ScanManifest.self,from:Data(contentsOf:url))
-        guard manifest.id == id, var route=manifest.route else { throw LabError.invalid("저장된 무대 경로를 찾을 수 없습니다.") }
+        guard manifest.id == id, var route=manifest.route else { throw LabError.invalid(L("저장된 무대 경로를 찾을 수 없습니다.")) }
         try manifest.validate()
         try route.setFacing(facing,at:index)
         if index > 0 && index < route.points.count-1 { try route.setHoldSeconds(seconds,at:index) }
-        else if seconds != 0 { throw LabError.invalid("출발점과 도착점에는 대기 시간을 설정할 수 없습니다.") }
+        else if seconds != 0 { throw LabError.invalid(L("출발점과 도착점에는 대기 시간을 설정할 수 없습니다.")) }
         manifest.route=route;try manifest.validate()
         let encoder=JSONEncoder();encoder.outputFormatting=[.sortedKeys]
         try encoder.encode(manifest).write(to:url,options:.atomic)
@@ -135,10 +135,10 @@ public actor ScanStore {
     public func replaceRoute(_ id: UUID, with route: StageRoute, origins: [Int?]? = nil) throws -> ScanManifest {
         let url=root.appendingPathComponent(id.uuidString,isDirectory:true).appendingPathComponent("manifest.json")
         var manifest=try JSONDecoder().decode(ScanManifest.self,from:Data(contentsOf:url))
-        guard manifest.id == id, manifest.route != nil else { throw LabError.invalid("저장된 무대 경로를 찾을 수 없습니다.") }
+        guard manifest.id == id, manifest.route != nil else { throw LabError.invalid(L("저장된 무대 경로를 찾을 수 없습니다.")) }
         try route.validate()
         let conflicts=route.guidanceConflicts(manifest.settings)
-        guard conflicts.isEmpty else { throw LabError.invalid("안내에 쓸 수 없는 동선이에요. "+conflicts.joined(separator:" ")) }
+        guard conflicts.isEmpty else { throw LabError.invalid(L("안내에 쓸 수 없는 동선이에요. ")+conflicts.joined(separator:" ")) }
         if let origins, origins.count == route.points.count {manifest.photos=ScanPhoto.following(manifest.photos,origins:origins)}
         manifest.route=route;try manifest.validate()
         let encoder=JSONEncoder();encoder.outputFormatting=[.sortedKeys]
@@ -157,11 +157,11 @@ public actor ScanStore {
         let map=try Data(contentsOf:dir.appendingPathComponent("worldmap.bin"))
         let mesh=try Data(contentsOf:dir.appendingPathComponent("mesh.json"))
         guard m.id==id, Self.hash(map)==m.worldMapHash, Self.hash(mesh)==m.meshHash else {
-            throw LabError.invalid("저장 파일이 변경되었거나 손상되었습니다.")
+            throw LabError.invalid(L("저장 파일이 변경되었거나 손상되었습니다."))
         }
         let parts=try JSONDecoder().decode([MeshSnapshot].self,from:mesh)
         guard parts.count==m.meshCount, Set(parts.map(\.id)).count==parts.count,
-              parts.reduce(0,{$0+$1.vertices.count})==m.vertexCount else { throw LabError.invalid("메시 개수 불일치") }
+              parts.reduce(0,{$0+$1.vertices.count})==m.vertexCount else { throw LabError.invalid(L("메시 개수 불일치")) }
         for part in parts { try part.validate() }
         return LoadedScan(manifest:m,worldMap:map,meshes:parts)
     }

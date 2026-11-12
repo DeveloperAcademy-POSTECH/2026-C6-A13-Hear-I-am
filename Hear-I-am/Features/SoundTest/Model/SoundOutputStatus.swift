@@ -1,4 +1,5 @@
 import SwiftUI
+import HearIAmCore
 import AVFoundation
 
 /// Only use an AirPods picture when the route name identifies it. A renamed Bluetooth device can conceal its
@@ -34,7 +35,7 @@ enum OutputDeviceKind: Equatable {
         let name: String
         let kind: OutputDeviceKind
     }
-    @Published private var route=Route(name:"소리 출력 확인",kind:.externalAudio)
+    @Published private var route=Route(name:L("소리 출력 확인"),kind:.externalAudio)
     var name: String {route.name}
     var kind: OutputDeviceKind {route.kind}
     private var observers: [NSObjectProtocol]=[]
@@ -55,18 +56,18 @@ enum OutputDeviceKind: Equatable {
         if let first=ports.first {
             let names=ports.map { port in
                 switch port.portType {
-                case .builtInSpeaker: return "iPhone 스피커"
-                case .builtInReceiver: return "iPhone 수화부"
+                case .builtInSpeaker: return L("iPhone 스피커")
+                case .builtInReceiver: return L("iPhone 수화부")
                 default:
                     let name=port.portName.trimmingCharacters(in:.whitespacesAndNewlines)
-                    return name.isEmpty ? "외부 오디오 기기" : name
+                    return name.isEmpty ? L("외부 오디오 기기") : name
                 }
             }
             // Multiple simultaneous outputs cannot be represented by a single product image.
             let kind: OutputDeviceKind = ports.count == 1 ? .init(portType:first.portType,name:first.portName) : .externalAudio
             next=Route(name:names.joined(separator:", "),kind:kind)
         } else {
-            next=Route(name:"소리 출력 확인",kind:.externalAudio)
+            next=Route(name:L("소리 출력 확인"),kind:.externalAudio)
         }
         if next != route {route=next}
     }

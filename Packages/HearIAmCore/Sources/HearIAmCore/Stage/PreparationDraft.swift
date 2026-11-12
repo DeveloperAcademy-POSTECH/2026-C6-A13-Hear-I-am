@@ -22,7 +22,7 @@ public struct PreparationDraft: Sendable {
     public var dangerZones: [StageDangerZone] = []
     public init() {}
     public mutating func captureCorner(_ index: Int, at point: Point3) throws {
-        guard corners.indices.contains(index), point.valid else { throw LabError.invalid("유효한 무대 모서리를 지정해주세요.") }
+        guard corners.indices.contains(index), point.valid else { throw LabError.invalid(L("유효한 무대 모서리를 지정해주세요.")) }
         var next=corners
         next[index]=point
         if let left=next[0], let right=next[1] {
@@ -36,41 +36,41 @@ public struct PreparationDraft: Sendable {
         return try? StageArea(corners: corners.compactMap { $0 })
     }
     public var boundaryErrors: [String] {
-        guard corners.allSatisfy({ $0 != nil }) else { return ["무대의 네 모서리를 지정해주세요."] }
+        guard corners.allSatisfy({ $0 != nil }) else { return [L("무대의 네 모서리를 지정해주세요.")] }
         do { _ = try StageArea(corners: corners.compactMap { $0 }); return [] }
         catch { return [error.localizedDescription] }
     }
     public mutating func addRoutePoint(_ point: Point3, asDestination: Bool = false, confirmHeightMismatch: Bool = false) throws {
-        guard let area else { throw LabError.invalid("무대 영역을 먼저 지정해주세요.") }
+        guard let area else { throw LabError.invalid(L("무대 영역을 먼저 지정해주세요.")) }
         if let error=routeSurfaceError(point,in:area,ignoreEstimatedHeight:confirmHeightMismatch) { throw LabError.invalid(error) }
-        guard !routeFinished, route.count < StageRoute.maxPointCount else { throw LabError.invalid("경로는 시작점 제외 최대 20개(도착점 포함)입니다.") }
+        guard !routeFinished, route.count < StageRoute.maxPointCount else { throw LabError.invalid(L("경로는 시작점 제외 최대 20개(도착점 포함)입니다.")) }
         if asDestination {
-            guard route.count >= 2 else { throw LabError.invalid("출발점과 내부 지점을 먼저 지정해주세요.") }
+            guard route.count >= 2 else { throw LabError.invalid(L("출발점과 내부 지점을 먼저 지정해주세요.")) }
         } else if !route.isEmpty {
             guard route.count < StageRoute.maxPointCount-1, area.contains(area.floor(point), margin: Self.boundaryMargin) else {
-                throw LabError.invalid("내부 지점은 무대 안에 최대 19개까지 지정할 수 있습니다.")
+                throw LabError.invalid(L("내부 지점은 무대 안에 최대 19개까지 지정할 수 있습니다."))
             }
         }
-        if let last = route.last, last.distance(to: point) < 0.05 { throw LabError.invalid("이전 점에서 조금 더 떨어진 위치를 선택해주세요.") }
+        if let last = route.last, last.distance(to: point) < 0.05 { throw LabError.invalid(L("이전 점에서 조금 더 떨어진 위치를 선택해주세요.")) }
         if let issue = edgeIssue(adding: point, asDestination: asDestination) { throw LabError.invalid(issue) }
-        if let hit = clearanceHit(adding: point) { throw LabError.invalid(hit.message+". 빨간 영역 밖을 찍어주세요.") }
+        if let hit = clearanceHit(adding: point) { throw LabError.invalid(hit.message+L(". 빨간 영역 밖을 찍어주세요.")) }
         if confirmHeightMismatch { confirmedHeightPoints[route.count]=point }
         route.append(point); routeFinished = asDestination; planApplied = false
     }
     /// Validate observed horizontal surfaces against the registered outline and measured height.
     public func routeSurfaceError(_ point: Point3, in area: StageArea, ignoreEstimatedHeight: Bool = false) -> String? {
-        guard point.valid else { return "선택한 위치를 측정하지 못했어요. 다시 비춰주세요." }
+        guard point.valid else { return L("선택한 위치를 측정하지 못했어요. 다시 비춰주세요.") }
         let h=point.y-area.floorHeight
         if abs(h) <= 0.10 { return nil }
-        guard h > 0 else { return "선택한 면이 무대 바닥보다 낮아요. 무대 바닥과 네 모서리를 확인해주세요." }
-        guard h <= ObjectHeight.ceiling else { return "선택한 면이 무대 바닥보다 2.5m 넘게 높아요. 무대 바닥과 선택 위치를 확인해주세요." }
+        guard h > 0 else { return L("선택한 면이 무대 바닥보다 낮아요. 무대 바닥과 네 모서리를 확인해주세요.") }
+        guard h <= ObjectHeight.ceiling else { return L("선택한 면이 무대 바닥보다 2.5m 넘게 높아요. 무대 바닥과 선택 위치를 확인해주세요.") }
         let covered=objects.filter { object in
             guard object.kind == .platform || object.kind == .stairs,
                   let shape=try? object.projected(in:area) else { return false }
             return shape.contains(area.floor(point))
         }
         guard !covered.isEmpty else {
-            return "선택한 면은 바닥보다 약 \(Int((h*100).rounded()))cm 높지만 등록한 의자·계단 둘레 밖이에요. 기물 종류와 바닥 둘레를 확인해주세요."
+            return L("선택한 면은 바닥보다 약 %@cm 높지만 등록한 의자·계단 둘레 밖이에요. 기물 종류와 바닥 둘레를 확인해주세요.", Int((h*100).rounded()))
         }
         if ignoreEstimatedHeight { return nil }
         guard covered.contains(where: { object in
@@ -79,9 +79,9 @@ public struct PreparationDraft: Sendable {
             return object.kind == .stairs ? h <= top+0.15+1e-9 : abs(h-top) <= 0.15+1e-9
         }) else {
             let estimates=covered.compactMap { object in
-                object.height.map { "\(object.name): 약 \(Int(($0*100).rounded()))cm" }
+                object.height.map { L("%@: 약 %@cm", object.name, Int(($0*100).rounded())) }
             }.joined(separator:" · ")
-            return "선택 높이: 약 \(Int((h*100).rounded()))cm\n자동 추정 높이: \(estimates)\n의자 ±15cm 또는 계단 최고 높이 +15cm 범위를 벗어났어요. 실제 윗면에 찍힌 위치가 맞는지 확인해주세요."
+            return L("선택 높이: 약 %@cm\n자동 추정 높이: %@\n의자 ±15cm 또는 계단 최고 높이 +15cm 범위를 벗어났어요. 실제 윗면에 찍힌 위치가 맞는지 확인해주세요.", Int((h*100).rounded()), estimates)
         }
         return nil
     }
@@ -95,8 +95,8 @@ public struct PreparationDraft: Sendable {
     }
     /// Projects a schematic 12×8 PerformancePlan proportionally onto the captured stage area.
     public mutating func applyPlan(_ plan: PerformancePlan) throws {
-        guard !plan.isReferenceOnly else {throw LabError.invalid("참고용 씬은 실제 무대 동선으로 복사할 수 없어요.")}
-        guard let area else { throw LabError.invalid("무대의 네 모서리를 먼저 지정해주세요.") }
+        guard !plan.isReferenceOnly else {throw LabError.invalid(L("참고용 씬은 실제 무대 동선으로 복사할 수 없어요."))}
+        guard let area else { throw LabError.invalid(L("무대의 네 모서리를 먼저 지정해주세요.")) }
         try plan.validate()
         let sx = area.width / PerformancePlan.width
         let sy = area.depth / PerformancePlan.depth
@@ -113,11 +113,11 @@ public struct PreparationDraft: Sendable {
         return min(Self.obstacleClearance, 0.15 * scale)
     }
     public func stageRoute() throws -> StageRoute {
-        guard let area, routeFinished else { throw LabError.invalid("무대 범위와 도착점을 확정해주세요.") }
+        guard let area, routeFinished else { throw LabError.invalid(L("무대 범위와 도착점을 확정해주세요.")) }
         guard route.enumerated().allSatisfy({ i, point in
             routeSurfaceError(point,in:area,ignoreEstimatedHeight:confirmedHeightPoints[i] == point) == nil
         }) else {
-            throw LabError.invalid("경로가 새 무대 바닥과 높이가 다릅니다. 경로를 다시 지정해주세요.")
+            throw LabError.invalid(L("경로가 새 무대 바닥과 높이가 다릅니다. 경로를 다시 지정해주세요."))
         }
         let obstacles = try objects.map { try $0.projected(in: area) }
         let floorPoints = route.map(area.floor)
@@ -126,14 +126,14 @@ public struct PreparationDraft: Sendable {
     /// Display labels for the draft's current route points (「출발」, 「P1」, 「의자1」, 「계단1」, 「도착」).
     public var routePointLabels: [String] {
         guard let area else {
-            return route.indices.map { i in i == 0 ? "출발" : (routeFinished && i == route.count-1 ? "도착" : "P\(i)") }
+            return route.indices.map { i in i == 0 ? L("출발") : (routeFinished && i == route.count-1 ? L("도착") : "P\(i)") }
         }
         let obstacles = objects.compactMap { try? $0.projected(in: area) }
         return StageRoute.pointLabels(points: route.map(area.floor), obstacles: obstacles, finished: routeFinished)
     }
     /// Label for the next route point to be placed at `aim` (e.g. 「출발점」, 「P1」, 「의자1」, 「계단1」).
     public func nextRoutePointLabel(at aim: Point3? = nil) -> String {
-        guard !route.isEmpty else { return "출발점" }
+        guard !route.isEmpty else { return L("출발점") }
         guard let area else { return "P\(route.count)" }
         let obstacles = objects.compactMap { try? $0.projected(in: area) }
         var floorPoints = route.map(area.floor)
@@ -151,7 +151,7 @@ public struct PreparationDraft: Sendable {
         return objects.compactMap { object in
             do {
                 let o = try object.projected(in: area)
-                guard o.vertices.allSatisfy({ area.contains($0) }) else { return "\(o.name)이 무대 밖입니다. 다시 지정해주세요." }
+                guard o.vertices.allSatisfy({ area.contains($0) }) else { return L("%@이 무대 밖입니다. 다시 지정해주세요.", o.name) }
                 return nil
             } catch { return "\(object.name): \(error.localizedDescription)" }
         }
@@ -163,10 +163,10 @@ public struct PreparationDraft: Sendable {
         let p = area.floor(point), cm = Int((Self.pointMargin*100).rounded())
         guard area.contains(p) else { return nil }
         if !route.isEmpty && !asDestination && !area.contains(p, margin: Self.pointMargin) {
-            return "내부 지점은 무대 가장자리에서 \(cm)cm 이상 안쪽에 찍어주세요"
+            return L("내부 지점은 무대 가장자리에서 %@cm 이상 안쪽에 찍어주세요", cm)
         }
         if let zone = dangerZones.first(where: { $0.distance(to: p, width: area.width, depth: area.depth) < Self.pointMargin }) {
-            return "위험 구역(\(zone.edge.label))에서 \(cm)cm 이상 떨어진 곳을 찍어주세요"
+            return L("위험 구역(%@)에서 %@cm 이상 떨어진 곳을 찍어주세요", zone.edge.label, cm)
         }
         return nil
     }
@@ -178,8 +178,8 @@ public struct PreparationDraft: Sendable {
             guard dangerZones.contains(where: {
                 $0.contains(area.floor(point),width:area.width,depth:area.depth)
             }) else { return nil }
-            if index == 0 { return "시작점" }
-            if routeFinished && index == route.count-1 { return "종료점" }
+            if index == 0 { return L("시작점") }
+            if routeFinished && index == route.count-1 { return L("종료점") }
             return labels.indices.contains(index) ? labels[index] : "P\(index)"
         }
     }
@@ -188,28 +188,28 @@ public struct PreparationDraft: Sendable {
         catch { return [error.localizedDescription] }
     }
     public var checkpointErrors: [String] {
-        guard let checkpoint, let secondCheckpoint else { return ["무대의 확인점 1번과 2번을 지정해주세요."] }
+        guard let checkpoint, let secondCheckpoint else { return [L("무대의 확인점 1번과 2번을 지정해주세요.")] }
         let errors=checkpointPointErrors(checkpoint)+checkpointPointErrors(secondCheckpoint)
         guard errors.isEmpty else { return errors }
         guard hypot(checkpoint.x-secondCheckpoint.x,checkpoint.z-secondCheckpoint.z) >= CheckpointAlignment.minimumSeparation else {
-            return ["두 확인점은 수평으로 1m 이상 떨어져야 합니다."]
+            return [L("두 확인점은 수평으로 1m 이상 떨어져야 합니다.")]
         }
         return []
     }
     public func checkpointPointErrors(_ checkpoint: Point3) -> [String] {
-        guard let area, checkpoint.valid else { return ["무대 바닥의 확인점을 지정해주세요."] }
+        guard let area, checkpoint.valid else { return [L("무대 바닥의 확인점을 지정해주세요.")] }
         guard area.contains(area.floor(checkpoint)), abs(checkpoint.y-area.floorHeight) <= 0.10,
               area.corners.allSatisfy({ $0.distance(to: checkpoint) >= 0.5 }),
               checkpoint.distance(to: area.world(FloorPoint(0,-1))) >= 0.5 else {
-            return ["확인점을 무대 안 같은 높이에서 모서리와 0.5m 이상 떨어진 곳에 다시 지정해주세요."]
+            return [L("확인점을 무대 안 같은 높이에서 모서리와 0.5m 이상 떨어진 곳에 다시 지정해주세요.")]
         }
         let point=area.floor(checkpoint)
         for object in objects {
             guard let shape=try? object.projected(in:area) else {
-                return ["기물 둘레를 확인한 후 확인점을 지정해주세요."]
+                return [L("기물 둘레를 확인한 후 확인점을 지정해주세요.")]
             }
             if shape.contains(point), shape.boundaryDistance(to:point) > Self.checkpointEdgeTolerance+1e-9 {
-                return ["확인점이 \(object.name) 내부에 있어요. 바닥과 만나는 경계 또는 기물 밖 바닥을 선택해주세요. 경계 안쪽 5cm까지 허용됩니다."]
+                return [L("확인점이 %@ 내부에 있어요. 바닥과 만나는 경계 또는 기물 밖 바닥을 선택해주세요. 경계 안쪽 5cm까지 허용됩니다.", object.name)]
             }
         }
         return []

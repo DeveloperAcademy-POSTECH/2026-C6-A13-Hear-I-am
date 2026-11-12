@@ -1,8 +1,19 @@
 import SwiftUI
+import HearIAmCore
 
 @main struct HearIAmApp: App {
     @UIApplicationDelegateAdaptor(HearAppDelegate.self) var appDelegate
-    init() {HearFont.registerBundled();DiagnosticLogMaintenance.start()}
+    init() {
+        HearFont.registerBundled();DiagnosticLogMaintenance.start()
+        #if DEBUG
+        // Switches the language a few seconds after launch, to check that open screens redraw in place (#183).
+        if ProcessInfo.processInfo.arguments.contains("--flip-language") {
+            DispatchQueue.main.asyncAfter(deadline:.now()+12) {
+                HearLanguage.choose(HearLanguage.current.isEnglish ? .korean : .english)
+            }
+        }
+        #endif
+    }
     var body: some Scene {
         WindowGroup {
             Group {

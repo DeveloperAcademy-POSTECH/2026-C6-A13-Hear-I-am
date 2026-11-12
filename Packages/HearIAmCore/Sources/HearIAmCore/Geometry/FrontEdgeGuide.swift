@@ -14,7 +14,7 @@ public struct FrontEdgeGuide: Equatable, Sendable {
         let width=hypot(dx,dz)
         guard frontLeft.valid, frontRight.valid, width >= 0.5,
               abs(frontRight.y-frontLeft.y) <= 0.20 else {
-            throw LabError.invalid("앞의 두 꼭짓점은 같은 바닥에서 0.5m 이상 떨어져야 합니다.")
+            throw LabError.invalid(L("앞의 두 꼭짓점은 같은 바닥에서 0.5m 이상 떨어져야 합니다."))
         }
         // Front-left -> front-right as seen from the audience. Clockwise in AR X/Z points backstage.
         let inwardX=dz/width, inwardZ = -dx/width

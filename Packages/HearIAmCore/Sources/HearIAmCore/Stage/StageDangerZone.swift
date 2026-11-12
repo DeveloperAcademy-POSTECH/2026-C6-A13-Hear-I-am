@@ -8,10 +8,10 @@ public struct StageDangerZone: Codable, Equatable, Sendable, Identifiable {
         public var id: Self { self }
         public var label: String {
             switch self {
-            case .front: return "앞 (객석 쪽)"
-            case .back: return "뒤"
-            case .left: return "왼쪽"
-            case .right: return "오른쪽"
+            case .front: return L("앞 (객석 쪽)")
+            case .back: return L("뒤")
+            case .left: return L("왼쪽")
+            case .right: return L("오른쪽")
             }
         }
     }
@@ -55,6 +55,6 @@ public struct StageDangerZone: Codable, Equatable, Sendable, Identifiable {
         let entries=Edge.allCases.compactMap { edge in
             zones.first(where: { $0.edge == edge }).map { "\(edge.label) \($0.distance.label)" }
         }
-        return entries.isEmpty ? "위험 구역 없음" : "위험 구역 · " + entries.joined(separator:" · ")
+        return entries.isEmpty ? L("위험 구역 없음") : L("위험 구역 · ") + entries.joined(separator:" · ")
     }
 }

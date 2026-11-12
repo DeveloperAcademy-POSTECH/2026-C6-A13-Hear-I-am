@@ -26,7 +26,7 @@ extension ARSessionController {
             centerY:Double(intrinsics[2][1])/resolution.height,clockwiseQuarterTurns:turns)
         let snapshot=PhotoFrame(pixels:frame.capturedImage,transform:(0..<4).flatMap {c in (0..<4).map {matrix[c][$0]}},
                                 timestamp:frame.timestamp,date:Date(),orientation:orientation,objectID:objectID,routeIndex:routeIndex,projection:projection)
-        photoCapturing=true; photoStatus="사진 저장 중…"
+        photoCapturing=true; photoStatus=L("사진 저장 중…")
         let operation=token, request=UUID(), worker=photoCapture
         photoRequest=request
         // An anchor lets ARKit refine the capture pose along with the saved world map.
@@ -37,7 +37,7 @@ extension ARSessionController {
                 let source=try await worker.capture(snapshot)
                 guard token==operation, photoRequest==request, active, !preparationInterrupted, mode == .scanning else {
                     session?.remove(anchor:anchor); await worker.remove(source)
-                    if token==operation,photoRequest==request {photoCapturing=false;photoStatus="촬영이 중단됐어요. 다시 촬영해주세요."}
+                    if token==operation,photoRequest==request {photoCapturing=false;photoStatus=L("촬영이 중단됐어요. 다시 촬영해주세요.")}
                     return
                 }
                 photoSources.append(source); photoAnchors[source.photo.id]=anchor
@@ -45,11 +45,11 @@ extension ARSessionController {
                    preparedDraft?.route.indices.contains(index) != true {
                     linkPhoto(source.photo.id,objectID:source.photo.objectID,routeIndex:nil)
                 }
-                photoCapturing=false; photoStatus="사진 \(photoSources.count)장 저장됨"
+                photoCapturing=false; photoStatus=L("사진 %@장 저장됨", photoSources.count)
             } catch {
                 session?.remove(anchor:anchor)
                 guard token==operation,photoRequest==request else {return}
-                photoCapturing=false;photoStatus="촬영 실패";errorMessage=error.localizedDescription
+                photoCapturing=false;photoStatus=L("촬영 실패");errorMessage=error.localizedDescription
             }
         }
     }
@@ -59,7 +59,7 @@ extension ARSessionController {
         if let anchor=photoAnchors.removeValue(forKey:id) {session?.remove(anchor:anchor)}
         let worker=photoCapture
         Task {await worker.remove(source)}
-        photoStatus="사진 \(photoSources.count)장"
+        photoStatus=L("사진 %@장", photoSources.count)
     }
     func linkPhoto(_ id: UUID, objectID: UUID?, routeIndex: Int?) {
         guard !busy, let index=photoSources.firstIndex(where:{$0.photo.id==id}) else {return}
@@ -85,7 +85,7 @@ extension ARSessionController {
     func cancelPhotoCapture() {
         guard photoCapturing else {return}
         photoRequest=UUID(); photoCapturing=false
-        photoStatus="촬영이 중단됐어요. 다시 촬영해주세요."
+        photoStatus=L("촬영이 중단됐어요. 다시 촬영해주세요.")
     }
     func clearPhotos() {
         photoRequest=UUID();photoCapturing=false;photoSources=[];photoAnchors=[:];photoStatus=""

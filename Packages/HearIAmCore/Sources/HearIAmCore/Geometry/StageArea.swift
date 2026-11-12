@@ -12,12 +12,12 @@ public struct StageArea: Codable, Equatable, Sendable {
     public let floorHeight: Double
     public let maxResidual: Double
     public init(corners: [Point3]) throws {
-        guard corners.count == 4, corners.allSatisfy(\.valid) else { throw LabError.invalid("무대 꼭짓점 네 개가 필요합니다.") }
+        guard corners.count == 4, corners.allSatisfy(\.valid) else { throw LabError.invalid(L("무대 꼭짓점 네 개가 필요합니다.")) }
         let a=corners[0], b=corners[1], c=corners[2], d=corners[3]
         let height=corners.map(\.y).reduce(0,+)/4
-        guard corners.allSatisfy({abs($0.y-height) <= 0.10}) else { throw LabError.invalid("네 꼭짓점이 같은 바닥 평면에 있지 않습니다.") }
+        guard corners.allSatisfy({abs($0.y-height) <= 0.10}) else { throw LabError.invalid(L("네 꼭짓점이 같은 바닥 평면에 있지 않습니다.")) }
         func unit(_ x: Double,_ y: Double) -> FloorPoint? { let n=hypot(x,y); return n > 0.5 ? FloorPoint(x/n,y/n) : nil }
-        guard let u=unit(b.x-a.x,b.z-a.z) else { throw LabError.invalid("앞 변이 너무 짧습니다.") }
+        guard let u=unit(b.x-a.x,b.z-a.z) else { throw LabError.invalid(L("앞 변이 너무 짧습니다.")) }
         let v=FloorPoint(u.y,-u.x)
         func dot(_ p: Point3,_ axis: FloorPoint) -> Double { (p.x-a.x)*axis.x+(p.z-a.z)*axis.y }
         let frontWidth=dot(b,u), backWidth=dot(c,u)-dot(d,u)
@@ -26,12 +26,12 @@ public struct StageArea: Codable, Equatable, Sendable {
         guard w > 0.5, h > 0.5, leftDepth > 0, rightDepth > 0,
               abs(backWidth-frontWidth) <= max(0.12,0.08*w),
               abs(leftDepth-rightDepth) <= max(0.12,0.08*h) else {
-            throw LabError.invalid("선택 순서가 교차하거나 직사각형의 대변 길이가 다릅니다.")
+            throw LabError.invalid(L("선택 순서가 교차하거나 직사각형의 대변 길이가 다릅니다."))
         }
         let local=[FloorPoint(0,0),FloorPoint(dot(b,u),dot(b,v)),FloorPoint(dot(c,u),dot(c,v)),FloorPoint(dot(d,u),dot(d,v))]
         let expected=[FloorPoint(0,0),FloorPoint(w,0),FloorPoint(w,h),FloorPoint(0,h)]
         let residual=zip(local,expected).map {$0.distance(to:$1)}.max() ?? .infinity
-        guard residual <= max(0.12,0.04*min(w,h)) else { throw LabError.invalid("직각 또는 꼭짓점 오차가 큽니다. 점을 다시 선택하세요.") }
+        guard residual <= max(0.12,0.04*min(w,h)) else { throw LabError.invalid(L("직각 또는 꼭짓점 오차가 큽니다. 점을 다시 선택하세요.")) }
         self.corners=corners; frontLeft=a; right=u; back=v; width=w; depth=h
         floorHeight=height; maxResidual=residual
     }
@@ -43,7 +43,7 @@ public struct StageArea: Codable, Equatable, Sendable {
               abs(width-rebuilt.width)<1e-8, abs(depth-rebuilt.depth)<1e-8,
               abs(floorHeight-rebuilt.floorHeight)<1e-8,
               abs(maxResidual-rebuilt.maxResidual)<1e-8 else {
-            throw LabError.invalid("저장된 무대 E가 원본 꼭짓점과 일치하지 않습니다.")
+            throw LabError.invalid(L("저장된 무대 E가 원본 꼭짓점과 일치하지 않습니다."))
         }
     }
     public func floor(_ p: Point3) -> FloorPoint {

@@ -21,7 +21,7 @@ final class PlanLibraryViewModel: ObservableObject {
                 do {try await library.deletePlan(id)} catch {failures.append(error.localizedDescription)}
             }
             selection.finishDeleting(remaining:Set(library.plans.map(\.id)))
-            if !failures.isEmpty {library.error="일부 공연 동선을 삭제하지 못했어요. 다시 시도해주세요. " + failures.joined(separator:"\n")}
+            if !failures.isEmpty {library.error=L("일부 공연 동선을 삭제하지 못했어요. 다시 시도해주세요. ") + failures.joined(separator:"\n")}
         }
     }
 }

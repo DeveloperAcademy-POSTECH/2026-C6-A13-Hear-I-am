@@ -17,7 +17,7 @@ extension ARSceneRenderer {
             if let p=point {
                 let node=SCNNode(geometry:SCNSphere(radius:0.04)); node.geometry?.firstMaterial?.diffuse.contents=UIColor.systemYellow
                 node.position=SCNVector3(Float(p.x),Float(p.y)+0.04,Float(p.z)); referenceLayer.addChildNode(node)
-                let text=SCNText(string:"확인점 \(index+1)",extrusionDepth:0); text.font = .boldSystemFont(ofSize:Self.annotationFontSize)
+                let text=SCNText(string:L("확인점 %@", index+1),extrusionDepth:0); text.font = .boldSystemFont(ofSize:Self.annotationFontSize)
                 let n=SCNNode(geometry:text); n.scale=Self.annotationScale
                 n.position=SCNVector3(Float(p.x),Float(p.y)+0.12,Float(p.z)); n.constraints=[SCNBillboardConstraint()]
                 referenceLayer.addChildNode(n)
@@ -25,7 +25,7 @@ extension ARSceneRenderer {
         }
         let corners=content.corners
         for (i,p) in corners.enumerated() {
-            guard let p else {continue}; cornerMarker(p,label:preparing ? ["앞 왼쪽","앞 오른쪽","뒤 오른쪽","뒤 왼쪽"][i] : "E\(i+1)")
+            guard let p else {continue}; cornerMarker(p,label:preparing ? [L("앞 왼쪽"),L("앞 오른쪽"),L("뒤 오른쪽"),L("뒤 왼쪽")][i] : "E\(i+1)")
         }
         if preparing {
             let order=PreparationDraft.captureOrder
@@ -60,7 +60,7 @@ extension ARSceneRenderer {
             let active = !preparing && !completed && i == target
             let label=labels.indices.contains(i) ? labels[i] : "P\(i)"
             let color: UIColor=active ? .systemOrange : .systemGreen
-            marker(routeWorld(i),label:label+(active ? " · 현재 목표" : ""),color:color)
+            marker(routeWorld(i),label:label+(active ? L(" · 현재 목표") : ""),color:color)
             if active {
                 let ring=SCNNode(geometry:SCNTorus(ringRadius:0.12,pipeRadius:0.015))
                 let world=routeWorld(i);ring.position=SCNVector3(Float(world.x),Float(world.y)+0.02,Float(world.z))
@@ -82,7 +82,7 @@ extension ARSceneRenderer {
         }
         let pending=content.pendingObject
         for (i,p) in pending.enumerated() {
-            marker(area.world(p),label:"점 \(i+1)",color:.systemOrange)
+            marker(area.world(p),label:L("점 %@", i+1),color:.systemOrange)
             if i>0 {
                 let edgeColor: UIColor = content.pendingFacingEdge == i-1 ? .systemGreen : .systemOrange
                 line(area.world(pending[i-1]),area.world(p),color:edgeColor)
@@ -127,12 +127,12 @@ extension ARSceneRenderer {
         for (i,p) in reference.points.enumerated() {
             let ring=SCNTorus(ringRadius:0.07,pipeRadius:0.008); material(ring)
             let node=SCNNode(geometry:ring); node.simdPosition=world(p); ghost.addChildNode(node)
-            label(i == 0 ? "참고 출발" : (i == reference.points.count-1 ? "참고 도착" : "참고 P\(i)"),at:p)
+            label(i == 0 ? L("참고 출발") : (i == reference.points.count-1 ? L("참고 도착") : L("참고 P%@", i)),at:p)
             if i>0 { line(reference.points[i-1],p) }
         }
         for object in reference.objects {
             for i in object.vertices.indices { line(object.vertices[i],object.vertices[(i+1)%object.vertices.count]) }
-            if let first=object.vertices.first { label("참고 · \(object.name)",at:first) }
+            if let first=object.vertices.first { label(L("참고 · %@", object.name),at:first) }
         }
     }
 

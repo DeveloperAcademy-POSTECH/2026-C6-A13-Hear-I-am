@@ -1,4 +1,5 @@
 import Foundation
+import HearIAmCore
 
 /// Portrait guidance flow: select → restore → checkpoint → wear → departure → guiding → completed.
 enum GuidancePhase {
@@ -14,15 +15,15 @@ enum GuidancePhase {
 
     func stepLabel(targetName: String) -> String {
         switch self {
-        case .selection:return "1 / 4 · 무대 선택"
-        case .restoring,.checkpoint,.failed:return "2 / 4 · 현장 확인"
-        case .wear:return "3 / 4 · 허리띠 착용"
-        case .departure,.starting:return "4 / 4 · 출발 준비"
-        case .approaching:return "출발점으로 이동 중"
-        case .guiding:return "안내 중 · \(targetName)"
-        case .paused:return "안내 일시정지"
-        case .interrupted:return "안내 중단 · 재확인 필요"
-        case .finishing,.completed:return "안내 완료"
+        case .selection:return L("1 / 4 · 무대 선택")
+        case .restoring,.checkpoint,.failed:return L("2 / 4 · 현장 확인")
+        case .wear:return L("3 / 4 · 허리띠 착용")
+        case .departure,.starting:return L("4 / 4 · 출발 준비")
+        case .approaching:return L("출발점으로 이동 중")
+        case .guiding:return L("안내 중 · %@", targetName)
+        case .paused:return L("안내 일시정지")
+        case .interrupted:return L("안내 중단 · 재확인 필요")
+        case .finishing,.completed:return L("안내 완료")
         }
     }
 }

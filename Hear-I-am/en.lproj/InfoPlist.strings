@@ -1,0 +1,6 @@
+/* Permission prompts in English (#183). */
+"NSCameraUsageDescription" = "The camera is used to scan the stage, take photos of the venue and track where the phone is worn.";
+"NSLocationWhenInUseUsageDescription" = "Your location is used to find and show nearby venues when you add a space.";
+"NSMotionUsageDescription" = "Motion is used to check which way your body turns while you practice finding your front with the phone on.";
+"NSMicrophoneUsageDescription" = "The microphone is used to choose a stage and control guidance by voice during practice.";
+"NSSpeechRecognitionUsageDescription" = "Speech recognition is used to understand stage names and guidance requests.";

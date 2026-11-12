@@ -12,9 +12,9 @@ final class ARSessionController: ObservableObject {
     enum Mode: String { case idle, scanning, restoring, saved }
 
     @Published var mode: Mode = .idle
-    @Published var status="새 스캔 또는 저장 공간을 선택하세요"
-    @Published var tracking="대기"
-    @Published var mapping="대기"
+    @Published var status=L("새 스캔 또는 저장 공간을 선택하세요")
+    @Published var tracking=L("대기")
+    @Published var mapping=L("대기")
     @Published var meshCount=0
     @Published var vertexCount=0
     @Published var position: Point3?

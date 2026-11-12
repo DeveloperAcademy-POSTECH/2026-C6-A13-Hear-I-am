@@ -12,9 +12,9 @@ struct PreparationIntro: View {
     /// The design's example stage: a route from the left wing over two objects to the right wing.
     fileprivate static let route=[FloorPoint(-1.5,2),FloorPoint(1.8,2),FloorPoint(5,6),FloorPoint(8,6),FloorPoint(11,2),FloorPoint(13.5,2)]
     fileprivate static let objects: [StageObstacle] = [
-        try? StageObstacle(name:"기물 1",kind:.box,vertices:[FloorPoint(1.2,4.8),FloorPoint(2.8,4.8),FloorPoint(2.8,6.4),FloorPoint(1.2,6.4)]),
-        try? StageObstacle(name:"기물 2",kind:.platform,vertices:[FloorPoint(3.4,1),FloorPoint(5,1),FloorPoint(5,2.6),FloorPoint(3.4,2.6)],facingEdge:0),
-        try? StageObstacle(name:"기물 3",kind:.box,vertices:[FloorPoint(9.2,1.2),FloorPoint(10.8,1.2),FloorPoint(10.8,2.8),FloorPoint(9.2,2.8)]),
+        try? StageObstacle(name:L("기물 1"),kind:.box,vertices:[FloorPoint(1.2,4.8),FloorPoint(2.8,4.8),FloorPoint(2.8,6.4),FloorPoint(1.2,6.4)]),
+        try? StageObstacle(name:L("기물 2"),kind:.platform,vertices:[FloorPoint(3.4,1),FloorPoint(5,1),FloorPoint(5,2.6),FloorPoint(3.4,2.6)],facingEdge:0),
+        try? StageObstacle(name:L("기물 3"),kind:.box,vertices:[FloorPoint(9.2,1.2),FloorPoint(10.8,1.2),FloorPoint(10.8,2.8),FloorPoint(9.2,2.8)]),
     ].compactMap {$0}
     static func pageCount(step: Int) -> Int {step == 1 ? 2 : 1}
     var body: some View {
@@ -35,7 +35,7 @@ struct PreparationIntro: View {
                 Button {show(nil)} label: {
                     Image(systemName:"xmark").font(.system(size:17,weight:.semibold)).foregroundStyle(.white)
                         .frame(width:40,height:40).background(ScanChrome.close,in:Circle())
-                }.buttonStyle(.plain).padding(16).accessibilityLabel("안내 닫기")
+                }.buttonStyle(.plain).padding(16).accessibilityLabel(L("안내 닫기"))
             }
             .overlay(alignment:.bottom) {
                 if Self.pageCount(step:step) > 1 {
@@ -68,8 +68,8 @@ private struct PreparationIntroPage: View {
                 }
                 // The same two buttons only change their titles between pages, so 「시작하기」 does not pop in.
                 HStack(spacing:6) {
-                    ScanCardButton(title:page == 0 ? "다시보지 않기" : "이전으로",primary:false) {show(page == 0 ? nil : page-1)}
-                    ScanCardButton(title:last ? "시작하기" : "다음으로") {show(last ? nil : page+1)}
+                    ScanCardButton(title:page == 0 ? L("다시보지 않기") : L("이전으로"),primary:false) {show(page == 0 ? nil : page-1)}
+                    ScanCardButton(title:last ? L("시작하기") : L("다음으로")) {show(last ? nil : page+1)}
                 }
             }.frame(width:306,alignment:.leading).frame(maxHeight:.infinity)
         }
@@ -93,20 +93,20 @@ private struct PreparationIntroPage: View {
     }
     private var title: String {
         switch step {
-        case 0: return "공연장 전체를 스캔해주세요"
-        case 1: return page == 0 ? "공연할 영역을 정해주세요" : "물체의 포인트 추가"
-        case 2: return "기물을 미리 표시해주세요"
-        case 3: return "움직일 동선 찍기"
-        default: return "확인점 찍기"
+        case 0: return L("공연장 전체를 스캔해주세요")
+        case 1: return page == 0 ? L("공연할 영역을 정해주세요") : L("물체의 포인트 추가")
+        case 2: return L("기물을 미리 표시해주세요")
+        case 3: return L("움직일 동선 찍기")
+        default: return L("확인점 찍기")
         }
     }
     private var detail: String {
         switch step {
-        case 0: return "휴대폰을 양손으로 잡고 천천히 움직여주세요. 공연 확정 후에는 스캔 단계로 다시 되돌아 올 수 없어요."
-        case 1: return page == 0 ? "실제로 공연할 영역을\n직사각형 모양의 영역으로 지정해주세요\n입장과 퇴장공간은 무대 밖에 있어도 괜찮아요" : "객석 기준 정면 오른쪽 → 정면 왼쪽\n→ 후면 왼쪽 → 후면 오른쪽 순서예요.\n각 점들은 자동으로 연결돼요."
-        case 2: return "기물 추가를 통해 십자선을 기준으로 기물의 둘레를 따라 점을 추가한 후 바라볼 방향을 추가해주세요"
-        case 3: return "출발점과 도착점은 무대 밖에서도 지정이 가능해요. 중간 지점은 무대 영역안에 놓아주세요. 모든 점들을 포함하여 최대 \(StageRoute.maxPointCount)개의 점을 지정할 수 있어요"
-        default: return "+버튼을 눌러 십자선 위치에 확인점을 추가해주세요."
+        case 0: return L("휴대폰을 양손으로 잡고 천천히 움직여주세요. 공연 확정 후에는 스캔 단계로 다시 되돌아 올 수 없어요.")
+        case 1: return page == 0 ? L("실제로 공연할 영역을\n직사각형 모양의 영역으로 지정해주세요\n입장과 퇴장공간은 무대 밖에 있어도 괜찮아요") : L("객석 기준 정면 오른쪽 → 정면 왼쪽\n→ 후면 왼쪽 → 후면 오른쪽 순서예요.\n각 점들은 자동으로 연결돼요.")
+        case 2: return L("기물 추가를 통해 십자선을 기준으로 기물의 둘레를 따라 점을 추가한 후 바라볼 방향을 추가해주세요")
+        case 3: return L("출발점과 도착점은 무대 밖에서도 지정이 가능해요. 중간 지점은 무대 영역안에 놓아주세요. 모든 점들을 포함하여 최대 %@개의 점을 지정할 수 있어요", StageRoute.maxPointCount)
+        default: return L("+버튼을 눌러 십자선 위치에 확인점을 추가해주세요.")
         }
     }
 }
@@ -131,7 +131,7 @@ private struct BoundaryIntroArt: View {
                         dot
                     }.frame(width:dotSize+ring*2,height:dotSize+ring*2).offset(x:dotSize/2+ring,y:dotSize/2+ring)
                 }
-            Text("객석").font(HearFont.pretendard(.semibold,size:16)).foregroundStyle(.white)
+            Text(L("객석")).font(HearFont.pretendard(.semibold,size:16)).foregroundStyle(.white)
         }.frame(maxWidth:.infinity,maxHeight:.infinity).accessibilityHidden(true)
     }
     private var dotSize: CGFloat {placed ? 10 : 8.66}
@@ -229,7 +229,7 @@ private struct ScanHandsIntroArt: View {
                 }
                 .offset(x:sway,y:lift)
                 .frame(width:220,height:56)
-                Text("천천히, 양손으로").font(HearFont.pretendard(.medium,size:11)).foregroundStyle(.white.opacity(0.6))
+                Text(L("천천히, 양손으로")).font(HearFont.pretendard(.medium,size:11)).foregroundStyle(.white.opacity(0.6))
             }.frame(maxWidth:.infinity,maxHeight:.infinity).accessibilityHidden(true)
         }
     }
@@ -319,7 +319,7 @@ private struct BoundaryPlacingArt: View {
                         layer.stroke(Path(ellipseIn:CGRect(x:p.x-r+1.08,y:p.y-r+1.08,width:r*2-2.16,height:r*2-2.16)),with:.color(Self.green),lineWidth:2.16)
                     }
                 }.frame(width:180,height:104).padding(.top,-12)
-                Text("객석").font(HearFont.pretendard(.semibold,size:16)).foregroundStyle(.white)
+                Text(L("객석")).font(HearFont.pretendard(.semibold,size:16)).foregroundStyle(.white)
             }.frame(maxWidth:.infinity,maxHeight:.infinity).accessibilityHidden(true)
         }
     }
@@ -337,6 +337,6 @@ struct ScanPageDots: View {
                 Circle().fill(.white.opacity(i == current ? 1 : 0.4)).frame(width:6,height:6)
             }
         }.padding(.horizontal,12).frame(height:Self.height).background(.black.opacity(0.3),in:Capsule())
-            .accessibilityElement().accessibilityLabel("\(count)장 중 \(current+1)장")
+            .accessibilityElement().accessibilityLabel(L("%@장 중 %@장", count, current+1))
     }
 }

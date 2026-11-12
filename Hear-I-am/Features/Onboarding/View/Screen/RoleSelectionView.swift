@@ -1,13 +1,14 @@
 import SwiftUI
+import HearIAmCore
 
 enum HearRole: String, CaseIterable, Identifiable {
     case performer, helper
     var id:String {rawValue}
-    var title:String {self == .performer ? "공연자" : "조력자"}
-    var detail:String {self == .performer ? "음성 안내를 따라\n무대에서 이동해요." : "무대를 스캔하고\n공연 동선을 준비해요."}
+    var title:String {self == .performer ? L("공연자") : L("조력자")}
+    var detail:String {self == .performer ? L("음성 안내를 따라\n무대에서 이동해요.") : L("무대를 스캔하고\n공연 동선을 준비해요.")}
     /// The landing page's wording and photo (Figma 476:3188 · 476:3193).
-    var landingTitle:String {self == .performer ? "아티스트" : "조력자"}
-    var landingDetail:String {self == .performer ? "시각 장애 예술가들을\n위한 음성 안내" : "아티스트의 무대와\n동선을 준비하고 관리"}
+    var landingTitle:String {self == .performer ? L("아티스트") : L("조력자")}
+    var landingDetail:String {self == .performer ? L("시각 장애 예술가들을\n위한 음성 안내") : L("아티스트의 무대와\n동선을 준비하고 관리")}
     var landingImage:String {self == .performer ? "LandingArtist" : "LandingHelper"}
 }
 
@@ -173,10 +174,10 @@ struct RoleSelectionView: View {
                         if risen {HearStrokeLogo(size:pageLogo)}
                     }.frame(width:pageLogo,height:pageLogo).padding(.top,pageTop)
                     VStack(spacing:2) {
-                        Text("사용자를 선택해주세요").font(HearFont.pretendard(.bold,size:28)).tracking(-0.84).foregroundStyle(.white)
+                        Text(L("사용자를 선택해주세요")).font(HearFont.pretendard(.bold,size:28)).tracking(-0.84).foregroundStyle(.white)
                             .frame(height:LandingStyle.titleHeight)
                             .accessibilityAddTraits(.isHeader)
-                        Text("사용자에 따라 앱 사용 환경이 달라져요").font(HearFont.pretendard(.medium,size:20)).tracking(-0.6)
+                        Text(L("사용자에 따라 앱 사용 환경이 달라져요")).font(HearFont.pretendard(.medium,size:20)).tracking(-0.6)
                             .foregroundStyle(LandingStyle.secondary)
                             .frame(height:LandingStyle.subtitleHeight)
                     }.multilineTextAlignment(.center).lineLimit(1).minimumScaleFactor(0.8).padding(.horizontal,20)
@@ -193,7 +194,7 @@ struct RoleSelectionView: View {
                 }.frame(maxWidth:.infinity).opacity(launching ? 0 : 1)
                 Button {showingSettings=true} label: {ScanCircleLabel(systemImage:"gearshape")}
                     .buttonStyle(.plain).frame(maxWidth:.infinity,alignment:.trailing).padding(.trailing,18).padding(.top,14)
-                    .accessibilityLabel("설정").accessibilityIdentifier("role.settings")
+                    .accessibilityLabel(L("설정")).accessibilityIdentifier("role.settings")
                     .opacity(launching ? 0 : 1)
                 // Launch layout (971:17057): the wordmark 36pt under the logo, which sits above the screen's centre.
                 Text("Hear I am").font(HearFont.suitExtraLight(size:40)).foregroundStyle(.white).fixedSize()
@@ -212,7 +213,7 @@ struct RoleSelectionView: View {
             }
             .safeAreaInset(edge:.bottom,spacing:0) {
                 Button {if let selected {select(selected)}} label: {
-                    Text("선택한 사용자로 시작하기").font(HearFont.pretendard(.semibold,size:16))
+                    Text(L("선택한 사용자로 시작하기")).font(HearFont.pretendard(.semibold,size:16))
                         .foregroundStyle(selected == nil ? LandingStyle.dimButtonText : LandingStyle.canvas)
                         .frame(maxWidth:.infinity).frame(height:50)
                         .background(selected == nil ? LandingStyle.dimButton : Color.white,in:Capsule())
@@ -220,7 +221,7 @@ struct RoleSelectionView: View {
                     .padding(.horizontal,20).padding(.bottom,6)
                     .opacity(launching ? 0 : 1)
                     .accessibilityIdentifier("role.continue")
-                    .accessibilityHint(selected == nil ? "먼저 사용자를 선택해주세요" : "")
+                    .accessibilityHint(selected == nil ? L("먼저 사용자를 선택해주세요") : "")
             }
             .toolbar(.hidden,for:.navigationBar)
             .navigationDestination(isPresented:$showingSettings) {HomeSettingsView()}

@@ -8,17 +8,17 @@ extension PreparationViewModel {
     var saveRecoveryMessage: String? {
         guard draft.errors.isEmpty, !busy else { return nil }
         if session.canSave {
-            return session.saveRecoveryPending ? "추적과 공간 지도가 안정됐어요. 입력한 내용 그대로 다시 저장할 수 있습니다." : nil
+            return session.saveRecoveryPending ? L("추적과 공간 지도가 안정됐어요. 입력한 내용 그대로 다시 저장할 수 있습니다.") : nil
         }
-        return "무대·동선·확인점 입력은 유지됩니다. 주변의 무늬나 고정된 기물을 천천히 비춰주세요. 추적과 공간 지도가 안정되면 저장 버튼이 활성화됩니다."
+        return L("무대·동선·확인점 입력은 유지됩니다. 주변의 무늬나 고정된 기물을 천천히 비춰주세요. 추적과 공간 지도가 안정되면 저장 버튼이 활성화됩니다.")
     }
     var isSaving: Bool { busy && review }
     func save() {
         // Keep the generated name stable across retries; classification never gates the scan save.
-        if scanName == "무대 스캔" || scanName.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty {
+        if scanName == "무대 스캔" || scanName == L("무대 스캔") || scanName.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty {
             let formatter=DateFormatter()
-            formatter.locale=Locale(identifier:"ko_KR")
-            formatter.dateFormat="M월 d일 HH:mm 무대"
+            formatter.locale=HearLanguage.current.locale
+            formatter.dateFormat=L("M월 d일 HH:mm 무대")
             scanName=formatter.string(from:Date())
         }
         session.save(name:scanName)

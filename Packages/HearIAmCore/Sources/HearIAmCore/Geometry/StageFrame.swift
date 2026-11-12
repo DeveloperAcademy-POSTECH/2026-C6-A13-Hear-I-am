@@ -12,7 +12,7 @@ public struct StageFrame: Codable, Equatable, Sendable {
     public func validate() throws {
         let delta=front.vector-origin.vector
         guard origin.valid, front.valid, hypot(delta.x,delta.z) >= 0.5,
-              abs(delta.y) <= 0.15 else { throw LabError.invalid("기준 O와 정면 F는 같은 바닥에서 0.5m 이상 떨어져야 합니다.") }
+              abs(delta.y) <= 0.15 else { throw LabError.invalid(L("기준 O와 정면 F는 같은 바닥에서 0.5m 이상 떨어져야 합니다.")) }
     }
     private var back: SIMD3<Double> {
         let d=front.vector-origin.vector

@@ -26,7 +26,7 @@ struct GuidanceReplayView: View {
         ZStack {
             Color(GuidanceReplayScene.background).ignoresSafeArea()
             GuidanceReplaySceneView(player:player).ignoresSafeArea()
-                .accessibilityLabel("저장된 경로와 실제로 걸은 길을 다시 보는 3D 화면. 한 손가락으로 돌리고 두 손가락으로 옮기거나 확대해요.")
+                .accessibilityLabel(L("저장된 경로와 실제로 걸은 길을 다시 보는 3D 화면. 한 손가락으로 돌리고 두 손가락으로 옮기거나 확대해요."))
         }
         .overlay(alignment:.bottom) {
             glassGroup {
@@ -78,7 +78,7 @@ struct GuidanceReplayView: View {
                         .foregroundStyle(.white).contentTransition(.symbolEffect(.replace))
                         .frame(width:44,height:44).contentShape(Rectangle())
                 }.buttonStyle(.plain).disabled(player.replay.duration<=0)
-                    .accessibilityLabel(player.isPlaying ? "일시정지" : "재생")
+                    .accessibilityLabel(player.isPlaying ? L("일시정지") : L("재생"))
                     .transition(.scale(scale:0.2,anchor:.leading).combined(with:.opacity))
             }
             track
@@ -100,8 +100,8 @@ struct GuidanceReplayView: View {
                     withAnimation(Self.barSpring) {scrubbing=false}
                 }
                 .sensoryFeedback(.selection,trigger:passedTicks) {_,_ in scrubbing}
-                .accessibilityElement(children:.ignore).accessibilityLabel("재생 위치")
-                .accessibilityValue("\(Self.clock(player.time)), 전체 \(Self.clock(player.replay.duration))")
+                .accessibilityElement(children:.ignore).accessibilityLabel(L("재생 위치"))
+                .accessibilityValue(L("%@, 전체 %@", Self.clock(player.time), Self.clock(player.replay.duration)))
                 .accessibilityAdjustableAction {direction in
                     switch direction {
                     case .increment: player.seek(player.time+5)
@@ -171,24 +171,24 @@ struct GuidanceReplayView: View {
             Image(systemName:muted ? "speaker.slash" : "speaker.wave.2.fill").font(.system(size:15,weight:.semibold))
                 .foregroundStyle(.white).contentTransition(.symbolEffect(.replace))
                 .frame(width:50,height:50).liquidGlass(Circle(),tint:.white.opacity(0.05),interactive:true).contentShape(Circle())
-        }.buttonStyle(.plain).accessibilityLabel(muted ? "소리 켜기" : "소리 끄기")
-            .accessibilityHint("재생하면서 지점 도착과 경로 이탈을 읽어 줘요.")
+        }.buttonStyle(.plain).accessibilityLabel(muted ? L("소리 켜기") : L("소리 끄기"))
+            .accessibilityHint(L("재생하면서 지점 도착과 경로 이탈을 읽어 줘요."))
     }
 
     // MARK: ⋯ menu (971:31656)
 
     private var moreMenu: some View {
         Menu {
-            Button {player.cameraMode = .overview;player.cameraRevision+=1} label: {Label("시점 초기화",systemImage:"arrow.counterclockwise")}
+            Button {player.cameraMode = .overview;player.cameraRevision+=1} label: {Label(L("시점 초기화"),systemImage:"arrow.counterclockwise")}
             Button {player.cameraMode=player.cameraMode == .overhead ? .overview : .overhead} label: {
-                Label(player.cameraMode == .overhead ? "기본 시점으로 보기" : "동선 위에서 보기",systemImage:"eye")
+                Label(player.cameraMode == .overhead ? L("기본 시점으로 보기") : L("동선 위에서 보기"),systemImage:"eye")
             }
             if let onDelete {
                 Divider()
-                Button(role:.destructive,action:onDelete) {Label("현재 기록 삭제",systemImage:"trash")}
+                Button(role:.destructive,action:onDelete) {Label(L("현재 기록 삭제"),systemImage:"trash")}
             }
         } label: {HearTopButtonLabel(systemImage:"ellipsis")}
-            .buttonStyle(.plain).accessibilityLabel("기록 메뉴")
+            .buttonStyle(.plain).accessibilityLabel(L("기록 메뉴"))
     }
 
     // MARK: Narration
@@ -202,8 +202,8 @@ struct GuidanceReplayView: View {
     }
     private func spokenLine(_ event: GuidanceReplayEvent) -> String? {
         switch event.kind {
-        case .arrival(let index): return "\(player.record.route.pointLabel(at:index)) 도착"
-        case .finish: return "마지막 지점 도착"
+        case .arrival(let index): return L("%@ 도착", player.record.route.pointLabel(at:index))
+        case .finish: return L("마지막 지점 도착")
         case .status(let status):
             switch status {
             case .offRoute,.outsideStage,.obstacle: return status.title

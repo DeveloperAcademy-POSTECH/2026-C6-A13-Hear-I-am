@@ -20,7 +20,7 @@ public struct StagePlanReference: Equatable, Sendable {
 extension PreparationDraft {
     /// Read-only projection; editing the stage changes the reference, never the captured input.
     public func reference(for plan: PerformancePlan) throws -> StagePlanReference {
-        guard let area else { throw LabError.invalid("무대의 네 모서리를 먼저 지정해주세요.") }
+        guard let area else { throw LabError.invalid(L("무대의 네 모서리를 먼저 지정해주세요.")) }
         return try StagePlanReference(plan:plan,area:area)
     }
 }

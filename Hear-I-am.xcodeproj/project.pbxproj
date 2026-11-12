@@ -145,6 +145,7 @@
 		09588E9CD51BFF368A2FFB97 /* GuidanceViewModel+VoiceRehearsal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A9984F195ECC33D4E06F459 /* GuidanceViewModel+VoiceRehearsal.swift */; };
 		9A04B3BE74BB776D91D90F68 /* HearSiriIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECFEF84B528B216C84395DC2 /* HearSiriIntents.swift */; };
 		8F40D1C8A65D0733A98D1981 /* AppShortcuts.strings in Resources */ = {isa = PBXBuildFile; fileRef = 9AEAB7E2E56E0E21AFBB462A /* AppShortcuts.strings */; };
+		875C5A01477AD93138CE7A26 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = BA47829792CDC32F4E1F0A95 /* InfoPlist.strings */; };
 		A1F5517F75F3F5B11192D19E /* VoiceSpeechAnalyzer.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7092C3E04E0456BEC977054 /* VoiceSpeechAnalyzer.swift */; };
 		6371ABD800B8B17213085363 /* VoiceRecognitionInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = 841C6CF2B6F5DDFE4345DC9E /* VoiceRecognitionInput.swift */; };
 		A4DDB9B8BC188CE5B66B8D25 /* VoiceNarrationPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4E89113328340EDC5CBE49C /* VoiceNarrationPlayer.swift */; };
@@ -318,6 +319,8 @@
 		ECFEF84B528B216C84395DC2 /* HearSiriIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "HearSiriIntents.swift"; sourceTree = "<group>"; };
 		D24CD3352517A80985F40132 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = "Hear-I-am/en.lproj/AppShortcuts.strings"; sourceTree = SOURCE_ROOT; };
 		FD9DCF93CC13C6AD65803A0E /* ko */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ko; path = "Hear-I-am/ko.lproj/AppShortcuts.strings"; sourceTree = SOURCE_ROOT; };
+		8960BD9172CCF29B470E6761 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = "Hear-I-am/en.lproj/InfoPlist.strings"; sourceTree = SOURCE_ROOT; };
+		84293CD250D948FC5BD03B4B /* ko */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ko; path = "Hear-I-am/ko.lproj/InfoPlist.strings"; sourceTree = SOURCE_ROOT; };
 		E7092C3E04E0456BEC977054 /* VoiceSpeechAnalyzer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "VoiceSpeechAnalyzer.swift"; sourceTree = "<group>"; };
 		841C6CF2B6F5DDFE4345DC9E /* VoiceRecognitionInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "VoiceRecognitionInput.swift"; sourceTree = "<group>"; };
 		D4E89113328340EDC5CBE49C /* VoiceNarrationPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "VoiceNarrationPlayer.swift"; sourceTree = "<group>"; };
@@ -844,6 +847,7 @@
 				CEF3295A562F96FC1DE68889 /* Assets.xcassets */,
 				2FE25071A0B95163D391C2C2 /* Localizable.strings */,
 				9AEAB7E2E56E0E21AFBB462A /* AppShortcuts.strings */,
+				BA47829792CDC32F4E1F0A95 /* InfoPlist.strings */,
 				75897F93E4C7DD266125D339 /* PrivacyInfo.xcprivacy */,
 				D44F4CE6A8C292BF30224E80 /* ReplayModels.scnassets */,
 			);
@@ -1231,6 +1235,7 @@
 				0A253829E02E693820910F8B /* ReplayModels.scnassets in Resources */,
 				1C02C217DC70C12AE3B89B70 /* Localizable.strings in Resources */,
 				8F40D1C8A65D0733A98D1981 /* AppShortcuts.strings in Resources */,
+				875C5A01477AD93138CE7A26 /* InfoPlist.strings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1409,6 +1414,15 @@
 				FD9DCF93CC13C6AD65803A0E /* ko */,
 			);
 			name = AppShortcuts.strings;
+			sourceTree = "<group>";
+		};
+		BA47829792CDC32F4E1F0A95 /* InfoPlist.strings */ = {
+			isa = PBXVariantGroup;
+			children = (
+				8960BD9172CCF29B470E6761 /* en */,
+				84293CD250D948FC5BD03B4B /* ko */,
+			);
+			name = InfoPlist.strings;
 			sourceTree = "<group>";
 		};
 		2FE25071A0B95163D391C2C2 /* Localizable.strings */ = {

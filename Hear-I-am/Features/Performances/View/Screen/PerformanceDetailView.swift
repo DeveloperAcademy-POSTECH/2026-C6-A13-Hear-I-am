@@ -38,14 +38,14 @@ struct PerformanceDetailView: View {
                     referenceSection
                     VStack(spacing: 16) {
                         HStack {
-                            PerformanceSectionTitle(text: "공연 및 연습 공간")
+                            PerformanceSectionTitle(text: L("공연 및 연습 공간"))
                             Spacer()
-                            Button { spaceName = ""; creatingSpace = true } label: { PerformanceOutlineButtonLabel(title: "추가하기", systemImage: "plus") }
+                            Button { spaceName = ""; creatingSpace = true } label: { PerformanceOutlineButtonLabel(title: L("추가하기"), systemImage: "plus") }
                                 .buttonStyle(.plain).accessibilityIdentifier("performance.space.create")
                         }.padding(.horizontal, 4)
-                        PerformanceSearchField(text: $query, prompt: "공연 및 연습 공간 검색")
+                        PerformanceSearchField(text: $query, prompt: L("공연 및 연습 공간 검색"))
                         if spaces.isEmpty {
-                            PerformanceEmptyCard(systemImage: "folder", text: query.isEmpty ? "공간을\n추가해주세요" : "검색한 공간이\n없습니다").padding(.top, 20)
+                            PerformanceEmptyCard(systemImage: "folder", text: query.isEmpty ? L("공간을\n추가해주세요") : L("검색한 공간이\n없습니다")).padding(.top, 20)
                         } else {
                             LazyVStack(spacing: 6) {
                                 ForEach(spaces) { space in
@@ -54,8 +54,8 @@ struct PerformanceDetailView: View {
                                                              count: library.scans(in: performanceID, venueID: space.id, includeAllVenues: false).count)
                                     }.accessibilityIdentifier("performance.space.\(space.id.uuidString)")
                                         .contextMenu {
-                                            Button("이름 변경", systemImage: "pencil") { spaceName = space.name; renamingSpace = space }
-                                            Button("공간 폴더 삭제", systemImage: "trash", role: .destructive) { deletingSpace = space }
+                                            Button(L("이름 변경"), systemImage: "pencil") { spaceName = space.name; renamingSpace = space }
+                                            Button(L("공간 폴더 삭제"), systemImage: "trash", role: .destructive) { deletingSpace = space }
                                         }
                                 }
                             }
@@ -64,26 +64,26 @@ struct PerformanceDetailView: View {
                             NavigationLink {
                                 PerformanceSpaceView(library: library, performanceID: performanceID, venueID: nil, onStartGuidance: onStartGuidance)
                             } label: {
-                                HStack { Label("공간 미지정", systemImage: "tray"); Spacer(); Text("\(unfiled.count)"); Image(systemName: "chevron.right") }
+                                HStack { Label(L("공간 미지정"), systemImage: "tray"); Spacer(); Text("\(unfiled.count)"); Image(systemName: "chevron.right") }
                                     .font(.subheadline).padding(20).background(HearV3.surface, in: RoundedRectangle(cornerRadius: 16))
                             }.buttonStyle(.plain)
                         }
                     }.padding(.horizontal, 16)
                 }.padding(.top, 28).padding(.bottom, 24)
-            } else { ContentUnavailableView("공연을 찾을 수 없어요", systemImage: "folder.badge.questionmark") }
+            } else { ContentUnavailableView(L("공연을 찾을 수 없어요"), systemImage: "folder.badge.questionmark") }
         }
         #if DEBUG
         .defaultScrollAnchor(ProcessInfo.processInfo.arguments.contains("--scroll-bottom") ? .bottom : .top)
         #endif
         .v3Screen()
-            .hearTopBar(folder?.name ?? "공연 관리") { HearBackButton() } trailing: {
+            .hearTopBar(folder?.name ?? L("공연 관리")) { HearBackButton() } trailing: {
                 // 971:36544: edit and delete; linking saved scans stays between them.
                 Menu {
-                    Button("공연 정보 수정", systemImage: "pencil") { editing = true }
-                    Button("저장된 스캔 연결", systemImage: "link") { linking = true }
-                    Button("공연 폴더 삭제", systemImage: "trash", role: .destructive) { deleting = true }
+                    Button(L("공연 정보 수정"), systemImage: "pencil") { editing = true }
+                    Button(L("저장된 스캔 연결"), systemImage: "link") { linking = true }
+                    Button(L("공연 폴더 삭제"), systemImage: "trash", role: .destructive) { deleting = true }
                 } label: { HearTopButtonLabel(systemImage: "ellipsis") }
-                    .buttonStyle(.plain).accessibilityLabel("공연 관리 메뉴").disabled(busy)
+                    .buttonStyle(.plain).accessibilityLabel(L("공연 관리 메뉴")).disabled(busy)
             }
             .sheet(isPresented: $editing) { if let folder { PerformanceEditorSheet(library: library, folder: folder) { _ in }.suspendsVoiceWake() } }
             .sheet(isPresented: $linking) { PerformanceLinkStagesView(library: library, performanceID: performanceID).suspendsVoiceWake() }
@@ -108,25 +108,25 @@ struct PerformanceDetailView: View {
             .sheet(isPresented: $creatingSpace) {
                 PerformanceSpaceSearchSheet { name in spaceName = name; creatingSpace = false; saveSpace() }.suspendsVoiceWake()
             }
-            .alert("공간 이름 변경", isPresented: Binding(get: { renamingSpace != nil }, set: { if !$0 { renamingSpace = nil } })) {
-                TextField("공간 이름", text: $spaceName)
-                Button("저장") { let id = renamingSpace?.id; saveSpace(id: id) }.disabled(spaceName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                Button("취소", role: .cancel) { renamingSpace = nil }
+            .alert(L("공간 이름 변경"), isPresented: Binding(get: { renamingSpace != nil }, set: { if !$0 { renamingSpace = nil } })) {
+                TextField(L("공간 이름"), text: $spaceName)
+                Button(L("저장")) { let id = renamingSpace?.id; saveSpace(id: id) }.disabled(spaceName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                Button(L("취소"), role: .cancel) { renamingSpace = nil }
             }
             // 971:36590: deleting a space asks the same way as deleting the performance folder.
-            .hearConfirm("‘\(deletingSpace?.name ?? "")’ 공간 폴더를 삭제할까요?", isPresented: Binding(get: { deletingSpace != nil }, set: { if !$0 { deletingSpace = nil } }),
-                         message: "이 공간 폴더가 삭제돼요.\n스캔한 무대와 사진은 ‘공간 미지정’에 남아요.") {
+            .hearConfirm(L("‘%@’ 공간 폴더를 삭제할까요?", deletingSpace?.name ?? ""), isPresented: Binding(get: { deletingSpace != nil }, set: { if !$0 { deletingSpace = nil } }),
+                         message: L("이 공간 폴더가 삭제돼요.\n스캔한 무대와 사진은 ‘공간 미지정’에 남아요.")) {
                 if let space = deletingSpace { deleteSpace(space.id) }
             }
             // 971:36590: an alert over the page. The message says what really goes: the folder, its scenes and
             // spaces; the scans themselves stay, unfiled.
-            .hearConfirm("‘\(folder?.name ?? "")’ 공연 폴더를 삭제할까요?", isPresented: $deleting,
-                         message: "스캔한 무대와 사진, 기본 동선, 공연 및 연습 공간이 함께 삭제돼요.\n안내 기록은 남아요.") { deleteFolder() }
+            .hearConfirm(L("‘%@’ 공연 폴더를 삭제할까요?", folder?.name ?? ""), isPresented: $deleting,
+                         message: L("스캔한 무대와 사진, 기본 동선, 공연 및 연습 공간이 함께 삭제돼요.\n안내 기록은 남아요.")) { deleteFolder() }
             .onChange(of: plans.map(\.id)) { _, ids in
                 if let selectedSceneID, !ids.contains(selectedSceneID) { self.selectedSceneID = ids.first }
             }
-            .alert("변경하지 못했어요", isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
-                Button("확인", role: .cancel) { error = nil }
+            .alert(L("변경하지 못했어요"), isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
+                Button(L("확인"), role: .cancel) { error = nil }
             } message: { Text(error ?? "") }
     }
     /// Every route on this performance, in the order of the space list: each space's scanned scenes, the unfiled ones,
@@ -141,16 +141,16 @@ struct PerformanceDetailView: View {
         let focused = cards.first { $0.id == focusedCard } ?? cards.first
         return VStack(spacing: 16) {
             HStack {
-                PerformanceSectionTitle(text: "기본 동선")
+                PerformanceSectionTitle(text: L("기본 동선"))
                 Spacer()
                 // 편집 opens the route editor on the route the carousel is showing, scanned or drawn.
-                Button { selectedSceneID = focused?.id ?? cards.first?.id; editingScenes = true } label: { PerformanceOutlineButtonLabel(title: "편집", systemImage: "pencil") }
+                Button { selectedSceneID = focused?.id ?? cards.first?.id; editingScenes = true } label: { PerformanceOutlineButtonLabel(title: L("편집"), systemImage: "pencil") }
                     .buttonStyle(.plain).accessibilityIdentifier("performance.scenes.edit")
             }.padding(.horizontal, 20)
             if cards.isEmpty {
                 // Figma 971:32413: a 200pt card of white 5%, the route symbol and 「기본동선을 추가해주세요」 in grey.
                 Button { editingScenes = true } label: {
-                    PerformanceEmptyCard(systemImage: "point.topleft.down.to.point.bottomright.curvepath", text: "기본동선을\n추가해주세요")
+                    PerformanceEmptyCard(systemImage: "point.topleft.down.to.point.bottomright.curvepath", text: L("기본동선을\n추가해주세요"))
                         .background(.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
                 }.buttonStyle(.plain).padding(.horizontal, 18)
             } else {
@@ -166,7 +166,7 @@ struct PerformanceDetailView: View {
                                     ReferenceSceneCard(plan: card.plan, height: card.height(width: width))
                                         .frame(width: width, height: rowHeight, alignment: .top)
                                         .contentShape(Rectangle())
-                                }.buttonStyle(PerformanceCardPressStyle()).id(card.id).accessibilityLabel("\(card.label), 열기")
+                                }.buttonStyle(PerformanceCardPressStyle()).id(card.id).accessibilityLabel(L("%@, 열기", card.label))
                             }
                         }.scrollTargetLayout()
                     }.contentMargins(.horizontal, 18, for: .scrollContent).scrollTargetBehavior(.viewAligned)
@@ -184,7 +184,7 @@ struct PerformanceDetailView: View {
                         ForEach(cards) { card in
                             Circle().fill(focused?.id == card.id ? HearV3.text : HearV3.secondary.opacity(0.4)).frame(width: 6, height: 6)
                         }
-                    }.accessibilityElement(children: .ignore).accessibilityLabel("동선 \(cards.count)개 중 \((cards.firstIndex { $0.id == focused?.id } ?? 0) + 1)번째")
+                    }.accessibilityElement(children: .ignore).accessibilityLabel(L("동선 %@개 중 %@번째", cards.count, (cards.firstIndex { $0.id == focused?.id } ?? 0) + 1))
                 }
             }
         }.animation(.easeInOut(duration: 0.2), value: focusedCard)
@@ -240,17 +240,17 @@ struct PerformanceSpaceSearchSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            PerformanceSearchField(text: $query, prompt: "공연장 이름이나 주소 검색", clears: false)
+            PerformanceSearchField(text: $query, prompt: L("공연장 이름이나 주소 검색"), clears: false)
                 .padding(.horizontal, 14)
                 .padding(.top, 16)
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     if typed.isEmpty {
                         // 872:3484 · 971:32566: 「최근 검색」 then 「주변 공연장」, each a 20pt heading over its rows.
-                        if !recents.isEmpty { section("최근 검색", recents.prefix(3).map { $0 }, hideLastDivider: false) }
-                        if !nearby.places.isEmpty { section("주변 공연장", nearby.places.map(Self.place), hideLastDivider: true) }
+                        if !recents.isEmpty { section(L("최근 검색"), recents.prefix(3).map { $0 }, hideLastDivider: false) }
+                        if !nearby.places.isEmpty { section(L("주변 공연장"), nearby.places.map(Self.place), hideLastDivider: true) }
                         if recents.isEmpty && nearby.places.isEmpty {
-                            Text(nearby.searching ? "주변 공연장을 찾고 있어요" : "공연장 이름이나 주소로 검색해보세요")
+                            Text(nearby.searching ? L("주변 공연장을 찾고 있어요") : L("공연장 이름이나 주소로 검색해보세요"))
                                 .font(HearFont.pretendard(.regular, size: 14)).foregroundStyle(HearV3.secondary).frame(maxWidth: .infinity, minHeight: 160)
                         }
                     } else {
@@ -264,7 +264,7 @@ struct PerformanceSpaceSearchSheet: View {
                                 row(matches[index], last: index == matches.count - 1)
                             }
                             if !searching && !nearby.completing && matches.isEmpty {
-                                Text("검색 결과가 없어요. 우측 상단 체크를 누르면 「\(typed)」 이름으로 추가해요.")
+                                Text(L("검색 결과가 없어요. 우측 상단 체크를 누르면 「%@」 이름으로 추가해요.", typed))
                                     .font(HearFont.pretendard(.regular, size: 14))
                                     .foregroundStyle(HearV3.secondary).multilineTextAlignment(.center).frame(maxWidth: .infinity, minHeight: 120)
                             }
@@ -274,9 +274,9 @@ struct PerformanceSpaceSearchSheet: View {
             }.scrollDismissesKeyboard(.interactively)
         }
             .safeAreaInset(edge: .top, spacing: 0) {
-                HearTopBar(title: "공간 추가", sheet: true, leading: ScanCircleButton(systemImage: "xmark", label: "닫기") { dismiss() },
+                HearTopBar(title: L("공간 추가"), sheet: true, leading: ScanCircleButton(systemImage: "xmark", label: L("닫기")) { dismiss() },
                            trailing: Button { choose(Place(name: typed, address: "")) } label: { HearTopButtonLabel(systemImage: "checkmark", prominent: true) }
-                    .buttonStyle(.plain).disabled(typed.isEmpty).opacity(typed.isEmpty ? 0.45 : 1).accessibilityLabel("입력한 이름으로 추가"))
+                    .buttonStyle(.plain).disabled(typed.isEmpty).opacity(typed.isEmpty ? 0.45 : 1).accessibilityLabel(L("입력한 이름으로 추가")))
             }
             .hearSheet()
             .task { nearby.start() }
@@ -373,7 +373,7 @@ struct PerformanceSpaceSearchSheet: View {
     private static let defaultKoreaLocation = CLLocation(latitude: 36.0190, longitude: 129.3435)
     private static let koreanRegions = [
         "대한민국", "서울", "부산", "대구", "인천", "광주", "대전", "울산", "세종",
-        "경기", "강원", "충북", "충청", "전북", "전라", "경북", "경상", "제주"
+        "경기", "강원", "충북", L("충청"), "전북", L("전라"), "경북", L("경상"), "제주"
     ]
 
     @Published private(set) var places: [MKMapItem] = []
@@ -568,7 +568,7 @@ struct PerformanceRouteCard: Identifiable {
     /// Stage depth over width; a scanned stage keeps its own proportions, so its card is taller or shorter.
     let aspect: Double
     init(plan: PerformancePlan) {
-        id = plan.id; self.plan = plan; label = "기본 동선(\(plan.name))"; venueID = nil; isScan = false
+        id = plan.id; self.plan = plan; label = L("기본 동선(%@)", plan.name); venueID = nil; isScan = false
         aspect = PerformancePlan.depth / PerformancePlan.width
     }
     /// The scan's route, scaled from its measured stage onto the 12 × 8 schematic, as the route editor opens it.
@@ -596,20 +596,20 @@ struct PerformanceLinkStagesView: View {
     var body:some View {
         NavigationStack {
             List {
-                Section {Text("스캔한 무대를 선택해주세요. 다른 공연에 연결된 무대는 이 공연으로 옮겨집니다.").font(.subheadline).foregroundStyle(.secondary)}
-                if scans.isEmpty {ContentUnavailableView("연결할 무대가 없어요",systemImage:"building.2",description:Text(query.isEmpty ? "스캔 탭에서 무대를 먼저 저장해주세요." : "다른 이름으로 검색해주세요."))}
+                Section {Text(L("스캔한 무대를 선택해주세요. 다른 공연에 연결된 무대는 이 공연으로 옮겨집니다.")).font(.subheadline).foregroundStyle(.secondary)}
+                if scans.isEmpty {ContentUnavailableView(L("연결할 무대가 없어요"),systemImage:"building.2",description:Text(query.isEmpty ? L("스캔 탭에서 무대를 먼저 저장해주세요.") : L("다른 이름으로 검색해주세요.")))}
                 ForEach(scans,id:\.id) {scan in
                     Button {if selected.contains(scan.id) {selected.remove(scan.id)} else {selected.insert(scan.id)}} label:{
                         HStack {
-                            VStack(alignment:.leading,spacing:5) {Text(scan.name);Text(library.catalog.folder(for:scan.id)?.name ?? "분류 필요").font(.caption).foregroundStyle(.secondary)}
+                            VStack(alignment:.leading,spacing:5) {Text(scan.name);Text(library.catalog.folder(for:scan.id)?.name ?? L("분류 필요")).font(.caption).foregroundStyle(.secondary)}
                             Spacer();Image(systemName:selected.contains(scan.id) ? "checkmark.circle.fill" : "circle")
                         }.frame(minHeight:48)
                     }.buttonStyle(.plain).accessibilityAddTraits(selected.contains(scan.id) ? .isSelected : [])
                 }
-            }.scrollContentBackground(.hidden).clearNavigationBackground().navigationTitle("무대 연결").navigationBarTitleDisplayMode(.inline)
-                .searchable(text:$query,prompt:"무대 또는 공연 이름 검색")
-                .toolbar {ToolbarItem(placement:.cancellationAction) {Button("닫기",systemImage:"xmark") {dismiss()}.labelStyle(.iconOnly)}}
-                .safeAreaInset(edge:.bottom) {Button("선택한 \(selected.count)개 연결") {classificationIDs=Array(selected);classifying=true}.buttonStyle(V3PrimaryButtonStyle()).disabled(selected.isEmpty).padding(20)}
+            }.scrollContentBackground(.hidden).clearNavigationBackground().navigationTitle(L("무대 연결")).navigationBarTitleDisplayMode(.inline)
+                .searchable(text:$query,prompt:L("무대 또는 공연 이름 검색"))
+                .toolbar {ToolbarItem(placement:.cancellationAction) {Button(L("닫기"),systemImage:"xmark") {dismiss()}.labelStyle(.iconOnly)}}
+                .safeAreaInset(edge:.bottom) {Button(L("선택한 %@개 연결", selected.count)) {classificationIDs=Array(selected);classifying=true}.buttonStyle(V3PrimaryButtonStyle()).disabled(selected.isEmpty).padding(20)}
                 .sheet(isPresented:$classifying) {StageClassificationView(library:library,scanIDs:classificationIDs,initialPerformanceID:performanceID) {_ in dismiss()}.suspendsVoiceWake()}
         }.hearSheet()
     }

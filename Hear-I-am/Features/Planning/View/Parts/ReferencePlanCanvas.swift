@@ -86,7 +86,7 @@ struct ReferencePlanCanvas: View {
                 }.onEnded { _ in onDragEnded?() })
                 .allowsHitTesting(onTap != nil)
         }.accessibilityElement(children: .ignore)
-            .accessibilityLabel("\(plan.name), 동선 \(plan.points.count)지점, 기물과 세트 \(plan.objects.count)개")
+            .accessibilityLabel(L("%@, 동선 %@지점, 기물과 세트 %@개", plan.name, plan.points.count, plan.objects.count))
     }
     static let point = Color(red: 0, green: 0.92, blue: 0.62)
     static let line = Color(red: 0.12, green: 0.55, blue: 0.40)

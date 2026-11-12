@@ -17,9 +17,9 @@ public struct StageRoute: Codable, Equatable, Sendable {
         return values[index]
     }
     public mutating func setFacing(_ facing: StageFacing?, at index: Int) throws {
-        guard points.indices.contains(index) else { throw LabError.invalid("경로점을 찾을 수 없습니다.") }
+        guard points.indices.contains(index) else { throw LabError.invalid(L("경로점을 찾을 수 없습니다.")) }
         var values=pointFacings ?? Array(repeating:nil,count:points.count)
-        guard values.count == points.count else { throw LabError.invalid("경로점 방향 개수가 맞지 않습니다.") }
+        guard values.count == points.count else { throw LabError.invalid(L("경로점 방향 개수가 맞지 않습니다.")) }
         values[index]=facing;pointFacings=values
     }
     public static let maximumHoldSeconds = 3600
@@ -29,10 +29,10 @@ public struct StageRoute: Codable, Equatable, Sendable {
     }
     public mutating func setHoldSeconds(_ seconds: Int, at index: Int) throws {
         guard index > 0, index < points.count-1, (0...Self.maximumHoldSeconds).contains(seconds) else {
-            throw LabError.invalid("중간 경로점의 안내 대기 시간을 0~3600초로 입력해주세요.")
+            throw LabError.invalid(L("중간 경로점의 안내 대기 시간을 0~3600초로 입력해주세요."))
         }
         var values=pointHoldSeconds ?? Array(repeating:0,count:points.count)
-        guard values.count == points.count else { throw LabError.invalid("경로점 대기 시간 개수가 맞지 않습니다.") }
+        guard values.count == points.count else { throw LabError.invalid(L("경로점 대기 시간 개수가 맞지 않습니다.")) }
         values[index]=seconds; pointHoldSeconds=values
     }
     public var pointNames: [String]
@@ -59,35 +59,35 @@ public struct StageRoute: Codable, Equatable, Sendable {
     }
     public func validate() throws {
         try area.validate()
-        if let values=pointFacings, values.count != points.count { throw LabError.invalid("경로점 방향 개수가 맞지 않습니다.") }
+        if let values=pointFacings, values.count != points.count { throw LabError.invalid(L("경로점 방향 개수가 맞지 않습니다.")) }
         if let values=pointHoldSeconds {
             guard values.count == points.count, values.allSatisfy({(0...Self.maximumHoldSeconds).contains($0)}),
                   values.first == 0, values.last == 0 else {
-                throw LabError.invalid("경로점 대기 시간은 중간 지점만 0~3600초로 설정할 수 있습니다.")
+                throw LabError.invalid(L("경로점 대기 시간은 중간 지점만 0~3600초로 설정할 수 있습니다."))
             }
         }
         if let pointHeights {
             guard pointHeights.count == points.count, pointHeights.allSatisfy({$0.isFinite}) else {
-                throw LabError.invalid("경로 지점의 높이 정보가 올바르지 않습니다.")
+                throw LabError.invalid(L("경로 지점의 높이 정보가 올바르지 않습니다."))
             }
         }
         guard Set(dangerZones.map(\.edge)).count == dangerZones.count else {
-            throw LabError.invalid("같은 무대 변에 위험 구역을 중복 설정할 수 없습니다.")
+            throw LabError.invalid(L("같은 무대 변에 위험 구역을 중복 설정할 수 없습니다."))
         }
         guard [1,2].contains(version), ((version == 2 ? 3 : 2)...Self.maxPointCount).contains(points.count), points.allSatisfy(\.valid),
-              Set(obstacles.map(\.id)).count == obstacles.count else { throw LabError.invalid("경로 버전, 순서 또는 점 개수가 유효하지 않습니다.") }
-        for o in obstacles { try o.validate(); guard o.vertices.allSatisfy({area.contains($0)}) else { throw LabError.invalid("기물이 무대 밖에 있습니다.") } }
+              Set(obstacles.map(\.id)).count == obstacles.count else { throw LabError.invalid(L("경로 버전, 순서 또는 점 개수가 유효하지 않습니다.")) }
+        for o in obstacles { try o.validate(); guard o.vertices.allSatisfy({area.contains($0)}) else { throw LabError.invalid(L("기물이 무대 밖에 있습니다.")) } }
     }
     /// Display labels per route point (#76): start is 「출발」, finished last point is 「도착」,
     /// points inside a chair/stairs boundary count per kind (「의자1」, 「계단1」), and floor points count as 「P1」, 「P2」.
     public static func pointLabels(points: [FloorPoint], obstacles: [StageObstacle], finished: Bool = true) -> [String] {
         var floorCount=0, chairCount=0, stairsCount=0
         return points.indices.map { i in
-            if i == 0 { return "출발" }
-            if finished && i == points.count-1 { return "도착" }
+            if i == 0 { return L("출발") }
+            if finished && i == points.count-1 { return L("도착") }
             if let step=obstacles.first(where: { $0.isStep && $0.contains(points[i]) }) {
-                if step.kind == .stairs { stairsCount += 1; return "계단\(stairsCount)" }
-                chairCount += 1; return "의자\(chairCount)"
+                if step.kind == .stairs { stairsCount += 1; return L("계단%@", stairsCount) }
+                chairCount += 1; return L("의자%@", chairCount)
             }
             floorCount += 1; return "P\(floorCount)"
         }
@@ -124,44 +124,59 @@ public struct StageRoute: Codable, Equatable, Sendable {
     /// What guidance refuses a route for (see the stage selection), said for people, with the points named as on
     /// screen: 출발, P1…, 도착.
     public func guidanceConflicts(_ settings: GuideSettings) -> [String] {
-        let label={(text: String) -> String in
-            guard let i=Int(text) else {return text}
-            return i == 0 ? "출발" : i == points.count-1 ? "도착" : "P\(i)"
-        }
-        let rules: [(String,([String]) -> String)] = [
-            (#"^p(\d+)가 무대 경계 여유 밖입니다$"#, {"\(label($0[0])) 지점이 무대 가장자리에 너무 가까워요."}),
-            (#"^p(\d+)→p(\d+) 선분이 너무 짧습니다$"#, {"\(label($0[0]))→\(label($0[1])) 구간이 너무 짧아요."}),
-            (#"^p(\d+)→p(\d+)이 (.+) 통과 금지 측면 또는 여유 영역과 겹칩니다$"#, {"\(label($0[0]))→\(label($0[1])) 구간이 \($0[2])에 너무 가까워요."}),
-        ]
-        return conflicts(boundaryMargin:settings.boundaryMargin,obstacleClearance:settings.obstacleClearance).map {line in
-            let range=NSRange(line.startIndex...,in:line)
-            for (pattern,say) in rules {
-                guard let match=try? NSRegularExpression(pattern:pattern).firstMatch(in:line,range:range) else {continue}
-                let parts=(1..<match.numberOfRanges).compactMap {Range(match.range(at:$0),in:line).map {String(line[$0])}}
-                return say(parts)
+        let label={(i: Int) -> String in i == 0 ? L("출발") : i == points.count-1 ? L("도착") : "P\(i)"}
+        return issues(boundaryMargin:settings.boundaryMargin,obstacleClearance:settings.obstacleClearance).map {issue in
+            switch issue {
+            case .settings: return L("여유 거리 설정 오류")
+            case .margin(let i): return L("%@ 지점이 무대 가장자리에 너무 가까워요.", label(i))
+            case .short(let i): return L("%@→%@ 구간이 너무 짧아요.", label(i), label(i+1))
+            case .blocked(let i,let name): return L("%@→%@ 구간이 %@에 너무 가까워요.", label(i), label(i+1), name)
             }
-            return line
         }
     }
     public func conflicts(boundaryMargin: Double, obstacleClearance: Double) -> [String] {
-        guard boundaryMargin >= 0, obstacleClearance >= 0 else { return ["여유 거리 설정 오류"] }
-        var result=[String]()
-        for i in points.indices where !(version == 2 && (i == 0 || i == points.count-1)) && !area.contains(points[i],margin:boundaryMargin) {
-            result.append("p\(i)가 무대 경계 여유 밖입니다")
-        }
-        return result + travelConflicts(obstacleClearance:obstacleClearance)
+        issues(boundaryMargin:boundaryMargin,obstacleClearance:obstacleClearance).map(Self.describe)
     }
     /// Segment checks independent of the stage rectangle, also used by temporary LiDAR-bound approaches.
     public func travelConflicts(obstacleClearance: Double) -> [String] {
-        guard obstacleClearance.isFinite, obstacleClearance >= 0 else { return ["여유 거리 설정 오류"] }
-        var result=[String]()
+        travelIssues(obstacleClearance:obstacleClearance).map(Self.describe)
+    }
+
+    /// One reason a route cannot be walked. Kept as data so each caller words it for its own reader, in the
+    /// app's language, instead of reading a sentence back apart (#183).
+    private enum Issue {
+        case settings
+        /// Point `i` is too near the stage edge.
+        case margin(Int)
+        /// The stretch from point `i` to the next is too short.
+        case short(Int)
+        /// The stretch from point `i` to the next runs into the named object.
+        case blocked(Int,String)
+    }
+    private static func describe(_ issue: Issue) -> String {
+        switch issue {
+        case .settings: return L("여유 거리 설정 오류")
+        case .margin(let i): return L("p%@가 무대 경계 여유 밖입니다", i)
+        case .short(let i): return L("p%@→p%@ 선분이 너무 짧습니다", i, i+1)
+        case .blocked(let i,let name): return L("p%@→p%@이 %@ 통과 금지 측면 또는 여유 영역과 겹칩니다", i, i+1, name)
+        }
+    }
+    private func issues(boundaryMargin: Double, obstacleClearance: Double) -> [Issue] {
+        guard boundaryMargin >= 0, obstacleClearance >= 0 else { return [.settings] }
+        var result=[Issue]()
+        for i in points.indices where !(version == 2 && (i == 0 || i == points.count-1)) && !area.contains(points[i],margin:boundaryMargin) {
+            result.append(.margin(i))
+        }
+        return result + travelIssues(obstacleClearance:obstacleClearance)
+    }
+    private func travelIssues(obstacleClearance: Double) -> [Issue] {
+        guard obstacleClearance.isFinite, obstacleClearance >= 0 else { return [.settings] }
+        var result=[Issue]()
         if points.count > 1 {
             for i in 0..<(points.count-1) {
                 let a=points[i], b=points[i+1]
-                if a.distance(to:b) < 0.05 { result.append("p\(i)→p\(i+1) 선분이 너무 짧습니다") }
-                for o in obstacles where o.blocksTravel(from:a,to:b,clearance:obstacleClearance) {
-                    result.append("p\(i)→p\(i+1)이 \(o.name) 통과 금지 측면 또는 여유 영역과 겹칩니다")
-                }
+                if a.distance(to:b) < 0.05 { result.append(.short(i)) }
+                for o in obstacles where o.blocksTravel(from:a,to:b,clearance:obstacleClearance) { result.append(.blocked(i,o.name)) }
             }
         }
         return result
