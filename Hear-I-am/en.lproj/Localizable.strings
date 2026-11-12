@@ -590,8 +590,6 @@
 "받아쓰기가 꺼져 있어 음성을 들을 수 없어요. 설정 > 일반 > 키보드에서 받아쓰기를 켠 뒤 앱으로 돌아오면 다시 들어요." = "Dictation is off, so I can't hear you. Turn on Enable Dictation in Settings > General > Keyboard, then come back to the app and I'll listen again.";
 "받아쓰기" = "Dictation";
 "받아쓰기를 확인해요" = "Check Dictation";
-"이 권한을 요청해요" = "Asks for this permission";
-"설정 앱을 열어요" = "Opens the Settings app";
 "확인 중" = "Checking";
 "켜짐" = "On";
 "꺼짐" = "Off";
@@ -846,6 +844,7 @@
 "아" = "ah";
 "아아" = "ahh";
 "아요" = "ahh";
+"아이폰 설정 열기 버튼" = "Open iPhone Settings button";
 "아직 스캔된\n동선이 없어요" = "No routes\nscanned yet";
 "아직 저장된 기록이 없어요" = "No saved records yet";
 "아직 저장된 장면이 없어요" = "No saved scenes yet";
