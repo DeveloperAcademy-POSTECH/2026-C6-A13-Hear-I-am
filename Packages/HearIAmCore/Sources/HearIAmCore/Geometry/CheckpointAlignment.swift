@@ -21,16 +21,16 @@ public struct CheckpointAlignment: Equatable, Sendable {
     public init(saved: [Point3], observed: [Point3]) throws {
         guard saved.count == 2, observed.count == 2,
               (saved+observed).allSatisfy({$0.valid}) else {
-            throw LabError.invalid("확인점 1번과 2번을 순서대로 측정해주세요.")
+            throw LabError.invalid(L("확인점 1번과 2번을 순서대로 측정해주세요."))
         }
         let a=saved[0], b=saved[1], u=observed[0], v=observed[1]
         let sx=b.x-a.x, sz=b.z-a.z, ox=v.x-u.x, oz=v.z-u.z
         let sl=hypot(sx,sz), ol=hypot(ox,oz)
         guard sl >= Self.minimumSeparation, ol >= Self.minimumSeparation else {
-            throw LabError.invalid("두 확인점은 수평으로 1m 이상 떨어져야 합니다.")
+            throw LabError.invalid(L("두 확인점은 수평으로 1m 이상 떨어져야 합니다."))
         }
         guard abs(a.y-u.y) <= Self.maximumHeightError, abs(b.y-v.y) <= Self.maximumHeightError else {
-            throw LabError.invalid("저장한 바닥 높이와 맞지 않아요. 두 확인점을 다시 측정해주세요.")
+            throw LabError.invalid(L("저장한 바닥 높이와 맞지 않아요. 두 확인점을 다시 측정해주세요."))
         }
         savedCenter=Point3((a.x+b.x)/2,0,(a.z+b.z)/2)
         observedCenter=Point3((u.x+v.x)/2,0,(u.z+v.z)/2)
@@ -38,13 +38,13 @@ public struct CheckpointAlignment: Equatable, Sendable {
         lengthDifference=abs(sl-ol)
         residual=max(hypot(lengthDifference/2,a.y-u.y),hypot(lengthDifference/2,b.y-v.y))
         guard translation <= Self.maximumTranslation else {
-            throw LabError.invalid("위치 보정량이 50cm를 넘어요. 공간을 다시 불러오고 표식을 확인해주세요.")
+            throw LabError.invalid(L("위치 보정량이 50cm를 넘어요. 공간을 다시 불러오고 표식을 확인해주세요."))
         }
         guard abs(yawDegrees) <= Self.maximumYawDegrees else {
-            throw LabError.invalid("회전 보정량이 10도를 넘어요. 확인점 1·2의 순서와 공간 복원을 확인해주세요.")
+            throw LabError.invalid(L("회전 보정량이 10도를 넘어요. 확인점 1·2의 순서와 공간 복원을 확인해주세요."))
         }
         guard lengthDifference <= Self.maximumLengthDifference, residual <= Self.maximumResidual else {
-            throw LabError.invalid("두 점 사이 거리 또는 바닥 높이가 맞지 않아요. 1번부터 다시 측정해주세요.")
+            throw LabError.invalid(L("두 점 사이 거리 또는 바닥 높이가 맞지 않아요. 1번부터 다시 측정해주세요."))
         }
     }
     public func apply(_ p: Point3) -> Point3 {

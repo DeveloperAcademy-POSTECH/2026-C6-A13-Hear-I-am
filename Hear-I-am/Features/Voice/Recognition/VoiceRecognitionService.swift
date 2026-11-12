@@ -12,7 +12,7 @@ import HearIAmCore
     @Published private(set) var isAvailable = false
     @Published private(set) var isRecovering = false
     @Published private(set) var transcript = ""
-    @Published private(set) var statusMessage = "음성 입력이 꺼져 있어요"
+    @Published private(set) var statusMessage = L("음성 입력이 꺼져 있어요")
 
     var onSpeechDetected: (() -> Void)?
     var onTranscript: ((String) -> Void)?
@@ -81,7 +81,7 @@ import HearIAmCore
     override init() {
         super.init()
         narration.onEngineUnavailable = { [weak self] in
-            self?.recover("오디오 연결을 다시 준비하고 있어요", restartAudio: true, source: "narration_engine_stopped")
+            self?.recover(L("오디오 연결을 다시 준비하고 있어요"), restartAudio: true, source: "narration_engine_stopped")
         }
         let center = NotificationCenter.default
         observers.append(center.addObserver(forName: VoiceLanguageModelBuilder.vocabularyInvalidated, object: nil, queue: .main) { [weak self] _ in
@@ -112,7 +112,7 @@ import HearIAmCore
             let raw = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt
             guard raw == AVAudioSession.InterruptionType.began.rawValue else { return }
             Task { @MainActor [weak self] in
-                self?.stopForExternalChange("다른 소리가 시작되어 음성 입력을 멈췄어요. 잠시 뒤 다시 들을게요.", restorePlayback: false)
+                self?.stopForExternalChange(L("다른 소리가 시작되어 음성 입력을 멈췄어요. 잠시 뒤 다시 들을게요."), restorePlayback: false)
             }
         })
         observers.append(center.addObserver(forName: AVAudioSession.routeChangeNotification, object: nil, queue: .main) { [weak self] notification in
@@ -120,12 +120,12 @@ import HearIAmCore
             guard let raw, let reason = AVAudioSession.RouteChangeReason(rawValue: raw),
                   [.newDeviceAvailable, .oldDeviceUnavailable, .noSuitableRouteForCategory, .override].contains(reason) else { return }
             Task { @MainActor [weak self] in
-                self?.stopForExternalChange("마이크 연결이 바뀌었어요. 잠시 뒤 다시 들을게요.")
+                self?.stopForExternalChange(L("마이크 연결이 바뀌었어요. 잠시 뒤 다시 들을게요."))
             }
         })
         observers.append(center.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { [weak self] _ in
             Task { @MainActor [weak self] in
-                self?.stopForExternalChange("화면을 벗어나 음성 입력을 멈췄어요. 앱으로 돌아오면 다시 들어요.", restorePlayback: false)
+                self?.stopForExternalChange(L("화면을 벗어나 음성 입력을 멈췄어요. 앱으로 돌아오면 다시 들어요."), restorePlayback: false)
             }
         })
     }
@@ -154,13 +154,13 @@ import HearIAmCore
         stop()
         let identifier = UUID()
         sessionID = identifier
-        statusMessage = "마이크와 음성 인식을 준비하고 있어요"
+        statusMessage = L("마이크와 음성 인식을 준비하고 있어요")
         let microphoneAllowed = await withCheckedContinuation { continuation in
             AVAudioApplication.requestRecordPermission { continuation.resume(returning: $0) }
         }
         guard sessionID == identifier else { return }
         guard microphoneAllowed else {
-            failPermanently("마이크 권한이 필요해요. 설정에서 마이크 접근을 허용해주세요.")
+            failPermanently(L("마이크 권한이 필요해요. 설정에서 마이크 접근을 허용해주세요."))
             return
         }
         let authorization = await withCheckedContinuation { continuation in
@@ -168,15 +168,15 @@ import HearIAmCore
         }
         guard sessionID == identifier else { return }
         guard authorization == .authorized else {
-            failPermanently("음성 인식 권한이 필요해요. 설정에서 음성 인식을 허용해주세요.")
+            failPermanently(L("음성 인식 권한이 필요해요. 설정에서 음성 인식을 허용해주세요."))
             return
         }
-        guard let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "ko-KR")), recognizer.isAvailable else {
-            failPermanently("이 기기에서 한국어 음성 인식을 사용할 수 없어요. 버튼으로 진행해주세요.")
+        guard let recognizer = SFSpeechRecognizer(locale: Locale(identifier: HearLanguage.current.speechCode)), recognizer.isAvailable else {
+            failPermanently(L("이 기기에서 한국어 음성 인식을 사용할 수 없어요. 버튼으로 진행해주세요."))
             return
         }
         guard recognizer.supportsOnDeviceRecognition else {
-            failPermanently("이 기기는 기기 내 한국어 인식을 사용할 수 없어요. 이번 실험은 음성을 서버로 전송하지 않아요.")
+            failPermanently(L("이 기기는 기기 내 한국어 인식을 사용할 수 없어요. 이번 실험은 음성을 서버로 전송하지 않아요."))
             return
         }
         self.recognizer = recognizer
@@ -214,7 +214,7 @@ import HearIAmCore
             beginTurn()
         } catch {
             trace("Voice input session failed: \(String(describing: error))", level: .error)
-            failPermanently("마이크를 준비할 수 없어요. 화면 버튼으로 진행해주세요. 앱을 다시 열면 다시 들어요.")
+            failPermanently(L("마이크를 준비할 수 없어요. 화면 버튼으로 진행해주세요. 앱을 다시 열면 다시 들어요."))
         }
     }
 
@@ -296,7 +296,7 @@ import HearIAmCore
                 self.scheduleNextTurn(after: 0)
                 return
             }
-            self.recover("오디오 연결을 다시 준비하고 있어요", restartAudio: true, source: "engine_configuration")
+            self.recover(L("오디오 연결을 다시 준비하고 있어요"), restartAudio: true, source: "engine_configuration")
         }
     }
 
@@ -314,7 +314,7 @@ import HearIAmCore
             onRecoveryReady?()
         }
         guard wantsListening, self.turnID == turnID else { return }
-        statusMessage = "말씀하시면 들을게요"
+        statusMessage = L("말씀하시면 들을게요")
         // The UI and ready chime subscribe to this value. Task creation is not microphone readiness.
         isListening = true
     }
@@ -328,7 +328,7 @@ import HearIAmCore
                 let now = ProcessInfo.processInfo.systemUptime
                 let timedOut = !self.turnInputConfirmed && now - self.turnStartedAt >= 4
                 if timedOut || self.inputBridge.isStalled(at: now) {
-                    self.recover("마이크 입력을 다시 확인하고 있어요", restartAudio: true, source: timedOut ? "first_buffer_timeout" : "input_stalled")
+                    self.recover(L("마이크 입력을 다시 확인하고 있어요"), restartAudio: true, source: timedOut ? "first_buffer_timeout" : "input_stalled")
                     return
                 }
             }
@@ -339,7 +339,7 @@ import HearIAmCore
     func stop() {
         stopCapture(restorePlayback: true)
         transcript = ""
-        statusMessage = "음성 입력이 꺼져 있어요"
+        statusMessage = L("음성 입력이 꺼져 있어요")
     }
 
     /// Render narration through the same voice-processing engine as microphone capture.
@@ -436,18 +436,18 @@ import HearIAmCore
         guard wantsListening else { return }
         retryScheduled = false
         guard let recognizer = (listensInEnglish ? englishRecognizer : nil) ?? self.recognizer, recognizer.isAvailable else {
-            recover("음성 인식을 다시 연결하고 있어요", restartAudio: false, source: "recognizer_unavailable")
+            recover(L("음성 인식을 다시 연결하고 있어요"), restartAudio: false, source: "recognizer_unavailable")
             return
         }
         do {
             try prepareEngine()
             guard engine?.isRunning == true else {
-                recover("오디오 연결을 다시 준비하고 있어요", restartAudio: true, source: "engine_start_stopped")
+                recover(L("오디오 연결을 다시 준비하고 있어요"), restartAudio: true, source: "engine_start_stopped")
                 return
             }
         } catch {
             trace("Voice engine start failed: \(String(describing: error))", level: .error)
-            recover("마이크를 다시 연결하고 있어요", restartAudio: true, source: "engine_start_failed")
+            recover(L("마이크를 다시 연결하고 있어요"), restartAudio: true, source: "engine_start_failed")
             return
         }
         guard wantsListening else { return }
@@ -460,7 +460,7 @@ import HearIAmCore
         speechDetected = false
         finalizing = false
         transcript = ""
-        statusMessage = "마이크 입력을 확인하고 있어요"
+        statusMessage = L("마이크 입력을 확인하고 있어요")
         let sink: VoiceAudioSink
         if #available(iOS 26.0, *), !listensInEnglish, let format = analyzerFormat {
             let turn = VoiceAnalyzerTurn(locale: recognizer.locale, format: format, contextualStrings: contextualStrings,
@@ -507,7 +507,7 @@ import HearIAmCore
     func detectedSpeech(turnID: UUID) {
         guard self.turnID == turnID, wantsListening, turnInputConfirmed, engine?.isRunning == true, !speechDetected, !finalizing else { return }
         speechDetected = true
-        statusMessage = "듣고 있어요"
+        statusMessage = L("듣고 있어요")
         speechLimitTimer = Task { @MainActor [weak self] in
             do { try await Task.sleep(nanoseconds: 12_000_000_000) } catch { return }
             self?.finishInput(turnID: turnID, reason: "speech_limit")
@@ -519,7 +519,7 @@ import HearIAmCore
         guard self.turnID == turnID, wantsListening, turnInputConfirmed, engine?.isRunning == true, !finalizing else { return }
         var text = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
-        if !listensInEnglish { text = VoiceAutocorrect.correct(text, lexicon: autocorrectLexicon) }
+        if !listensInEnglish, !HearLanguage.current.isEnglish { text = VoiceAutocorrect.correct(text, lexicon: autocorrectLexicon) }
         // Some recognizer routes provide text before the optional detection delegate callback.
         detectedSpeech(turnID: turnID)
         guard self.turnID == turnID else { return }
@@ -530,7 +530,7 @@ import HearIAmCore
         }
         let changed = text != transcript || endpointTimer == nil
         transcript = text
-        statusMessage = "듣고 있어요"
+        statusMessage = L("듣고 있어요")
         onTranscript?(text)
         guard changed else { return }
         endpointTimer?.cancel()
@@ -550,7 +550,7 @@ import HearIAmCore
         inputVisualization.reset()
         microphoneTimer?.cancel(); microphoneTimer = nil
         isListening = false
-        statusMessage = "말씀을 확인하고 있어요"
+        statusMessage = L("말씀을 확인하고 있어요")
         endpointTimer?.cancel()
         speechLimitTimer?.cancel()
         taskLimitTimer?.cancel()
@@ -559,14 +559,14 @@ import HearIAmCore
         finalResultTimer = Task { @MainActor [weak self] in
             do { try await Task.sleep(nanoseconds: 3_000_000_000) } catch { return }
             guard let self, self.turnID == turnID else { return }
-            self.recognitionFailed("말씀을 끝까지 확인하지 못했어요. 다시 말씀해주세요.", turnID: turnID)
+            self.recognitionFailed(L("말씀을 끝까지 확인하지 못했어요. 다시 말씀해주세요."), turnID: turnID)
         }
     }
 
     func receivedFinal(_ text: String, alternatives: [String] = [], turnID: UUID) {
         guard self.turnID == turnID, wantsListening else { return }
         let heard = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        let text = listensInEnglish ? heard : VoiceAutocorrect.correct(heard, lexicon: autocorrectLexicon)
+        let text = listensInEnglish || HearLanguage.current.isEnglish ? heard : VoiceAutocorrect.correct(heard, lexicon: autocorrectLexicon)
         if text != heard { VoiceLog.write("voice_autocorrect", "\(heard) -> \(text)", screen: "") }
         if !text.isEmpty { detectedSpeech(turnID: turnID) }
         guard self.turnID == turnID, wantsListening else { return }
@@ -575,7 +575,7 @@ import HearIAmCore
             return
         }
         guard turnInputConfirmed else {
-            recover("마이크 입력을 다시 확인하고 있어요", restartAudio: false, source: "result_before_input")
+            recover(L("마이크 입력을 다시 확인하고 있어요"), restartAudio: false, source: "result_before_input")
             return
         }
         retireTurn()
@@ -584,7 +584,7 @@ import HearIAmCore
         lastAlternatives = alternatives.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty && seen.insert($0).inserted }
         transcript = text
         isListening = false
-        statusMessage = "말씀을 확인했어요"
+        statusMessage = L("말씀을 확인했어요")
         // turnID is invalidated before calling application code so duplicate final callbacks and
         // a cancellation delivered afterward can never execute the command a second time.
         onFinal?(text)
@@ -602,7 +602,7 @@ import HearIAmCore
                 do { try await Task.sleep(nanoseconds: 300_000_000) } catch { return }
                 guard let self, self.turnID == turnID else { return }
                 if self.speechDetected {
-                    self.recognitionFailed("말씀을 끝까지 확인하지 못했어요. 다시 말씀해주세요.", turnID: turnID)
+                    self.recognitionFailed(L("말씀을 끝까지 확인하지 못했어요. 다시 말씀해주세요."), turnID: turnID)
                 } else {
                     self.rearmAfterSilence()
                 }
@@ -613,10 +613,10 @@ import HearIAmCore
         } else if errorDomain == "kLSRErrorDomain", errorCode == 201 {
             // Siri and Dictation are off: on-device recognition fails at once on every retry (16 Pro Max, 10/27).
             trace("Recognition unavailable: Siri and Dictation disabled (kLSRErrorDomain 201)", level: .error)
-            failPermanently("받아쓰기가 꺼져 있어 음성을 들을 수 없어요. 설정 > 일반 > 키보드에서 받아쓰기를 켠 뒤 앱으로 돌아오면 다시 들어요.")
+            failPermanently(L("받아쓰기가 꺼져 있어 음성을 들을 수 없어요. 설정 > 일반 > 키보드에서 받아쓰기를 켠 뒤 앱으로 돌아오면 다시 들어요."))
         } else {
             trace("Recognition task failed: domain=\(errorDomain ?? "none") code=\(errorCode ?? 0)", level: .error)
-            recognitionFailed("음성을 확인하지 못했어요. 다시 들을게요.", turnID: turnID)
+            recognitionFailed(L("음성을 확인하지 못했어요. 다시 들을게요."), turnID: turnID)
         }
     }
 
@@ -624,12 +624,12 @@ import HearIAmCore
         // An immediate empty/no-speech result is not proof of a healthy microphone. Bound those
         // retries too, while allowing ordinary long idle recognition turns to rotate silently.
         guard turnInputConfirmed, ProcessInfo.processInfo.systemUptime - turnStartedAt >= 2 else {
-            recover("음성 입력을 다시 확인하고 있어요", restartAudio: engine?.isRunning != true, source: "premature_empty_result")
+            recover(L("음성 입력을 다시 확인하고 있어요"), restartAudio: engine?.isRunning != true, source: "premature_empty_result")
             return
         }
         retireTurn()
         isListening = false
-        statusMessage = "말씀하시면 다시 들을게요"
+        statusMessage = L("말씀하시면 다시 들을게요")
         // Idle/no-speech rollover must not pause an otherwise healthy walking session.
         if discardCommand { onRecoverableError?(statusMessage) }
         scheduleNextTurn(after: 0.5)
@@ -644,7 +644,7 @@ import HearIAmCore
         guard wantsListening, !retryScheduled else { return }
         guard let delay = recovery.nextDelay() else {
             trace("Voice input recovery exhausted", level: .error)
-            failPermanently("음성 입력을 연결하지 못했어요. 화면 버튼으로 진행해주세요. 앱을 다시 열면 다시 들어요.")
+            failPermanently(L("음성 입력을 연결하지 못했어요. 화면 버튼으로 진행해주세요. 앱을 다시 열면 다시 들어요."))
             return
         }
         VoiceLog.write("voice_recover", source, screen: "")

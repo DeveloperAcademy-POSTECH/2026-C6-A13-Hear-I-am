@@ -1,4 +1,5 @@
 import SwiftUI
+import HearIAmCore
 
 extension View {
     func librarySelection(selecting: Bool, selected: Bool, onSelect: @escaping () -> Void, onToggle: @escaping () -> Void) -> some View {
@@ -6,7 +7,7 @@ extension View {
             .overlay {
                 if selecting {
                     Button(action:onToggle) {Color.clear.contentShape(Rectangle())}
-                        .buttonStyle(.plain).accessibilityLabel(selected ? "선택 해제" : "선택")
+                        .buttonStyle(.plain).accessibilityLabel(selected ? L("선택 해제") : L("선택"))
                 }
             }
             .overlay(alignment:.topLeading) {
@@ -19,6 +20,6 @@ extension View {
             .overlay(RoundedRectangle(cornerRadius:20).stroke(selected ? Color.hearGreen : .clear,lineWidth:2).allowsHitTesting(false))
             .contentShape(RoundedRectangle(cornerRadius:20))
             .highPriorityGesture(LongPressGesture(minimumDuration:0.45).onEnded {_ in onSelect()})
-            .accessibilityAction(named:"삭제할 항목으로 선택",onSelect)
+            .accessibilityAction(named:L("삭제할 항목으로 선택"),onSelect)
     }
 }

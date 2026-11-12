@@ -21,7 +21,7 @@ struct SavedPhotoImage: View {
                 }
                 else {Image(uiImage:image).resizable().scaledToFit()}
             }
-            else if failed {Label("사진을 불러올 수 없어요",systemImage:"photo.badge.exclamationmark").font(.caption).padding()}
+            else if failed {Label(L("사진을 불러올 수 없어요"),systemImage:"photo.badge.exclamationmark").font(.caption).padding()}
             else {ProgressView().padding()}
         }.task(id:"\(photo.id)-\(thumbnail)") {
             image=nil; failed=false
@@ -50,28 +50,28 @@ struct SavedPhotoViewpoint: View {
             GeometryReader { geometry in
                 ScrollView {
                     VStack(alignment:.leading,spacing:12) {
-                        Text("촬영 위치에서 본 3D 공간").font(.subheadline.weight(.semibold))
+                        Text(L("촬영 위치에서 본 3D 공간")).font(.subheadline.weight(.semibold))
                         SavedMeshView(scan:scan,model:model,photoViewpoint:photo)
                             .aspectRatio(aspect,contentMode:.fit)
                             .frame(maxWidth:.infinity,maxHeight:max(210,geometry.size.height*0.36))
                             .background(Color(.secondarySystemBackground),in:RoundedRectangle(cornerRadius:16))
                             .clipShape(RoundedRectangle(cornerRadius:16))
-                            .accessibilityLabel("사진을 촬영한 위치와 방향에서 본 3D 공간")
-                        Text("스캔 당시 사진").font(.subheadline.weight(.semibold))
+                            .accessibilityLabel(L("사진을 촬영한 위치와 방향에서 본 3D 공간"))
+                        Text(L("스캔 당시 사진")).font(.subheadline.weight(.semibold))
                         SavedPhotoImage(store:model.store,scanID:scan.manifest.id,photo:photo,thumbnail:false)
                             .aspectRatio(aspect,contentMode:.fit)
                             .frame(maxWidth:.infinity,maxHeight:max(210,geometry.size.height*0.36))
                             .background(Color(.secondarySystemBackground),in:RoundedRectangle(cornerRadius:16))
                             .clipShape(RoundedRectangle(cornerRadius:16))
                         if photo.projection == nil {
-                            Text("이전 사진은 화각·화면 회전 정보가 없어 가까운 구도로 표시해요.")
+                            Text(L("이전 사진은 화각·화면 회전 정보가 없어 가까운 구도로 표시해요."))
                                 .font(.caption).foregroundStyle(.secondary)
                         }
-                        Text("3D 화면에는 스캔된 표면만 나타나요.").font(.caption).foregroundStyle(.secondary)
+                        Text(L("3D 화면에는 스캔된 표면만 나타나요.")).font(.caption).foregroundStyle(.secondary)
                     }.padding(16)
                 }
-            }.v3Screen().navigationTitle("사진 시점 비교").navigationBarTitleDisplayMode(.inline)
-                .toolbar {ToolbarItem(placement:.confirmationAction) {Button("닫기") {dismiss()}}}
+            }.v3Screen().navigationTitle(L("사진 시점 비교")).navigationBarTitleDisplayMode(.inline)
+                .toolbar {ToolbarItem(placement:.confirmationAction) {Button(L("닫기")) {dismiss()}}}
         }
     }
 }

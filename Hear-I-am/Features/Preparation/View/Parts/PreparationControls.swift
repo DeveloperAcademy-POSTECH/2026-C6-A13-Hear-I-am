@@ -17,16 +17,16 @@ struct PreparationToolGroup: View {
                 undo(enabled:model.lastCapturedCorner != nil && !model.busy) {if let last=model.lastCapturedCorner {model.undoCorner(last)}}
                 // 위험 구역 and, when the performance has saved routes, 동선 불러오기 share one capsule (971:29464).
                 capsule {
-                    tool("exclamationmark.triangle.fill","위험 구역",enabled:draft.area != nil && !model.busy) {model.editingDangerZones=true}
+                    tool("exclamationmark.triangle.fill",L("위험 구역"),enabled:draft.area != nil && !model.busy) {model.editingDangerZones=true}
                     if hasPlans {
-                        tool("folder.fill",model.selectedPlan == nil ? "사전 저장 동선 불러오기" : "참고 동선 변경",enabled:draft.area != nil) {model.choosingPlan=true}
+                        tool("folder.fill",model.selectedPlan == nil ? L("사전 저장 동선 불러오기") : L("참고 동선 변경"),enabled:draft.area != nil) {model.choosingPlan=true}
                     }
                 }
             case .objects:
                 undo(enabled:model.objectEditing && !model.pendingObjectWorld.isEmpty) {model.undoObjectVertex()}
                 // The add-object symbol with a 23pt count 9pt above it: points of the object being drawn, else the
                 // objects registered (971:28573).
-                circle(ScanChrome.addObjectSymbol,model.objectEditing ? "기물 입력 중, 둘레 점 \(model.pendingObjectWorld.count)개" : "기물 추가, 등록한 기물 \(draft.objects.count)개",
+                circle(ScanChrome.addObjectSymbol,model.objectEditing ? L("기물 입력 중, 둘레 점 %@개", model.pendingObjectWorld.count) : L("기물 추가, 등록한 기물 %@개", draft.objects.count),
                        enabled:!model.objectEditing && draft.area != nil && !model.busy) {model.beginObject()}
                     .overlay(alignment:.top) {
                         Text("\(model.objectEditing ? model.pendingObjectWorld.count : draft.objects.count)").font(HearFont.pretendard(.regular,size:14)).foregroundStyle(.white)
@@ -37,15 +37,15 @@ struct PreparationToolGroup: View {
                 // Undo, the bin that clears the whole route and, rightmost, the destination flag (971:29061 plus the
                 // flag, 11/07: + places the start and the points between, the flag the last point).
                 undo(enabled:!draft.route.isEmpty && !model.busy) {model.undoRoutePoint()}
-                circle("trash","동선 전체 지우기",enabled:!draft.route.isEmpty && !model.busy) {model.resetStep()}
-                circle("flag.checkered","도착점 지정",enabled:!draft.routeFinished && draft.route.count>=2 && model.canPlacePoint && draft.area != nil) {model.addRoutePoint(destination:true)}
+                circle("trash",L("동선 전체 지우기"),enabled:!draft.route.isEmpty && !model.busy) {model.resetStep()}
+                circle("flag.checkered",L("도착점 지정"),enabled:!draft.routeFinished && draft.route.count>=2 && model.canPlacePoint && draft.area != nil) {model.addRoutePoint(destination:true)}
             case .checkpoint:
                 undo(enabled:draft.checkpoint != nil && !model.busy) {model.undoCheckpoint()}
             }
         }
     }
     private func undo(enabled: Bool, action: @escaping () -> Void) -> some View {
-        ScanCircleButton(systemImage:enabled ? "arrowshape.turn.up.backward.fill" : "arrowshape.turn.up.backward",label:"마지막 점 삭제",size:50,enabled:enabled,action:action)
+        ScanCircleButton(systemImage:enabled ? "arrowshape.turn.up.backward.fill" : "arrowshape.turn.up.backward",label:L("마지막 점 삭제"),size:50,enabled:enabled,action:action)
     }
     private func circle(_ systemImage: String, _ label: String, enabled: Bool, action: @escaping () -> Void) -> some View {
         ScanCircleButton(systemImage:systemImage,label:label,size:50,enabled:enabled,action:action)
@@ -75,28 +75,28 @@ struct PreparationControls: View {
             }
             switch model.step {
             case .scan:
-                ScanPrimaryButton(title:"스캔 완료",enabled:model.canConfirmScan) {model.confirmingScan=true}
+                ScanPrimaryButton(title:L("스캔 완료"),enabled:model.canConfirmScan) {model.confirmingScan=true}
             case .boundary:
-                ScanPrimaryButton(title:"지정 완료",enabled:draft.area != nil && !model.busy) {
+                ScanPrimaryButton(title:L("지정 완료"),enabled:draft.area != nil && !model.busy) {
                     if let plan=model.selectedPlan {model.selectReferencePlan(plan)} else {model.advance()}
                 }
             case .objects:
                 // While an object's points are being placed this registers it. With no point placed it ends the
                 // step: 「건너뛰기」 while no object is registered, 「지정 완료」 once one is (11/07).
                 if model.objectEditing && !model.pendingObjectWorld.isEmpty {
-                    ScanPrimaryButton(title:"지정 완료",enabled:model.pendingObjectWorld.count>=3) {model.commitObject()}
-                        .accessibilityHint("그린 기물을 등록해요")
+                    ScanPrimaryButton(title:L("지정 완료"),enabled:model.pendingObjectWorld.count>=3) {model.commitObject()}
+                        .accessibilityHint(L("그린 기물을 등록해요"))
                 } else {
-                    ScanPrimaryButton(title:draft.objects.isEmpty ? "건너뛰기" : "지정 완료",enabled:draft.objectErrors.isEmpty && !model.busy) {
+                    ScanPrimaryButton(title:draft.objects.isEmpty ? L("건너뛰기") : L("지정 완료"),enabled:draft.objectErrors.isEmpty && !model.busy) {
                         if model.objectEditing {model.cancelObject()}
                         model.advance()
-                    }.accessibilityHint(draft.objects.isEmpty ? "기물 없이 다음 단계로 넘어가요" : "기물 단계를 마쳐요")
+                    }.accessibilityHint(draft.objects.isEmpty ? L("기물 없이 다음 단계로 넘어가요") : L("기물 단계를 마쳐요"))
                 }
             case .route:
-                ScanPrimaryButton(title:"지정 완료",enabled:draft.routeFinished ? draft.routeErrors.isEmpty : draft.route.count>=2) {model.finishRoute()}
-                    .accessibilityHint("마지막 점을 도착점으로 하고 경로를 마쳐요")
+                ScanPrimaryButton(title:L("지정 완료"),enabled:draft.routeFinished ? draft.routeErrors.isEmpty : draft.route.count>=2) {model.finishRoute()}
+                    .accessibilityHint(L("마지막 점을 도착점으로 하고 경로를 마쳐요"))
             case .checkpoint:
-                ScanPrimaryButton(title:"지정 완료",enabled:draft.checkpoint != nil && draft.checkpointErrors.isEmpty) {model.review=true}
+                ScanPrimaryButton(title:L("지정 완료"),enabled:draft.checkpoint != nil && draft.checkpointErrors.isEmpty) {model.review=true}
             }
         }
     }
@@ -104,10 +104,10 @@ struct PreparationControls: View {
         let draft=model.draft
         switch model.step {
         case .scan: return ""
-        case .boundary: return "무대 \(model.nextCorner.map {PreparationStep.cornerNames[$0]} ?? "") 모서리 지정"
-        case .objects: return model.objectEditing ? "둘레 점 추가" : "기물 추가"
-        case .route: return "\(draft.nextRoutePointLabel(at:model.session.aimPoint)) 지정"
-        case .checkpoint: return model.nextCheckpoint.map {"확인점 \($0+1) 지정"} ?? "확인점 두 개 지정됨"
+        case .boundary: return L("무대 %@ 모서리 지정", model.nextCorner.map {PreparationStep.cornerNames[$0]} ?? "")
+        case .objects: return model.objectEditing ? L("둘레 점 추가") : L("기물 추가")
+        case .route: return L("%@ 지정", draft.nextRoutePointLabel(at:model.session.aimPoint))
+        case .checkpoint: return model.nextCheckpoint.map {L("확인점 %@ 지정", $0+1)} ?? L("확인점 두 개 지정됨")
         }
     }
 }

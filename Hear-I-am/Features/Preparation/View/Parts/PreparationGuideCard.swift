@@ -31,7 +31,7 @@ struct PreparationGuideCard: View {
             Capsule().fill(.white).frame(width:4,height:34).frame(width:22,height:64).contentShape(Rectangle())
                 .onTapGesture {withAnimation(.snappy(duration:0.35)) {model.guideCollapsed.toggle()}}
                 .accessibilityElement().accessibilityAddTraits(.isButton)
-                .accessibilityLabel(model.guideCollapsed ? "평면도 펼치기" : "평면도 접기")
+                .accessibilityLabel(model.guideCollapsed ? L("평면도 펼치기") : L("평면도 접기"))
                 .accessibilityAction {withAnimation(.snappy(duration:0.35)) {model.guideCollapsed.toggle()}}
             VStack(spacing:10) {
                 header
@@ -87,7 +87,7 @@ struct PreparationGuideCard: View {
             case .boundary:
                 // Picking a corner makes + place (or replace) it; the corner shown can be cleared here, as the
                 // panel's old 삭제하기 did (971:29655).
-                dropdown(model.nextCorner.map {PreparationStep.cornerNames[$0]} ?? "모서리") {
+                dropdown(model.nextCorner.map {PreparationStep.cornerNames[$0]} ?? L("모서리")) {
                     ForEach(PreparationDraft.captureOrder,id:\.self) {i in
                         Button {model.selectedCorner=i} label: {
                             Label(PreparationStep.cornerNames[i],systemImage:draft.corners[i] == nil ? "circle" : "checkmark.circle.fill")
@@ -95,39 +95,39 @@ struct PreparationGuideCard: View {
                     }
                     if let corner=model.nextCorner, draft.corners[corner] != nil {
                         Divider()
-                        Button("\(PreparationStep.cornerNames[corner]) 지우기",role:.destructive) {model.undoCorner(corner)}.disabled(model.busy)
+                        Button(L("%@ 지우기", PreparationStep.cornerNames[corner]),role:.destructive) {model.undoCorner(corner)}.disabled(model.busy)
                     }
                 }
             case .objects:
                 if model.objectEditing {
-                    Text(model.editingObjectID == nil ? "새 기물 · \(model.pendingObjectWorld.count)/8점" : "기물 수정 · \(model.pendingObjectWorld.count)/8점")
+                    Text(model.editingObjectID == nil ? L("새 기물 · %@/8점", model.pendingObjectWorld.count) : L("기물 수정 · %@/8점", model.pendingObjectWorld.count))
                         .font(HearFont.pretendard(.semibold,size:16))
                 } else if draft.objects.isEmpty {
-                    Text("등록한 기물 없음").font(HearFont.pretendard(.semibold,size:16))
+                    Text(L("등록한 기물 없음")).font(HearFont.pretendard(.semibold,size:16))
                 } else {
                     let index=draft.objects.firstIndex {$0.id == currentObject} ?? 0
                     let object=draft.objects[index]
-                    dropdown("\(index+1)번 \(object.name)") {
+                    dropdown(L("%@번 %@", index+1, object.name)) {
                         ForEach(Array(draft.objects.enumerated()),id:\.element.id) {i,o in
-                            Button("\(i+1)번 \(o.name) · \(o.kind.defaultName)\(o.height.map {" · \(Int(($0*100).rounded()))cm"} ?? "")") {selectedObject=o.id}
+                            Button(L("%@번 %@ · %@%@", i+1, o.name, o.kind.defaultName, o.height.map {" · \(Int(($0*100).rounded()))cm"} ?? "")) {selectedObject=o.id}
                         }
                         // The panel's old 수정하기 · 삭제하기 for the object shown (971:28720).
                         Divider()
-                        Button("\(index+1)번 \(object.name) 수정하기",systemImage:"pencil") {model.beginObject(object.id)}.disabled(model.busy)
-                        Button("\(index+1)번 \(object.name) 삭제하기",systemImage:"trash",role:.destructive) {model.deleteObject(object.id)}.disabled(model.busy)
+                        Button(L("%@번 %@ 수정하기", index+1, object.name),systemImage:"pencil") {model.beginObject(object.id)}.disabled(model.busy)
+                        Button(L("%@번 %@ 삭제하기", index+1, object.name),systemImage:"trash",role:.destructive) {model.deleteObject(object.id)}.disabled(model.busy)
                     }
                     // The edge a chair or stairs faces, as 「2→4」 (452:11604).
                     if object.kind == .platform || object.kind == .stairs {
                         let count=object.vertices.count
-                        dropdown(object.facingEdge.map {"\($0+1)→\(($0+1)%count+1)"} ?? "방향") {
-                            Button("선택 안 함") {model.setFacingEdge(nil,of:object.id)}
-                            ForEach(0..<count,id:\.self) {i in Button("변 \(i+1)→\((i+1)%count+1)") {model.setFacingEdge(i,of:object.id)}}
+                        dropdown(object.facingEdge.map {"\($0+1)→\(($0+1)%count+1)"} ?? L("방향")) {
+                            Button(L("선택 안 함")) {model.setFacingEdge(nil,of:object.id)}
+                            ForEach(0..<count,id:\.self) {i in Button(L("변 %@→%@", i+1, (i+1)%count+1)) {model.setFacingEdge(i,of:object.id)}}
                         }
                     }
                 }
             case .route:
                 if draft.route.isEmpty {
-                    Text("경로 0/\(StageRoute.maxPointCount)점").font(HearFont.pretendard(.semibold,size:16))
+                    Text(L("경로 0/%@점", StageRoute.maxPointCount)).font(HearFont.pretendard(.semibold,size:16))
                 } else {
                     let labels=draft.routePointLabels
                     dropdown(labels.indices.contains(currentRoutePoint) ? labels[currentRoutePoint] : "P\(currentRoutePoint)") {
@@ -137,12 +137,12 @@ struct PreparationGuideCard: View {
             case .checkpoint:
                 // Picking one makes + place (or replace) it; the one shown can be cleared here (971:28830).
                 let shown=model.nextCheckpoint ?? 1
-                dropdown("확인점 \(shown+1)") {
-                    Button("확인점 1") {model.selectedCheckpoint=0}
-                    Button("확인점 2") {model.selectedCheckpoint=1}.disabled(draft.checkpoint == nil)
+                dropdown(L("확인점 %@", shown+1)) {
+                    Button(L("확인점 1")) {model.selectedCheckpoint=0}
+                    Button(L("확인점 2")) {model.selectedCheckpoint=1}.disabled(draft.checkpoint == nil)
                     if shown == 0 ? draft.checkpoint != nil : draft.secondCheckpoint != nil {
                         Divider()
-                        Button("확인점 \(shown+1) 지우기",role:.destructive) {model.removeCheckpoint(shown);model.selectedCheckpoint=nil}.disabled(model.busy)
+                        Button(L("확인점 %@ 지우기", shown+1),role:.destructive) {model.removeCheckpoint(shown);model.selectedCheckpoint=nil}.disabled(model.busy)
                     }
                 }
             case .scan:
@@ -154,7 +154,7 @@ struct PreparationGuideCard: View {
                 Image(systemName:"arrow.counterclockwise").font(.system(size:14,weight:.semibold)).foregroundStyle(.white)
                     .frame(width:32,height:32).background(ScanChrome.panelTint,in:Circle())
             }.buttonStyle(.plain).disabled(model.busy || !canReset).opacity(canReset ? 1 : 0.4)
-                .accessibilityLabel("\(model.step.title) 초기화")
+                .accessibilityLabel(L("%@ 초기화", model.step.title))
         }
     }
     private var canReset: Bool {
@@ -197,7 +197,7 @@ struct PreparationGuideCard: View {
             if model.step == .objects, !model.objectEditing, let error=draft.objectErrors.first {Text(error).foregroundStyle(ScanChrome.danger)}
             if model.step == .route, draft.routeFinished, let error=draft.routeErrors.first {Text(error).foregroundStyle(ScanChrome.danger)}
             if model.step == .route, !draft.dangerZoneRoutePointLabels.isEmpty {
-                Text("주의: \(draft.dangerZoneRoutePointLabels.joined(separator:" · ")) 위험 구역 포함").foregroundStyle(.orange)
+                Text(L("주의: %@ 위험 구역 포함", draft.dangerZoneRoutePointLabels.joined(separator:" · "))).foregroundStyle(.orange)
             }
             if model.step == .checkpoint, draft.checkpoint != nil, let error=draft.checkpointErrors.first {Text(error).foregroundStyle(ScanChrome.danger)}
         }.font(.caption).fixedSize(horizontal:false,vertical:true)
@@ -206,30 +206,30 @@ struct PreparationGuideCard: View {
     // MARK: Object inputs, as in the old guide card
     private var objectForm: some View {
         VStack(alignment:.leading,spacing:8) {
-            TextField("기물 이름",text:$model.obstacleName).textFieldStyle(.roundedBorder).font(.caption)
-            Picker("종류",selection:$model.obstacleKind) {Text("기물").tag(ObstacleKind.other); Text("의자").tag(ObstacleKind.platform); Text("계단").tag(ObstacleKind.stairs)}.pickerStyle(.segmented)
+            TextField(L("기물 이름"),text:$model.obstacleName).textFieldStyle(.roundedBorder).font(.caption)
+            Picker(L("종류"),selection:$model.obstacleKind) {Text(L("기물")).tag(ObstacleKind.other); Text(L("의자")).tag(ObstacleKind.platform); Text(L("계단")).tag(ObstacleKind.stairs)}.pickerStyle(.segmented)
             if (model.obstacleKind == .platform || model.obstacleKind == .stairs), model.pendingObjectWorld.count >= 3 {
                 let count=model.pendingObjectWorld.count
                 Menu {
-                    Button("선택 안 함") {model.facingEdge=nil;model.synchronize()}
+                    Button(L("선택 안 함")) {model.facingEdge=nil;model.synchronize()}
                     ForEach(0..<count,id:\.self) {i in
-                        Button("변 \(i+1) · \(i+1)→\((i+1)%count+1)") {model.facingEdge=i;model.synchronize()}
+                        Button(L("변 %@ · %@→%@", i+1, i+1, (i+1)%count+1)) {model.facingEdge=i;model.synchronize()}
                     }
                 } label: {
                     HStack(spacing:6) {
-                        Text(model.facingEdge.map {"바라볼 변 \($0+1)→\(($0+1)%count+1)"} ?? "바라볼 변 선택")
+                        Text(model.facingEdge.map {L("바라볼 변 %@→%@", $0+1, ($0+1)%count+1)} ?? L("바라볼 변 선택"))
                         Image(systemName:"chevron.down").font(.system(size:11,weight:.semibold))
                     }.font(.caption.bold()).foregroundStyle(.white)
                         .padding(.horizontal,10).frame(height:30).background(Color.white.opacity(0.16),in:Capsule())
-                }.accessibilityValue(model.facingEdge.map {"변 \($0+1)"} ?? "선택 안 됨")
-                Text("도착한 뒤 바라볼 변이에요. 둘레 점을 바꾸면 선택이 지워져요.").font(.caption2).foregroundStyle(.secondary)
+                }.accessibilityValue(model.facingEdge.map {L("변 %@", $0+1)} ?? L("선택 안 됨"))
+                Text(L("도착한 뒤 바라볼 변이에요. 둘레 점을 바꾸면 선택이 지워져요.")).font(.caption2).foregroundStyle(.secondary)
             }
             if model.obstacleKind != .platform && model.obstacleKind != .stairs {
-                Picker("다시보기 모형",selection:$model.objectModel) {
+                Picker(L("다시보기 모형"),selection:$model.objectModel) {
                     ForEach(ObjectAppearance.Model.allCases,id:\.self) {Text($0.title).tag($0)}
                 }.font(.caption)
-                Picker("정면 방향",selection:$model.objectHeading) {
-                    Text("관객 쪽").tag(0.0);Text("오른쪽").tag(90.0);Text("뒤쪽").tag(180.0);Text("왼쪽").tag(270.0)
+                Picker(L("정면 방향"),selection:$model.objectHeading) {
+                    Text(L("관객 쪽")).tag(0.0);Text(L("오른쪽")).tag(90.0);Text(L("뒤쪽")).tag(180.0);Text(L("왼쪽")).tag(270.0)
                 }.font(.caption)
             }
             if let note=model.objectHeightNote {Text(note).font(.caption).foregroundStyle(.secondary)}

@@ -1,20 +1,21 @@
 import SwiftUI
+import HearIAmCore
 
 /// 「착용과 안내 준비」 (Figma 971:23464): three cards of short steps, then 「소리 확인하기」.
 struct V3UsageHelpView: View {
-    private let title = "착용과 안내 준비"
+    private let title = L("착용과 안내 준비")
     private let sections = [
-        SettingsInfo(title: "몸에 맞춰 준비해요", rows: [
-            .init(icon: "iphone", text: "iPhone을 허리 앞쪽에 단단히 고정해주세요."),
-            .init(icon: "camera", text: "후면 카메라가 바깥쪽을 향하고 가려지지 않게 해주세요."),
-            .init(icon: "speaker.wave.2", text: "사용할 이어폰이나 스피커로 시험 소리를 들어주세요."),
+        SettingsInfo(title: L("몸에 맞춰 준비해요"), rows: [
+            .init(icon: "iphone", text: L("iPhone을 허리 앞쪽에 단단히 고정해주세요.")),
+            .init(icon: "camera", text: L("후면 카메라가 바깥쪽을 향하고 가려지지 않게 해주세요.")),
+            .init(icon: "speaker.wave.2", text: L("사용할 이어폰이나 스피커로 시험 소리를 들어주세요.")),
         ]),
-        SettingsInfo(title: "연습과 실전", rows: [
-            .init(text: "연습용은 저장한 공간을 제자리에서 둘러보며 찾고, 착용한 현재 위치에서 P1으로 안내해요."),
-            .init(text: "실전용은 조력자와 공간·확인점 두 곳·출발 위치를 확인한 뒤 안내를 시작해요."),
+        SettingsInfo(title: L("연습과 실전"), rows: [
+            .init(text: L("연습용은 저장한 공간을 제자리에서 둘러보며 찾고, 착용한 현재 위치에서 P1으로 안내해요.")),
+            .init(text: L("실전용은 조력자와 공간·확인점 두 곳·출발 위치를 확인한 뒤 안내를 시작해요.")),
         ]),
-        SettingsInfo(title: "착용 위치를 바꿨다면", rows: [
-            .init(text: "먼저 안내를 일시정지하고, 휴대폰 고정과 현재 위치·몸 방향을 다시 확인해주세요."),
+        SettingsInfo(title: L("착용 위치를 바꿨다면"), rows: [
+            .init(text: L("먼저 안내를 일시정지하고, 휴대폰 고정과 현재 위치·몸 방향을 다시 확인해주세요.")),
         ]),
     ]
 
@@ -23,10 +24,10 @@ struct V3UsageHelpView: View {
             NavigationLink {
                 SoundOutputView()
             } label: {
-                SettingsPlainCapsuleLabel(title: "소리 확인하기", chevron: true)
+                SettingsPlainCapsuleLabel(title: L("소리 확인하기"), chevron: true)
             }
             .buttonStyle(.plain)
-            .readAloudTarget("소리 확인하기 버튼")
+            .readAloudTarget(L("소리 확인하기 버튼"))
             .accessibilityIdentifier("settings.help.wearing.sound")
             .padding(.top, 8)
         }
@@ -35,7 +36,7 @@ struct V3UsageHelpView: View {
         .settingsScreen()
         .accessibilityIdentifier("settings.help.wearing")
         .readsAloud(title: title) {
-            [title] + SettingsInfo.lines(sections) + ["소리 확인하기 버튼"]
+            [title] + SettingsInfo.lines(sections) + [L("소리 확인하기 버튼")]
         }
     }
 }
@@ -53,7 +54,7 @@ struct SettingsInfo: Identifiable {
         /// What the read-aloud voice says for this row; 「Hear I am」 is spelled out so it is not read letter by letter.
         var spoken: String {
             ([text] + [detail].compactMap { $0 }).joined(separator: ". ")
-                .replacingOccurrences(of: "Hear I am", with: "히어 아이 엠")
+                .replacingOccurrences(of: "Hear I am", with: HearLanguage.current.isEnglish ? "Hear I am" : "히어 아이 엠")
         }
     }
     let title: String

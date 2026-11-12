@@ -19,7 +19,7 @@ import HearIAmCore
         stop()
         guard motion.isDeviceMotionAvailable,
               CMMotionManager.availableAttitudeReferenceFrames().contains(.xArbitraryZVertical) else {
-            onFailure?("이 기기에서는 몸 방향을 확인할 수 없어요. 실제 iPhone에서 연습해주세요.")
+            onFailure?(L("이 기기에서는 몸 방향을 확인할 수 없어요. 실제 iPhone에서 연습해주세요."))
             return
         }
         let token = generation
@@ -37,7 +37,7 @@ import HearIAmCore
                 guard let self, self.generation == token else { return }
                 if failed {
                     self.stop()
-                    self.onFailure?("몸 방향을 확인하지 못했어요. 휴대폰의 움직임 접근 설정과 착용 상태를 확인한 뒤 다시 시도해주세요.")
+                    self.onFailure?(L("몸 방향을 확인하지 못했어요. 휴대폰의 움직임 접근 설정과 착용 상태를 확인한 뒤 다시 시도해주세요."))
                 } else if let time { self.onSample?(heading, time) }
             }
         }

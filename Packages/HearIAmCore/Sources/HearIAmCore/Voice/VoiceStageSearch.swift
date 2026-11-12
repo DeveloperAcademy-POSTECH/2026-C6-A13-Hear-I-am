@@ -49,6 +49,7 @@ public enum VoiceStageSearch {
     }
 
     public static func resolve(_ text: String, names: [String], contexts: [[String]] = []) -> VoiceStageMatch {
+        let text = VoiceEnglish.canonical(text)
         let request=normalized(text)
         guard !request.isEmpty, request.count <= 240 else { return .none }
         let names=names.map(normalized)
@@ -112,6 +113,7 @@ public enum VoiceStageSearch {
     /// A keyword search such as 「강당 관련 무대 찾아줘」. When it finds nothing, the answer is that nothing
     /// matched; it is not handed to the Apple Intelligence model, which might pick a stage anyway (#87).
     public static func isKeywordSearch(_ text: String) -> Bool {
+        let text = VoiceEnglish.canonical(text)
         let request=normalized(text)
         return ["관련", "검색", "찾아"].contains { request.contains($0) }
     }
@@ -119,6 +121,7 @@ public enum VoiceStageSearch {
     /// Whether a request points at the `number`-th stage by its number or by part of its name. The model
     /// once offered 9번 for 「연남」, which named no stage at all (11/01); such a guess is dropped.
     public static func mentions(_ text: String, number: Int, name: String) -> Bool {
+        let text = VoiceEnglish.canonical(text)
         let request=normalized(text), name=normalized(name)
         if request.contains("\(number)") { return true }
         if let sino=VoiceCommandParser.sinoKorean.first(where: { $0.value == number })?.key, request.contains(sino+"번") { return true }
@@ -133,6 +136,7 @@ public enum VoiceStageSearch {
     /// 「3번 무대 스캔」: a number followed by that item's own name picks it, even when several items share
     /// the name (four stages called 「무대 스캔」, 11/03). A name that is not the numbered item's is no pick.
     public static func numbered(_ text: String, names: [String]) -> Int? {
+        let text = VoiceEnglish.canonical(text)
         let request = normalized(text)
         let ordinals = ["첫", "두", "세", "네", "다섯", "여섯", "일곱", "여덟", "아홉", "열"]
         var number: Int?, rest = ""
@@ -152,6 +156,7 @@ public enum VoiceStageSearch {
     }
 
     public static func ordinal(_ text: String) -> Int? {
+        let text = VoiceEnglish.canonical(text)
         let request=normalized(text)
         let words=["첫번째", "두번째", "세번째", "네번째", "다섯번째", "여섯번째", "일곱번째", "여덟번째", "아홉번째", "열번째"]
         if let i=words.firstIndex(where: { request == $0 || request == $0+"무대" || request == $0+"선택" || request == $0+"선택해줘" }) { return i+1 }

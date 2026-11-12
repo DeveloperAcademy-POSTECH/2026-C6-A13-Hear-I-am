@@ -28,7 +28,7 @@ public actor PlaceFolderStore {
         // A user may remove the old index in Files. Never recreate an archive they removed.
         guard FileManager.default.fileExists(atPath:indexURL.path) else {return current}
         if let id=current.performanceSynchronizationID {
-            guard id==state.id else {throw LabError.invalid("이전 장소 자료의 연결 상태를 확인해주세요.")}
+            guard id==state.id else {throw LabError.invalid(L("이전 장소 자료의 연결 상태를 확인해주세요."))}
             if let revision=current.performanceSynchronizationRevision, revision>state.revision {return current}
         }
         var result=current
@@ -51,7 +51,7 @@ public actor PlaceFolderStore {
     public func photo(_ id: UUID) throws -> Data {
         let url=photoURL(id)
         let info=try url.resourceValues(forKeys:[.fileSizeKey])
-        guard let size=info.fileSize, size>0, size<=Self.maximumPhotoBytes else {throw LabError.invalid("장소 사진 크기가 올바르지 않습니다.")}
+        guard let size=info.fileSize, size>0, size<=Self.maximumPhotoBytes else {throw LabError.invalid(L("장소 사진 크기가 올바르지 않습니다."))}
         return try Data(contentsOf:url)
     }
     /// Publish photo first, then the index. A failed index write preserves the prior photo and metadata.
@@ -65,13 +65,13 @@ public actor PlaceFolderStore {
         try place.validate()
         var writtenPhoto: UUID?
         if let photo {
-            guard !photo.isEmpty, photo.count<=Self.maximumPhotoBytes else {throw LabError.invalid("장소 사진은 4MB 이하로 저장해주세요.")}
+            guard !photo.isEmpty, photo.count<=Self.maximumPhotoBytes else {throw LabError.invalid(L("장소 사진은 4MB 이하로 저장해주세요."))}
             place.photoID=UUID()
             try FileManager.default.createDirectory(at:photoURL(place.photoID).deletingLastPathComponent(),withIntermediateDirectories:true)
             try photo.write(to:photoURL(place.photoID),options:.atomic)
             writtenPhoto=place.photoID
         } else {
-            guard let old else {throw LabError.invalid("장소 사진을 선택해주세요.")}
+            guard let old else {throw LabError.invalid(L("장소 사진을 선택해주세요."))}
             place.photoID=old.photoID
             _ = try self.photo(old.photoID)
         }
@@ -98,13 +98,13 @@ public actor PlaceFolderStore {
     }
     public func assign(_ scanIDs: Set<UUID>, to destination: PlaceDestination?) throws -> PlaceFolderIndex {
         var index=try load()
-        if let destination, !index.contains(destination) {throw LabError.invalid("저장할 장소 또는 폴더가 없어졌어요. 다시 선택해주세요.")}
+        if let destination, !index.contains(destination) {throw LabError.invalid(L("저장할 장소 또는 폴더가 없어졌어요. 다시 선택해주세요."))}
         for id in scanIDs {index.assignments[id]=destination}
         return try commit(index)
     }
     public func togglePlaceFavorite(_ id: UUID) throws -> PlaceFolderIndex {
         var index=try load()
-        guard let i=index.places.firstIndex(where:{$0.id==id}) else {throw LabError.invalid("장소를 찾을 수 없어요.")}
+        guard let i=index.places.firstIndex(where:{$0.id==id}) else {throw LabError.invalid(L("장소를 찾을 수 없어요."))}
         index.places[i].favorite.toggle()
         return try commit(index)
     }
@@ -130,7 +130,7 @@ public struct PlaceScanReceipt: Sendable {
     }
     public func newScan(in scans: [ScanManifest]) throws -> UUID? {
         let candidates=scans.filter {!existingIDs.contains($0.id) && $0.date>=startedAt}
-        guard candidates.count<=1 else {throw LabError.invalid("새 공연이 여러 개 발견됐어요. 장소 미지정에서 옮길 공연을 선택해주세요.")}
+        guard candidates.count<=1 else {throw LabError.invalid(L("새 공연이 여러 개 발견됐어요. 장소 미지정에서 옮길 공연을 선택해주세요."))}
         return candidates.first?.id
     }
 }

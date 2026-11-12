@@ -122,19 +122,19 @@ public struct PerformanceCatalog: Codable, Equatable, Sendable {
         return folder.referencePlanIDs.compactMap {id in plans.first {$0.id==id}}
     }
     public func validate() throws {
-        guard version==1 else {throw LabError.invalid("지원하지 않는 공연 보관함 버전입니다.")}
-        guard Set(performances.map(\.id)).count==performances.count else {throw LabError.invalid("공연 식별자가 중복됩니다.")}
-        try Self.validateNames(performances.map(\.name), label:"공연")
+        guard version==1 else {throw LabError.invalid(L("지원하지 않는 공연 보관함 버전입니다."))}
+        guard Set(performances.map(\.id)).count==performances.count else {throw LabError.invalid(L("공연 식별자가 중복됩니다."))}
+        try Self.validateNames(performances.map(\.name), label:L("공연"))
         for folder in performances {
-            guard Set(folder.referencePlanIDs).count == folder.referencePlanIDs.count else {throw LabError.invalid("씬 식별자가 중복됩니다.")}
-            guard folder.notes.count<=2000 else {throw LabError.invalid("공연 설명은 2000자 이내로 입력해주세요.")}
-            guard Set(folder.venues.map(\.id)).count==folder.venues.count else {throw LabError.invalid("공연·연습 공간 식별자가 중복됩니다.")}
-            try Self.validateNames(folder.venues.map(\.name), label:"공연·연습 공간")
+            guard Set(folder.referencePlanIDs).count == folder.referencePlanIDs.count else {throw LabError.invalid(L("씬 식별자가 중복됩니다."))}
+            guard folder.notes.count<=2000 else {throw LabError.invalid(L("공연 설명은 2000자 이내로 입력해주세요."))}
+            guard Set(folder.venues.map(\.id)).count==folder.venues.count else {throw LabError.invalid(L("공연·연습 공간 식별자가 중복됩니다."))}
+            try Self.validateNames(folder.venues.map(\.name), label:L("공연·연습 공간"))
         }
         for value in assignments.values {
             guard let folder=performances.first(where:{$0.id==value.performanceID}),
                   value.venueID==nil || folder.venues.contains(where:{$0.id==value.venueID}) else {
-                throw LabError.invalid("무대의 공연 또는 공연·연습 공간을 찾을 수 없어요.")
+                throw LabError.invalid(L("무대의 공연 또는 공연·연습 공간을 찾을 수 없어요."))
             }
         }
         try legacyPlaces?.validate()
@@ -144,7 +144,7 @@ public struct PerformanceCatalog: Codable, Equatable, Sendable {
                   Set(legacyPlaces.assignments.keys).union(legacyPlaces.favoriteScans).isSubset(of:synchronization.managedScanIDs),
                   synchronization.venuePlaceIDs.values.allSatisfy({$0.isSubset(of:synchronization.managedPlaceIDs)}),
                   Set(synchronization.renamedPlaceNames.keys).isSubset(of:synchronization.managedPlaceIDs) else {
-                throw LabError.invalid("이전 장소 자료의 정리 상태를 확인해주세요.")
+                throw LabError.invalid(L("이전 장소 자료의 정리 상태를 확인해주세요."))
             }
         }
     }
@@ -216,10 +216,10 @@ public struct PerformanceCatalog: Codable, Equatable, Sendable {
 
     static func validateNames(_ names: [String], label: String) throws {
         guard names.allSatisfy({!$0.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty && $0.count<=80}) else {
-            throw LabError.invalid("\(label) 이름은 1~80자로 입력해주세요.")
+            throw LabError.invalid(L("%@ 이름은 1~80자로 입력해주세요.", label))
         }
         guard Set(names.map(PlaceSearch.normalized)).count==names.count else {
-            throw LabError.invalid("같은 이름이 이미 있어요. 다른 \(label) 이름을 입력해주세요.")
+            throw LabError.invalid(L("같은 이름이 이미 있어요. 다른 %@ 이름을 입력해주세요.", label))
         }
     }
 

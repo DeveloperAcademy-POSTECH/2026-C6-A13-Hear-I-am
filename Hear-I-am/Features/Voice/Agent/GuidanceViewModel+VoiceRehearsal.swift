@@ -4,7 +4,7 @@ import HearIAmCore
 
 /// Opt-in #69 experiment. Commands use the same guards as the existing touch controls.
 extension GuidanceViewModel {
-    func voicePointName(_ index:Int) -> String {guide?.route.pointLabel(at:index) ?? "지점"}
+    func voicePointName(_ index:Int) -> String {guide?.route.pointLabel(at:index) ?? L("지점")}
     /// What the current screen can do, offered to the Apple Intelligence model (#87).
     var voiceScreen: VoiceScreen {
         switch phase {
@@ -28,7 +28,7 @@ extension GuidanceViewModel {
     var voiceAwake: Bool {
         voiceConversationDeadline.map {ProcessInfo.processInfo.systemUptime < $0} ?? false
     }
-    static let voiceAsleepStatus="‘Hear I am’ 하고 부르면 이어서 들을게요"
+    static var voiceAsleepStatus: String { L("‘Hear I am’ 하고 부르면 이어서 들을게요") }
     /// Steps taken one after another, where an open conversation carries over to the next screen.
     /// Walking guidance is not one: there the call is needed each time, since the performer's and
     /// other people's voices mix with the app's own sound.
@@ -136,7 +136,7 @@ extension GuidanceViewModel {
         if helperStart {
             // Neither the scene nor the mode is asked: the space is looked for at once on the checkpoint screen.
             guard let id=voiceInitialStageID, let item=records.first(where:{$0.id == id}) else {
-                read(["준비할 무대를 찾을 수 없어요. 목록에서 다시 선택해주세요."]);return
+                read([L("준비할 무대를 찾을 수 없어요. 목록에서 다시 선택해주세요.")]);return
             }
             voiceInitialStageID=nil;voiceInitialMode=nil
             select(item,advanceAutomatically:false)
@@ -151,7 +151,7 @@ extension GuidanceViewModel {
                 voiceInitialStageID=nil;voiceInitialMode=nil
                 select(item,advanceAutomatically:false)
                 if selected != nil {voiceChoosingMode=true;selectVoiceMode(.performance)}
-            } else {message="준비할 무대를 찾을 수 없어요. 목록에서 다시 선택해주세요."}
+            } else {message=L("준비할 무대를 찾을 수 없어요. 목록에서 다시 선택해주세요.")}
             return
         }
         voiceInitialPromptPending=true
@@ -195,13 +195,13 @@ extension GuidanceViewModel {
     /// The spinner line under the conversation while the app is doing something the performer waits for.
     var voiceChatStatus: String? {
         switch phase {
-        case .restoring: return "저장된 무대를 찾고 있어요"
-        case .starting: return "연습 안내를 시작하고 있어요"
-        case .departure where !departureReady: return "출발 위치를 확인하고 있어요"
+        case .restoring: return L("저장된 무대를 찾고 있어요")
+        case .starting: return L("연습 안내를 시작하고 있어요")
+        case .departure where !departureReady: return L("출발 위치를 확인하고 있어요")
         default: break
         }
-        if voicePendingRequest != nil {return "요청을 확인하고 있어요"}
-        if voiceTurnActive {return "듣고 있어요"}
+        if voicePendingRequest != nil {return L("요청을 확인하고 있어요")}
+        if voiceTurnActive {return L("듣고 있어요")}
         if voiceShouldListen, !voiceAwake, !speaking, !phase.showsRouteCamera {return Self.voiceAsleepStatus}
         return nil
     }
@@ -213,7 +213,7 @@ extension GuidanceViewModel {
             let venues=stages.compactMap {voiceCatalog.venue(for:$0.id)?.name}.filter {seen.insert($0).inserted}
             let sample=stages.first {$0.route != nil} ?? stages.first
             return VoiceChatStage(id:choice.id,number:index+1,name:choice.name,
-                                  tags:venues.isEmpty ? ["저장된 무대 \(choice.stageIDs.count)개"] : Array(venues.prefix(2)),
+                                  tags:venues.isEmpty ? [L("저장된 무대 %@개", choice.stageIDs.count)] : Array(venues.prefix(2)),
                                   width:sample?.route?.area.width ?? 12,depth:sample?.route?.area.depth ?? 8,
                                   points:sample?.route?.points ?? [],objects:sample?.route?.obstacles ?? [])
         }
@@ -249,7 +249,7 @@ extension GuidanceViewModel {
             appendVoiceChat(.user(request))
         }
         VoiceLog.write("chat_typed",request,screen:"guidance.\(phase)")
-        guard voiceShouldListen else {read(["지금은 요청을 받을 수 없어요. 마이크가 켜지면 다시 말씀해주세요."]);return}
+        guard voiceShouldListen else {read([L("지금은 요청을 받을 수 없어요. 마이크가 켜지면 다시 말씀해주세요.")]);return}
         voiceChatSeededRequest=request
         voiceTurnActive=true;voiceTurnOverNarration=false
         handleVoiceCommand(request)
@@ -311,7 +311,7 @@ extension GuidanceViewModel {
             // Subsequent position, checkpoint and output-audio checks are still enforced.
             audioIssue=nil
             // Chosen with the stage in one request, the stage is named too: nothing else confirmed it (#174).
-            let introduction=namingStage && selected != nil ? "\(selected!.name), \(mode.title)을 선택했습니다." : "\(mode.title)을 선택했습니다."
+            let introduction=namingStage && selected != nil ? L("%@, %@을 선택했습니다.", selected!.name, mode.title) : L("%@을 선택했습니다.", mode.title)
             restore(voiceIntroduction:introduction)
         } else if let mode=voiceInitialMode {
             // 「연습용」 said on Home or before a stage was chosen is not asked again (11/06 device log).
@@ -355,7 +355,7 @@ extension GuidanceViewModel {
         if phase != .selection {
             tracking.endSession();tracking.errorMessage=nil
             voiceMode=nil;voicePerformanceInputClosed=false;performanceCheckpointsDone=false;voiceChoosingMode=selected != nil;phase = .selection
-            read(["사용 방식 선택으로 돌아왔어요.","연습용 또는 실전용이라고 말씀해주세요. 취소하면 무대를 다시 선택합니다."])
+            read([L("사용 방식 선택으로 돌아왔어요."),L("연습용 또는 실전용이라고 말씀해주세요. 취소하면 무대를 다시 선택합니다.")])
         } else if voiceChoosingMode {
             voiceChoosingMode=false;voiceMode=nil;selected=nil;guide=nil;run=nil;pendingRecord=nil
             announceVoiceStageResults()
@@ -373,22 +373,22 @@ extension GuidanceViewModel {
     func announceVoiceStageResults() {
         if showsVoicePerformances {
             let choices=voicePerformanceChoices
-            guard !choices.isEmpty else {read(["저장된 무대를 찾지 못했어요. 다른 공연이나 공연장 이름을 말씀해주세요."]);return}
-            showVoiceChatCards(performances:choices,text:"저장된 공연 \(choices.count)개를 찾았어요.\n공연 이름이나 번호를 말씀해주세요.")
-            read(["어떤 공연을 준비할까요?"]+choices.enumerated().map {"\($0.offset+1)번, \($0.element.name). 저장된 무대 \($0.element.stageIDs.count)개."}+["공연 이름이나 번호를 말씀해주세요."],interruptible:true)
+            guard !choices.isEmpty else {read([L("저장된 무대를 찾지 못했어요. 다른 공연이나 공연장 이름을 말씀해주세요.")]);return}
+            showVoiceChatCards(performances:choices,text:L("저장된 공연 %@개를 찾았어요.\n공연 이름이나 번호를 말씀해주세요.", choices.count))
+            read([L("어떤 공연을 준비할까요?")]+choices.enumerated().map {L("%@번, %@. 저장된 무대 %@개.", $0.offset+1, $0.element.name, $0.element.stageIDs.count)}+[L("공연 이름이나 번호를 말씀해주세요.")],interruptible:true)
             return
         }
         let items=visibleVoiceStages
         if items.isEmpty {
-            read(["\(voiceSearchQuery ?? "요청한 이름")에 해당하는 저장된 공연이 없어요. 다른 장소나 공연 이름을 말해주세요. 취소하면 전체 목록으로 돌아가요."])
+            read([L("%@에 해당하는 저장된 공연이 없어요. 다른 장소나 공연 이름을 말해주세요. 취소하면 전체 목록으로 돌아가요.", voiceSearchQuery ?? L("요청한 이름"))])
             return
         }
         // Words of the new 공연 찾기 screen (IA 10/29).
-        let title="\(voiceSelectedPerformanceName ?? "선택한 공연")의 어느 무대에서 진행할까요?"
+        let title=L("%@의 어느 무대에서 진행할까요?", voiceSelectedPerformanceName ?? L("선택한 공연"))
         // Separate utterances keep a long result list interruptible at every item.
-        let names=items.enumerated().map {"\($0.offset+1)번, \(voiceStageTitle($0.element))."}
-        showVoiceChatCards(stages:items,text:"\(title)\n공연장 이름이나 무대 번호를 말씀해주세요.")
-        read([title]+names+["공연장 이름이나 무대 번호를 말해주세요."],interruptible:true)
+        let names=items.enumerated().map {L("%@번, %@.", $0.offset+1, voiceStageTitle($0.element))}
+        showVoiceChatCards(stages:items,text:L("%@\n공연장 이름이나 무대 번호를 말씀해주세요.", title))
+        read([title]+names+[L("공연장 이름이나 무대 번호를 말해주세요.")],interruptible:true)
     }
     /// After the last point the microphone stays on, unheard, until the screen closes. Releasing it there
     /// switched the audio session from the voice-processing output (call volume) to playback (media
@@ -410,8 +410,8 @@ extension GuidanceViewModel {
         guard !voiceRecognitionRequested else {return}
         voiceRecognitionRequested=true
         // Point names go early: the recognizer keeps only the first 100 hints, and P1 was heard as 「비 일」 (10/28).
-        let points=["P1","P2","P3","P4","P5","피원","피투","피쓰리","피포","피파이브","1번","2번","3번","1번 지점으로 돌아가 줘"]
-        let hints=VoiceWakeWord.hints+points+voiceStages.map(\.name)+voiceStagePaths.values.flatMap {$0}+["연습용","실전용","취소","관련된 무대 열어줘","다음","계속","멈춰","P2 지점으로 다시 안내해 줘","피투","2번 지점","이전","무대 다시 선택"]
+        let points=["P1","P2","P3","P4","P5",L("피원"),L("피투"),L("피쓰리"),L("피포"),L("피파이브"),L("1번"),L("2번"),L("3번"),L("1번 지점으로 돌아가 줘")]
+        let hints=VoiceWakeWord.hints+points+voiceStages.map(\.name)+voiceStagePaths.values.flatMap {$0}+[L("연습용"),L("실전용"),L("취소"),L("관련된 무대 열어줘"),L("다음"),L("계속"),L("멈춰"),L("P2 지점으로 다시 안내해 줘"),L("피투"),L("2번 지점"),L("이전"),L("무대 다시 선택")]
         voiceInputTask=Task { @MainActor [weak self] in
             guard let self, !Task.isCancelled, self.voiceShouldListen else {return}
             let vocabulary=VoiceVocabulary.phrases(stageNames:self.voiceStages.map(\.name),places:Array(Set(self.voiceStagePaths.values.flatMap {$0})))
@@ -432,7 +432,7 @@ extension GuidanceViewModel {
         if phase == .guiding || phase == .starting {
             guide?.pause();phase = started ? .paused : .departure;voicePausedNavigation=true
             signals.stopDirection();quietUntil=nil
-            message="다시 말씀하실 수 있도록 안내를 멈췄어요."
+            message=L("다시 말씀하실 수 있도록 안내를 멈췄어요.")
             captureReplay(force:true)
         }
         voiceInputError=nil;voiceListeningEnabled=true;voiceReadyChimePending=true
@@ -478,7 +478,7 @@ extension GuidanceViewModel {
         if phase == .guiding || phase == .starting {
             guide?.pause();phase = started ? .paused : .departure;voicePausedNavigation=true
             signals.stopDirection();quietUntil=nil
-            message="말씀을 듣고 있어요. 잠시 멈춰주세요."
+            message=L("말씀을 듣고 있어요. 잠시 멈춰주세요.")
             captureReplay(force:true)
         }
         listeningChime.play()
@@ -514,7 +514,7 @@ extension GuidanceViewModel {
         if phase == .guiding || phase == .starting {
             guide?.pause();phase = started ? .paused : .departure;voicePausedNavigation=true
             signals.stopDirection();quietUntil=nil
-            message="말씀을 듣고 있어요. 잠시 멈춰주세요."
+            message=L("말씀을 듣고 있어요. 잠시 멈춰주세요.")
             captureReplay(force:true)
         }
         listeningChime.play()
@@ -544,7 +544,7 @@ extension GuidanceViewModel {
         if phase == .guiding || phase == .starting {
             guide?.pause();phase = started ? .paused : .departure;voicePausedNavigation=true
             signals.stopDirection();quietUntil=nil
-            self.message="음성 입력을 다시 연결하는 동안 안내를 멈췄어요."
+            self.message=L("음성 입력을 다시 연결하는 동안 안내를 멈췄어요.")
             captureReplay(force:true)
         }
         // Do not narrate this transient state into the microphone or cancel the pending retry.
@@ -570,7 +570,7 @@ extension GuidanceViewModel {
         voiceListeningEnabled=false;voiceInputError=error
         if phase == .guiding || phase == .starting {
             guide?.pause();phase = started ? .paused : .departure;voicePausedNavigation=true;signals.stopDirection();quietUntil=nil
-            message="음성 입력이 중단되어 연습 안내를 멈췄어요."
+            message=L("음성 입력이 중단되어 연습 안내를 멈췄어요.")
         }
         if active {read([error])}
     }
@@ -607,7 +607,7 @@ extension GuidanceViewModel {
         }
         if let request=VoiceWakeWord.request(in:text) {
             keepVoiceConversation()
-            if request.isEmpty {logSignal("voice_wake",text);read(["네, 말씀하세요."]);return}
+            if request.isEmpty {logSignal("voice_wake",text);read([L("네, 말씀하세요.")]);return}
             text=request
         } else if !accepted {
             logSignal("voice_ignored","not called");return
@@ -717,13 +717,13 @@ extension GuidanceViewModel {
     /// A stage is asked by its number and name, so the user hears which one would be picked.
     private func voiceQuestion(_ command:VoiceCommand) -> String {
         if case .chooseStage(let number)=command, voiceSelectionNames.indices.contains(number-1) {
-            return "\(number)번, \(voiceSelectionNames[number-1]). 선택할까요?"
+            return L("%@번, %@. 선택할까요?", number, voiceSelectionNames[number-1])
         }
         return VoiceIntentCopy.question(command)
     }
     private func readVoiceCommandNotUnderstood() {
         logSignal("voice_not_understood","")
-        read(["요청을 확실히 이해하지 못했어요. \(phase == .selection ? "무대 선택 화면에서는 장소나 무대 이름을, 사용 방식 화면에서는 연습용 또는 실전용을 말씀해주세요." : "계속, 멈춰, 또는 P2로 다시 안내해 줘처럼 한 가지 요청을 말씀해주세요.")"])
+        read([L("요청을 확실히 이해하지 못했어요. %@", phase == .selection ? L("무대 선택 화면에서는 장소나 무대 이름을, 사용 방식 화면에서는 연습용 또는 실전용을 말씀해주세요.") : L("계속, 멈춰, 또는 P2로 다시 안내해 줘처럼 한 가지 요청을 말씀해주세요."))])
     }
     private func performVoiceCommand(_ command:VoiceCommand, confirmed:Bool = false) {
             switch command {
@@ -732,20 +732,20 @@ extension GuidanceViewModel {
                 else if phase == .selection {
                     // Kept for when a stage is chosen, so the mode is not asked again (#156).
                     voiceInitialMode = command == .practice ? .practice : .performance
-                    read(["먼저 사용할 무대를 선택해주세요. 장소 이름으로 검색하거나 무대 이름을 말씀해주세요."])
+                    read([L("먼저 사용할 무대를 선택해주세요. 장소 이름으로 검색하거나 무대 이름을 말씀해주세요.")])
                 }
-                else {read(["사용 방식은 안내 시작 전에 선택할 수 있어요. 계속이라고 말씀하면 현재 안내를 이어갑니다."])}
+                else {read([L("사용 방식은 안내 시작 전에 선택할 수 있어요. 계속이라고 말씀하면 현재 안내를 이어갑니다.")])}
             case .returnToPoint(let index): requestVoiceReturn(to:index)
             case .continueGuidance,.next,.start: advanceWithVoice()
             case .pause:
                 if phase == .guiding || phase == .starting {pause()}
-                else if phase == .paused {read(["안내를 멈췄어요. 계속이라고 말씀하면 이어서 안내해요."])}
-                else {read(["현재 단계에서 기다릴게요. 준비되면 다음이라고 말씀해주세요."])}
+                else if phase == .paused {read([L("안내를 멈췄어요. 계속이라고 말씀하면 이어서 안내해요.")])}
+                else {read([L("현재 단계에서 기다릴게요. 준비되면 다음이라고 말씀해주세요.")])}
             case .repeatInstruction: replay()
             case .cancel:
-                read([started ? "요청을 취소했어요. 안내는 멈춘 상태예요. 계속이라고 말씀하면 다시 안내해요." : "요청을 취소했어요. 사용할 무대나 사용 방식을 말씀해주세요."])
+                read([started ? L("요청을 취소했어요. 안내는 멈춘 상태예요. 계속이라고 말씀하면 다시 안내해요.") : L("요청을 취소했어요. 사용할 무대나 사용 방식을 말씀해주세요.")])
             case .showAllStages:
-                guard phase == .selection, !voiceChoosingMode else {read(["저장된 무대 목록은 무대 선택 화면에서 들을 수 있어요."]);return}
+                guard phase == .selection, !voiceChoosingMode else {read([L("저장된 무대 목록은 무대 선택 화면에서 들을 수 있어요.")]);return}
                 guard !voiceStages.isEmpty else {selectionDescription(empty:true);return}
                 showVoiceStageResults(query:nil,ids:nil)
             case .chooseStage(let number):
@@ -754,8 +754,8 @@ extension GuidanceViewModel {
             case .back:
                 // The same step back as the 「취소 · 이전 선택」 button; after the start there is no earlier step.
                 if canCancelVoiceSelection {cancelVoiceSelection()}
-                else if started {read(["안내를 시작한 뒤에는 이전 단계가 없어요. 무대를 바꾸려면 무대 다시 선택이라고 말씀해주세요."])}
-                else {read(["지금이 첫 단계예요. 사용할 무대 이름이나 목록 번호를 말씀해주세요."])}
+                else if started {read([L("안내를 시작한 뒤에는 이전 단계가 없어요. 무대를 바꾸려면 무대 다시 선택이라고 말씀해주세요.")])}
+                else {read([L("지금이 첫 단계예요. 사용할 무대 이름이나 목록 번호를 말씀해주세요.")])}
             case .chooseStageAgain:
                 guard phase != .selection || voiceChoosingMode || selected != nil else {selectionDescription(empty:voiceStages.isEmpty);return}
                 // Leaving a started run drops it, so that is asked first; before the start nothing is lost.
@@ -810,27 +810,27 @@ extension GuidanceViewModel {
         switch phase {
         case .selection:
             if canContinueVoiceSelection {voiceSelectionControlsVisible=false;continueVoiceSelection();return}
-            read([voiceChoosingMode ? "연습용 또는 실전용이라고 말씀하면 바로 다음 단계로 넘어갑니다." : "사용할 무대 이름이나 목록 번호를 말씀해주세요."])
+            read([voiceChoosingMode ? L("연습용 또는 실전용이라고 말씀하면 바로 다음 단계로 넘어갑니다.") : L("사용할 무대 이름이나 목록 번호를 말씀해주세요.")])
         case .checkpoint:
             if performanceCheckpointsDone {confirmPerformanceCheckpoints()}
-            else if canVerify {verifyCheckpoint()} else {read(["확인점을 아직 확인할 수 없어요. 휴대폰 조준점을 저장한 확인점에 맞춰주세요."])}
+            else if canVerify {verifyCheckpoint()} else {read([L("확인점을 아직 확인할 수 없어요. 휴대폰 조준점을 저장한 확인점에 맞춰주세요.")])}
         case .wear:
-            if canAdvanceInstruction && tracking.ready {finishWear()} else {read(["위치 추적과 착용 상태를 먼저 확인해주세요."])}
+            if canAdvanceInstruction && tracking.ready {finishWear()} else {read([L("위치 추적과 착용 상태를 먼저 확인해주세요.")])}
         case .departure:
             if departureReady && canAdvanceInstruction {startGuidance()} else {read([departureStatus])}
         case .paused:
-            if canResume && canAdvanceInstruction {voicePausedNavigation=false;startGuidance()} else {read([isPractice ? "현재 위치에서 안내를 재개할 수 없어요. 동선과 현재 위치를 다시 확인해주세요." : "현재 위치에서 안내를 재개할 수 없어요. 동선과 확인점을 다시 확인해주세요."])}
+            if canResume && canAdvanceInstruction {voicePausedNavigation=false;startGuidance()} else {read([isPractice ? L("현재 위치에서 안내를 재개할 수 없어요. 동선과 현재 위치를 다시 확인해주세요.") : L("현재 위치에서 안내를 재개할 수 없어요. 동선과 확인점을 다시 확인해주세요.")])}
         case .failed,.interrupted: restore()
         default: break
         }
     }
     func requestVoiceReturn(to number:Int) {
         guard voiceMode == .practice, started, phase == .paused || phase == .guiding else {
-            read(["지점으로 돌아가기는 연습 안내를 시작한 후 사용할 수 있어요."]);return
+            read([L("지점으로 돌아가기는 연습 안내를 시작한 후 사용할 수 있어요.")]);return
         }
-        guard let pose=freshPose(), var guide else {read(["현재 위치를 확인할 수 없어요. \(recoveryInstruction)"]);return}
+        guard let pose=freshPose(), var guide else {read([L("현재 위치를 확인할 수 없어요. %@", recoveryInstruction)]);return}
         guard let index=guide.rehearsalPointIndex(number:number) else {
-            read(["저장된 동선에 P\(number) 지점이 없어요. 지점 이름을 다시 확인해주세요."]);return
+            read([L("저장된 동선에 P%@ 지점이 없어요. 지점 이름을 다시 확인해주세요.", number)]);return
         }
         do {
             try guide.beginRehearsalReturn(to:index,position:pose.point,headingDegrees:pose.heading,trackingValid:true)
@@ -840,13 +840,13 @@ extension GuidanceViewModel {
             logSignal("rehearsal_return_requested","destination=\(voicePointName(index)) first=P\(guide.targetIndex)")
             startGuidance()
         } catch {
-            read(["\(voicePointName(index))로 돌아갈 수 없어요. \(error.localizedDescription)"])
+            read([L("%@로 돌아갈 수 없어요. %@", voicePointName(index), error.localizedDescription)])
         }
     }
     func reachedVoiceReturn(_ index:Int, time:Double) {
         guard voiceExperiment else {return}
         invalidateTasks();resetSignals();phase = .paused;voicePausedNavigation=true
-        arrivedName="\(voicePointName(index))";message="\(voicePointName(index))에 도착했어요. 계속이라고 말씀하면 다음 지점으로 안내해요."
+        arrivedName="\(voicePointName(index))";message=L("%@에 도착했어요. 계속이라고 말씀하면 다음 지점으로 안내해요.", voicePointName(index))
         captureReplay(force:true)
         aligningStep=guide?.route.step(at:index).flatMap {$0.facingEdge == nil ? nil : $0}
         logSignal("rehearsal_return_arrived","\(voicePointName(index))")
@@ -855,7 +855,7 @@ extension GuidanceViewModel {
             try? await Task.sleep(nanoseconds:700_000_000)
             guard let self, self.generation == operation, self.active, !self.voiceTurnActive, self.guide?.rehearsalReturnArrivalIndex == index else {return}
             self.keepVoiceConversation()
-            self.read([self.guide?.route.spokenPointName(at:index) ?? self.voicePointName(index),"\(self.voicePointName(index)) 지점에 도착했어요. 잠시 멈춰주세요. 계속이라고 말씀하면 다음 지점으로 안내해요."])
+            self.read([self.guide?.route.spokenPointName(at:index) ?? self.voicePointName(index),L("%@ 지점에 도착했어요. 잠시 멈춰주세요. 계속이라고 말씀하면 다음 지점으로 안내해요.", self.voicePointName(index))])
         }
     }
 }

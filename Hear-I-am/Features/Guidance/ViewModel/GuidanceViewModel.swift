@@ -47,7 +47,7 @@ import HearIAmCore
     var isPractice: Bool {voiceMode == .practice}
     var practiceEntryIssue: String?
     var recoveryInstruction: String {
-        isPractice ? "휴대폰을 손에 들고 제자리에서 주변을 천천히 비춰 공간을 다시 찾아주세요." : "휴대폰을 손에 들고 확인점을 다시 확인해주세요."
+        isPractice ? L("휴대폰을 손에 들고 제자리에서 주변을 천천히 비춰 공간을 다시 찾아주세요.") : L("휴대폰을 손에 들고 확인점을 다시 확인해주세요.")
     }
     @Published var voiceChoosingMode=false
     @Published var voiceSelectionControlsVisible=false
@@ -166,7 +166,7 @@ import HearIAmCore
     var hasStarted: Bool { started }
     var targetIndex: Int { phase == .approaching ? 0 : guide?.facingPointIndex ?? guide?.targetIndex ?? 1 }
     var targetName: String {
-        if phase == .approaching {return "출발점"}
+        if phase == .approaching {return L("출발점")}
         return guide?.route.pointLabel(at:targetIndex) ?? GuidanceCopy.target(targetIndex,last:(selected?.route?.points.count ?? 2)-1)
     }
     var headline: GuidanceHeadline {
@@ -177,7 +177,7 @@ import HearIAmCore
             return GuidanceHeadline(holdingSeconds:performanceHoldRemaining,pointName:guide?.route.pointLabel(at:max(1,targetIndex-1)) ?? SignalCopy.point(max(1,targetIndex-1)))
         }
         if phase == .departure, usesPracticeEntry, !started {
-            return GuidanceHeadline(title:departureReady ? "준비되면\n‘출발’이라고 말해주세요" : "현재 위치에서\n출발을 준비해요",detail:departureStatus,symbol:departureReady ? "checkmark.circle" : "location.circle")
+            return GuidanceHeadline(title:departureReady ? L("준비되면\n‘출발’이라고 말해주세요") : L("현재 위치에서\n출발을 준비해요"),detail:departureStatus,symbol:departureReady ? "checkmark.circle" : "location.circle")
         }
         return GuidanceHeadline(phase:phase,targetName:targetName,hasStarted:started,departureReady:departureReady,
                          departureStatus:departureStatus,arrivedName:arrivedName,cue:cue,message:message)
@@ -200,7 +200,7 @@ import HearIAmCore
             guard let self else { return }
             self.audioIssue=text;self.instructionDone=false
             if self.phase == .guiding || self.phase == .starting || self.phase == .approaching {
-                self.approachGuide=nil;self.signals.stopDirection();self.guide?.pause();self.phase = self.started ? .paused : .departure;self.message="음성 재생을 확인한 후 다시 시작해주세요."
+                self.approachGuide=nil;self.signals.stopDirection();self.guide?.pause();self.phase = self.started ? .paused : .departure;self.message=L("음성 재생을 확인한 후 다시 시작해주세요.")
             }
         }
         if voiceExperiment {
@@ -234,21 +234,21 @@ import HearIAmCore
         }
         if phase == .finishing || phase == .completed { playCompletion();return }
         if phase == .approaching {
-            if let pose=freshPose(), let cue=approachGuide?.cue(position:pose.point,headingDegrees:pose.heading) { read(["출발점으로 이동합니다. \(cue.speech)"]) }
+            if let pose=freshPose(), let cue=approachGuide?.cue(position:pose.point,headingDegrees:pose.heading) { read([L("출발점으로 이동합니다. %@", cue.speech)]) }
             return
         }
         if phase == .guiding {
-            if let index=guide?.facingPointIndex, let facing=guide?.route.facing(at:index) { read(["그 자리에서 \(facing.label) 방향을 바라봐주세요."]);return }
-            if let step=aligningStep { read(["\(step.name)에서 설정된 방향으로 몸을 돌려주세요."]);return }
+            if let index=guide?.facingPointIndex, let facing=guide?.route.facing(at:index) { read([L("그 자리에서 %@ 방향을 바라봐주세요.", facing.label)]);return }
+            if let step=aligningStep { read([L("%@에서 설정된 방향으로 몸을 돌려주세요.", step.name)]);return }
             if let guide, guide.isHolding {
-                read(["공연 대기 중입니다. 다음 지점 안내까지 \(Int(ceil(guide.holdRemaining)))초 남았습니다."]);return
+                read([L("공연 대기 중입니다. 다음 지점 안내까지 %@초 남았습니다.", Int(ceil(guide.holdRemaining)))]);return
             }
             guard let pose=freshPose(), let guide, let cue=guide.cue(position:pose.point,headingDegrees:pose.heading) else { return }
-            read(["\(targetName)으로 이동합니다. \(cue.speech)"]);return
+            read([L("%@으로 이동합니다. %@", targetName, cue.speech)]);return
         }
-        if phase == .interrupted { read(["안내를 멈췄습니다. \(recoveryInstruction)"]);return }
-        if phase == .paused { read(["안내를 일시정지했습니다. 현재 위치와 저장된 동선을 확인한 뒤 다시 시작해주세요."]);return }
-        if phase == .wear { read([GuidanceCopy.doNotDisturb,"휴대폰을 허리 앞쪽에 세로로 고정해주세요. 후면 카메라는 몸 바깥쪽을 향하고 렌즈는 가리지 말아주세요."]);return }
+        if phase == .interrupted { read([L("안내를 멈췄습니다. %@", recoveryInstruction)]);return }
+        if phase == .paused { read([L("안내를 일시정지했습니다. 현재 위치와 저장된 동선을 확인한 뒤 다시 시작해주세요.")]);return }
+        if phase == .wear { read([GuidanceCopy.doNotDisturb,L("휴대폰을 허리 앞쪽에 세로로 고정해주세요. 후면 카메라는 몸 바깥쪽을 향하고 렌즈는 가리지 말아주세요.")]);return }
         if phase == .departure { read([departureStatus]);return }
         read(currentInstruction)
     }
@@ -287,7 +287,7 @@ import HearIAmCore
         isSettingsPresented=true
         if [.guiding,.starting,.approaching].contains(phase) {
             guide?.pause();phase = started ? .paused : .departure
-            message="설정을 마치면 현재 목표에서 안내를 다시 시작할 수 있어요."
+            message=L("설정을 마치면 현재 목표에서 안내를 다시 시작할 수 있어요.")
         }
         invalidateTasks();signals.stop()
         voiceConversationTimer?.cancel()
@@ -386,7 +386,7 @@ import HearIAmCore
         if !trackingLossAnnounced {
             trackingLossAnnounced=true
             signals.stopDirection();signals.setWarning(nil)
-            let prompt="위치 확인 중입니다. 몸을 천천히 좌우로 천천히 돌려보세요."
+            let prompt=L("위치 확인 중입니다. 몸을 천천히 좌우로 천천히 돌려보세요.")
             message=prompt
             tracking.event("tracking_self_recovery_prompt",detail:String(format:"elapsed=%.1fs phase=%@",elapsed,"\(phase)"))
             if active { read([prompt]) }

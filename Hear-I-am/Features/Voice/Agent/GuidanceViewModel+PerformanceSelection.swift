@@ -28,10 +28,10 @@ extension GuidanceViewModel {
     }
     func selectVisibleVoiceItem(_ number:Int) {
         if showsVoicePerformances {
-            guard voicePerformanceChoices.indices.contains(number-1) else {read(["화면에 있는 공연 번호를 말씀해주세요."]);return}
+            guard voicePerformanceChoices.indices.contains(number-1) else {read([L("화면에 있는 공연 번호를 말씀해주세요.")]);return}
             selectVoicePerformance(voicePerformanceChoices[number-1].id)
         } else {
-            guard visibleVoiceStages.indices.contains(number-1) else {read(["화면에 있는 무대 번호를 말씀해주세요."]);return}
+            guard visibleVoiceStages.indices.contains(number-1) else {read([L("화면에 있는 무대 번호를 말씀해주세요.")]);return}
             select(visibleVoiceStages[number-1])
         }
     }
@@ -61,7 +61,7 @@ extension GuidanceViewModel {
         guard voicePerformanceFlow, phase == .checkpoint, !performanceCheckpointsDone, checkpointAimed else {return}
         prepareForVoiceTouch()
         guard canVerify else {
-            read([tracking.canVerify ? "확인점을 아직 확인할 수 없어요." : "위치 추적이 안정될 때까지 잠시 기다려주세요."]);return
+            read([tracking.canVerify ? L("확인점을 아직 확인할 수 없어요.") : L("위치 추적이 안정될 때까지 잠시 기다려주세요.")]);return
         }
         checkpointAimed=false
         verifyCheckpoint()

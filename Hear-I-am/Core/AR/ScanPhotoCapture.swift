@@ -25,21 +25,21 @@ actor ScanPhotoCapture {
             let scale=min(1,maximum/max(image.extent.width,image.extent.height))
             let resized=image.transformed(by:CGAffineTransform(scaleX:scale,y:scale))
             guard let cg=context.createCGImage(resized,from:resized.extent) else {
-                throw LabError.invalid("사진을 변환할 수 없습니다.")
+                throw LabError.invalid(L("사진을 변환할 수 없습니다."))
             }
             // A dedicated output buffer avoids retaining full-size camera frames after encoding.
             let data=NSMutableData()
             guard let output=CGImageDestinationCreateWithData(data,"public.jpeg" as CFString,1,nil) else {
-                throw LabError.invalid("사진을 변환할 수 없습니다.")
+                throw LabError.invalid(L("사진을 변환할 수 없습니다."))
             }
             CGImageDestinationAddImage(output,cg,[kCGImageDestinationLossyCompressionQuality:quality] as CFDictionary)
-            guard CGImageDestinationFinalize(output) else {throw LabError.invalid("사진을 압축할 수 없습니다.")}
+            guard CGImageDestinationFinalize(output) else {throw LabError.invalid(L("사진을 압축할 수 없습니다."))}
             return (data as Data,cg.width,cg.height)
         }
         let (jpeg,w,h)=try encode(maximum:1600,quality:0.82)
         let (thumbnail,_,_)=try encode(maximum:320,quality:0.72)
         guard jpeg.count<=ScanPhoto.maximumImageBytes,thumbnail.count<=ScanPhoto.maximumThumbnailBytes else {
-            throw LabError.invalid("사진 용량이 너무 큽니다. 다시 촬영해주세요.")
+            throw LabError.invalid(L("사진 용량이 너무 큽니다. 다시 촬영해주세요."))
         }
         let photo=ScanPhoto(capturedAt:frame.date,frameTimestamp:frame.timestamp,cameraTransform:frame.transform,
                             pixelWidth:w,pixelHeight:h,imageHash:ScanStore.hash(jpeg),thumbnailHash:ScanStore.hash(thumbnail),

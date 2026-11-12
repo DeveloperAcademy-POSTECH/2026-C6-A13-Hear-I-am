@@ -20,7 +20,7 @@ final class TrialLogger {
             sequence=0
             log=try TrialLog(directory:directory,metadata:metadata)
             return nil
-        } catch { log=nil; return "로그를 만들 수 없습니다: "+error.localizedDescription }
+        } catch { log=nil; return L("로그를 만들 수 없습니다: ")+error.localizedDescription }
     }
     func record(_ name: String, detail: String="", position: Point3?=nil, heading: Double?=nil,
                 error: Double?=nil, time: Double, context: Context) {
@@ -38,7 +38,7 @@ final class TrialLogger {
         log=nil
         logger.close { result in
             Task { @MainActor in
-                if case .failure(let error)=result { onFailure("로그 마무리 실패: "+error.localizedDescription) }
+                if case .failure(let error)=result { onFailure(L("로그 마무리 실패: ")+error.localizedDescription) }
             }
         }
     }

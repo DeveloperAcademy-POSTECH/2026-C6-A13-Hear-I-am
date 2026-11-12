@@ -15,19 +15,19 @@ struct PreparationReviewCard: View {
                 PreparationMiniMap(model:model,style:.review).padding(20).frame(width:243,height:230)
                     .background(ScanChrome.illustration,in:RoundedRectangle(cornerRadius:24,style:.continuous))
                 VStack(alignment:.leading,spacing:12) {
-                    Text("무대 정보 확정").font(.system(size:24,weight:.semibold)).foregroundStyle(.white)
-                    TextField("",text:$model.scanName,prompt:Text("공연명을 입력해주세요").foregroundStyle(.white.opacity(0.4)))
+                    Text(L("무대 정보 확정")).font(.system(size:24,weight:.semibold)).foregroundStyle(.white)
+                    TextField("",text:$model.scanName,prompt:Text(L("공연명을 입력해주세요")).foregroundStyle(.white.opacity(0.4)))
                         .font(.system(size:15)).foregroundStyle(.white).tint(.white)
                         .padding(.horizontal,14).frame(height:38)
                         .background(Color.white.opacity(0.08),in:RoundedRectangle(cornerRadius:10,style:.continuous))
                         .overlay(RoundedRectangle(cornerRadius:10,style:.continuous).stroke(.white.opacity(0.25),lineWidth:1))
-                        .accessibilityLabel("공연명")
+                        .accessibilityLabel(L("공연명"))
                     let zonesSet = !draft.dangerZones.isEmpty
-                    Text(zonesSet ? "위험구역 설정 완료" : "위험구역 설정 미완료").font(.system(size:13,weight:.semibold))
+                    Text(zonesSet ? L("위험구역 설정 완료") : L("위험구역 설정 미완료")).font(.system(size:13,weight:.semibold))
                         .foregroundStyle(zonesSet ? Self.done : Self.missing)
                         .padding(.horizontal,10).padding(.vertical,5).background((zonesSet ? Self.done : Self.missing).opacity(0.18),in:Capsule())
-                        .accessibilityLabel(zonesSet ? StageDangerZone.summary(draft.dangerZones) : "위험구역 설정 미완료")
-                    Text("경로 \(draft.route.count)점 / 기물 \(draft.objects.count)개 / 사진 \(model.session.photoSources.count)장 / 확인점 \([draft.checkpoint,draft.secondCheckpoint].compactMap {$0}.count)개")
+                        .accessibilityLabel(zonesSet ? StageDangerZone.summary(draft.dangerZones) : L("위험구역 설정 미완료"))
+                    Text(L("경로 %@점 / 기물 %@개 / 사진 %@장 / 확인점 %@개", draft.route.count, draft.objects.count, model.session.photoSources.count, [draft.checkpoint,draft.secondCheckpoint].compactMap {$0}.count))
                         .font(.system(size:15)).foregroundStyle(.white.opacity(0.85))
                     if draft.errors.isEmpty {
                         if let message=model.saveRecoveryMessage {Text(message).font(.system(size:13)).foregroundStyle(ScanChrome.secondary)}
@@ -36,8 +36,8 @@ struct PreparationReviewCard: View {
                     }
                     Spacer(minLength:4)
                     HStack(spacing:6) {
-                        ScanCardButton(title:model.saveRecoveryMessage != nil && !model.session.canSave ? "주변 비추기" : "돌아가기",primary:false,enabled:!model.busy) {model.review=false}
-                        ScanCardButton(title:model.session.saveRecoveryPending ? "다시 저장하기" : "저장하기",enabled:model.canSave && !model.nameTooLong) {model.save()}
+                        ScanCardButton(title:model.saveRecoveryMessage != nil && !model.session.canSave ? L("주변 비추기") : L("돌아가기"),primary:false,enabled:!model.busy) {model.review=false}
+                        ScanCardButton(title:model.session.saveRecoveryPending ? L("다시 저장하기") : L("저장하기"),enabled:model.canSave && !model.nameTooLong) {model.save()}
                     }
                 }.frame(maxWidth:306,alignment:.leading)
             }.padding(28).frame(maxWidth:670,maxHeight:300)
@@ -46,7 +46,7 @@ struct PreparationReviewCard: View {
                     Button {model.review=false} label: {
                         Image(systemName:"xmark").font(.system(size:17,weight:.semibold)).foregroundStyle(.white)
                             .frame(width:40,height:40).background(ScanChrome.close,in:Circle())
-                    }.buttonStyle(.plain).padding(16).disabled(model.busy).accessibilityLabel("닫기")
+                    }.buttonStyle(.plain).padding(16).disabled(model.busy).accessibilityLabel(L("닫기"))
                 }
                 .padding(16)
         }

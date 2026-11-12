@@ -30,7 +30,7 @@ import HearIAmCore
         pinURL=docs.appendingPathComponent("stage-pins.json")
         if FileManager.default.fileExists(atPath:pinURL.path) {
             do {pins=try JSONDecoder().decode(LibraryPins.self,from:Data(contentsOf:pinURL))}
-            catch {self.error="고정한 무대 정보를 읽지 못했습니다: \(error.localizedDescription)"}
+            catch {self.error=L("고정한 무대 정보를 읽지 못했습니다: %@", error.localizedDescription)}
         }
     }
     func refresh() async {
@@ -56,7 +56,7 @@ import HearIAmCore
             // Only a successful complete scan listing can release references to removed bundles.
             catalog=try await catalogStore.reconcileScanReferences(validScanIDs:Set(loadedScans.map(\.id)))
             try await synchronizeLegacyPlaces()
-        } catch {self.error="공연 목록을 불러오지 못했어요. 기존 자료는 유지됩니다. \(error.localizedDescription)"}
+        } catch {self.error=L("공연 목록을 불러오지 못했어요. 기존 자료는 유지됩니다. %@", error.localizedDescription)}
     }
     private func refreshVoiceMetadata() {
         let current=voiceMetadata
@@ -75,7 +75,7 @@ import HearIAmCore
     }
     func refreshGuidanceRecords() async {
         do {guidanceRecords=try await guidanceRecordsStore.list();recordError=nil}
-        catch {recordError="안내 기록을 읽지 못했어요: \(error.localizedDescription)"}
+        catch {recordError=L("안내 기록을 읽지 못했어요: %@", error.localizedDescription)}
     }
     func saveGuidanceRecord(_ record: GuidanceRecord) async throws {
         let saved=try await guidanceRecordsStore.save(record)
@@ -89,7 +89,7 @@ import HearIAmCore
     func togglePin(_ id: UUID) {
         var updated=pins; updated.toggle(id)
         do {try JSONEncoder().encode(updated).write(to:pinURL,options:.atomic); pins=updated}
-        catch {self.error="고정 상태를 저장하지 못했습니다: \(error.localizedDescription)"}
+        catch {self.error=L("고정 상태를 저장하지 못했습니다: %@", error.localizedDescription)}
     }
     func renameStage(_ id: UUID, to name: String) async throws {
         defer {refreshVoiceMetadata()}
@@ -157,7 +157,7 @@ extension StageLibrary {
     }
     func updatePerformance(id: UUID, name: String, notes: String) async throws {
         defer {refreshVoiceMetadata()}
-        guard var folder=catalog.performances.first(where:{$0.id==id}) else {throw LabError.invalid("공연을 찾을 수 없어요.")}
+        guard var folder=catalog.performances.first(where:{$0.id==id}) else {throw LabError.invalid(L("공연을 찾을 수 없어요."))}
         folder.name=name;folder.notes=notes;catalog=try await catalogStore.upsert(folder)
         try await synchronizeLegacyPlaces()
     }
@@ -184,7 +184,7 @@ extension StageLibrary {
     }
     func renameVenue(_ id: UUID, in performanceID: UUID, to name: String) async throws {
         defer {refreshVoiceMetadata()}
-        guard catalog.performances.first(where:{$0.id==performanceID})?.venues.contains(where:{$0.id==id})==true else {throw LabError.invalid("공연·연습 공간을 찾을 수 없어요.")}
+        guard catalog.performances.first(where:{$0.id==performanceID})?.venues.contains(where:{$0.id==id})==true else {throw LabError.invalid(L("공연·연습 공간을 찾을 수 없어요."))}
         catalog=try await catalogStore.upsertVenue(.init(id:id,name:name),in:performanceID)
         try await synchronizeLegacyPlaces()
     }
@@ -195,7 +195,7 @@ extension StageLibrary {
     }
     func assignScans(_ scanIDs: [UUID], to performanceID: UUID?, venueID: UUID? = nil) async throws {
         defer {refreshVoiceMetadata()}
-        guard Set(scanIDs).isSubset(of:Set(records.map(\.id))) else {throw LabError.invalid("저장한 무대를 다시 불러와주세요.")}
+        guard Set(scanIDs).isSubset(of:Set(records.map(\.id))) else {throw LabError.invalid(L("저장한 무대를 다시 불러와주세요."))}
         catalog=try await catalogStore.assign(scanIDs,to:performanceID,venueID:venueID)
         try await synchronizeLegacyPlaces()
     }
@@ -204,10 +204,10 @@ extension StageLibrary {
     }
     func referencePlan(for performanceID: UUID) -> PerformancePlan {
         if let plan=referencePlans(for:performanceID).first {return plan}
-        var plan=PerformancePlan();plan.name="1번 씬";plan.isReferenceOnly=true;return plan
+        var plan=PerformancePlan();plan.name=L("1번 씬");plan.isReferenceOnly=true;return plan
     }
     func savePerformancePlan(_ value: PerformancePlan, for performanceID: UUID) async throws {
-        guard catalog.performances.contains(where:{$0.id==performanceID}) else {throw LabError.invalid("공연을 찾을 수 없어요.")}
+        guard catalog.performances.contains(where:{$0.id==performanceID}) else {throw LabError.invalid(L("공연을 찾을 수 없어요."))}
         let previous=plans.first {$0.id==value.id}
         var plan=value;plan.updatedAt=Date();plan.name=plan.name.trimmingCharacters(in:.whitespacesAndNewlines)
         plan.isReferenceOnly=true
@@ -222,7 +222,7 @@ extension StageLibrary {
     }
     func removePerformancePlan(id: UUID, from performanceID: UUID) async throws {
         guard let folder=catalog.performances.first(where:{$0.id==performanceID}) else {
-            throw LabError.invalid("공연을 찾을 수 없어요.")
+            throw LabError.invalid(L("공연을 찾을 수 없어요."))
         }
         // A multi-scene save can be retried after an earlier deletion already succeeded.
         // Never delete an independent plan that is not linked to this performance.

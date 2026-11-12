@@ -30,15 +30,15 @@ struct PreparationPlanPicker: View {
             VStack(alignment:.leading,spacing:18) {
                 HStack(alignment:.top,spacing:10) {
                     VStack(alignment:.leading,spacing:6) {
-                        Text("사전 저장한 공연 동선 불러오기").font(HearFont.pretendard(.bold,size:24)).tracking(-0.72).foregroundStyle(.white)
-                        Text("실제 무대의 가로·세로에 맞춰 옅은 잔상으로 보여줘요. 기물과 경로는 직접 찍어 등록하세요.")
+                        Text(L("사전 저장한 공연 동선 불러오기")).font(HearFont.pretendard(.bold,size:24)).tracking(-0.72).foregroundStyle(.white)
+                        Text(L("실제 무대의 가로·세로에 맞춰 옅은 잔상으로 보여줘요. 기물과 경로는 직접 찍어 등록하세요."))
                             .font(HearFont.pretendard(.medium,size:14)).foregroundStyle(.white.opacity(0.6)).lineLimit(1)
                     }
                     Spacer(minLength:12)
-                    Button("취소",action:onCancel).font(HearFont.pretendard(.semibold,size:17)).foregroundStyle(.white)
+                    Button(L("취소"),action:onCancel).font(HearFont.pretendard(.semibold,size:17)).foregroundStyle(.white)
                         .padding(.horizontal,22).frame(height:48).background(Color.white.opacity(0.1),in:Capsule())
                         .buttonStyle(.plain)
-                    Button("참고 잔상 불러오기") {if let plan=selectedPlan {onConfirm(plan)}}
+                    Button(L("참고 잔상 불러오기")) {if let plan=selectedPlan {onConfirm(plan)}}
                         .font(HearFont.pretendard(.semibold,size:17)).foregroundStyle(selectedPlan == nil ? .white.opacity(0.35) : ScanChrome.darkText)
                         .padding(.horizontal,22).frame(height:48)
                         .background(selectedPlan == nil ? Color.white.opacity(0.08) : .white,in:Capsule())
@@ -60,7 +60,7 @@ struct PreparationPlanPicker: View {
                                             .font(.system(size:24)).foregroundStyle(.white.opacity(isSelected ? 1 : 0.7)).padding(10)
                                     }
                                     Text(plan.name).font(HearFont.pretendard(.semibold,size:18)).foregroundStyle(.white).lineLimit(1).padding(.top,8)
-                                    Text("경로 \(plan.points.count)점 · 기물 \(plan.objects.count)개")
+                                    Text(L("경로 %@점 · 기물 %@개", plan.points.count, plan.objects.count))
                                         .font(HearFont.pretendard(.medium,size:14)).foregroundStyle(.white.opacity(0.6))
                                 }
                                 .padding(16)

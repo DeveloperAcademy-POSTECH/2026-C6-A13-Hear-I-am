@@ -15,8 +15,8 @@ struct PreparationPhotoControls: View {
                     .padding(.horizontal,10).frame(height:23).liquidGlass(Capsule(),tint:ScanChrome.panelTint)
             }.buttonStyle(.plain)
                 .disabled(model.session.photoSources.isEmpty || model.busy)
-                .accessibilityLabel("촬영한 사진 \(model.session.photoSources.count)장 확인")
-            ScanCircleButton(systemImage:"camera",label:model.session.photoCapturing ? "사진 저장 중" : "사진 남기기",size:48,enabled:model.session.canCapturePhoto) {
+                .accessibilityLabel(L("촬영한 사진 %@장 확인", model.session.photoSources.count))
+            ScanCircleButton(systemImage:"camera",label:model.session.photoCapturing ? L("사진 저장 중") : L("사진 남기기"),size:48,enabled:model.session.canCapturePhoto) {
                 model.session.capturePhoto(objectID:model.objectEditing ? model.editingObjectID : nil,
                                            routeIndex:model.step == .route && !model.draft.route.isEmpty ? model.draft.route.count-1 : nil)
             }

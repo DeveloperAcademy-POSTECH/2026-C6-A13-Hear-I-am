@@ -40,17 +40,17 @@ struct PerformanceLibraryView: View {
             ScrollView {
                 VStack(spacing: 28) {
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("공연 리스트").font(HearFont.pretendard(.semibold, size: 28)).foregroundStyle(.white)
+                        Text(L("공연 리스트")).font(HearFont.pretendard(.semibold, size: 28)).foregroundStyle(.white)
                             .padding(.horizontal, 5).accessibilityAddTraits(.isHeader)
-                        PerformanceSearchField(text: $query, prompt: "공연 이름 또는 상세정보 검색")
+                        PerformanceSearchField(text: $query, prompt: L("공연 이름 또는 상세정보 검색"))
                     }
                     if library.loading && folders.isEmpty {
-                        ProgressView("공연을 불러오는 중이에요").frame(maxWidth: .infinity, minHeight: 260)
+                        ProgressView(L("공연을 불러오는 중이에요")).frame(maxWidth: .infinity, minHeight: 260)
                     } else if folders.isEmpty {
                         // 971:32030: the stroke logo over the line, in the middle of what is left of the screen.
                         VStack(spacing: 20) {
                             Image("PerformanceEmpty").resizable().scaledToFit().frame(width: 60, height: 60).accessibilityHidden(true)
-                            Text(filtering ? "찾는 공연이\n없습니다" : "생성된 공연이\n없습니다")
+                            Text(filtering ? L("찾는 공연이\n없습니다") : L("생성된 공연이\n없습니다"))
                                 .font(HearFont.pretendard(.semibold, size: 20)).multilineTextAlignment(.center)
                                 .foregroundStyle(HearV3.secondary)
                         }.frame(maxWidth: .infinity, minHeight: 420)
@@ -73,11 +73,11 @@ struct PerformanceLibraryView: View {
             .v3Screen()
                 .hearTopBar(nil) {
                     Button { changeRole?() } label: { HearTopButtonLabel(systemImage: "house") }
-                        .buttonStyle(.plain).accessibilityLabel("역할 선택으로 돌아가기")
+                        .buttonStyle(.plain).accessibilityLabel(L("역할 선택으로 돌아가기"))
                 } trailing: {
                     filterMenu
                     Button { creating = true } label: { HearTopButtonLabel(systemImage: "plus", prominent: true) }
-                        .buttonStyle(.plain).accessibilityLabel("새 공연 만들기").accessibilityIdentifier("performance.create")
+                        .buttonStyle(.plain).accessibilityLabel(L("새 공연 만들기")).accessibilityIdentifier("performance.create")
                 }
                 .navigationDestination(for: UUID.self) { id in
                     PerformanceDetailView(library: library, performanceID: id, onStartGuidance: onStartGuidance)
@@ -87,13 +87,13 @@ struct PerformanceLibraryView: View {
                 .sheet(isPresented: $choosingVenues) {
                     PerformanceVenueFilterSheet(names: venueNames, selection: venueFilter) { venueFilter = $0 }
                 }
-                .hearConfirm("‘\(deleting?.name ?? "")’ 공연 폴더를 삭제할까요?", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }),
-                             message: "스캔한 무대와 사진, 기본 동선, 공연 및 연습 공간이 함께 삭제돼요.\n안내 기록은 남아요.") {
+                .hearConfirm(L("‘%@’ 공연 폴더를 삭제할까요?", deleting?.name ?? ""), isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }),
+                             message: L("스캔한 무대와 사진, 기본 동선, 공연 및 연습 공간이 함께 삭제돼요.\n안내 기록은 남아요.")) {
                     guard let id = deleting?.id else { return }
                     Task { do { try await library.deletePerformance(id) } catch { self.error = error.localizedDescription } }
                 }
-                .alert("삭제하지 못했어요", isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
-                    Button("확인", role: .cancel) { error = nil }
+                .alert(L("삭제하지 못했어요"), isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
+                    Button(L("확인"), role: .cancel) { error = nil }
                 } message: { Text(error ?? "") }
         }.v3Screen().onAppear { openRequestedFolder() }
             .onChange(of: selectedPerformanceID) { openRequestedFolder() }
@@ -123,19 +123,19 @@ struct HearSortFilterMenu: View {
     private var active: Bool { sort != .newest || period != .all || venueCount > 0 }
     var body: some View {
         Menu {
-            Section("정렬") {
-                Picker("정렬", selection: $sort) {
+            Section(L("정렬")) {
+                Picker(L("정렬"), selection: $sort) {
                     ForEach(PerformanceSort.allCases, id: \.self) { Text($0.title).tag($0) }
                 }.pickerStyle(.inline).labelsHidden()
             }
-            Section("장소") {
+            Section(L("장소")) {
                 Button(action: chooseVenues) {
-                    Text("장소 선택…")
-                    Text(venueCount == 0 ? "전체 장소" : "\(venueCount)곳 선택")
+                    Text(L("장소 선택…"))
+                    Text(venueCount == 0 ? L("전체 장소") : L("%@곳 선택", venueCount))
                 }
             }
-            Section("기간") {
-                Picker("기간", selection: $period) {
+            Section(L("기간")) {
+                Picker(L("기간"), selection: $period) {
                     ForEach(PerformancePeriod.allCases, id: \.self) { Text($0.title).tag($0) }
                 }.pickerStyle(.inline).labelsHidden()
             }
@@ -147,18 +147,18 @@ struct HearSortFilterMenu: View {
                         .frame(width: 34, height: 34).background(.white, in: Circle())
                 }
             }.animation(.snappy(duration: 0.2), value: active)
-        }.buttonStyle(.plain).accessibilityLabel("정렬과 필터").accessibilityValue(active ? "적용됨" : "")
+        }.buttonStyle(.plain).accessibilityLabel(L("정렬과 필터")).accessibilityValue(active ? L("적용됨") : "")
     }
 }
 
 enum PerformanceSort: CaseIterable {
     case newest, oldest, name
-    var title: String { switch self { case .newest: "최신순"; case .oldest: "오래된순"; case .name: "공연 이름순" } }
+    var title: String { switch self { case .newest: L("최신순"); case .oldest: L("오래된순"); case .name: L("공연 이름순") } }
 }
 
 enum PerformancePeriod: CaseIterable {
     case all, week, month
-    var title: String { switch self { case .all: "전체 기간"; case .week: "최근 7일"; case .month: "최근 30일" } }
+    var title: String { switch self { case .all: L("전체 기간"); case .week: L("최근 7일"); case .month: L("최근 30일") } }
     var days: Int? { switch self { case .all: nil; case .week: 7; case .month: 30 } }
 }
 
@@ -182,30 +182,30 @@ struct PerformanceVenueFilterSheet: View {
     var body: some View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    PerformanceSearchField(text: $query, prompt: "장소 검색")
-                    Text("\(selection.count)곳 선택됨")
+                    PerformanceSearchField(text: $query, prompt: L("장소 검색"))
+                    Text(L("%@곳 선택됨", selection.count))
                         .font(HearFont.pretendard(.regular, size: 13)).foregroundStyle(HearV3.secondary)
                         .padding(.top, 16).padding(.bottom, 12)
                     VStack(spacing: 0) {
                         // 「전체 장소」 checks every venue, and unchecks them all when they already are.
-                        if query.isEmpty { row("전체 장소", checked: allChecked) { selection = allChecked ? [] : Set(names) } }
+                        if query.isEmpty { row(L("전체 장소"), checked: allChecked) { selection = allChecked ? [] : Set(names) } }
                         ForEach(shown, id: \.self) { name in
                             row(name, checked: selection.contains(name)) {
                                 if selection.contains(name) { selection.remove(name) } else { selection.insert(name) }
                             }
                         }
                         if names.isEmpty {
-                            Text("등록된 장소가 없어요").font(.subheadline).foregroundStyle(HearV3.secondary).padding(.vertical, 24)
+                            Text(L("등록된 장소가 없어요")).font(.subheadline).foregroundStyle(HearV3.secondary).padding(.vertical, 24)
                         }
                     }.padding(.horizontal, 16)
                 }.padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 24)
             }
-                .hearTopBar("장소 선택", sheet: true) {
-                    Button { dismiss() } label: { HearTopButtonLabel(systemImage: "xmark") }.buttonStyle(.plain).accessibilityLabel("닫기")
+                .hearTopBar(L("장소 선택"), sheet: true) {
+                    Button { dismiss() } label: { HearTopButtonLabel(systemImage: "xmark") }.buttonStyle(.plain).accessibilityLabel(L("닫기"))
                 } trailing: {
                     // Every venue checked is the same as no filter, which also keeps venues added later.
                     Button { onDone(allChecked ? [] : selection); dismiss() } label: { HearTopButtonLabel(systemImage: "checkmark", prominent: true) }
-                        .buttonStyle(.plain).disabled(selection.isEmpty).opacity(selection.isEmpty ? 0.4 : 1).accessibilityLabel("선택 완료")
+                        .buttonStyle(.plain).disabled(selection.isEmpty).opacity(selection.isEmpty ? 0.4 : 1).accessibilityLabel(L("선택 완료"))
                 }
                 .hearSheet()
     }
@@ -242,7 +242,7 @@ struct PerformanceSearchField: View {
                 .liquidGlass(Capsule(), tint: .white.opacity(0.05))
             if clears && !text.isEmpty {
                 Button { text = ""; focused = false } label: { HearTopButtonLabel(systemImage: "xmark") }
-                    .buttonStyle(.plain).accessibilityLabel("검색 지우기")
+                    .buttonStyle(.plain).accessibilityLabel(L("검색 지우기"))
             }
         }.animation(.easeInOut(duration: 0.18), value: text.isEmpty)
     }
@@ -267,7 +267,7 @@ struct PerformanceFolderRow: View {
                     .font(.caption).foregroundStyle(.secondary)
             }.frame(maxWidth: .infinity, alignment: .leading)
             Text("\(count)").font(.caption).monospacedDigit().padding(5)
-                .background(.white.opacity(0.10), in: Circle()).accessibilityLabel("스캔 파일 \(count)개")
+                .background(.white.opacity(0.10), in: Circle()).accessibilityLabel(L("스캔 파일 %@개", count))
             Image(systemName: "chevron.right").font(.subheadline.weight(.semibold)).accessibilityHidden(true)
         }.padding(.horizontal, 20).padding(.vertical, 14).frame(minHeight: 70)
             .background(HearV3.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -297,39 +297,39 @@ struct PerformanceEditorSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 33) {
                     VStack(alignment: .leading, spacing: 12) {
-                        header("공연 이름")
-                        TextField("", text: $name, prompt: Text("ex. 소말리아 해적선").foregroundStyle(PerformanceSearchField.grey))
+                        header(L("공연 이름"))
+                        TextField("", text: $name, prompt: Text(L("ex. 소말리아 해적선")).foregroundStyle(PerformanceSearchField.grey))
                             .font(HearFont.pretendard(.regular, size: 16)).foregroundStyle(.white)
                             .autocorrectionDisabled().accessibilityIdentifier("performance.editor.name")
                             .padding(.horizontal, 16).frame(height: 48)
                             .background(Self.field, in: Capsule())
                     }
                     VStack(alignment: .leading, spacing: 12) {
-                        header("공연 상세정보")
+                        header(L("공연 상세정보"))
                         if folder == nil {
                             venueRow
                         } else {
-                            TextField("", text: $notes, prompt: Text("공연을 간단히 설명해주세요").foregroundStyle(PerformanceSearchField.grey), axis: .vertical)
+                            TextField("", text: $notes, prompt: Text(L("공연을 간단히 설명해주세요")).foregroundStyle(PerformanceSearchField.grey), axis: .vertical)
                                 .lineLimit(3...8).font(HearFont.pretendard(.regular, size: 16)).foregroundStyle(.white)
                                 .padding(16).background(Self.field, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
                                 .accessibilityIdentifier("performance.editor.notes")
                         }
                     }
                     if name.count > 80 || notes.count > 2000 {
-                        Text("공연 이름은 80자, 상세정보는 2000자 이내로 입력해주세요.").font(.caption).foregroundStyle(.orange)
+                        Text(L("공연 이름은 80자, 상세정보는 2000자 이내로 입력해주세요.")).font(.caption).foregroundStyle(.orange)
                     }
                     if let error { Text(error).foregroundStyle(.red) }
                 }.padding(.horizontal, 16).padding(.top, 20).padding(.bottom, 24)
             }
-                .hearTopBar(folder == nil ? "공연 생성하기" : "공연 정보", sheet: true) {
+                .hearTopBar(folder == nil ? L("공연 생성하기") : L("공연 정보"), sheet: true) {
                     Button { dismiss() } label: { HearTopButtonLabel(systemImage: "xmark") }
-                        .buttonStyle(.plain).disabled(busy).accessibilityLabel("닫기")
+                        .buttonStyle(.plain).disabled(busy).accessibilityLabel(L("닫기"))
                 } trailing: {
                     Button(action: save) {
                         if busy { ProgressView().frame(width: 44, height: 44) }
                         else { HearTopButtonLabel(systemImage: "checkmark", prominent: true).opacity(valid ? 1 : 0.4) }
                     }.buttonStyle(.plain).disabled(busy || !valid)
-                        .accessibilityLabel("공연 저장").accessibilityIdentifier("performance.editor.save")
+                        .accessibilityLabel(L("공연 저장")).accessibilityIdentifier("performance.editor.save")
                 }
                 .interactiveDismissDisabled(busy)
                 .sheet(isPresented: $addingVenue) {
@@ -349,16 +349,16 @@ struct PerformanceEditorSheet: View {
     private var venueRow: some View {
         Button { addingVenue = true } label: {
             HStack(spacing: 8) {
-                Text("공연 및 연습 장소").font(.body).foregroundStyle(.white)
+                Text(L("공연 및 연습 장소")).font(.body).foregroundStyle(.white)
                 Spacer(minLength: 8)
                 HStack(spacing: 8) {
-                    Text(venue ?? "선택 안 함").font(.body).lineLimit(1)
+                    Text(venue ?? L("선택 안 함")).font(.body).lineLimit(1)
                     Image(systemName: "chevron.down").font(.system(size: 14, weight: .medium))
                 }.foregroundStyle(Self.detail)
             }.padding(.horizontal, 19).frame(height: 52)
                 .background(Self.field, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
                 .contentShape(Rectangle())
-        }.buttonStyle(.plain).accessibilityLabel("공연 및 연습 장소, \(venue ?? "선택 안 함")")
+        }.buttonStyle(.plain).accessibilityLabel(L("공연 및 연습 장소, %@", venue ?? L("선택 안 함")))
     }
     private static let detail = Color(red: 235/255, green: 235/255, blue: 245/255).opacity(0.7)
     private func save() {

@@ -3,9 +3,9 @@ import Foundation
 public struct GuidanceCue: Equatable, Sendable {
     public let sector: Int
     public let distance: Double
-    public var direction: String { ["앞","오른쪽 앞","오른쪽","오른쪽 뒤","뒤","왼쪽 뒤","왼쪽","왼쪽 앞"][sector] }
+    public var direction: String { [L("앞"),L("오른쪽 앞"),L("오른쪽"),L("오른쪽 뒤"),L("뒤"),L("왼쪽 뒤"),L("왼쪽"),L("왼쪽 앞")][sector] }
     public var symbol: String { ["arrow.up","arrow.up.right","arrow.right","arrow.down.right","arrow.down","arrow.down.left","arrow.left","arrow.up.left"][sector] }
-    public var speech: String { String(format:"%@, %.1f미터.",direction,distance) }
+    public var speech: String { String(format:L("%@, %.1f미터."),direction,distance) }
     public init?(position: FloorPoint, goal: FloorPoint, headingDegrees: Double, sector: Int? = nil) {
         guard position.valid, goal.valid, headingDegrees.isFinite else { return nil }
         let angle=StageHeading.bearing(from:position,to:goal,headingDegrees:headingDegrees)

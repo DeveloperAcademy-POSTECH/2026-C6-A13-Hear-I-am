@@ -26,14 +26,14 @@ import HearIAmCore
         self.sensor.onSample = { [weak self] in self?.receive(heading: $0, time: $1) }
         self.sensor.onFailure = { [weak self] in self?.suspend($0) }
         signals.onEvent = { [weak self] event, _ in
-            if event == "signal_error" { self?.suspend("소리를 재생하지 못했어요. 출력 기기를 확인한 뒤 다시 시도해주세요.") }
+            if event == "signal_error" { self?.suspend(L("소리를 재생하지 못했어요. 출력 기기를 확인한 뒤 다시 시도해주세요.")) }
         }
         voice.onSpeaking = { [weak self] in self?.signals.setSpeechActive($0) }
-        voice.onError = { [weak self] _ in self?.suspend("음성이 중단됐어요. 소리 출력을 확인한 뒤 다시 시도해주세요.") }
+        voice.onError = { [weak self] _ in self?.suspend(L("음성이 중단됐어요. 소리 출력을 확인한 뒤 다시 시도해주세요.")) }
         observers.append(NotificationCenter.default.addObserver(forName: AVAudioSession.interruptionNotification, object: nil, queue: .main) { [weak self] _ in
             Task { @MainActor in
                 guard let self, self.isRunning else { return }
-                self.suspend("소리 재생이 중단됐어요. 다시 시작해서 정면을 지정해주세요.")
+                self.suspend(L("소리 재생이 중단됐어요. 다시 시작해서 정면을 지정해주세요."))
                 HearAudioSession.interrupted()
             }
         })
@@ -42,7 +42,7 @@ import HearIAmCore
             guard reason == .oldDeviceUnavailable || reason == .newDeviceAvailable else { return }
             Task { @MainActor in
                 guard let self, self.isRunning else { return }
-                self.suspend("출력 기기가 바뀌었어요. 다시 시작해서 정면을 지정해주세요.")
+                self.suspend(L("출력 기기가 바뀌었어요. 다시 시작해서 정면을 지정해주세요."))
             }
         })
     }
@@ -68,7 +68,7 @@ import HearIAmCore
         guard isRunning else { return }
         let elapsed = now() - (lastSampleTime ?? startedAt)
         if elapsed > (lastSampleTime == nil ? 3 : 1.5) {
-            suspend("몸 방향 정보가 끊겼어요. 다시 시작해서 정면을 지정해주세요.")
+            suspend(L("몸 방향 정보가 끊겼어요. 다시 시작해서 정면을 지정해주세요."))
         }
     }
     func close() { suspend(nil) }
@@ -80,27 +80,27 @@ import HearIAmCore
     func setReference() {
         guard isRunning, canSetReference, let heading = latestHeading, let time = lastSampleTime else { return }
         guard now() - time <= 0.5 else {
-            suspend("몸 방향 정보를 다시 확인해야 해요. 다시 시작해서 정면을 지정해주세요."); return
+            suspend(L("몸 방향 정보를 다시 확인해야 해요. 다시 시작해서 정면을 지정해주세요.")); return
         }
         guard prepareOutput() else { return }
         clearSounds(); issue = nil
         practice.setReference(heading)
-        voice.play(["정면을 지정했어요. 제자리에서 몸을 왼쪽이나 오른쪽으로 조금 돌린 뒤, 소리를 따라 돌아와보세요."])
+        voice.play([L("정면을 지정했어요. 제자리에서 몸을 왼쪽이나 오른쪽으로 조금 돌린 뒤, 소리를 따라 돌아와보세요.")])
     }
     func repeatExercise() {
         guard isRunning, practice.referenceHeading != nil, prepareOutput() else { return }
         clearSounds(); practice.repeatExercise()
-        voice.play(["같은 정면으로 다시 연습해요. 제자리에서 몸을 조금 돌린 뒤, 소리를 따라 돌아와보세요."])
+        voice.play([L("같은 정면으로 다시 연습해요. 제자리에서 몸을 조금 돌린 뒤, 소리를 따라 돌아와보세요.")])
     }
     func resetReference() {
         clearSounds(); practice.reset(); issue = nil
-        voice.play(["몸을 정면으로 향한 뒤, 이 방향을 정면으로 지정 버튼을 눌러주세요."])
+        voice.play([L("몸을 정면으로 향한 뒤, 이 방향을 정면으로 지정 버튼을 눌러주세요.")])
     }
     private func prepareOutput() -> Bool {
         do { try HearAudioSession.activate() }
-        catch { suspend("소리를 재생하지 못했어요. 출력 기기를 확인한 뒤 다시 시도해주세요."); return false }
+        catch { suspend(L("소리를 재생하지 못했어요. 출력 기기를 확인한 뒤 다시 시도해주세요.")); return false }
         guard AVAudioSession.sharedInstance().outputVolume > 0 else {
-            suspend("소리가 꺼져 있어요. iPhone의 음량을 올린 뒤 다시 시작해주세요."); return false
+            suspend(L("소리가 꺼져 있어요. iPhone의 음량을 올린 뒤 다시 시작해주세요.")); return false
         }
         return true
     }
@@ -112,7 +112,7 @@ import HearIAmCore
         guard isRunning else { return }
         guard time.isFinite, now() - time >= -0.1, now() - time <= 0.5,
               lastSampleTime.map({ time > $0 }) ?? true else {
-            suspend("몸 방향 정보를 다시 확인해야 해요. 다시 시작해서 정면을 지정해주세요."); return
+            suspend(L("몸 방향 정보를 다시 확인해야 해요. 다시 시작해서 정면을 지정해주세요.")); return
         }
         lastSampleTime = time
         guard let heading, heading.isFinite else {
@@ -121,8 +121,8 @@ import HearIAmCore
             latestHeading = nil; canSetReference = false
             practice.reset()
             if firstInvalidSample { clearSounds() }
-            issue = "휴대폰을 세워 몸에 고정해주세요. 자세를 잡은 뒤 정면을 다시 지정해요."
-            if hadReference { voice.play(["휴대폰을 세워 몸에 고정한 뒤 정면을 다시 지정해주세요."]) }
+            issue = L("휴대폰을 세워 몸에 고정해주세요. 자세를 잡은 뒤 정면을 다시 지정해요.")
+            if hadReference { voice.play([L("휴대폰을 세워 몸에 고정한 뒤 정면을 다시 지정해주세요.")]) }
             return
         }
         latestHeading = heading; canSetReference = true; issue = nil
@@ -155,7 +155,7 @@ import HearIAmCore
         completionTask = Task { @MainActor [weak self] in
             do { try await Task.sleep(nanoseconds: UInt64((duration + 0.1) * 1e9)) } catch { return }
             guard let self, self.generation == token, self.isRunning, self.practice.phase == .completed else { return }
-            self.voice.play(["방향이 맞았어요. 지정한 정면으로 돌아왔어요."])
+            self.voice.play([L("방향이 맞았어요. 지정한 정면으로 돌아왔어요.")])
         }
     }
 }

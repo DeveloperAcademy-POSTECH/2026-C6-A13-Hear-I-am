@@ -33,19 +33,19 @@ public struct MeshSnapshot: Codable, Equatable, Sendable {
               abs(transform[11])<0.001, abs(transform[15]-1)<0.001,
               !vertices.isEmpty, vertices.allSatisfy(\.valid), !indices.isEmpty,
               indices.count % 3 == 0, indices.allSatisfy({Int($0)<vertices.count}) else {
-            throw LabError.invalid("메시 좌표 또는 삼각형 인덱스가 유효하지 않습니다.")
+            throw LabError.invalid(L("메시 좌표 또는 삼각형 인덱스가 유효하지 않습니다."))
         }
         if let surfaceColors {
             guard surfaceColors.count == vertices.count*4,
                   stride(from:3,to:surfaceColors.count,by:4).allSatisfy({surfaceColors[$0]==0 || surfaceColors[$0]==255}) else {
-                throw LabError.invalid("메시 표면 색상 정보가 유효하지 않습니다.")
+                throw LabError.invalid(L("메시 표면 색상 정보가 유효하지 않습니다."))
             }
         }
         if let inferredSurfaceColors {
             guard let surfaceColors,inferredSurfaceColors.count==vertices.count*4,
                   stride(from:3,to:inferredSurfaceColors.count,by:4).allSatisfy({
                       inferredSurfaceColors[$0]==0 || (inferredSurfaceColors[$0]==255 && surfaceColors[$0]==0)
-                  }) else {throw LabError.invalid("메시 추정 색상 정보가 유효하지 않습니다.")}
+                  }) else {throw LabError.invalid(L("메시 추정 색상 정보가 유효하지 않습니다."))}
         }
     }
 }
