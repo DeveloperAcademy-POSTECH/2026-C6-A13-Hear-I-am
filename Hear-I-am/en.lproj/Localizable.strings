@@ -588,6 +588,15 @@
 "바로가기" = "Open";
 "바로가기 버튼" = "Open button";
 "받아쓰기가 꺼져 있어 음성을 들을 수 없어요. 설정 > 일반 > 키보드에서 받아쓰기를 켠 뒤 앱으로 돌아오면 다시 들어요." = "Dictation is off, so I can't hear you. Turn on Enable Dictation in Settings > General > Keyboard, then come back to the app and I'll listen again.";
+"받아쓰기" = "Dictation";
+"받아쓰기를 확인해요" = "Check Dictation";
+"확인 중" = "Checking";
+"켜짐" = "On";
+"꺼짐" = "Off";
+"켜져 있는지 확인하고 있어요." = "Checking whether it is on.";
+"음성 요청을 들을 수 있어요." = "I can hear voice requests.";
+"꺼져 있어 음성 요청을 들을 수 없어요. 설정 앱의 일반 > 키보드에서 켤 수 있어요." = "It is off, so I can't hear voice requests. Turn it on in the Settings app under General > Keyboard.";
+"켜져 있는지 확인하지 못했어요. 음성 요청은 받아쓰기가 켜져 있어야 들을 수 있어요." = "I couldn't check whether it is on. Voice requests need Dictation turned on.";
 "발은 제자리에 두고 몸을 왼쪽이나 오른쪽으로 돌려보세요. 정면에서 충분히 벗어나면 방향 안내가 시작돼요." = "Keep your feet in place and turn your body left or right. Once you turn far enough from front, direction guidance starts.";
 "방금 안내를 다시 들려드릴까요?" = "Repeat the last instruction?";
 "방금 안내를 다시 말해 달라는 말" = "asks to repeat the last instruction";
