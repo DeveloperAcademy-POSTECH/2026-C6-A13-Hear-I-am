@@ -50,6 +50,10 @@ struct SettingsInfo: Identifiable {
         let text: String
         /// A second, dimmer line under the text (the permission rows).
         var detail: String? = nil
+        /// With an action the row is a button and shows a chevron at its right (the permission rows, #189).
+        var action: (() -> Void)? = nil
+        /// What VoiceOver says the tap does.
+        var hint: String? = nil
         var id: String { text }
         /// What the read-aloud voice says for this row; 「Hear I am」 is spelled out so it is not read letter by letter.
         var spoken: String {
@@ -107,6 +111,15 @@ struct SettingsInfoPage<Footer: View>: View {
 struct SettingsInfoRow: View {
     let row: SettingsInfo.Row
     var body: some View {
+        if let action = row.action {
+            Button(action: action) { content.contentShape(Rectangle()) }
+                .buttonStyle(.plain)
+                .accessibilityHint(row.hint ?? "")
+        } else {
+            content
+        }
+    }
+    private var content: some View {
         HStack(alignment: .center, spacing: 17) {
             if let icon = row.icon {
                 Image(systemName: icon)
@@ -127,6 +140,12 @@ struct SettingsInfoRow: View {
             }
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
+            if row.action != nil {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(SettingsStyle.secondary)
+                    .accessibilityHidden(true)
+            }
         }
         .foregroundStyle(.white)
         .padding(.horizontal, 16)
