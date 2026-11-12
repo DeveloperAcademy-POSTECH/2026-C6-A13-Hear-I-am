@@ -18,6 +18,9 @@ struct PerformanceLibraryView: View {
     @State private var choosingVenues = false
     @State private var deleting: PerformanceFolder?
     @State private var error: String?
+    @State private var sortingUnfiled = false
+    /// The stages to file are offered once a launch, the first time this tab opens (#181).
+    private static var checkedUnfiled = false
     @Environment(\.hearChangeRole) private var changeRole
 
     private var folders: [PerformanceFolder] {
@@ -65,14 +68,6 @@ struct PerformanceLibraryView: View {
                             }
                         }
                     }
-                    if !library.unassignedScans.isEmpty {
-                        NavigationLink {
-                            PerformanceScanSelectionView(library: library, title: "미분류 무대", scanIDs: [], onlyUnassigned: true, onStartGuidance: onStartGuidance)
-                        } label: {
-                            HStack { Label("미분류 무대", systemImage: "tray"); Spacer(); Text("\(library.unassignedScans.count)"); Image(systemName: "chevron.right") }
-                                .font(.subheadline).padding(20).background(HearV3.surface, in: RoundedRectangle(cornerRadius: 16))
-                        }.buttonStyle(.plain)
-                    }
                 }.padding(.horizontal, 16).padding(.top, 24).padding(.bottom, 24)
             }
             #if DEBUG
@@ -96,7 +91,7 @@ struct PerformanceLibraryView: View {
                     PerformanceVenueFilterSheet(names: venueNames, selection: venueFilter) { venueFilter = $0 }
                 }
                 .hearConfirm("‘\(deleting?.name ?? "")’ 공연 폴더를 삭제할까요?", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }),
-                             message: "기본 동선과 공연 및 연습 공간이 함께 삭제돼요.\n스캔한 무대와 사진은 미분류로 남아요.") {
+                             message: "스캔한 무대와 사진, 기본 동선, 공연 및 연습 공간이 함께 삭제돼요.\n안내 기록은 남아요.") {
                     guard let id = deleting?.id else { return }
                     Task { do { try await library.deletePerformance(id) } catch { self.error = error.localizedDescription } }
                 }
@@ -104,6 +99,13 @@ struct PerformanceLibraryView: View {
                     Button("확인", role: .cancel) { error = nil }
                 } message: { Text(error ?? "") }
         }.v3Screen().onAppear { openRequestedFolder() }
+            .task {
+                guard !Self.checkedUnfiled else { return }
+                await library.refresh()
+                Self.checkedUnfiled = true
+                if !library.unassignedScans.isEmpty { sortingUnfiled = true }
+            }
+            .sheet(isPresented: $sortingUnfiled) { UnfiledStagesSheet(library: library).suspendsVoiceWake() }
             .onChange(of: selectedPerformanceID) { openRequestedFolder() }
             .onChange(of: library.performanceFolders.map(\.id)) { openRequestedFolder() }
     }
@@ -385,4 +387,68 @@ struct PerformanceEditorSheet: View {
             busy = false
         }
     }
+}
+
+/// Stages saved before every stage had to belong to a performance and a space (#181), or left by a scan that was
+/// cut off before it was saved. Each one is filed or deleted here; the sheet closes once none are left, and it is
+/// offered again on a later launch while any remain.
+struct UnfiledStagesSheet: View {
+    @ObservedObject var library: StageLibrary
+    @State private var filing: UUID?
+    @State private var deleting: ScanManifest?
+    @State private var error: String?
+    @Environment(\.dismiss) private var dismiss
+    private var scans: [ScanManifest] { library.unassignedScans.sorted { $0.date > $1.date } }
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    StageInfoTitle(text: "분류가 필요한\n무대가 있어요")
+                    Text("이제 모든 무대는 공연과 공간에 속해요.\n무대마다 저장 위치를 고르거나 삭제해주세요.")
+                        .font(HearFont.pretendard(.regular, size: 15)).foregroundStyle(StageInfoStyle.secondary)
+                        .lineSpacing(3).padding(.top, 12)
+                    VStack(spacing: 6) {
+                        ForEach(scans, id: \.id) { scan in row(scan) }
+                    }.padding(.top, 28)
+                    if let error {
+                        Text(error).font(HearFont.pretendard(.regular, size: 14)).foregroundStyle(.red).padding(.top, 16)
+                    }
+                }.padding(.horizontal, 16).padding(.top, StageInfoStyle.titleTop).padding(.bottom, 24)
+            }.v3Screen()
+                .hearTopBar("무대 정리", sheet: true) { EmptyView() } trailing: {
+                    Button("나중에") { dismiss() }
+                        .font(HearFont.pretendard(.medium, size: 16)).foregroundStyle(.white)
+                        .frame(minHeight: 44).accessibilityHint("다음에 앱을 열면 다시 보여드려요")
+                }
+        }
+        .interactiveDismissDisabled()
+        .sheet(item: Binding(get: { filing.map(FilingID.init) }, set: { filing = $0?.id })) { item in
+            StageClassificationView(library: library, scanIDs: [item.id]) { _ in }.suspendsVoiceWake()
+        }
+        .hearConfirm("‘\(deleting?.name ?? "")’ 무대를 삭제할까요?", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }),
+                     message: "스캔한 무대와 사진이 삭제돼요.") {
+            guard let id = deleting?.id else { return }
+            Task { do { try await library.deleteStage(id) } catch { self.error = error.localizedDescription } }
+        }
+        .onChange(of: scans.isEmpty) { _, empty in if empty { dismiss() } }
+    }
+    private func row(_ scan: ScanManifest) -> some View {
+        HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(scan.name).font(HearFont.pretendard(.medium, size: 18)).foregroundStyle(.white).lineLimit(1)
+                Text(PerformanceFolderRow.dateLabel(scan.date)).font(HearFont.pretendard(.regular, size: 14))
+                    .foregroundStyle(StageInfoStyle.placeholder)
+            }.frame(maxWidth: .infinity, alignment: .leading)
+            Button { deleting = scan } label: {
+                Text("삭제").font(HearFont.pretendard(.semibold, size: 15)).foregroundStyle(.white)
+                    .padding(.horizontal, 14).frame(height: 36).background(.white.opacity(0.1), in: Capsule())
+            }.buttonStyle(.plain).accessibilityLabel("\(scan.name) 삭제")
+            Button { filing = scan.id } label: {
+                Text("분류").font(HearFont.pretendard(.semibold, size: 15)).foregroundStyle(StageInfoStyle.buttonText)
+                    .padding(.horizontal, 14).frame(height: 36).background(.white, in: Capsule())
+            }.buttonStyle(.plain).accessibilityLabel("\(scan.name) 분류")
+        }.padding(.leading, 20).padding(.trailing, 14).frame(minHeight: 70)
+            .background(StageInfoStyle.listRow, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+    private struct FilingID: Identifiable { let id: UUID }
 }
