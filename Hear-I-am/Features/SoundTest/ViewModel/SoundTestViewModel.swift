@@ -18,7 +18,7 @@ import HearIAmCore
     init() {
         signals.onEvent={ [weak self] event, detail in
             self?.log.record(event,detail)
-            if event == "signal_error" { self?.fail("소리를 재생하지 못했어요. 연결 기기와 음량을 확인한 뒤 다시 눌러주세요.") }
+            if event == "signal_error" { self?.fail(L("소리를 재생하지 못했어요. 연결 기기와 음량을 확인한 뒤 다시 눌러주세요.")) }
         }
         voice.onSpeaking={ [weak self] speaking in
             guard let self else { return }
@@ -53,16 +53,16 @@ import HearIAmCore
         stop();error=nil
         signals.shutdown();HearAudioSession.deactivate()
         do { try HearAudioSession.activate() }
-        catch { fail("소리 출력을 바꾸지 못했어요. 연결 기기를 확인한 뒤 다시 시도해주세요.") }
+        catch { fail(L("소리 출력을 바꾸지 못했어요. 연결 기기를 확인한 뒤 다시 시도해주세요.")) }
     }
     func explain(_ step: SoundTestSection) {
-        play(.init("explanation-\(step.id)","설명 듣기",step.explanation,playback:.speech(step.explanation+" "+step.together)))
+        play(.init("explanation-\(step.id)",L("설명 듣기"),step.explanation,playback:.speech(step.explanation+" "+step.together)))
     }
     func play(_ example: SignalTutorialExample) {
         if activeID == example.id { stop();return }
         stop();error=nil
         guard AVAudioSession.sharedInstance().outputVolume > 0 else {
-            fail("소리가 꺼져 있어요. iPhone의 음량을 올린 뒤 다시 들어보세요.");return
+            fail(L("소리가 꺼져 있어요. iPhone의 음량을 올린 뒤 다시 들어보세요."));return
         }
         activeID=example.id;activeTitle=example.title
         let token=generation

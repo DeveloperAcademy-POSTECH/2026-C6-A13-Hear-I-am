@@ -35,7 +35,7 @@ struct ReferenceSceneEditorView: View {
         let bridges = ScanRouteBridge.all(in: library, performanceID: performanceID)
         scanned = Dictionary(bridges.map { ($0.scanID, $0) }, uniquingKeysWith: { a, _ in a })
         var loaded = bridges.map(\.plan) + library.referencePlans(for: performanceID)
-        if loaded.isEmpty { loaded = [Self.newRoute(named: "새 동선")] }
+        if loaded.isEmpty { loaded = [Self.newRoute(named: L("새 동선"))] }
         for index in loaded.indices { loaded[index].isReferenceOnly = true }
         _scenes = State(initialValue: loaded)
         _unlinked = State(initialValue: loaded.count == 1 && loaded[0].points.count <= 2 ? [loaded[0].id] : [])
@@ -53,11 +53,11 @@ struct ReferenceSceneEditorView: View {
     var body: some View {
         NavigationStack {
             ScrollView { editorContent }.scrollDisabled(dragBaseline != nil).v3Screen()
-                .hearTopBar("기본 동선") {
-                    ScanCircleButton(systemImage: "chevron.left", label: "나가기", enabled: !saving) { if dirty { confirmExit = true } else { dismiss() } }
+                .hearTopBar(L("기본 동선")) {
+                    ScanCircleButton(systemImage: "chevron.left", label: L("나가기"), enabled: !saving) { if dirty { confirmExit = true } else { dismiss() } }
                 } trailing: {
                     Button(action: save) { HearTopButtonLabel(systemImage: "checkmark", prominent: true) }
-                        .buttonStyle(.plain).disabled(saving).accessibilityLabel(saving ? "저장 중" : "저장하기")
+                        .buttonStyle(.plain).disabled(saving).accessibilityLabel(saving ? L("저장 중") : L("저장하기"))
                         .accessibilityIdentifier("performance.scenes.save")
                 }
                 .navigationDestination(isPresented: $managing) { manageList }
@@ -67,12 +67,12 @@ struct ReferenceSceneEditorView: View {
                     if let id, scanned[id] != nil { tool = .point }
                 }
                 .onChange(of: tool) { selectedObject = nil; selectedPoint = nil; dragBaseline = nil }
-                .confirmationDialog("저장하지 않은 변경사항이 있어요", isPresented: $confirmExit, titleVisibility: .visible) {
-                    Button("저장하지 않고 나가기", role: .destructive) { dismiss() }; Button("계속 편집", role: .cancel) { }
+                .confirmationDialog(L("저장하지 않은 변경사항이 있어요"), isPresented: $confirmExit, titleVisibility: .visible) {
+                    Button(L("저장하지 않고 나가기"), role: .destructive) { dismiss() }; Button(L("계속 편집"), role: .cancel) { }
                 }
                 .modifier(renameAlert(shown: !managing))
-                .alert("확인해주세요", isPresented: Binding(get: { message != nil }, set: { if !$0 { message = nil } })) {
-                    Button("확인", role: .cancel) { message = nil }
+                .alert(L("확인해주세요"), isPresented: Binding(get: { message != nil }, set: { if !$0 { message = nil } })) {
+                    Button(L("확인"), role: .cancel) { message = nil }
                 } message: { Text(message ?? "") }
                 #if DEBUG
                 .onAppear {
@@ -99,20 +99,20 @@ struct ReferenceSceneEditorView: View {
             routeHeader.padding(.top, 8)
             if let plan = current {
                 canvas(plan).padding(.top, 16)
-                Text("객석").font(.system(size: 12, weight: .semibold)).tracking(-0.08).foregroundStyle(Color(white: 0.62))
+                Text(L("객석")).font(.system(size: 12, weight: .semibold)).tracking(-0.08).foregroundStyle(Color(white: 0.62))
                     .frame(maxWidth: .infinity).padding(.top, 12)
                 if scanned[plan.id] == nil { toolPicker.padding(.top, 24) }
                 else {
                     // A scanned stage keeps its measured size and objects; only its route changes here.
-                    Text("스캔한 무대예요. 무대 크기와 장애물은 그대로 두고 동선만 바꿀 수 있어요.")
+                    Text(L("스캔한 무대예요. 무대 크기와 장애물은 그대로 두고 동선만 바꿀 수 있어요."))
                         .font(HearFont.pretendard(.regular, size: 13)).foregroundStyle(HearV3.secondary).padding(.top, 24)
                 }
                 Group { if tool == .point { pointRows(plan) } else { objectRows(plan) } }.padding(.top, 16)
             } else {
                 VStack(spacing: 16) {
                     Image(systemName: "point.bottomleft.forward.to.point.topright.scurvepath").font(.system(size: 40, weight: .light))
-                    Text("동선이 없어요").font(HearFont.pretendard(.semibold, size: 20))
-                    Button("새 동선 추가") { addScene() }.buttonStyle(V3PrimaryButtonStyle()).frame(maxWidth: 220)
+                    Text(L("동선이 없어요")).font(HearFont.pretendard(.semibold, size: 20))
+                    Button(L("새 동선 추가")) { addScene() }.buttonStyle(V3PrimaryButtonStyle()).frame(maxWidth: 220)
                 }.foregroundStyle(HearV3.secondary).frame(maxWidth: .infinity, minHeight: 320)
             }
         }.padding(.horizontal, 16).padding(.bottom, 32)
@@ -124,7 +124,7 @@ struct ReferenceSceneEditorView: View {
             .frame(height: 219)
             .overlay {
                 if plan.points.count <= 2 && plan.objects.isEmpty {
-                    Text("무대에 점을 찍어 새로운 동선을 추가해보세요").font(HearFont.pretendard(.regular, size: 11))
+                    Text(L("무대에 점을 찍어 새로운 동선을 추가해보세요")).font(HearFont.pretendard(.regular, size: 11))
                         .foregroundStyle(.white.opacity(0.35)).allowsHitTesting(false)
                 }
             }
@@ -133,24 +133,24 @@ struct ReferenceSceneEditorView: View {
     private var routeHeader: some View {
         HStack(spacing: 8) {
             Menu {
-                Section("동선") {
+                Section(L("동선")) {
                     ForEach(scenes) { plan in
                         Button { selectedID = plan.id } label: {
                             if plan.id == selectedID { Label(menuName(plan), systemImage: "checkmark") } else { Text(menuName(plan)) }
                         }
                     }
                 }
-                Section { Button("새 동선 추가", systemImage: "plus") { addScene() }.accessibilityIdentifier("performance.scenes.add") }
-                Section { Button("동선 관리", systemImage: "gearshape") { managing = true } }
+                Section { Button(L("새 동선 추가"), systemImage: "plus") { addScene() }.accessibilityIdentifier("performance.scenes.add") }
+                Section { Button(L("동선 관리"), systemImage: "gearshape") { managing = true } }
             } label: {
                 HStack(spacing: 4) {
-                    Text(current.map(menuName) ?? "동선 없음").font(.system(size: 17, weight: .semibold)).lineLimit(1)
+                    Text(current.map(menuName) ?? L("동선 없음")).font(.system(size: 17, weight: .semibold)).lineLimit(1)
                     Image(systemName: "chevron.up.chevron.down").font(.system(size: 12, weight: .semibold))
                 }.foregroundStyle(.white).frame(minHeight: 44).contentShape(Rectangle())
-            }.accessibilityLabel("\(current?.name ?? "동선 없음"), 동선 선택")
+            }.accessibilityLabel(L("%@, 동선 선택", current?.name ?? L("동선 없음")))
             Spacer()
-            HistoryButton(systemImage: "arrow.uturn.backward", label: "실행 취소", enabled: !past.isEmpty) { undo() }
-            HistoryButton(systemImage: "arrow.uturn.forward", label: "다시 실행", enabled: !future.isEmpty) { redo() }
+            HistoryButton(systemImage: "arrow.uturn.backward", label: L("실행 취소"), enabled: !past.isEmpty) { undo() }
+            HistoryButton(systemImage: "arrow.uturn.forward", label: L("다시 실행"), enabled: !future.isEmpty) { redo() }
         }
     }
     /// Figma 971:32821: 포인트 · 장애물 on a glass track with a glass thumb, so it reads as Liquid Glass at rest too,
@@ -168,34 +168,34 @@ struct ReferenceSceneEditorView: View {
                         .frame(width: 40, height: 40).background(Color(red: 168 / 255, green: 168 / 255, blue: 174 / 255).opacity(0.5), in: Circle())
                     Text(name.isEmpty ? label : name).font(HearFont.pretendard(.regular, size: 16)).foregroundStyle(.white).lineLimit(1)
                 } menu: {
-                    Button("이름 변경", systemImage: "pencil") { renameText = name; renameTarget = .point(index) }
+                    Button(L("이름 변경"), systemImage: "pencil") { renameText = name; renameTarget = .point(index) }
                     if index > 0 && index < plan.points.count - 1 || !plan.finished && index > 0 {
-                        Button("복제", systemImage: "plus.square.on.square") { edit { try Self.insert(&$0, FloorPoint(plan.points[index].x + 0.4, plan.points[index].y + 0.4), at: index + 1) } }
+                        Button(L("복제"), systemImage: "plus.square.on.square") { edit { try Self.insert(&$0, FloorPoint(plan.points[index].x + 0.4, plan.points[index].y + 0.4), at: index + 1) } }
                     }
-                    Section { Button("삭제", systemImage: "trash", role: .destructive) { selectedPoint = nil; edit { $0.removePoint(at: index) } } }
+                    Section { Button(L("삭제"), systemImage: "trash", role: .destructive) { selectedPoint = nil; edit { $0.removePoint(at: index) } } }
                 }
             }
-            Text("양 옆 공간은 백스테이지로 출발, 도착 점을 드래그해 위치를 조정하세요").font(HearFont.pretendard(.regular, size: 11))
+            Text(L("양 옆 공간은 백스테이지로 출발, 도착 점을 드래그해 위치를 조정하세요")).font(HearFont.pretendard(.regular, size: 11))
                 .foregroundStyle(.white.opacity(0.35)).multilineTextAlignment(.center).frame(maxWidth: .infinity).padding(.top, 16)
         }
     }
     private func objectRows(_ plan: PerformancePlan) -> some View {
         VStack(spacing: 8) {
             if plan.objects.isEmpty {
-                Text("무대를 눌러 장애물을 추가해보세요").font(HearFont.pretendard(.regular, size: 13)).foregroundStyle(HearV3.secondary)
+                Text(L("무대를 눌러 장애물을 추가해보세요")).font(HearFont.pretendard(.regular, size: 13)).foregroundStyle(HearV3.secondary)
                     .frame(maxWidth: .infinity, minHeight: 110)
             }
             ForEach(plan.objects) { object in
                 ReferenceEditorRow(selected: selectedObject == object.id, onSelect: { selectedObject = selectedObject == object.id ? nil : object.id }) {
                     Text(object.name).font(HearFont.pretendard(.regular, size: 16)).foregroundStyle(.white).lineLimit(1)
                 } menu: {
-                    Button("이름 변경", systemImage: "pencil") { renameText = object.name; renameTarget = .object(object.id) }
-                    Button("복제", systemImage: "plus.square.on.square") { duplicate(object) }
+                    Button(L("이름 변경"), systemImage: "pencil") { renameText = object.name; renameTarget = .object(object.id) }
+                    Button(L("복제"), systemImage: "plus.square.on.square") { duplicate(object) }
                     Picker(selection: Binding(get: { ReferenceShape(object) }, set: { shape in edit { try Self.reshape(&$0, object.id, to: shape) } })) {
-                        ForEach(ReferenceShape.allCases) { Text($0.rawValue).tag($0) }
-                    } label: { Label("도형", systemImage: "square.on.circle") ; Text(ReferenceShape(object).rawValue) }
+                        ForEach(ReferenceShape.allCases) { Text(L($0.rawValue)).tag($0) }
+                    } label: { Label(L("도형"), systemImage: "square.on.circle") ; Text(L(ReferenceShape(object).rawValue)) }
                         .pickerStyle(.menu)
-                    Section { Button("삭제", systemImage: "trash", role: .destructive) { selectedObject = nil; edit { $0.removeObject(object.id) } } }
+                    Section { Button(L("삭제"), systemImage: "trash", role: .destructive) { selectedObject = nil; edit { $0.removeObject(object.id) } } }
                 }
             }
         }
@@ -209,34 +209,34 @@ struct ReferenceSceneEditorView: View {
                         Text(menuName(plan)).font(HearFont.pretendard(.regular, size: 16)).foregroundStyle(.white).lineLimit(1)
                         if plan.id == selectedID {
                             // 971:32767: plain green text beside the name, no badge.
-                            Text("현재 사용 중").font(HearFont.pretendard(.regular, size: 13)).foregroundStyle(HearV3.accent)
+                            Text(L("현재 사용 중")).font(HearFont.pretendard(.regular, size: 13)).foregroundStyle(HearV3.accent)
                         }
                     } menu: {
-                        Button("이름 변경", systemImage: "pencil") { renameText = plan.name; renameTarget = .scene(plan.id) }
-                        Button("복제", systemImage: "plus.square.on.square") { duplicateScene(plan) }
+                        Button(L("이름 변경"), systemImage: "pencil") { renameText = plan.name; renameTarget = .scene(plan.id) }
+                        Button(L("복제"), systemImage: "plus.square.on.square") { duplicateScene(plan) }
                         // A scanned route goes with its scan, deleted from its space; here it can only be edited.
                         if scanned[plan.id] == nil {
-                            Section { Button("동선 삭제", systemImage: "trash", role: .destructive) { deletingRoute = plan } }
+                            Section { Button(L("동선 삭제"), systemImage: "trash", role: .destructive) { deletingRoute = plan } }
                         }
                     }
                 }
                 if scenes.isEmpty {
-                    Text("동선이 없어요").font(HearFont.pretendard(.regular, size: 14)).foregroundStyle(HearV3.secondary).frame(maxWidth: .infinity, minHeight: 120)
+                    Text(L("동선이 없어요")).font(HearFont.pretendard(.regular, size: 14)).foregroundStyle(HearV3.secondary).frame(maxWidth: .infinity, minHeight: 120)
                 }
             }.padding(.horizontal, 16).padding(.top, 8)
-        }.v3Screen().hearTopBar("동선 관리") { HearBackButton() } trailing: { EmptyView() }
+        }.v3Screen().hearTopBar(L("동선 관리")) { HearBackButton() } trailing: { EmptyView() }
             // The rename box opens on this page; on the editor underneath it only appeared after going back.
             .modifier(renameAlert(shown: managing))
             // Figma 971:36590: deleting a route asks like deleting a folder.
-            .hearConfirm("‘\(deletingRoute?.name ?? "")’ 동선을 삭제할까요?", isPresented: Binding(get: { deletingRoute != nil }, set: { if !$0 { deletingRoute = nil } }),
-                         message: "체크를 눌러 저장하면 이 동선이 삭제돼요.\n스캔한 무대에는 영향을 주지 않아요.") {
+            .hearConfirm(L("‘%@’ 동선을 삭제할까요?", deletingRoute?.name ?? ""), isPresented: Binding(get: { deletingRoute != nil }, set: { if !$0 { deletingRoute = nil } }),
+                         message: L("체크를 눌러 저장하면 이 동선이 삭제돼요.\n스캔한 무대에는 영향을 주지 않아요.")) {
                 if let plan = deletingRoute { removeScene(plan.id) }
             }
     }
 
     /// The rename box, attached to whichever page is on top: the editor or 「동선 관리」.
     private func renameAlert(shown: Bool) -> ReferenceRenameAlert {
-        ReferenceRenameAlert(title: renameTarget?.title ?? "이름 변경",
+        ReferenceRenameAlert(title: renameTarget?.title ?? L("이름 변경"),
                              isPresented: Binding(get: { shown && renameTarget != nil }, set: { if !$0 { renameTarget = nil } }),
                              text: $renameText, onCancel: { renameTarget = nil }, onSave: rename)
     }
@@ -248,15 +248,15 @@ struct ReferenceSceneEditorView: View {
     // MARK: - Editing
     private func addScene() {
         // 971:32668: a new route is 「새 동선」 until renamed; a second one is 「새 동선 2」.
-        var name = "새 동선", number = 1
-        while scenes.contains(where: { $0.name == name }) { number += 1; name = "새 동선 \(number)" }
+        var name = L("새 동선"), number = 1
+        while scenes.contains(where: { $0.name == name }) { number += 1; name = L("새 동선 %@", number) }
         snapshot()
         let plan = Self.newRoute(named: name); scenes.append(plan); dirty = true
         unlinked.insert(plan.id); selectedID = plan.id
     }
     private func duplicateScene(_ plan: PerformancePlan) {
         snapshot()
-        var copy = plan; copy.id = UUID(); copy.name = "\(plan.name) 복사본"
+        var copy = plan; copy.id = UUID(); copy.name = L("%@ 복사본", plan.name)
         copy.objects = plan.objects.compactMap { try? StageObstacle(name: $0.name, kind: $0.kind, passage: $0.passage, vertices: $0.vertices) }
         if let index = scenes.firstIndex(where: { $0.id == plan.id }) { scenes.insert(copy, at: index + 1) } else { scenes.append(copy) }
         dirty = true
@@ -270,7 +270,7 @@ struct ReferenceSceneEditorView: View {
     private func duplicate(_ object: StageObstacle) {
         edit { plan in
             let moved = object.vertices.map { FloorPoint($0.x + 0.5, $0.y - 0.5) }
-            let copy = try StageObstacle(name: "\(object.name) 복사본", kind: object.kind, passage: object.passage,
+            let copy = try StageObstacle(name: L("%@ 복사본", object.name), kind: object.kind, passage: object.passage,
                                          vertices: moved.allSatisfy({ PerformancePlan.area.contains($0) }) ? moved : object.vertices)
             plan.objects.append(copy); selectedObject = copy.id
         }
@@ -308,8 +308,8 @@ struct ReferenceSceneEditorView: View {
         guard (0...PerformancePlan.width).contains(point.x) else { return }
         edit { plan in
             var number = plan.objects.count + 1
-            while plan.objects.contains(where: { $0.name == "기물 \(number)" }) { number += 1 }
-            let object = try StageObstacle(name: "기물 \(number)", kind: .box, passage: .prohibited, vertices: ReferenceShape.square.vertices(center: p, width: 1.2, depth: 1))
+            while plan.objects.contains(where: { $0.name == L("기물 %@", number) }) { number += 1 }
+            let object = try StageObstacle(name: L("기물 %@", number), kind: .box, passage: .prohibited, vertices: ReferenceShape.square.vertices(center: p, width: 1.2, depth: 1))
             plan.objects.append(object); selectedObject = object.id
         }
     }
@@ -364,11 +364,11 @@ struct ReferenceSceneEditorView: View {
                 let route = try bridge.route(from: plan)
                 let conflicts = route.guidanceConflicts(library.records.first { $0.id == plan.id }?.settings ?? GuideSettings())
                 guard conflicts.isEmpty else {
-                    message = "‘\(plan.name)’ 동선은 안내에 쓸 수 없어요. \(conflicts.joined(separator: " "))"; return
+                    message = L("‘%@’ 동선은 안내에 쓸 수 없어요. %@", plan.name, conflicts.joined(separator: " ")); return
                 }
                 routes[plan.id] = route
             }
-        } catch { message = "저장하지 못한 동선이 있어요. 편집 내용은 유지됩니다. \(error.localizedDescription)"; return }
+        } catch { message = L("저장하지 못한 동선이 있어요. 편집 내용은 유지됩니다. %@", error.localizedDescription); return }
         saving = true
         Task {
             do {
@@ -391,7 +391,7 @@ struct ReferenceSceneEditorView: View {
                     }
                 }
                 dirty = false; dismiss()
-            } catch { message = "저장하지 못한 동선이 있어요. 편집 내용은 유지됩니다. \(error.localizedDescription)" }
+            } catch { message = L("저장하지 못한 동선이 있어요. 편집 내용은 유지됩니다. %@", error.localizedDescription) }
             saving = false
         }
     }
@@ -449,7 +449,7 @@ private struct ReferenceEditorRow<Content: View, MenuContent: View>: View {
                 .onTapGesture(perform: onSelect).accessibilityAddTraits(.isButton)
             Menu { menu } label: {
                 Image(systemName: "ellipsis").font(.system(size: 20, weight: .semibold)).foregroundStyle(.white).frame(width: 44, height: 44).contentShape(Rectangle())
-            }.accessibilityLabel("더보기")
+            }.accessibilityLabel(L("더보기"))
         }.padding(.leading, 17).padding(.trailing, 6).frame(minHeight: 76)
             // 971:32824: 10% grey rows, 18pt corners; the picked one a little lighter.
             .background(selected ? Color.white.opacity(0.12) : Color(red: 85 / 255, green: 87 / 255, blue: 89 / 255).opacity(0.1),
@@ -479,7 +479,7 @@ private enum ReferenceSceneTool: String, CaseIterable, Identifiable {
 private enum ReferenceRenameTarget {
     case scene(UUID), object(UUID), point(Int)
     var title: String {
-        switch self { case .scene: return "동선 이름 변경"; case .object: return "장애물 이름 변경"; case .point: return "지점 이름 변경" }
+        switch self { case .scene: return L("동선 이름 변경"); case .object: return L("장애물 이름 변경"); case .point: return L("지점 이름 변경") }
     }
 }
 
@@ -536,7 +536,7 @@ struct ScanRouteBridge {
         let venues = (library.performanceFolders.first { $0.id == performanceID }?.venues ?? []).sorted { $0.updatedAt > $1.updatedAt }
         return venues.flatMap { venue in
             library.scans(in: performanceID, venueID: venue.id, includeAllVenues: false).compactMap { ScanRouteBridge(scan: $0, venueName: venue.name, venueID: venue.id) }
-        } + library.scans(in: performanceID, includeAllVenues: false).compactMap { ScanRouteBridge(scan: $0, venueName: "공간 미지정", venueID: nil) }
+        } + library.scans(in: performanceID, includeAllVenues: false).compactMap { ScanRouteBridge(scan: $0, venueName: L("공간 미지정"), venueID: nil) }
     }
 }
 
@@ -548,9 +548,9 @@ private struct ReferenceRenameAlert: ViewModifier {
     let onSave: () -> Void
     func body(content: Content) -> some View {
         content.alert(title, isPresented: $isPresented) {
-            TextField("이름", text: $text)
-            Button("취소", role: .cancel, action: onCancel)
-            Button("저장", action: onSave).disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || text.count > 80)
+            TextField(L("이름"), text: $text)
+            Button(L("취소"), role: .cancel, action: onCancel)
+            Button(L("저장"), action: onSave).disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || text.count > 80)
         }
     }
 }
@@ -575,7 +575,7 @@ private struct ReferenceToolPicker: View {
                     .offset(x: thumbX)
                 HStack(spacing: 0) {
                     ForEach(cases) { item in
-                        Text(item.rawValue).font(.system(size: 15, weight: .semibold))
+                        Text(L(item.rawValue)).font(.system(size: 15, weight: .semibold))
                             .foregroundStyle(.white.opacity(item == selection ? 1 : 0.6)).frame(width: segment)
                     }
                 }.padding(.horizontal, inset).allowsHitTesting(false)
@@ -595,7 +595,7 @@ private struct ReferenceToolPicker: View {
         }.frame(height: 48)
             .liquidGlass(Capsule(), tint: .white.opacity(0.05))
             .sensoryFeedback(.selection, trigger: selection)
-            .accessibilityElement(children: .ignore).accessibilityLabel("편집 대상").accessibilityValue(selection.rawValue)
+            .accessibilityElement(children: .ignore).accessibilityLabel(L("편집 대상")).accessibilityValue(L(selection.rawValue))
             .accessibilityAdjustableAction { direction in
                 let cases = ReferenceSceneTool.allCases, i = cases.firstIndex(of: selection) ?? 0
                 switch direction {

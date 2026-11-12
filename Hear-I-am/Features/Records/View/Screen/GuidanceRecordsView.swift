@@ -23,13 +23,13 @@ struct GuidanceRecordsView: View {
             ScrollView {
                 VStack(alignment:.leading,spacing:16) {
                     VStack(alignment:.leading,spacing:12) {
-                        Text("공연/연습 기록").font(HearFont.pretendard(.semibold,size:28)).foregroundStyle(.white)
+                        Text(L("공연/연습 기록")).font(HearFont.pretendard(.semibold,size:28)).foregroundStyle(.white)
                             .padding(.horizontal,5).accessibilityAddTraits(.isHeader)
-                        PerformanceSearchField(text:$query,prompt:"공연 이름 또는 장소 검색")
+                        PerformanceSearchField(text:$query,prompt:L("공연 이름 또는 장소 검색"))
                     }
                     if let error=library.recordError {errorCard(error)}
                     if library.guidanceRecords.isEmpty && (!hasLoaded || isRefreshing) {
-                        ProgressView("기록을 불러오는 중이에요").frame(maxWidth:.infinity,minHeight:260)
+                        ProgressView(L("기록을 불러오는 중이에요")).frame(maxWidth:.infinity,minHeight:260)
                             .accessibilityIdentifier("records.loading")
                     } else if records.isEmpty {
                         if library.recordError == nil {empty}
@@ -48,7 +48,7 @@ struct GuidanceRecordsView: View {
             }.v3Screen()
                 .hearTopBar(nil) {
                     Button {changeRole?()} label: {HearTopButtonLabel(systemImage:"house")}
-                        .buttonStyle(.plain).accessibilityLabel("역할 선택으로 돌아가기")
+                        .buttonStyle(.plain).accessibilityLabel(L("역할 선택으로 돌아가기"))
                 } trailing: {
                     HearSortFilterMenu(sort:$sort,period:$period,venueCount:venueFilter.count) {choosingVenues=true}
                 }
@@ -57,16 +57,16 @@ struct GuidanceRecordsView: View {
                 .navigationDestination(item:$opened) {id in
                     if let record=library.guidanceRecords.first(where:{$0.id == id}) {GuidanceRecordDetail(record:record,library:library)}
                 }
-                .hearConfirm("이 기록을 삭제할까요?",isPresented:Binding(get:{deleting != nil},set:{if !$0 {deleting=nil}}),
-                             message:"\(deleting.map(GuidanceRecordDetail.dateLabel) ?? "") 기록이 삭제돼요.\n삭제한 기록은 복구할 수 없어요.") {
+                .hearConfirm(L("이 기록을 삭제할까요?"),isPresented:Binding(get:{deleting != nil},set:{if !$0 {deleting=nil}}),
+                             message:L("%@ 기록이 삭제돼요.\n삭제한 기록은 복구할 수 없어요.", deleting.map(GuidanceRecordDetail.dateLabel) ?? "")) {
                     guard let record=deleting else {return}
                     Task {
                         do {try await library.deleteGuidanceRecord(record.id)}
                         catch {deleteError=error.localizedDescription}
                     }
                 }
-                .alert("삭제하지 못했어요",isPresented:Binding(get:{deleteError != nil},set:{if !$0 {deleteError=nil}})) {
-                    Button("확인",role:.cancel) {deleteError=nil}
+                .alert(L("삭제하지 못했어요"),isPresented:Binding(get:{deleteError != nil},set:{if !$0 {deleteError=nil}})) {
+                    Button(L("확인"),role:.cancel) {deleteError=nil}
                 } message: {Text(deleteError ?? "")}
                 .sheet(isPresented:$choosingVenues) {
                     PerformanceVenueFilterSheet(names:venueNames,selection:venueFilter) {venueFilter=$0}
@@ -110,17 +110,17 @@ struct GuidanceRecordsView: View {
     private var empty: some View {
         VStack(spacing:20) {
             Image(systemName:"recordingtape").font(.system(size:40,weight:.medium)).accessibilityHidden(true)
-            Text(filtering ? "찾는 기록이 없어요" : "아직 저장된 기록이 없어요").font(HearFont.pretendard(.semibold,size:22))
+            Text(filtering ? L("찾는 기록이 없어요") : L("아직 저장된 기록이 없어요")).font(HearFont.pretendard(.semibold,size:22))
         }.foregroundStyle(PerformanceSearchField.grey).multilineTextAlignment(.center)
             .frame(maxWidth:.infinity,minHeight:420).accessibilityIdentifier("records.empty")
     }
     private func errorCard(_ error: String) -> some View {
         VStack(alignment:.leading,spacing:12) {
-            Label("기록을 불러오지 못했어요",systemImage:"exclamationmark.triangle")
+            Label(L("기록을 불러오지 못했어요"),systemImage:"exclamationmark.triangle")
                 .font(.headline).foregroundStyle(HearV3.text)
             Text(error).font(.subheadline).foregroundStyle(HearV3.secondary)
                 .fixedSize(horizontal:false,vertical:true)
-            Button("다시 불러오기") {Task {await reloadRecords()}}
+            Button(L("다시 불러오기")) {Task {await reloadRecords()}}
                 .buttonStyle(.bordered).disabled(isRefreshing)
                 .accessibilityIdentifier("records.retry")
         }.v3Card(inset:20)
@@ -152,7 +152,7 @@ struct GuidanceRecordRow: View {
                     Text(PerformanceFolderRow.dateLabel(date)).font(HearFont.pretendard(.regular,size:14)).foregroundStyle(Self.grey)
                 }
                 VStack(alignment:.leading,spacing:6) {
-                    detail("pin",venue ?? "공간 미지정")
+                    detail("pin",venue ?? L("공간 미지정"))
                     detail("clock",Self.durationLabel(duration))
                 }
             }.frame(maxWidth:.infinity,alignment:.leading)
@@ -165,7 +165,7 @@ struct GuidanceRecordRow: View {
             .background(.white.opacity(0.05),in:RoundedRectangle(cornerRadius:16,style:.continuous))
             .contentShape(RoundedRectangle(cornerRadius:16,style:.continuous))
             .accessibilityElement(children:.ignore)
-            .accessibilityLabel("\(title), \(PerformanceFolderRow.dateLabel(date)), \(venue ?? "공간 미지정"), \(Self.durationLabel(duration)), 지점 \(points)곳 도착")
+            .accessibilityLabel(L("%@, %@, %@, %@, 지점 %@곳 도착", title, PerformanceFolderRow.dateLabel(date), venue ?? L("공간 미지정"), Self.durationLabel(duration), points))
             .accessibilityAddTraits(.isButton)
     }
     private func detail(_ symbol: String,_ text: String) -> some View {
@@ -177,8 +177,8 @@ struct GuidanceRecordRow: View {
     /// 「1분 37초」; seconds alone under a minute, hours and minutes from an hour.
     static func durationLabel(_ seconds: Double) -> String {
         let value=Int(max(0,seconds).rounded(.down))
-        if value>=3600 {return "\(value/3600)시간 \((value/60)%60)분"}
-        if value>=60 {return "\(value/60)분 \(value%60)초"}
-        return "\(value)초"
+        if value>=3600 {return L("%@시간 %@분", value/3600, (value/60)%60)}
+        if value>=60 {return L("%@분 %@초", value/60, value%60)}
+        return L("%@초", value)
     }
 }

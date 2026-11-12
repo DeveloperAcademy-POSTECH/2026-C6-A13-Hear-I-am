@@ -29,15 +29,15 @@ struct HomeView: View {
             .hearTopBar(nil) {
                 if wake.awake {
                     Button {wake.dismiss()} label: {HearTopButtonLabel(systemImage:"chevron.left")}
-                        .accessibilityLabel("뒤로").accessibilityIdentifier("home.voice.close")
+                        .accessibilityLabel(L("뒤로")).accessibilityIdentifier("home.voice.close")
                 } else {
                     Button {changeRole?()} label: {HearTopButtonLabel(systemImage:"house")}
-                        .accessibilityLabel("처음 화면").accessibilityIdentifier("home.role")
+                        .accessibilityLabel(L("처음 화면")).accessibilityIdentifier("home.role")
                 }
             } trailing: {
                 // Not in 971:36998; kept so the performer still reaches sound and permission settings.
                 Button {showingSettings=true} label: {HearTopButtonLabel(systemImage:"gearshape")}
-                    .accessibilityLabel("설정").accessibilityIdentifier("home.settings")
+                    .accessibilityLabel(L("설정")).accessibilityIdentifier("home.settings")
             }
             .navigationDestination(isPresented:$showingSettings) {
                 HomeSettingsView().suspendsVoiceWake()
@@ -53,15 +53,15 @@ struct HomeView: View {
     /// One screen before and after the call: only the grey line changes, so calling feels like the same
     /// conversation going on. A tap anywhere on it starts listening without the wake phrase.
     private var prompt:some View {
-        VoiceWaitingPrompt(subtitle:wake.awake ? "듣고 있어요" : "Hear I am을 불러주세요",animating:animating)
+        VoiceWaitingPrompt(subtitle:wake.awake ? L("듣고 있어요") : L("Hear I am을 불러주세요"),animating:animating)
             .ignoresSafeArea()
             .contentShape(Rectangle())
             .onTapGesture {if !wake.awake {wake.beginConversation()}}
             .accessibilityAddTraits(wake.awake ? [] : .isButton)
-            .accessibilityHint(wake.awake ? "" : "눌러서 호출어 없이 말하기")
+            .accessibilityHint(wake.awake ? "" : L("눌러서 호출어 없이 말하기"))
             .accessibilityIdentifier(wake.awake ? "home.voice.caption.status" : "home.voice.orb")
             // The design has no list button; the saved performances stay one VoiceOver action away.
-            .accessibilityAction(named:"저장된 공연에서 직접 선택",start)
+            .accessibilityAction(named:L("저장된 공연에서 직접 선택"),start)
             .overlay(alignment:.bottom) {
                 if let failure=wake.failure {
                     Text(failure).font(.system(size:15)).foregroundStyle(VoiceStyle.status).multilineTextAlignment(.center)
@@ -88,7 +88,7 @@ struct HomeView: View {
             ScrollView {
                 VStack(alignment:.leading,spacing:24) {
                     VoiceUserBubble(text:wake.caption.transcript,date:heardAt,showsMeta:!wake.listening || wake.confirmingInput,typing:true)
-                    VoiceStatusRow(text:wake.confirmingInput ? "말씀하신 공연을 찾고 있어요" : "듣고 있어요")
+                    VoiceStatusRow(text:wake.confirmingInput ? L("말씀하신 공연을 찾고 있어요") : L("듣고 있어요"))
                 }
                 .padding(.horizontal,16).padding(.top,32).padding(.bottom,48)
             }

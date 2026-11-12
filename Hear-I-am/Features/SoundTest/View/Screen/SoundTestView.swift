@@ -11,9 +11,9 @@ struct SoundTestView: View {
         ScrollView {
             VStack(spacing:8) {
                 OutputDeviceHero(output:output)
-                OutputDeviceRow(output:output).readAloudTarget("출력 기기, \(output.name)")
+                OutputDeviceRow(output:output).readAloudTarget(L("출력 기기, %@", output.name))
                 VStack(spacing:0) {
-                    SettingsSectionHeader(title:"음성 안내 리스트",size:15).padding(.top,8)
+                    SettingsSectionHeader(title:L("음성 안내 리스트"),size:15).padding(.top,8)
                     SettingsGroup {
                         ForEach(lessons) { step in
                             if step != lessons.first {SettingsDivider()}
@@ -27,15 +27,15 @@ struct SoundTestView: View {
                 }
             }.padding(.horizontal,16).padding(.bottom,16)
         }.settingsBottomBar {
-            NavigationLink {SignalLessonView(step:.preparation)} label: {SettingsCapsuleLabel(title:"안내 신호 차례대로 익히기")}
-                .buttonStyle(.plain).readAloudTarget("안내 신호 차례대로 익히기 버튼").accessibilityIdentifier("tutorial.start")
+            NavigationLink {SignalLessonView(step:.preparation)} label: {SettingsCapsuleLabel(title:L("안내 신호 차례대로 익히기"))}
+                .buttonStyle(.plain).readAloudTarget(L("안내 신호 차례대로 익히기 버튼")).accessibilityIdentifier("tutorial.start")
         }
         .settingsScreen()
-        .navigationTitle("안내 신호 익히기").navigationBarTitleDisplayMode(.inline)
-        .readsAloud(title:"안내 신호 익히기") {
-            var lines=["안내 신호 익히기","연결된 기기, \(output.name)","출력 기기, \(output.name)","음성 안내 리스트"]
+        .navigationTitle(L("안내 신호 익히기")).navigationBarTitleDisplayMode(.inline)
+        .readsAloud(title:L("안내 신호 익히기")) {
+            var lines=[L("안내 신호 익히기"),L("연결된 기기, %@", output.name),L("출력 기기, %@", output.name),L("음성 안내 리스트")]
             lines.append(contentsOf:lessons.map {"\($0.title), \($0.subtitle)"})
-            lines.append("안내 신호 차례대로 익히기 버튼")
+            lines.append(L("안내 신호 차례대로 익히기 버튼"))
             return lines
         }
         .onAppear {output.refresh()}
@@ -89,20 +89,20 @@ struct SignalLessonView: View {
         }
         .settingsBottomBar {
             if step == .preparation {
-                SettingsCapsuleButton(title:"넘어가기") {go(to:.direction)}.readAloudTarget("넘어가기 버튼").accessibilityIdentifier("tutorial.next")
+                SettingsCapsuleButton(title:L("넘어가기")) {go(to:.direction)}.readAloudTarget(L("넘어가기 버튼")).accessibilityIdentifier("tutorial.next")
             } else {
                 VStack(spacing:10) {
-                    SettingsCapsuleButton(title:"이전으로",primary:false) {if let previous=step.previous {go(to:previous)} else {model.stop()}}
-                        .readAloudTarget("이전으로 버튼").accessibilityIdentifier("tutorial.previous")
-                    SettingsCapsuleButton(title:step.next == nil ? "목록으로" : "다음으로") {
+                    SettingsCapsuleButton(title:L("이전으로"),primary:false) {if let previous=step.previous {go(to:previous)} else {model.stop()}}
+                        .readAloudTarget(L("이전으로 버튼")).accessibilityIdentifier("tutorial.previous")
+                    SettingsCapsuleButton(title:step.next == nil ? L("목록으로") : L("다음으로")) {
                         if let next=step.next {go(to:next)} else {model.stop();dismiss()}
-                    }.readAloudTarget(step.next == nil ? "목록으로 버튼" : "다음으로 버튼").accessibilityIdentifier("tutorial.next")
+                    }.readAloudTarget(step.next == nil ? L("목록으로 버튼") : L("다음으로 버튼")).accessibilityIdentifier("tutorial.next")
                 }
             }
         }
         .settingsScreen()
-        .navigationTitle(step == .preparation ? "음량 조절" : step.title).navigationBarTitleDisplayMode(.inline)
-        .readsAloud(title:step == .preparation ? "음량 조절" : step.title) {model.stop();return readAloudLines}
+        .navigationTitle(step == .preparation ? L("음량 조절") : step.title).navigationBarTitleDisplayMode(.inline)
+        .readsAloud(title:step == .preparation ? L("음량 조절") : step.title) {model.stop();return readAloudLines}
         .onAppear {
             model.appear()
             let model=model
@@ -121,16 +121,16 @@ struct SignalLessonView: View {
         VStack(spacing:0) {
             Image(systemName:"speaker.wave.3.fill").font(.system(size:44,weight:.semibold)).foregroundStyle(.white)
                 .frame(height:51).padding(.top,150).accessibilityHidden(true)
-            Text("소리가 잘 들리시나요?").font(.system(size:26,weight:.bold)).foregroundStyle(.white).lineLimit(1).minimumScaleFactor(0.8)
-                .readAloudTarget("소리가 잘 들리시나요?").padding(.top,40).accessibilityAddTraits(.isHeader).accessibilityFocused($headingFocused)
-            Text("안내음성을 듣기 전\n음량을 조절해주세요").font(.system(size:20,weight:.medium)).foregroundStyle(.white.opacity(0.8))
+            Text(L("소리가 잘 들리시나요?")).font(.system(size:26,weight:.bold)).foregroundStyle(.white).lineLimit(1).minimumScaleFactor(0.8)
+                .readAloudTarget(L("소리가 잘 들리시나요?")).padding(.top,40).accessibilityAddTraits(.isHeader).accessibilityFocused($headingFocused)
+            Text(L("안내음성을 듣기 전\n음량을 조절해주세요")).font(.system(size:20,weight:.medium)).foregroundStyle(.white.opacity(0.8))
                 .multilineTextAlignment(.center).lineSpacing(4).fixedSize(horizontal:false,vertical:true)
-                .readAloudTarget("안내음성을 듣기 전 음량을 조절해주세요").padding(.top,16)
+                .readAloudTarget(L("안내음성을 듣기 전 음량을 조절해주세요")).padding(.top,16)
             VStack(spacing:0) {
-                Text("출발음").font(.system(size:15)).foregroundStyle(SettingsStyle.secondary)
+                Text(L("출발음")).font(.system(size:15)).foregroundStyle(SettingsStyle.secondary)
                     .padding(.leading,14).padding(.vertical,8).frame(maxWidth:.infinity,alignment:.leading).accessibilityAddTraits(.isHeader)
                 SystemVolumeSlider()
-            }.readAloudTarget("출발음 음량 조절").padding(.top,25)
+            }.readAloudTarget(L("출발음 음량 조절")).padding(.top,25)
             if let error=model.error {TutorialPlaybackError(message:error).padding(.top,12)}
         }.frame(maxWidth:.infinity)
     }
@@ -170,7 +170,7 @@ struct SignalLessonView: View {
             }
         }.padding(.horizontal,12).frame(height:26).background(SettingsStyle.dimButton,in:Capsule())
             .accessibilityElement(children:.ignore)
-            .accessibilityLabel("\(lessons.firstIndex(of:step).map {$0+1} ?? 1) / \(lessons.count) 단계")
+            .accessibilityLabel(L("%@ / %@ 단계", lessons.firstIndex(of:step).map {$0+1} ?? 1, lessons.count))
     }
 
     /// 370×226 card with two soft blobs in its corners (Figma 457:13710).
@@ -179,8 +179,8 @@ struct SignalLessonView: View {
             VStack(spacing:5) {
                 Image(systemName:"safari").font(.system(size:46,weight:.regular)).foregroundStyle(.white).frame(width:58,height:58)
                 VStack(spacing:3) {
-                    Text("정면 찾기").font(.system(size:26,weight:.semibold)).tracking(-0.78).foregroundStyle(.white)
-                    Text("방향 구별을 위해 연습을 해보아요").font(.system(size:16)).tracking(-0.48).foregroundStyle(.white.opacity(0.8))
+                    Text(L("정면 찾기")).font(.system(size:26,weight:.semibold)).tracking(-0.78).foregroundStyle(.white)
+                    Text(L("방향 구별을 위해 연습을 해보아요")).font(.system(size:16)).tracking(-0.48).foregroundStyle(.white.opacity(0.8))
                 }.lineLimit(1).minimumScaleFactor(0.8)
             }.padding(.top,41).frame(maxWidth:.infinity,maxHeight:.infinity,alignment:.top).frame(height:226)
                 .background {
@@ -195,33 +195,33 @@ struct SignalLessonView: View {
                 .background(Color.white.opacity(0.05),in:RoundedRectangle(cornerRadius:34,style:.continuous))
                 .clipShape(RoundedRectangle(cornerRadius:34,style:.continuous))
                 .contentShape(RoundedRectangle(cornerRadius:34,style:.continuous))
-        }.buttonStyle(.plain).readAloudTarget("정면 찾기","방향 구별을 위해 연습을 해보아요")
-            .accessibilityLabel("정면 찾기 연습").accessibilityHint("방향 구별을 위해 몸을 돌려 연습해요")
+        }.buttonStyle(.plain).readAloudTarget(L("정면 찾기"),L("방향 구별을 위해 연습을 해보아요"))
+            .accessibilityLabel(L("정면 찾기 연습")).accessibilityHint(L("방향 구별을 위해 몸을 돌려 연습해요"))
             .accessibilityIdentifier("tutorial.front-practice")
     }
 
     /// The page from the top: title, heading, copy, the 정면 찾기 card, then every group and its sounds.
     private var readAloudLines: [String] {
         if step == .preparation {
-            return ["음량 조절","소리가 잘 들리시나요?","안내음성을 듣기 전 음량을 조절해주세요","출발음 음량 조절","넘어가기 버튼"]
+            return [L("음량 조절"),L("소리가 잘 들리시나요?"),L("안내음성을 듣기 전 음량을 조절해주세요"),L("출발음 음량 조절"),L("넘어가기 버튼")]
         }
         var lines=[step.title,heading,step.explanation]
-        if step == .direction {lines+=["정면 찾기","방향 구별을 위해 연습을 해보아요"]}
+        if step == .direction {lines+=[L("정면 찾기"),L("방향 구별을 위해 연습을 해보아요")]}
         for group in step.groups {
             lines.append(group.title)
             lines+=group.examples.map {"\($0.title), \($0.detail)"}
         }
-        lines+=["이전으로 버튼",step.next == nil ? "목록으로 버튼" : "다음으로 버튼"]
+        lines+=[L("이전으로 버튼"),step.next == nil ? L("목록으로 버튼") : L("다음으로 버튼")]
         return lines
     }
 
     private var heading: String {
         switch step {
-        case .preparation: return "소리가 잘 들리시나요?"
-        case .direction: return "방향을 알려줘요"
-        case .alignment: return "진행 상황 알림"
-        case .arrival: return "포인트 확인"
-        case .objects: return "장애물 및 기물 확인"
+        case .preparation: return L("소리가 잘 들리시나요?")
+        case .direction: return L("방향을 알려줘요")
+        case .alignment: return L("진행 상황 알림")
+        case .arrival: return L("포인트 확인")
+        case .objects: return L("장애물 및 기물 확인")
         }
     }
     /// The spoken copy says 「피원」 so speech reads it right; the screen shows P1.

@@ -20,8 +20,8 @@ extension GuidanceViewModel {
     func pause() {
         guard phase == .guiding || phase == .starting || phase == .approaching else { return }
         invalidateTasks();guide?.pause();phase = started ? .paused : .departure
-        message="현재 목표는 \(targetName)이에요."
-        read([voiceShouldListen ? VoiceStepCopy.paused : "안내를 일시정지했습니다. 다시 시작 버튼을 누르면 이어서 안내합니다."])
+        message=L("현재 목표는 %@이에요.", targetName)
+        read([voiceShouldListen ? VoiceStepCopy.paused : L("안내를 일시정지했습니다. 다시 시작 버튼을 누르면 이어서 안내합니다.")])
     }
     /// Clears every signal rule; called when guidance starts or resumes.
     func resetSignals() {
@@ -85,8 +85,8 @@ extension GuidanceViewModel {
             announceStepHint=guide.route.step(at:guide.targetIndex) != nil
         }
         signals.stopDirection()
-        let facingLine=guide.route.facing(at:previous).map { "그 자리에서 \($0.label) 방향을 바라봐주세요." }
-        ticksWaitForWord=voice.play([previous == guide.route.points.count-1 ? "도착점에 도착했습니다." : name] + (facingLine.map {[$0]} ?? []))
+        let facingLine=guide.route.facing(at:previous).map { L("그 자리에서 %@ 방향을 바라봐주세요.", $0.label) }
+        ticksWaitForWord=voice.play([previous == guide.route.points.count-1 ? L("도착점에 도착했습니다.") : name] + (facingLine.map {[$0]} ?? []))
         quietUntil=ticksWaitForWord ? nil : time+Self.arrivalQuietSeconds
         logSignal("signal_arrival","\(label)(\(name)) next=\(guide.targetIndex)\(aligningStep.map { " align=\($0.name)#\(($0.facingEdge ?? 0)+1)" } ?? "")")
         if guide.isHolding { logSignal("performance_hold_start","point=\(previous) seconds=\(guide.holdRemaining)") }
@@ -226,10 +226,10 @@ extension GuidanceViewModel {
     private func paused(guide: RouteGuide) {
         phase = .paused
         switch guide.pauseReason {
-        case .obstacleProximity: message="등록한 기물과 가까워졌어요. 현재 위치와 동선을 확인해주세요."
-        case .offRoute,.outsideStage: message="저장된 동선의 안내 범위를 벗어났어요. 현재 위치와 동선을 확인해주세요."
-        default: message="위치와 방향을 다시 확인해주세요."
+        case .obstacleProximity: message=L("등록한 기물과 가까워졌어요. 현재 위치와 동선을 확인해주세요.")
+        case .offRoute,.outsideStage: message=L("저장된 동선의 안내 범위를 벗어났어요. 현재 위치와 동선을 확인해주세요.")
+        default: message=L("위치와 방향을 다시 확인해주세요.")
         }
-        read([voiceShouldListen ? VoiceStepCopy.autoPaused(message) : "잠시 멈춰주세요. \(message)"])
+        read([voiceShouldListen ? VoiceStepCopy.autoPaused(message) : L("잠시 멈춰주세요. %@", message)])
     }
 }

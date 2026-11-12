@@ -26,7 +26,7 @@ extension GuidanceViewModel {
     /// with no way out and no record (#179).
     func readCompletion(after delay: Double = 0) {
         guard phase == .finishing else { return }
-        audioIssue=nil;message="종료 안내를 읽고 있어요."
+        audioIssue=nil;message=L("종료 안내를 읽고 있어요.")
         let operation=generation
         let speak={ [weak self] in
             guard let self, self.generation == operation, self.active else { return }
@@ -41,7 +41,7 @@ extension GuidanceViewModel {
     }
     func completedRecord() throws -> GuidanceRecord {
         guard phase == .completed, guide?.state == .completed, let run else {
-            throw LabError.invalid("마지막 도착 안내가 끝난 후 종료해주세요.")
+            throw LabError.invalid(L("마지막 도착 안내가 끝난 후 종료해주세요."))
         }
         if let pendingRecord { return pendingRecord }
         // The names it is filed under now stay with the record (#179).
@@ -61,10 +61,10 @@ extension GuidanceViewModel {
                 try await library.saveGuidanceRecord(record)
                 onSaved()
             } catch {
-                saveError="기록을 저장하지 못했어요. 다시 시도해주세요. \(error.localizedDescription)"
+                saveError=L("기록을 저장하지 못했어요. 다시 시도해주세요. %@", error.localizedDescription)
                 // The voice walking screen has no buttons at the end; its back button saves again and closes.
-                if voiceExperiment, !helperPreparation {read(["안내 기록을 저장하지 못했어요. 도와주시는 분이 왼쪽 위 뒤로 버튼을 누르면 다시 저장하고 처음 화면으로 돌아가요."])}
-                else if voiceExperiment {read(["안내 기록을 저장하지 못했어요. 도와주시는 분이 화면 아래 기록 저장 다시 시도를 눌러주세요."])}
+                if voiceExperiment, !helperPreparation {read([L("안내 기록을 저장하지 못했어요. 도와주시는 분이 왼쪽 위 뒤로 버튼을 누르면 다시 저장하고 처음 화면으로 돌아가요.")])}
+                else if voiceExperiment {read([L("안내 기록을 저장하지 못했어요. 도와주시는 분이 화면 아래 기록 저장 다시 시도를 눌러주세요.")])}
             }
         }
     }
@@ -75,7 +75,7 @@ extension GuidanceViewModel {
         saveRecord(to:library) { [weak self] in
             guard let self else {return}
             logSignal("record_saved","voice")
-            read(["안내 기록을 저장했어요. 처음 화면으로 돌아갈게요."]) {close()}
+            read([L("안내 기록을 저장했어요. 처음 화면으로 돌아갈게요.")]) {close()}
         }
     }
     /// Stops the session, timers and audio. Called once when the screen closes.

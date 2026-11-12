@@ -1,4 +1,5 @@
 import SwiftUI
+import HearIAmCore
 
 /// Shared SEMI tokens from the V3 IA. Kept in the asset catalog for consistent dark surfaces.
 enum HearV3 {
@@ -109,7 +110,7 @@ struct HearBackButton: View {
     var body: some View {
         Button {dismiss()} label: {HearTopButtonLabel(systemImage:"chevron.left")}
             .buttonStyle(.plain).disabled(!enabled).opacity(enabled ? 1 : 0.45)
-            .accessibilityLabel("뒤로").accessibilityIdentifier("top.back")
+            .accessibilityLabel(L("뒤로")).accessibilityIdentifier("top.back")
     }
 }
 
@@ -206,7 +207,7 @@ struct HearConfirmAlert: View {
                     .fixedSize(horizontal:false,vertical:true).padding(.top,8)
                 HStack(spacing:8) {
                     Button {close(onCancel)} label: {
-                        Text("취소").font(.system(size:17,weight:.medium)).foregroundStyle(.white)
+                        Text(L("취소")).font(.system(size:17,weight:.medium)).foregroundStyle(.white)
                             .frame(maxWidth:.infinity).frame(height:48).background(.white.opacity(0.14),in:Capsule())
                     }.buttonStyle(.plain)
                     Button {close(onConfirm)} label: {
@@ -232,7 +233,7 @@ extension View {
     /// does its own fade.
     /// The action runs before the binding is cleared: a binding made from an optional (`deleting != nil`) sets the
     /// item to nil when cleared, and an action reading it afterwards found nothing to delete (#179).
-    func hearConfirm(_ title: String, isPresented: Binding<Bool>, message: String, confirm: String="삭제",
+    func hearConfirm(_ title: String, isPresented: Binding<Bool>, message: String, confirm: String=L("삭제"),
                      action: @escaping () -> Void) -> some View {
         fullScreenCover(isPresented:isPresented) {
             HearConfirmAlert(title:title,message:message,confirm:confirm,onCancel:{isPresented.wrappedValue=false},
@@ -275,7 +276,7 @@ struct HearSwipeDeleteRow<Content: View>: View {
             .sensoryFeedback(.impact(weight:.medium),trigger:committing) {_,now in now}
             .accessibilityElement(children:.combine).accessibilityAddTraits(.isButton)
             .accessibilityAction {onOpen()}
-            .accessibilityAction(named:"삭제",onDelete)
+            .accessibilityAction(named:L("삭제"),onDelete)
             #if DEBUG
             // Shows every row pulled by N points, to check the button at rest, stretched and past the delete point.
             .onAppear {

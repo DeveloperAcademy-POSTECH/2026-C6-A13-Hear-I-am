@@ -47,10 +47,10 @@ final class SessionBridge: NSObject, ARSessionDelegate {
         return (try? result.validate()) == nil ? nil : result
     }
     func sessionWasInterrupted(_ session: ARSession) {
-        Task { @MainActor [weak self] in guard let self else { return }; self.controller?.interrupt("AR 세션 중단",token:self.token) }
+        Task { @MainActor [weak self] in guard let self else { return }; self.controller?.interrupt(L("AR 세션 중단"),token:self.token) }
     }
     func sessionInterruptionEnded(_ session: ARSession) {
-        Task { @MainActor [weak self] in guard let self else { return }; self.controller?.interrupt("중단 종료 · 저장 공간을 다시 불러오세요",token:self.token) }
+        Task { @MainActor [weak self] in guard let self else { return }; self.controller?.interrupt(L("중단 종료 · 저장 공간을 다시 불러오세요"),token:self.token) }
     }
     func session(_ session: ARSession, didFailWithError error: Error) {
         let message=error.localizedDescription

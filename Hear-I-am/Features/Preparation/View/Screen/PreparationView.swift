@@ -72,21 +72,21 @@ struct PreparationView: View {
                 PreparationIntro(step:model.step.rawValue,page:intro) {model.intro=$0}.padding(16)
             }
             if model.confirmingScan {
-                ScanConfirmCard(title:"공간 스캔을 확정할까요?",
-                                message:"공연장과 백스테이지가 충분히 포함됐는지 확인해주세요. 확정 후에는 스캔 단계로 돌아갈 수 없습니다.",
-                                cancel:"계속 스캔",confirm:"공간 확정",onCancel:{model.confirmingScan=false},onConfirm:{model.confirmingScan=false;model.confirmScan()})
+                ScanConfirmCard(title:L("공간 스캔을 확정할까요?"),
+                                message:L("공연장과 백스테이지가 충분히 포함됐는지 확인해주세요. 확정 후에는 스캔 단계로 돌아갈 수 없습니다."),
+                                cancel:L("계속 스캔"),confirm:L("공간 확정"),onCancel:{model.confirmingScan=false},onConfirm:{model.confirmingScan=false;model.confirmScan()})
             }
             if !model.supported {
                 VStack(spacing:16) {
-                    ContentUnavailableView("LiDAR 지원 iPhone이 필요해요",systemImage:"camera",description:Text("무대 준비는 실제 카메라와 LiDAR로 공간을 저장합니다. 시뮬레이터에서는 스캔할 수 없어요."))
-                    ScanCardButton(title:"나가기",primary:false) {close()}.frame(width:160)
+                    ContentUnavailableView(L("LiDAR 지원 iPhone이 필요해요"),systemImage:"camera",description:Text(L("무대 준비는 실제 카메라와 LiDAR로 공간을 저장합니다. 시뮬레이터에서는 스캔할 수 없어요.")))
+                    ScanCardButton(title:L("나가기"),primary:false) {close()}.frame(width:160)
                 }.padding(28).frame(maxWidth:500).scanCard()
             }
             if model.interrupted {
                 VStack(spacing:14) {
-                    Label("공간 추적이 잠시 멈췄어요",systemImage:"pause.circle").font(.headline).foregroundStyle(.white)
-                    Text("입력한 정보는 유지됩니다. 같은 공간을 비추고 다시 시작해주세요.").font(.subheadline).foregroundStyle(.white.opacity(0.75))
-                    ScanCardButton(title:"추적 다시 시작") {model.resumeTracking()}.frame(width:200)
+                    Label(L("공간 추적이 잠시 멈췄어요"),systemImage:"pause.circle").font(.headline).foregroundStyle(.white)
+                    Text(L("입력한 정보는 유지됩니다. 같은 공간을 비추고 다시 시작해주세요.")).font(.subheadline).foregroundStyle(.white.opacity(0.75))
+                    ScanCardButton(title:L("추적 다시 시작")) {model.resumeTracking()}.frame(width:200)
                 }.padding(28).scanCard()
             }
             if model.choosingPlan {
@@ -96,7 +96,7 @@ struct PreparationView: View {
             if model.review {PreparationReviewCard(model:model)}
             if model.isSaving {
                 Color.black.opacity(0.35)
-                VStack(spacing:16) {ProgressView().tint(.white); Text("무대 정보를 저장하는 중입니다…").font(.headline).foregroundStyle(.white)}
+                VStack(spacing:16) {ProgressView().tint(.white); Text(L("무대 정보를 저장하는 중입니다…")).font(.headline).foregroundStyle(.white)}
                     .padding(32).scanCard()
             }
         }.frame(width:safe.size.width+insets.leading+insets.trailing,height:safe.size.height+insets.top+insets.bottom)
@@ -119,13 +119,13 @@ struct PreparationView: View {
                 onSaved?(id)
                 close()
             }
-            .alert("이 위치를 경로점으로 추가할까요?",isPresented:$model.confirmingRouteHeight) {
-                Button("다시 선택",role:.cancel) {model.cancelRouteHeight()}
-                Button("이 위치로 추가") {model.confirmRouteHeight()}
+            .alert(L("이 위치를 경로점으로 추가할까요?"),isPresented:$model.confirmingRouteHeight) {
+                Button(L("다시 선택"),role:.cancel) {model.cancelRouteHeight()}
+                Button(L("이 위치로 추가")) {model.confirmRouteHeight()}
             } message:{Text(model.routeHeightMessage)}
-            .alert("확인해주세요",isPresented:Binding(get:{model.errorMessage != nil},set:{if !$0 {model.errorMessage=nil}})) {Button("확인",role:.cancel) {model.errorMessage=nil}} message:{Text(model.errorMessage ?? "")}
-            .confirmationDialog("준비를 종료할까요? 저장하지 않은 내용은 사라집니다.",isPresented:$model.confirmingExit,titleVisibility:.visible) {
-                Button("저장하지 않고 나가기",role:.destructive) {close()}; Button("계속 준비",role:.cancel) {}
+            .alert(L("확인해주세요"),isPresented:Binding(get:{model.errorMessage != nil},set:{if !$0 {model.errorMessage=nil}})) {Button(L("확인"),role:.cancel) {model.errorMessage=nil}} message:{Text(model.errorMessage ?? "")}
+            .confirmationDialog(L("준비를 종료할까요? 저장하지 않은 내용은 사라집니다."),isPresented:$model.confirmingExit,titleVisibility:.visible) {
+                Button(L("저장하지 않고 나가기"),role:.destructive) {close()}; Button(L("계속 준비"),role:.cancel) {}
             }
     }
     /// Fade to black, turn the window back to portrait unseen, then drop the cover without the slide-down.

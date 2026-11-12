@@ -36,7 +36,7 @@ struct ImmersiveSavedStagePreview: View {
                 HearV3.canvas
                 if let scan=model.loaded {
                     SavedMeshView(scan:scan,model:model)
-                        .accessibilityLabel("저장된 무대. 한 손가락으로 회전하고 두 손가락으로 이동하거나 확대할 수 있어요.")
+                        .accessibilityLabel(L("저장된 무대. 한 손가락으로 회전하고 두 손가락으로 이동하거나 확대할 수 있어요."))
                         .simultaneousGesture(TapGesture().onEnded {
                             if barExpanded && !pointSettings && !gallery {withAnimation(Self.barSpring) {barExpanded=false}}
                         })
@@ -64,17 +64,17 @@ struct ImmersiveSavedStagePreview: View {
                         controls(route:route,safeBottom:safeBottom,height:geometry.size.height+geometry.safeAreaInsets.top+safeBottom,width:geometry.size.width)
                     } else {
                         HStack {
-                            ScanCircleButton(systemImage:"photo.on.rectangle",label:"저장된 현장 사진",size:48) {gallery=true}
+                            ScanCircleButton(systemImage:"photo.on.rectangle",label:L("저장된 현장 사진"),size:48) {gallery=true}
                             Spacer()
                         }.padding(.horizontal,27).padding(.bottom,safeBottom).frame(maxHeight:.infinity,alignment:.bottom)
                     }
                 } else if let error=model.error {
                     ContentUnavailableView {
-                        Label("공간을 열 수 없어요",systemImage:"exclamationmark.triangle")
+                        Label(L("공간을 열 수 없어요"),systemImage:"exclamationmark.triangle")
                     } description: {Text(error)} actions: {
-                        Button("다시 시도") {Task {await model.load()}}
+                        Button(L("다시 시도")) {Task {await model.load()}}
                     }
-                } else {ProgressView("공간을 불러오는 중이에요")}
+                } else {ProgressView(L("공간을 불러오는 중이에요"))}
             }.ignoresSafeArea()
                 .animation(.easeInOut(duration:0.2),value:shownPhoto?.id)
         }
@@ -129,20 +129,20 @@ struct ImmersiveSavedStagePreview: View {
     private var moreMenu: some View {
         Menu {
             Button {model.photoPinsVisible.toggle()} label: {
-                Label(model.photoPinsVisible ? "사진 위치 표시 ✓" : "사진 위치 표시",systemImage:"photo.badge.magnifyingglass")
+                Label(model.photoPinsVisible ? L("사진 위치 표시 ✓") : L("사진 위치 표시"),systemImage:"photo.badge.magnifyingglass")
             }
-            .accessibilityLabel("사진 위치 표시")
-            .accessibilityValue(model.photoPinsVisible ? "표시 중" : "숨김")
+            .accessibilityLabel(L("사진 위치 표시"))
+            .accessibilityValue(model.photoPinsVisible ? L("표시 중") : L("숨김"))
             Section {
-                Button("시점 초기화",systemImage:"arrow.counterclockwise") {model.setCamera(.overview)}
-                Button("동선 위에서 보기",systemImage:"eye") {model.setCamera(.overhead)}
-                if let onRename {Button("장면 이름 변경",systemImage:"pencil",action:onRename)}
+                Button(L("시점 초기화"),systemImage:"arrow.counterclockwise") {model.setCamera(.overview)}
+                Button(L("동선 위에서 보기"),systemImage:"eye") {model.setCamera(.overhead)}
+                if let onRename {Button(L("장면 이름 변경"),systemImage:"pencil",action:onRename)}
             }
             if let onDelete {
-                Section {Button("현재 스캔 파일 삭제",systemImage:"trash",role:.destructive,action:onDelete)}
+                Section {Button(L("현재 스캔 파일 삭제"),systemImage:"trash",role:.destructive,action:onDelete)}
             }
         } label: {HearTopButtonLabel(systemImage:"ellipsis")}
-            .buttonStyle(.plain).accessibilityLabel("무대 메뉴")
+            .buttonStyle(.plain).accessibilityLabel(L("무대 메뉴"))
     }
 
     #if DEBUG
@@ -179,15 +179,15 @@ struct ImmersiveSavedStagePreview: View {
         let label=route.pointLabel(at:index)
         return ZStack(alignment:.topLeading) {
             Color.clear
-            ScanCircleButton(systemImage:"photo.on.rectangle",label:"저장된 현장 사진",size:48) {
+            ScanCircleButton(systemImage:"photo.on.rectangle",label:L("저장된 현장 사진"),size:48) {
                 withAnimation(Self.barSpring) {barExpanded=true};gallery=true
             }.position(x:51,y:rowY)
-            ScanCircleButton(systemImage:"timer",label:"선택 지점 설정",size:48) {
+            ScanCircleButton(systemImage:"timer",label:L("선택 지점 설정"),size:48) {
                 withAnimation(Self.barSpring) {barExpanded=true};openPointSettings()
             }.position(x:width-51,y:rowY)
-            arrow("chevron.left",label:"이전 지점",enabled:index>0) {step(index-1)}
+            arrow("chevron.left",label:L("이전 지점"),enabled:index>0) {step(index-1)}
                 .position(x:mid-(barExpanded ? 24 : 71),y:rowY)
-            arrow("chevron.right",label:"다음 지점",enabled:index<count-1) {step(index+1)}
+            arrow("chevron.right",label:L("다음 지점"),enabled:index<count-1) {step(index+1)}
                 .position(x:mid+(barExpanded ? 24 : 71),y:rowY)
             routeBar(route:route,layout:layout,index:index)
                 .position(x:mid,y:barY).opacity(hidden ? 0 : 1)
@@ -239,9 +239,9 @@ struct ImmersiveSavedStagePreview: View {
                 }
                 withAnimation(Self.barSpring) {dragX=nil}
             })
-            .accessibilityElement(children:.ignore).accessibilityLabel("동선")
+            .accessibilityElement(children:.ignore).accessibilityLabel(L("동선"))
             .accessibilityValue(route.pointLabel(at:index))
-            .accessibilityHint(layout.expanded ? "위아래로 쓸어 지점을 바꿔요" : "두 번 눌러 펼쳐요")
+            .accessibilityHint(layout.expanded ? L("위아래로 쓸어 지점을 바꿔요") : L("두 번 눌러 펼쳐요"))
             .accessibilityAction {withAnimation(Self.barSpring) {barExpanded.toggle()}}
             .accessibilityAdjustableAction {direction in
                 switch direction {
@@ -272,9 +272,9 @@ struct ImmersiveSavedStagePreview: View {
                 .frame(width:124,height:94).clipShape(RoundedRectangle(cornerRadius:20,style:.continuous))
                 .frame(width:136,height:104)
                 .liquidGlass(RoundedRectangle(cornerRadius:24,style:.continuous),tint:.white.opacity(0.05))
-        }.buttonStyle(.plain).accessibilityLabel("선택한 사진 크게 보기")
+        }.buttonStyle(.plain).accessibilityLabel(L("선택한 사진 크게 보기"))
             .overlay(alignment:.topTrailing) {
-                ScanCircleButton(systemImage:"xmark",label:"사진 미리보기 닫기",size:32) {model.closePhotoPreview()}
+                ScanCircleButton(systemImage:"xmark",label:L("사진 미리보기 닫기"),size:32) {model.closePhotoPreview()}
                     .offset(x:12,y:-12)
             }
     }
@@ -284,10 +284,10 @@ struct ImmersiveSavedStagePreview: View {
         let full=galleryDetent == .large
         return VStack(alignment:.leading,spacing:14) {
             HStack {
-                Text(full ? "전체 이미지" : "현장사진").font(HearFont.pretendard(.semibold,size:22)).foregroundStyle(.white)
+                Text(full ? L("전체 이미지") : L("현장사진")).font(HearFont.pretendard(.semibold,size:22)).foregroundStyle(.white)
                     .accessibilityAddTraits(.isHeader)
                 Spacer()
-                if full {ScanCircleButton(systemImage:"xmark",label:"닫기") {gallery=false}}
+                if full {ScanCircleButton(systemImage:"xmark",label:L("닫기")) {gallery=false}}
             }.frame(height:44)
             if let scan=model.loaded,!scan.manifest.photos.isEmpty {
                 if full {
@@ -304,7 +304,7 @@ struct ImmersiveSavedStagePreview: View {
                     }.scrollIndicators(.hidden).frame(height:84)
                 }
             } else {
-                Text("저장된 사진이 없어요").font(.subheadline).foregroundStyle(HearV3.secondary)
+                Text(L("저장된 사진이 없어요")).font(.subheadline).foregroundStyle(HearV3.secondary)
             }
             Spacer(minLength:0)
         }.padding(.horizontal,20).padding(.top,full ? 20 : 14)
@@ -317,13 +317,13 @@ struct ImmersiveSavedStagePreview: View {
             Color.clear.overlay {SavedPhotoImage(store:model.store,scanID:scan.manifest.id,photo:photo,fill:true)}
                 .clipShape(RoundedRectangle(cornerRadius:6,style:.continuous))
         }.buttonStyle(.plain)
-            .accessibilityLabel("사진 \((scan.manifest.photos.firstIndex(of:photo) ?? 0)+1) 촬영 위치 보기")
+            .accessibilityLabel(L("사진 %@ 촬영 위치 보기", (scan.manifest.photos.firstIndex(of:photo) ?? 0)+1))
     }
 
     /// 「3번 지점 설정」 for P3; the start and the arrival by name.
     private var pointSettingsTitle: String {
         let count=model.loaded?.manifest.route?.points.count ?? 0, i=model.activePointIndex
-        return i==0 ? "출발 지점 설정" : i==count-1 ? "도착 지점 설정" : "\(i)번 지점 설정"
+        return i==0 ? L("출발 지점 설정") : i==count-1 ? L("도착 지점 설정") : L("%@번 지점 설정", i)
     }
     private func openPointSettings() {
         guard let route=model.loaded?.manifest.route,!route.points.isEmpty else {return}
@@ -340,19 +340,19 @@ struct ImmersiveSavedStagePreview: View {
             // the line below it, and the wait switch on the line under the title, so none of them share a line.
             HStack {
                 Spacer()
-                ScanCircleButton(systemImage:"xmark",label:"닫기",enabled:!model.savingHold) {pointSettings=false}
+                ScanCircleButton(systemImage:"xmark",label:L("닫기"),enabled:!model.savingHold) {pointSettings=false}
             }.padding(.trailing,-10)
             Text(pointSettingsTitle).font(HearFont.pretendard(.semibold,size:22)).foregroundStyle(.white)
                 .padding(.top,10)
             if model.canEditPointHold {
                 Toggle(isOn:waits) {
-                    Text("다음 이동 전 대기").font(HearFont.pretendard(.regular,size:16)).foregroundStyle(.white)
+                    Text(L("다음 이동 전 대기")).font(HearFont.pretendard(.regular,size:16)).foregroundStyle(.white)
                 }.toggleStyle(PointWaitSwitchStyle()).padding(.top,8)
                 if seconds>0 {
                     HStack(spacing:8) {
                         ForEach([5,10,20],id:\.self) {value in
                             Button {model.holdSecondsText=String(value)} label: {
-                                Text("\(value)초").font(HearFont.pretendard(.medium,size:15))
+                                Text(L("%@초", value)).font(HearFont.pretendard(.medium,size:15))
                                     .foregroundStyle(seconds==value ? .black : .white)
                                     .padding(.horizontal,14).frame(height:32)
                                     .background(seconds==value ? Color.white : Color.white.opacity(0.1),in:Capsule())
@@ -360,21 +360,21 @@ struct ImmersiveSavedStagePreview: View {
                         }
                     }.padding(.top,16).transition(.opacity)
                     HStack {
-                        ScanCircleButton(systemImage:"minus",label:"5초 줄이기",size:48,enabled:seconds>5) {model.holdSecondsText=String(max(seconds-5,5))}
+                        ScanCircleButton(systemImage:"minus",label:L("5초 줄이기"),size:48,enabled:seconds>5) {model.holdSecondsText=String(max(seconds-5,5))}
                         Spacer()
-                        Text("\(seconds)초").font(HearFont.pretendard(.semibold,size:28)).foregroundStyle(.white).monospacedDigit()
+                        Text(L("%@초", seconds)).font(HearFont.pretendard(.semibold,size:28)).foregroundStyle(.white).monospacedDigit()
                         Spacer()
-                        ScanCircleButton(systemImage:"plus",label:"5초 늘리기",size:48,enabled:seconds<3600) {model.holdSecondsText=String(min(seconds+5,3600))}
+                        ScanCircleButton(systemImage:"plus",label:L("5초 늘리기"),size:48,enabled:seconds<3600) {model.holdSecondsText=String(min(seconds+5,3600))}
                     }.padding(.top,20).transition(.opacity)
                 }
             }
             // The wait controls fold in and out with the sheet's own resize.
             Color.clear.frame(height:0).animation(Self.sheetSpring,value:seconds>0)
             HStack {
-                Text("도착 후 바라볼 방향").font(HearFont.pretendard(.regular,size:15)).foregroundStyle(.white)
+                Text(L("도착 후 바라볼 방향")).font(HearFont.pretendard(.regular,size:15)).foregroundStyle(.white)
                 Spacer()
-                Picker("방향",selection:$model.pointFacing) {
-                    Text("지정 안 함").tag(StageFacing?.none)
+                Picker(L("방향"),selection:$model.pointFacing) {
+                    Text(L("지정 안 함")).tag(StageFacing?.none)
                     ForEach(StageFacing.allCases,id:\.self) {Text($0.label).tag(Optional($0))}
                 }.tint(HearV3.secondary)
             }.padding(.top,18)
@@ -382,7 +382,7 @@ struct ImmersiveSavedStagePreview: View {
             Button {
                 Task {await model.savePointSettings();if model.holdSaveError==nil {pointSettings=false}}
             } label: {
-                Group {if model.savingHold {ProgressView()} else {Text("지점 설정 저장")}}
+                Group {if model.savingHold {ProgressView()} else {Text(L("지점 설정 저장"))}}
                     .font(HearFont.pretendard(.semibold,size:17)).foregroundStyle(.black)
                     .frame(maxWidth:.infinity).frame(height:50).background(.white,in:Capsule())
             }.buttonStyle(.plain).disabled(model.savingHold || model.enteredHoldSeconds==nil).padding(.top,28)

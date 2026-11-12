@@ -20,7 +20,7 @@ import HearIAmCore
                 "route":HearAudioSession.route])
             log=created;fileName=created.url.lastPathComponent
             return nil
-        } catch { return "로그 파일을 만들 수 없어요: "+error.localizedDescription }
+        } catch { return L("로그 파일을 만들 수 없어요: ")+error.localizedDescription }
     }
     func record(_ event: String, _ detail: String) {
         sequence+=1

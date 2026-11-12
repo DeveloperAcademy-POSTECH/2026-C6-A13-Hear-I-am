@@ -79,7 +79,7 @@ final class ReplaySceneController: NSObject {
         }
         for (index,p) in [scan.manifest.checkpoint,scan.manifest.secondCheckpoint].compactMap({$0}).enumerated() {
             scanAnnotations.addChildNode(ReplayModelFactory.part(SCNSphere(radius:0.07),.init(p.x,p.y+0.06,p.z),color:.systemYellow))
-            scanAnnotations.addChildNode(ReplayModelFactory.caption("확인점 \(index+1)",at:.init(p.x,p.y+0.18,p.z)))
+            scanAnnotations.addChildNode(ReplayModelFactory.caption(L("확인점 %@", index+1),at:.init(p.x,p.y+0.18,p.z)))
         }
         scene.rootNode.addChildNode(scanAnnotations)
     }
@@ -104,7 +104,7 @@ final class ReplaySceneController: NSObject {
         stage.addChildNode(surroundings)
         stage.addChildNode(cleanRouteNodes);stage.addChildNode(cleanAnnotations)
         cleanAnnotations.addChildNode(ReplayModelFactory.stageBoundary(area))
-        cleanAnnotations.addChildNode(ReplayModelFactory.caption("무대 범위",at:.init(area.width-0.35,0.18,-0.18)))
+        cleanAnnotations.addChildNode(ReplayModelFactory.caption(L("무대 범위"),at:.init(area.width-0.35,0.18,-0.18)))
         for i in area.corners.indices {
             let a=area.corners[i], b=area.corners[(i+1)%area.corners.count]
             scanAnnotations.addChildNode(ReplayModelFactory.line(.init(a.x,a.y+0.04,a.z),.init(b.x,b.y+0.04,b.z),color:.systemCyan))
@@ -158,7 +158,7 @@ final class ReplaySceneController: NSObject {
             marker.position=SCNVector3(p.x,height+0.015,-p.y)
             selectable(marker,.point(index));cleanMarkers[index]=marker;cleanRouteNodes.addChildNode(marker)
             if index==0 || index==route.points.count-1 {
-                let label=ReplayModelFactory.caption(index==0 ? "출발" : "도착",at:.init(p.x,height+0.20,-p.y+0.40))
+                let label=ReplayModelFactory.caption(index==0 ? L("출발") : L("도착"),at:.init(p.x,height+0.20,-p.y+0.40))
                 selectable(label,.point(index));cleanRouteNodes.addChildNode(label)
             }
             if index>0 {
@@ -181,7 +181,7 @@ final class ReplaySceneController: NSObject {
             node.simdTransform=ReplayPhotoCamera(photo).transform
             selectable(node,.photo(photo.id));photos.addChildNode(node)
             let p=photo.position
-            let label=ReplayModelFactory.caption("사진 \(index+1)",at:.init(p.x,p.y+0.28,p.z))
+            let label=ReplayModelFactory.caption(L("사진 %@", index+1),at:.init(p.x,p.y+0.28,p.z))
             selectable(label,.photo(photo.id));photos.addChildNode(label)
         }
     }

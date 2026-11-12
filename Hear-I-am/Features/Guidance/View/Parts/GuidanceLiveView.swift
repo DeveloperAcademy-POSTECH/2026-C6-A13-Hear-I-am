@@ -19,10 +19,10 @@ struct GuidanceLiveView: View {
             ScrollView {
                 VStack(spacing:0) {
                     VStack(alignment:.leading,spacing:20) {
-                        Text("\(model.isPractice ? "연습용" : "실전용") · \(model.selected?.name ?? "선택한 무대")")
+                        Text("\(model.isPractice ? L("연습용") : L("실전용")) · \(model.selected?.name ?? L("선택한 무대"))")
                             .font(.caption.weight(.semibold)).tracking(1).foregroundStyle(accent)
                         ProgressView(value:progress).tint(accent)
-                            .accessibilityLabel("동선 진행률")
+                            .accessibilityLabel(L("동선 진행률"))
                     }.padding(.bottom,42)
                     Image(systemName:model.headline.symbol)
                         .font(.system(size:76,weight:.medium)).foregroundStyle(accent)
@@ -36,7 +36,7 @@ struct GuidanceLiveView: View {
                                 .font(.system(size:68,weight:.bold)).monospacedDigit().minimumScaleFactor(0.6)
                             Text("m").font(.title2).foregroundStyle(.secondary)
                         }.padding(.top,16)
-                        Text("다음 지점 \(model.targetName)까지").font(.subheadline).foregroundStyle(.secondary).padding(.top,10)
+                        Text(L("다음 지점 %@까지", model.targetName)).font(.subheadline).foregroundStyle(.secondary).padding(.top,10)
                     } else {
                         Text(model.headline.detail).font(.title3).foregroundStyle(.secondary)
                             .multilineTextAlignment(.center).fixedSize(horizontal:false,vertical:true).padding(.top,24)
@@ -54,26 +54,26 @@ struct GuidanceLiveView: View {
     }
     private var directionTitle: String {
         if model.phase == .guiding, model.arrivedName == nil, model.guide?.facingPointIndex == nil,
-           model.performanceHoldRemaining == 0, let cue=model.cue {return "\(cue.direction)으로 이동"}
+           model.performanceHoldRemaining == 0, let cue=model.cue {return L("%@으로 이동", cue.direction)}
         return model.headline.title.replacingOccurrences(of:"\n",with:" ")
     }
     private var statusTitle: String {
-        if model.phase == .finishing || model.phase == .completed {return "안내를 마쳤어요"}
-        if !model.isPractice {return "마이크가 꺼져 있어요"}
-        if model.voiceInputError != nil {return "음성 입력을 확인해주세요"}
-        if model.phase == .paused {return "안내를 일시정지했어요"}
-        if model.voiceShowsListening {return "듣고 있어요"}
-        return "안내가 진행 중이에요"
+        if model.phase == .finishing || model.phase == .completed {return L("안내를 마쳤어요")}
+        if !model.isPractice {return L("마이크가 꺼져 있어요")}
+        if model.voiceInputError != nil {return L("음성 입력을 확인해주세요")}
+        if model.phase == .paused {return L("안내를 일시정지했어요")}
+        if model.voiceShowsListening {return L("듣고 있어요")}
+        return L("안내가 진행 중이에요")
     }
     private var statusSymbol: String {
         model.phase == .completed ? "checkmark.circle" : model.isPractice ? "waveform" : "mic.slash"
     }
     private var statusDetail: String {
-        if model.phase == .finishing || model.phase == .completed {return "종료 안내가 끝나면 기록을 저장해요."}
-        if !model.isPractice {return "실전 중에는 호출어를 듣지 않고\n이동 안내만 전달해요."}
+        if model.phase == .finishing || model.phase == .completed {return L("종료 안내가 끝나면 기록을 저장해요.")}
+        if !model.isPractice {return L("실전 중에는 호출어를 듣지 않고\n이동 안내만 전달해요.")}
         if let error=model.voiceInputError {return error}
-        if model.phase == .paused {return "‘계속’이라고 말하거나 아래 버튼을 눌러주세요."}
-        return "다른 요청이 필요하면\n“Hear I am”을 불러주세요."
+        if model.phase == .paused {return L("‘계속’이라고 말하거나 아래 버튼을 눌러주세요.")}
+        return L("다른 요청이 필요하면\n“Hear I am”을 불러주세요.")
     }
 }
 
@@ -203,17 +203,17 @@ struct VoiceGuidanceWalkView: View {
                     .accessibilityHidden(true)
                 // Positions are the design's, measured from the top of the 874pt frame.
                 if finished {
-                    Text("안내를 종료합니다").font(HearFont.pretendard(.semibold,size:32)).tracking(-0.96).foregroundStyle(.white)
+                    Text(L("안내를 종료합니다")).font(HearFont.pretendard(.semibold,size:32)).tracking(-0.96).foregroundStyle(.white)
                         .frame(width:w).padding(.top,156).transition(.opacity)
                 } else if !open {
-                    Text("잠시 후\n안내가 시작됩니다").font(HearFont.pretendard(.semibold,size:32)).tracking(-0.96).lineSpacing(9.6)
+                    Text(L("잠시 후\n안내가 시작됩니다")).font(HearFont.pretendard(.semibold,size:32)).tracking(-0.96).lineSpacing(9.6)
                         .multilineTextAlignment(.center).foregroundStyle(.white)
                         .frame(width:w).padding(.top,148).transition(.opacity)
                 } else {
                     VStack(spacing:0) {
                         Text(model.targetName).font(HearFont.pretendard(.semibold,size:32)).tracking(-0.96).foregroundStyle(.white)
                             .frame(height:42)
-                        Text("다음 포인트").font(HearFont.pretendard(.regular,size:20)).tracking(-0.6).foregroundStyle(Self.grey)
+                        Text(L("다음 포인트")).font(HearFont.pretendard(.regular,size:20)).tracking(-0.6).foregroundStyle(Self.grey)
                             .frame(height:26)
                     }.frame(width:w).padding(.top,148).transition(.opacity.combined(with:.offset(y:-8)))
                 }
@@ -263,21 +263,21 @@ struct VoiceGuidanceWalkView: View {
         .shadow(color:.black.opacity(open ? 0.35 : 0.2),radius:open ? 16 : 8,y:open ? 10 : 4)
     }
     private var value: String {
-        if finished {return "도착"}
+        if finished {return L("도착")}
         if let cue {return "\(cue.distance.formatted(.number.precision(.fractionLength(1))))m"}
         switch model.phase {
-        case .paused: return "일시정지"
-        case .starting: return "안내를 다시 시작해요"
+        case .paused: return L("일시정지")
+        case .starting: return L("안내를 다시 시작해요")
         default:
-            return model.arrivedName == nil && model.guide?.facingPointIndex == nil && model.performanceHoldRemaining == 0 ? "안내하는 중" : model.headline.title.replacingOccurrences(of:"\n",with:" ")
+            return model.arrivedName == nil && model.guide?.facingPointIndex == nil && model.performanceHoldRemaining == 0 ? L("안내하는 중") : model.headline.title.replacingOccurrences(of:"\n",with:" ")
         }
     }
     private var valueIsShort: Bool {finished || cue != nil}
     private var accessibilityText: String {
-        if finished {return "안내를 종료합니다. 도착"}
-        if !open {return "잠시 후 안내가 시작됩니다"}
-        if let cue {return "다음 포인트 \(model.targetName). \(cue.direction) \(value)"}
-        return "다음 포인트 \(model.targetName). \(value)"
+        if finished {return L("안내를 종료합니다. 도착")}
+        if !open {return L("잠시 후 안내가 시작됩니다")}
+        if let cue {return L("다음 포인트 %@. %@ %@", model.targetName, cue.direction, value)}
+        return L("다음 포인트 %@. %@", model.targetName, value)
     }
 }
 
@@ -304,7 +304,7 @@ struct PerformanceCheckpointView: View {
                     .allowsHitTesting(false).accessibilityHidden(true)
                 VStack(spacing:0) {
                     HStack(alignment:.top) {
-                        ScanCircleButton(systemImage:"chevron.backward",label:"뒤로",action:onBack)
+                        ScanCircleButton(systemImage:"chevron.backward",label:L("뒤로"),action:onBack)
                         Spacer(minLength:12)
                         VStack(spacing:8) {
                             if let name=model.selected?.name, model.helperStart {
@@ -312,24 +312,24 @@ struct PerformanceCheckpointView: View {
                                 PerformanceScenePill(name:name,choosable:false).liquidGlass(Capsule(),tint:ScanChrome.capsuleTint)
                             } else if let name=model.selected?.name {
                                 Menu {
-                                    Button("무대 다시 선택",systemImage:"arrow.uturn.backward") {model.prepareForVoiceTouch();model.chooseAgain()}
+                                    Button(L("무대 다시 선택"),systemImage:"arrow.uturn.backward") {model.prepareForVoiceTouch();model.chooseAgain()}
                                 } label: {PerformanceScenePill(name:name).liquidGlass(Capsule(),tint:ScanChrome.capsuleTint).contentShape(Capsule())}
-                                .accessibilityLabel("\(name), 무대 바꾸기")
+                                .accessibilityLabel(L("%@, 무대 바꾸기", name))
                             }
                             dots
                         }
                         Spacer(minLength:12)
                         Menu {
-                            Button("설정",systemImage:"gearshape",action:onSettings)
-                            Button("안내 끝내기",systemImage:"xmark",action:onBack)
+                            Button(L("설정"),systemImage:"gearshape",action:onSettings)
+                            Button(L("안내 끝내기"),systemImage:"xmark",action:onBack)
                         } label: {ScanCircleLabel(systemImage:"ellipsis")}
-                        .accessibilityLabel("안내 설정 및 종료")
+                        .accessibilityLabel(L("안내 설정 및 종료"))
                     }
                     Spacer()
                     Button {
                         if done {model.confirmPerformanceCheckpoints()} else {model.capturePerformanceCheckpoint()}
                     } label: {
-                        Text(model.selected == nil ? "무대를 찾을 수 없어요" : model.phase != .checkpoint ? "공연장을 찾는 중…" : done ? "완료" : "확인점 \(min(measured+1,2)) 확인")
+                        Text(model.selected == nil ? L("무대를 찾을 수 없어요") : model.phase != .checkpoint ? L("공연장을 찾는 중…") : done ? L("완료") : L("확인점 %@ 확인", min(measured+1,2)))
                             .font(HearFont.pretendard(.semibold,size:18)).foregroundStyle(enabled ? ScanChrome.darkText : .white)
                             .frame(maxWidth:.infinity,minHeight:50)
                             .background(enabled ? Color.white : Color.clear,in:Capsule())
@@ -339,7 +339,7 @@ struct PerformanceCheckpointView: View {
                     .buttonStyle(.plain)
                     .disabled(!enabled)
                     .animation(.smooth(duration:0.25),value:enabled)
-                    .accessibilityHint(enabled ? "" : "가운데 조준점을 저장한 확인점에 맞추면 켜져요.")
+                    .accessibilityHint(enabled ? "" : L("가운데 조준점을 저장한 확인점에 맞추면 켜져요."))
                     .accessibilityIdentifier("performance.checkpoints.done")
                 }
                 .padding(.horizontal,16).padding(.top,insets.top+6).padding(.bottom,max(insets.bottom,16)+12)
@@ -362,7 +362,7 @@ struct PerformanceCheckpointView: View {
         .padding(.horizontal,10).padding(.vertical,6)
         .liquidGlass(Capsule(),tint:ScanChrome.panelTint)
         .animation(.smooth(duration:0.3),value:measured)
-        .accessibilityElement(children:.ignore).accessibilityLabel("확인점 2개 중 \(measured)개 확인")
+        .accessibilityElement(children:.ignore).accessibilityLabel(L("확인점 2개 중 %@개 확인", measured))
     }
 }
 

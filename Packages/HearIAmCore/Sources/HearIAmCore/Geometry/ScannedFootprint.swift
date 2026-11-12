@@ -45,7 +45,7 @@ public struct ScannedFootprint: Sendable {
             }
             let projected=world.map(area.floor)
             guard world.allSatisfy(\.valid), projected.allSatisfy(Self.validCoordinate) else {
-                throw LabError.invalid("저장된 스캔 범위의 좌표가 올바르지 않습니다.")
+                throw LabError.invalid(L("저장된 스캔 범위의 좌표가 올바르지 않습니다."))
             }
             for i in stride(from:0,to:mesh.indices.count,by:3) {
                 let indices=(0..<3).map {Int(mesh.indices[i+$0])}
@@ -58,12 +58,12 @@ public struct ScannedFootprint: Sendable {
                 let t=Triangle(a:projected[indices[0]],b:projected[indices[1]],c:projected[indices[2]])
                 let first=Self.cell(.init(min(t.a.x,t.b.x,t.c.x),min(t.a.y,t.b.y,t.c.y)))
                 let last=Self.cell(.init(max(t.a.x,t.b.x,t.c.x),max(t.a.y,t.b.y,t.c.y)))
-                guard (last.x-first.x+1)*(last.y-first.y+1) <= 100_000 else { throw LabError.invalid("저장된 스캔 삼각형이 너무 큽니다.") }
+                guard (last.x-first.x+1)*(last.y-first.y+1) <= 100_000 else { throw LabError.invalid(L("저장된 스캔 삼각형이 너무 큽니다.")) }
                 let index=triangles.count;triangles.append(t)
                 for x in first.x...last.x { for y in first.y...last.y { cells[Cell(x:x,y:y),default:[]].append(index) } }
             }
         }
-        guard !triangles.isEmpty else { throw LabError.invalid("저장된 스캔에서 접근 범위를 확인할 수 없어요. 무대 주변 바닥까지 다시 스캔해주세요.") }
+        guard !triangles.isEmpty else { throw LabError.invalid(L("저장된 스캔에서 접근 범위를 확인할 수 없어요. 무대 주변 바닥까지 다시 스캔해주세요.")) }
         self.triangles=triangles;self.cells=cells
     }
     public func contains(_ point: FloorPoint) -> Bool {

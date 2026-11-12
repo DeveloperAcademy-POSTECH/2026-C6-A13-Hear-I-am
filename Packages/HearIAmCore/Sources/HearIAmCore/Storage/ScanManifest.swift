@@ -49,30 +49,30 @@ public struct ScanManifest: Codable, Sendable {
     public func validate() throws {
         try frame.validate(); try settings.validate()
         guard photos.count<=ScanPhoto.maximumCount, Set(photos.map(\.id)).count==photos.count else {
-            throw LabError.invalid("사진 수 또는 식별자가 올바르지 않습니다.")
+            throw LabError.invalid(L("사진 수 또는 식별자가 올바르지 않습니다."))
         }
         for photo in photos {
             try photo.validate()
             if let id=photo.objectID, route?.obstacles.contains(where:{$0.id==id}) != true {
-                throw LabError.invalid("사진에 연결된 기물이 없습니다.")
+                throw LabError.invalid(L("사진에 연결된 기물이 없습니다."))
             }
             if let index=photo.routePointIndex, route?.points.indices.contains(index) != true {
-                throw LabError.invalid("사진에 연결된 동선 지점이 없습니다.")
+                throw LabError.invalid(L("사진에 연결된 동선 지점이 없습니다."))
             }
         }
         if version >= 2 {
-            guard let route else { throw LabError.invalid("저장된 경로가 없습니다.") }
+            guard let route else { throw LabError.invalid(L("저장된 경로가 없습니다.")) }
             try route.validate()
             guard route.area.corners.allSatisfy({checkpoint.distance(to:$0) >= 0.5}) else {
-                throw LabError.invalid("C는 E의 네 꼭짓점과 별개로 선택해야 합니다.")
+                throw LabError.invalid(L("C는 E의 네 꼭짓점과 별개로 선택해야 합니다."))
             }
             guard frame.origin.distance(to:route.area.world(FloorPoint(0,0))) < 0.02,
                   frame.front.distance(to:route.area.world(FloorPoint(0,-1))) < 0.02 else {
-                throw LabError.invalid("저장된 무대 정면이 E와 일치하지 않습니다.")
+                throw LabError.invalid(L("저장된 무대 정면이 E와 일치하지 않습니다."))
             }
         }
         if version == 3 {
-            guard let secondCheckpoint, let route else { throw LabError.invalid("두 확인점이 저장되지 않았습니다.") }
+            guard let secondCheckpoint, let route else { throw LabError.invalid(L("두 확인점이 저장되지 않았습니다.")) }
             var draft=PreparationDraft()
             draft.corners=route.area.corners.map { Optional($0) }
             draft.checkpoint=checkpoint; draft.secondCheckpoint=secondCheckpoint
@@ -80,15 +80,15 @@ public struct ScanManifest: Codable, Sendable {
             for p in [checkpoint,secondCheckpoint] {
                 let floor=route.area.floor(p)
                 guard route.obstacles.allSatisfy({ !$0.contains(floor) || $0.boundaryDistance(to:floor) <= PreparationDraft.checkpointEdgeTolerance+1e-9 }) else {
-                    throw LabError.invalid("확인점은 기물 내부가 아닌 바닥 또는 바닥 경계에 있어야 합니다.")
+                    throw LabError.invalid(L("확인점은 기물 내부가 아닌 바닥 또는 바닥 경계에 있어야 합니다."))
                 }
             }
-        } else if secondCheckpoint != nil { throw LabError.invalid("확인점 저장 버전이 맞지 않습니다.") }
+        } else if secondCheckpoint != nil { throw LabError.invalid(L("확인점 저장 버전이 맞지 않습니다.")) }
         guard [1,2,3].contains(version), !name.isEmpty, checkpoint.valid, meshCount>0, vertexCount>0,
               checkpoint.distance(to: frame.origin)>=0.5,
               checkpoint.distance(to: frame.front)>=0.5,
               abs(checkpoint.y-frame.origin.y)<=0.15 else {
-            throw LabError.invalid("스캔 버전 또는 기준점 정보가 올바르지 않습니다.")
+            throw LabError.invalid(L("스캔 버전 또는 기준점 정보가 올바르지 않습니다."))
         }
     }
 }

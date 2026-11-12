@@ -47,8 +47,8 @@ final class SavedStagePreviewModel: ObservableObject {
         do {
             let manifest=try await store.setPointPerformance(record.id,index:index,facing:facing,seconds:canEditPointHold ? seconds : 0)
             loaded=LoadedScan(manifest:manifest,worldMap:scan.worldMap,meshes:scan.meshes)
-            if selectedPointIndex == index { holdNotice="\(manifest.route?.pointLabel(at:index) ?? "선택 지점") 설정을 저장했습니다." }
-        } catch { holdSaveError="저장하지 못했어요: \(error.localizedDescription)" }
+            if selectedPointIndex == index { holdNotice=L("%@ 설정을 저장했습니다.", manifest.route?.pointLabel(at:index) ?? L("선택 지점")) }
+        } catch { holdSaveError=L("저장하지 못했어요: %@", error.localizedDescription) }
     }
     @Published var showPhotoPins=true
     @Published var showCleanPhotoPins=false
@@ -115,10 +115,10 @@ final class SavedStagePreviewModel: ObservableObject {
     }
     var selectionTitle: String {
         switch selection {
-        case .point(let i): return loaded?.manifest.route?.pointLabel(at:i) ?? "\(i+1)번 지점"
-        case .object: return selectedObject?.name ?? "기물"
-        case .photo: return "사진 촬영 위치"
-        case nil: return "지점이나 기물을 선택하세요"
+        case .point(let i): return loaded?.manifest.route?.pointLabel(at:i) ?? L("%@번 지점", i+1)
+        case .object: return selectedObject?.name ?? L("기물")
+        case .photo: return L("사진 촬영 위치")
+        case nil: return L("지점이나 기물을 선택하세요")
         }
     }
 }

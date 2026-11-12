@@ -1,4 +1,5 @@
 import SwiftUI
+import HearIAmCore
 
 /// Shared look of the scan screen (Figma 「쿄조_설정,스캔, 보이스」 452:10996): Liquid Glass over the camera,
 /// tinted as the design's fills are. Sizes are the design's: 44pt round buttons, 48pt step capsule, 42pt cards.
@@ -107,7 +108,7 @@ struct PreparationStepBar: View {
     private static let capsuleSpace="stepCapsule"
     var body: some View {
         HStack(alignment:.top) {
-            ScanCircleButton(systemImage:"chevron.backward",label:"나가기",enabled:!model.busy,action:exit)
+            ScanCircleButton(systemImage:"chevron.backward",label:L("나가기"),enabled:!model.busy,action:exit)
             Spacer(minLength:12)
             VStack(spacing:8) {
                 stepCapsule
@@ -121,7 +122,7 @@ struct PreparationStepBar: View {
             }
             Spacer(minLength:12)
             HStack(spacing:10) {
-                ScanCircleButton(systemImage:"questionmark",label:"단계 안내 다시 보기") {model.intro=0}
+                ScanCircleButton(systemImage:"questionmark",label:L("단계 안내 다시 보기")) {model.intro=0}
                 // Without the settings shortcut the panel can be empty; then there is no ⋯ button.
                 if model.hasMoreOptions {moreMenu}
             }
@@ -164,7 +165,7 @@ struct PreparationStepBar: View {
             .sensoryFeedback(.selection,trigger:sliding)
         }
         .animation(.snappy(duration:0.35),value:expanded)
-        .accessibilityHint(expanded ? "단계를 눌러 이동" : "현재 단계를 누르면 모든 단계가 펼쳐져요")
+        .accessibilityHint(expanded ? L("단계를 눌러 이동") : L("현재 단계를 누르면 모든 단계가 펼쳐져요"))
     }
 
     private func stepChip(_ s: PreparationStep) -> some View {
@@ -191,7 +192,7 @@ struct PreparationStepBar: View {
             }
             .id(s)
             .accessibilityElement().accessibilityAddTraits(.isButton)
-            .accessibilityLabel("\(s.rawValue+1)단계 \(s.title)\(model.isComplete(s) ? ", 완료" : "")\(current ? ", 현재 단계" : "")")
+            .accessibilityLabel(L("%@단계 %@%@%@", s.rawValue+1, s.title, model.isComplete(s) ? L(", 완료") : "", current ? L(", 현재 단계") : ""))
             .accessibilityAction {
                 if current {withAnimation(.snappy) {expanded.toggle()}}
                 else if reachable {model.changeStep(s);withAnimation(.snappy) {expanded=false}}
@@ -244,12 +245,12 @@ struct PreparationStepBar: View {
             }
         }.padding(5).liquidGlass(Capsule(),tint:ScanChrome.panelTint)
             .accessibilityElement(children:.ignore)
-            .accessibilityLabel("확인점 1번 \(model.draft.checkpoint == nil ? "미지정" : "지정"), 2번 \(model.draft.secondCheckpoint == nil ? "미지정" : "지정")")
+            .accessibilityLabel(L("확인점 1번 %@, 2번 %@", model.draft.checkpoint == nil ? L("미지정") : L("지정"), model.draft.secondCheckpoint == nil ? L("미지정") : L("지정")))
     }
 
     /// 452:12878. Opens the dark glass panel drawn by PreparationView under this button.
     private var moreMenu: some View {
-        ScanCircleButton(systemImage:"ellipsis",label:"더보기") {
+        ScanCircleButton(systemImage:"ellipsis",label:L("더보기")) {
             withAnimation(.snappy(duration:0.3)) {model.showingMore.toggle()}
         }
     }
@@ -265,10 +266,10 @@ struct PreparationMorePanel: View {
     var body: some View {
         VStack(alignment:.leading,spacing:0) {
             if model.step <= .objects && model.supportsMesh {
-                toggleRow("eye","스캔 범위(매쉬) 표시",isOn:Binding(get:{model.showMesh},set:{model.showMesh=$0}))
+                toggleRow("eye",L("스캔 범위(매쉬) 표시"),isOn:Binding(get:{model.showMesh},set:{model.showMesh=$0}))
             }
             if model.canShowPlanReference {
-                toggleRow("square.on.square.dashed","참고 잔상 표시",isOn:$model.showPlanReference)
+                toggleRow("square.on.square.dashed",L("참고 잔상 표시"),isOn:$model.showPlanReference)
             }
         }
         .padding(.horizontal,16).padding(.vertical,8)

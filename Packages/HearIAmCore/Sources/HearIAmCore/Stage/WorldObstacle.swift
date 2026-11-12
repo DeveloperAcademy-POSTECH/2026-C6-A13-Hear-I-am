@@ -16,7 +16,7 @@ public struct WorldObstacle: Identifiable, Equatable, Sendable {
         self.id = id; self.name = name; self.kind = kind; self.vertices = vertices; self.height = height
     }
     public func projected(in area: StageArea) throws -> StageObstacle {
-        guard vertices.allSatisfy({ abs($0.y-area.floorHeight) <= 0.10 }) else { throw LabError.invalid("기물의 바닥 높이를 다시 확인해주세요.") }
+        guard vertices.allSatisfy({ abs($0.y-area.floorHeight) <= 0.10 }) else { throw LabError.invalid(L("기물의 바닥 높이를 다시 확인해주세요.")) }
         let step=kind == .platform || kind == .stairs
         return try StageObstacle(id: id, name: name, kind: kind, passage: step ? .passable : .prohibited, vertices: vertices.map(area.floor), height: height, entryEdges: entryEdges, exitEdges: exitEdges, facingEdge: facingEdge, appearance: appearance)
     }

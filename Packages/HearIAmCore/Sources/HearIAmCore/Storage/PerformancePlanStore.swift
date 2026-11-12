@@ -19,7 +19,7 @@ public actor PerformancePlanStore {
             .filter {$0.pathExtension == "json"}.map { url in
                 let plan = try JSONDecoder().decode(PerformancePlan.self, from: Data(contentsOf: url))
                 try plan.validate()
-                guard url.deletingPathExtension().lastPathComponent == plan.id.uuidString else { throw LabError.invalid("공연 사전 저장 ID가 일치하지 않습니다.") }
+                guard url.deletingPathExtension().lastPathComponent == plan.id.uuidString else { throw LabError.invalid(L("공연 사전 저장 ID가 일치하지 않습니다.")) }
                 return plan
             }.sorted { $0.updatedAt > $1.updatedAt }
     }
