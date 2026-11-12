@@ -374,8 +374,8 @@ extension GuidanceViewModel {
         if showsVoicePerformances {
             let choices=voicePerformanceChoices
             guard !choices.isEmpty else {read([L("저장된 무대를 찾지 못했어요. 다른 공연이나 공연장 이름을 말씀해주세요.")]);return}
-            showVoiceChatCards(performances:choices,text:L("저장된 공연 %@개를 찾았어요.\n공연 이름이나 번호를 말씀해주세요.", choices.count))
-            read([L("어떤 공연을 준비할까요?")]+choices.enumerated().map {L("%@번, %@. 저장된 무대 %@개.", $0.offset+1, $0.element.name, $0.element.stageIDs.count)}+[L("공연 이름이나 번호를 말씀해주세요.")],interruptible:true)
+            showVoiceChatCards(performances:choices,text:L("저장된 공연 %@개를 찾았어요.\n공연 이름을 말씀해주세요.", choices.count))
+            read([L("어떤 공연을 준비할까요?")]+choices.enumerated().map {L("%@번, %@. 저장된 무대 %@개.", $0.offset+1, $0.element.name, $0.element.stageIDs.count)}+[L("공연 이름을 말씀해주세요.")],interruptible:true)
             return
         }
         let items=visibleVoiceStages

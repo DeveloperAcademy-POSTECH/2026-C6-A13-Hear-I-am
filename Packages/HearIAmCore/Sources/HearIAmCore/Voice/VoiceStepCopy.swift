@@ -2,7 +2,7 @@
 /// word that moves on, the way VoiceOver reads a heading. Titles and words follow the performer screens of
 /// the new IA (10/29): 공연 찾기 · 사용 방식 · 출발 준비 · 안내 중. Button-only guidance keeps its own lines.
 public enum VoiceStepCopy {
-    public static var stageList: String { L("공연 찾기. 어떤 공연을 준비할까요? 공연 이름이나 번호를 말해주세요. 장소 이름으로 찾아 달라고 해도 돼요.") }
+    public static var stageList: String { L("공연 찾기. 어떤 공연을 준비할까요? 공연 이름을 말해주세요. 장소 이름으로 찾아 달라고 해도 돼요.") }
 
     public static func stageChosen(_ name: String) -> [String] {
         [L("%@, 선택했어요.", name), L("사용 방식. ‘연습용’ 또는 ‘실전용’이라고 말해주세요. 취소라고 하면 공연 찾기로 돌아가요.")]
