@@ -11,7 +11,6 @@ extension GuidanceViewModel {
         showsVoicePerformances ? voicePerformanceChoices.map(\.name) : visibleVoiceStages.map {voiceStageTitle($0)}
     }
     var voiceSelectedPerformanceName:String? {
-        if voicePerformanceID == PerformanceVoiceMenu.unassignedID {return "미분류 무대"}
         return voiceCatalog.performances.first {$0.id == voicePerformanceID}?.name
     }
     func voiceStageTitle(_ item:ScanManifest)->String {

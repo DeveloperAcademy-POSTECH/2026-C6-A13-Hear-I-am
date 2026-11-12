@@ -16,6 +16,7 @@ struct StageClassificationView: View {
     @State private var stageName: String
     @State private var busy = false
     @State private var error: String?
+    @State private var leaving = false
     @Environment(\.dismiss) private var dismiss
 
     init(library: StageLibrary, scanIDs: [UUID], initialPerformanceID: UUID? = nil,
@@ -31,8 +32,9 @@ struct StageClassificationView: View {
         _stageName = State(initialValue: scanIDs.count == 1 ? library.records.first { $0.id == scanIDs[0] }?.name ?? "" : "")
     }
     private var scans: [ScanManifest] { library.records.filter { scanIDs.contains($0.id) } }
+    /// Every stage belongs to a performance and a space (#181): there are no unfiled stages any more.
     private var invalid: Bool {
-        scanIDs.isEmpty || scans.count != scanIDs.count ||
+        scanIDs.isEmpty || scans.count != scanIDs.count || performanceID == nil || venueID == nil ||
         (scans.count == 1 && (stageName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || stageName.count > 80))
     }
     var body: some View {
@@ -54,11 +56,18 @@ struct StageClassificationView: View {
             }.v3Screen().navigationTitle("무대 저장")
                 // Back leaves the page: inside the scan flow it goes back to the scan tab, as a sheet it closes it.
                 .hearTopBar("무대 저장") {
-                    HearBackButton(enabled: !busy)
-                } trailing: {
-                    Menu { Button("저장 위치 초기화") { performanceID = nil; venueID = nil } } label: { HearTopButtonLabel(systemImage: "ellipsis") }
-                        .disabled(busy).accessibilityLabel("더보기")
-                }
+                    if wasJustSaved {
+                        // A scan left here unsaved would have no performance (#181): ask, then delete it.
+                        Button { leaving = true } label: { HearTopButtonLabel(systemImage: "chevron.left") }
+                            .buttonStyle(.plain).disabled(busy).opacity(busy ? 0.45 : 1)
+                            .accessibilityLabel("뒤로").accessibilityIdentifier("top.back")
+                    } else {
+                        HearBackButton(enabled: !busy)
+                    }
+                } trailing: { EmptyView() }
+                .holdsSwipeBack(wasJustSaved)
+                .hearConfirm("저장하지 않고 나갈까요?", isPresented: $leaving,
+                             message: "스캔한 무대와 사진이 지워져요.", confirm: "나가기") { discard() }
                 .stageInfoBottomBar(height: 62) {
                     StageInfoButton(title: busy ? "저장 중…" : "저장하기", primary: true, action: apply)
                         .disabled(busy || invalid)
@@ -66,6 +75,16 @@ struct StageClassificationView: View {
                         .padding(.horizontal, 16)
                 }
                 .interactiveDismissDisabled(busy)
+    }
+    private func discard() {
+        busy = true; error = nil
+        Task {
+            do {
+                for id in scanIDs { try await library.deleteStage(id) }
+                busy = false
+                dismiss()
+            } catch { self.error = error.localizedDescription; busy = false }
+        }
     }
     private func apply() {
         guard !busy, !invalid else { return }
@@ -318,9 +337,6 @@ struct PerformanceChoiceSheet: View {
                             StageChoiceRow(name: folder.name, date: folder.createdAt, count: library.scans(in: folder.id).count)
                         }.buttonStyle(.plain).accessibilityAddTraits(selection == folder.id ? .isSelected : [])
                     }
-                    Button("공연을 지정하지 않기") { onSelect(nil); dismiss() }
-                        .font(HearFont.pretendard(.medium, size: 15)).foregroundStyle(StageInfoStyle.secondary)
-                        .frame(minHeight: 44).padding(.top, 12)
                 }
             }.padding(.horizontal, 16).padding(.top, StageInfoStyle.titleTop).padding(.bottom, 24)
         }.v3Screen().navigationTitle("공연 이름")
@@ -354,9 +370,6 @@ struct VenueChoiceSheet: View {
                                 count: library.scans(in: performanceID, venueID: venue.id, includeAllVenues: false).count, weight: .semibold)
                         }.buttonStyle(.plain).accessibilityAddTraits(selection == venue.id ? .isSelected : [])
                     }
-                    Button("장소를 지정하지 않기") { onSelect(nil); dismiss() }
-                        .font(HearFont.pretendard(.medium, size: 15)).foregroundStyle(StageInfoStyle.secondary)
-                        .frame(minHeight: 44).padding(.top, 12)
                 }
             }.padding(.horizontal, 16).padding(.top, StageInfoStyle.titleTop).padding(.bottom, 24)
         }.v3Screen().navigationTitle("공연 및 연습 공간")

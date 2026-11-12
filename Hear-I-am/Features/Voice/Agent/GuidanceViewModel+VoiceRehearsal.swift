@@ -127,7 +127,9 @@ extension GuidanceViewModel {
         #if DEBUG
         VoiceTestInbox.shared.guidance=self
         #endif
-        voiceStages=records
+        // A stage outside every performance is not offered (#181); one left by a cut-off scan waits for its
+        // performance on the helper's side.
+        voiceStages=records.filter {catalog.folder(for:$0.id) != nil}
         voiceCatalog=catalog
         voiceStagePaths=contexts
         guard !isSettingsPresented else {voicePreparationDeferredBySettings=true;return}
@@ -329,7 +331,6 @@ extension GuidanceViewModel {
         let candidates=voiceSearchIDs.map {ids in ids.compactMap {id in voiceStages.first {$0.id == id}}} ?? voiceStages
         guard let id=voicePerformanceID else {return candidates}
         return candidates.filter {item in
-            if id == PerformanceVoiceMenu.unassignedID {return voiceCatalog.folder(for:item.id) == nil}
             return voiceCatalog.assignments[item.id]?.performanceID == id
         }
     }

@@ -56,7 +56,6 @@ struct PerformanceScanSelectionView:View {
     let scanIDs:[UUID]
     var performanceID:UUID?=nil
     var venueID:UUID?=nil
-    var onlyUnassigned=false
     var onStartGuidance:((UUID)->Void)?
     @State private var selected:Set<UUID>=[]
     @State private var classifying=false
@@ -69,7 +68,6 @@ struct PerformanceScanSelectionView:View {
     private var venue:PerformanceVenueTag? {library.performanceFolders.first {$0.id==performanceID}?.venues.first {$0.id==venueID}}
     private var scans:[ScanManifest] {
         if let performanceID {return library.scans(in:performanceID,venueID:venueID,includeAllVenues:false)}
-        if onlyUnassigned {return library.unassignedScans}
         return library.records.filter {scanIDs.contains($0.id)}
     }
     var body:some View {
