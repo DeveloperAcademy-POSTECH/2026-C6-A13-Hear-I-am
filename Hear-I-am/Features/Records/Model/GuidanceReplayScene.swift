@@ -48,6 +48,10 @@ import HearIAmCore
             }
         }
         let ring=ReplayModelFactory.part(SCNTorus(ringRadius:0.30,pipeRadius:0.018),.init(0,0.025,0),color:.systemBlue)
+        // The route and the walked trail skip the depth test, so they do not flicker against the floor, and are drawn
+        // in their own order (4–8). The figure was drawn before them, and the trail behind it showed through its body
+        // (#185). Drawn after them, it covers what lies behind it. The ring on the floor keeps its place under the trail.
+        person.renderingOrder=Self.figureOrder;person.enumerateChildNodes {part,_ in part.renderingOrder=Self.figureOrder}
         person.addChildNode(ring);scene.rootNode.addChildNode(person)
         buildTrace()
         var points=[SIMD3<Float>(0,0,0),.init(Float(route.area.width),1.8,-Float(route.area.depth))]
@@ -129,6 +133,8 @@ import HearIAmCore
         head.renderingOrder=8;scene.rootNode.addChildNode(head)
     }
     private static let trailHalfWidth=0.025
+    /// After the route (4–6) and the trail (7–8), before the checkpoint pin (20).
+    private static let figureOrder=12
     private static func trailNode(vertices: [SCNVector3],colors: [SIMD4<Float>],indices: [UInt32],opacity: CGFloat) -> SCNNode {
         let colorSource=SCNGeometrySource(data:colors.withUnsafeBufferPointer {Data(buffer:$0)},semantic:.color,
             vectorCount:colors.count,usesFloatComponents:true,componentsPerVector:4,bytesPerComponent:MemoryLayout<Float>.size,
