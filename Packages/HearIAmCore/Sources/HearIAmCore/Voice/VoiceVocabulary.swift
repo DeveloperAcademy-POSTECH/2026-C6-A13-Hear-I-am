@@ -11,9 +11,41 @@ public enum VoiceVocabulary {
 
     public static let version = "1"
 
-    public static func phrases(stageNames: [String] = [], places: [String] = []) -> [Phrase] {
+    public static func phrases(stageNames: [String] = [], places: [String] = [], language: HearLanguage = .current) -> [Phrase] {
         var result: [Phrase] = []
         func add(_ text: String, _ count: Int) { result.append(Phrase(text: text, count: count)) }
+        if language.isEnglish {
+            // The English recognizer learns English requests; Korean sentences would only confuse it (#183).
+            for call in ["Hear I am", "Here I am"] {
+                add(call, 3000)
+                for command in ["continue", "pause", "next", "start"] { add("\(call) \(command)", 800) }
+            }
+            for command in ["continue", "keep going", "pause", "stop", "wait", "next", "next step", "start", "start guidance", "repeat",
+                            "say that again", "practice", "practice mode", "live", "live mode", "cancel", "yes", "no",
+                            "show all stages", "show saved stages", "back", "go back", "choose stage again", "another stage",
+                            "show performance plans", "new scan", "scan a new stage", "scan", "rehearse",
+                            "practice with a saved performance", "done", "I'm wearing it", "close"] { add(command, 1000) }
+            let spoken = ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine"]
+            for number in 1...9 {
+                add("number \(number)", 1500)
+                add("number \(spoken[number - 1])", 1500)
+                add("go back to P\(number)", 1500)
+                add("go back to point \(spoken[number - 1])", 1500)
+                add("stage \(number)", 800)
+                add("P\(number)", 1000)
+                add("P \(spoken[number - 1])", 1000)
+            }
+            for name in Set(stageNames.filter { !$0.isEmpty }) {
+                add(name, 800)
+                add("open \(name)", 500)
+                add("\(name) in practice mode", 300)
+            }
+            for place in Set(places.filter { !$0.isEmpty }) {
+                add("find stages at \(place)", 300)
+                add("stages related to \(place)", 300)
+            }
+            return result
+        }
 
         for call in ["Hear I am", "Here I am", "히얼아이엠"] {
             add(call, 3000)

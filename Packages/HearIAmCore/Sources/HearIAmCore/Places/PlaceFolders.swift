@@ -2,7 +2,7 @@ import Foundation
 
 public enum PlaceKind: String, Codable, CaseIterable, Sendable {
     case rehearsal, theater
-    public var title: String { self == .rehearsal ? "연습장" : "공연장" }
+    public var title: String { self == .rehearsal ? L("연습장") : "공연장" }
 }
 
 public struct PlaceSubfolder: Codable, Identifiable, Equatable, Sendable {
@@ -28,12 +28,12 @@ public struct PlaceEntry: Codable, Identifiable, Equatable, Sendable {
         self.folders=folders; self.favorite=favorite; self.createdAt=createdAt; self.lastOpenedAt=lastOpenedAt
     }
     public func validate() throws {
-        try Self.check(name, limit:80, message:"장소 이름은 1~80자로 입력해주세요.")
-        try Self.check(address, limit:200, message:"위치는 1~200자로 입력해주세요.")
-        guard Set(folders.map(\.id)).count == folders.count else { throw LabError.invalid("폴더 식별자가 중복됩니다.") }
-        for folder in folders { try Self.check(folder.name, limit:80, message:"폴더 이름은 1~80자로 입력해주세요.") }
+        try Self.check(name, limit:80, message:L("장소 이름은 1~80자로 입력해주세요."))
+        try Self.check(address, limit:200, message:L("위치는 1~200자로 입력해주세요."))
+        guard Set(folders.map(\.id)).count == folders.count else { throw LabError.invalid(L("폴더 식별자가 중복됩니다.")) }
+        for folder in folders { try Self.check(folder.name, limit:80, message:L("폴더 이름은 1~80자로 입력해주세요.")) }
         guard Set(folders.map { PlaceSearch.normalized($0.name) }).count == folders.count else {
-            throw LabError.invalid("같은 장소 안에서는 폴더 이름을 다르게 입력해주세요.")
+            throw LabError.invalid(L("같은 장소 안에서는 폴더 이름을 다르게 입력해주세요."))
         }
     }
     private static func check(_ value: String, limit: Int, message: String) throws {
@@ -66,22 +66,22 @@ public struct PlaceFolderIndex: Codable, Equatable, Sendable {
         return value
     }
     public func path(for scanID: UUID) -> [String] {
-        guard let destination=destination(for:scanID), let place=places.first(where:{$0.id==destination.placeID}) else {return ["장소 미지정"]}
+        guard let destination=destination(for:scanID), let place=places.first(where:{$0.id==destination.placeID}) else {return [L("장소 미지정")]}
         var result=[place.name]
         if let folder=place.folders.first(where:{$0.id==destination.folderID}) {result.append(folder.name)}
         return result
     }
     public func validate() throws {
-        guard version == 1 else {throw LabError.invalid("지원하지 않는 장소 보관함 버전입니다.")}
-        guard Set(places.map(\.id)).count == places.count else {throw LabError.invalid("장소 식별자가 중복됩니다.")}
+        guard version == 1 else {throw LabError.invalid(L("지원하지 않는 장소 보관함 버전입니다."))}
+        guard Set(places.map(\.id)).count == places.count else {throw LabError.invalid(L("장소 식별자가 중복됩니다."))}
         for place in places {try place.validate()}
-        guard assignments.values.allSatisfy(contains) else {throw LabError.invalid("공연의 저장 폴더를 찾을 수 없습니다.")}
+        guard assignments.values.allSatisfy(contains) else {throw LabError.invalid(L("공연의 저장 폴더를 찾을 수 없습니다."))}
     }
 }
 
 public enum PlaceSort: String, CaseIterable, Sendable {
     case recent, name, created
-    public var title: String {switch self {case .recent: return "최근 사용순"; case .name: return "이름순"; case .created: return "최근 등록순"}}
+    public var title: String {switch self {case .recent: return L("최근 사용순"); case .name: return L("이름순"); case .created: return L("최근 등록순")}}
     public func sorted(_ places: [PlaceEntry]) -> [PlaceEntry] {
         places.sorted { a,b in
             switch self {

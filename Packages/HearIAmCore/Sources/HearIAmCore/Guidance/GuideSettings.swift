@@ -22,7 +22,7 @@ public struct GuideSettings: Codable, Equatable, Sendable {
               (0.1...2).contains(startRadius), (1...90).contains(frontToleranceDegrees),
               (0...2).contains(boundaryMargin), (0...2).contains(obstacleClearance),
               (0.5...30).contains(repeatInterval), (0...20).contains(headingHysteresisDegrees) else {
-            throw LabError.invalid("실험 설정값이 허용 범위를 벗어났습니다.")
+            throw LabError.invalid(L("실험 설정값이 허용 범위를 벗어났습니다."))
         }
     }
 }

@@ -51,15 +51,18 @@ import HearIAmCore
         do {
             try HearAudioSession.activate()
             guard AVAudioSession.sharedInstance().outputVolume > 0 else {
-                onError?("소리가 꺼져 있어요. 휴대폰의 음량을 올리고 설명 다시 듣기를 눌러주세요.")
+                onError?(L("소리가 꺼져 있어요. 휴대폰의 음량을 올리고 설명 다시 듣기를 눌러주세요."))
                 return false
             }
             return true
-        } catch { onError?("음성을 재생할 수 없어요. 설명 다시 듣기로 다시 시도해주세요.");return false }
+        } catch { onError?(L("음성을 재생할 수 없어요. 설명 다시 듣기로 다시 시도해주세요."));return false }
     }
     private func speak(_ line: NarrationQueue.Line, volume: Float = SignalVolume.speech) {
         let next=AVSpeechUtterance(string:line.text)
-        next.voice=AVSpeechSynthesisVoice(language:"ko-KR");next.rate=0.48;next.volume=volume
+        // A Korean name inside an English sentence (a stage or venue the helper typed) still needs the Korean voice;
+        // the English voice would skip it.
+        let korean=line.text.unicodeScalars.contains {(0xAC00...0xD7A3).contains($0.value)}
+        next.voice=AVSpeechSynthesisVoice(language:korean ? HearLanguage.korean.speechCode : HearLanguage.current.speechCode);next.rate=0.48;next.volume=volume
         utterance=next;lineID=line.id
         onText?(line.text);onSpeaking?(true)
         if bufferedOutput?(next,{ [weak self, weak next] success in
@@ -79,7 +82,7 @@ import HearIAmCore
     }
     private func canceled(_ item: AVSpeechUtterance) {
         guard utterance === item else { return }
-        stop();onError?("음성 안내가 중단됐어요. 설명 다시 듣기로 다시 확인해주세요.")
+        stop();onError?(L("음성 안내가 중단됐어요. 설명 다시 듣기로 다시 확인해주세요."))
     }
     nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
         Task { @MainActor [weak self] in self?.finished(utterance) }

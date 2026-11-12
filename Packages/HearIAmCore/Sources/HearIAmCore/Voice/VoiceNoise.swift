@@ -17,6 +17,7 @@ public enum VoiceNoise {
 
     /// Hesitations and the sounds noise most often comes back as.
     static let fillers: Set<String> = ["아", "어", "음", "으", "흠", "엄", "그", "저", "이", "에", "오", "요",
-                                       "아요", "이요", "아아", "어어", "음음", "으음", "흐음", "s", "S", "m", "M"]
+                                       "아요", "이요", "아아", "어어", "음음", "으음", "흐음", "s", "S", "m", "M",
+                                       "uh", "um", "umm", "hmm", "hm", "mm", "ah", "oh", "er", "Uh", "Um", "Hmm", "Ah", "Oh"]
     static let answers: Set<String> = ["네", "응", "예"]
 }

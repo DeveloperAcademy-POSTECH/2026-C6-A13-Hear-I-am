@@ -27,7 +27,7 @@ public struct GuidanceReplay: Codable, Equatable, Sendable {
     }
     public func validate(pointCount: Int) throws {
         guard duration.isFinite,duration>=0,!samples.isEmpty,samples.count<=Self.maximumSamples else {
-            throw LabError.invalid("이동 기록의 길이가 올바르지 않습니다.")
+            throw LabError.invalid(L("이동 기록의 길이가 올바르지 않습니다."))
         }
         var previous = -Double.infinity
         for s in samples {
@@ -36,7 +36,7 @@ public struct GuidanceReplay: Codable, Equatable, Sendable {
                   s.heading.map({$0.isFinite && abs($0)<=180}) ?? true,
                   s.position != nil || s.heading == nil,
                   s.status != .untracked || s.position == nil else {
-                throw LabError.invalid("이동 기록의 위치 또는 시간이 올바르지 않습니다.")
+                throw LabError.invalid(L("이동 기록의 위치 또는 시간이 올바르지 않습니다."))
             }
             previous=s.time
         }

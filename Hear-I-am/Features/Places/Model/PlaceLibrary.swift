@@ -23,7 +23,7 @@ import HearIAmCore
         guard !loading, !busy else {return}
         loading=true;defer {loading=false}
         do {index=try await store.load();ready=true;await loadPhotos()}
-        catch {ready=false;self.error="장소 정보를 읽지 못했어요. 기존 스캔은 유지됩니다. \(error.localizedDescription)"}
+        catch {ready=false;self.error=L("장소 정보를 읽지 못했어요. 기존 스캔은 유지됩니다. %@", error.localizedDescription)}
     }
     private func loadPhotos() async {
         var loaded: [UUID: UIImage] = [:]
@@ -57,7 +57,7 @@ import HearIAmCore
         guard !busy, !loading, ready, !scanPresented else {return}
         busy=true;defer {busy=false}
         do {
-            if let destination, !index.contains(destination) {throw LabError.invalid("저장할 폴더를 다시 선택해주세요.")}
+            if let destination, !index.contains(destination) {throw LabError.invalid(L("저장할 폴더를 다시 선택해주세요."))}
             receipt=PlaceScanReceipt(scans:try await library.scans.list())
             scanDestination=destination
             scanPresented=true
@@ -70,9 +70,9 @@ import HearIAmCore
             let saved=try await library.scans.list()
             if let destination,let id=try receipt?.newScan(in:saved) {
                 let success=await update {try await store.assign([id],to:destination)}
-                if !success {error="공연은 저장됐지만 폴더에 연결하지 못했어요. ‘장소 미지정’에서 옮겨주세요.\n"+(error ?? "")}
+                if !success {error=L("공연은 저장됐지만 폴더에 연결하지 못했어요. ‘장소 미지정’에서 옮겨주세요.\n")+(error ?? "")}
             }
-        } catch {self.error="스캔 원본은 유지됩니다. 장소 미지정에서 저장 결과를 확인해주세요.\n\(error.localizedDescription)"}
+        } catch {self.error=L("스캔 원본은 유지됩니다. 장소 미지정에서 저장 결과를 확인해주세요.\n%@", error.localizedDescription)}
         await library.refresh()
     }
 }

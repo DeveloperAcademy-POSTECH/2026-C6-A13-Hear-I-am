@@ -83,7 +83,7 @@ public struct RouteGuide: Sendable {
         return true
     }
     public func practiceEntry(from position: FloorPoint, footprint: ScannedFootprint) throws -> PracticeEntry {
-        guard state == .idle, usesRouteCorridor, pathIsValid else { throw LabError.invalid("연습을 시작할 동선을 확인해주세요.") }
+        guard state == .idle, usesRouteCorridor, pathIsValid else { throw LabError.invalid(L("연습을 시작할 동선을 확인해주세요.")) }
         return try PracticeEntry(position:position,route:route,settings:settings,footprint:footprint)
     }
     /// Only called for a new practice run. Recovery uses resume(), preserving the target and holds.
@@ -248,7 +248,7 @@ public struct RouteGuide: Sendable {
                         rehearsalReturnArrivalIndex=targetIndex
                         pause(reason:.manual)
                         return GuideUpdate(state:state,targetIndex:targetIndex,
-                            announcement:"\(route.pointLabel(at:targetIndex)) 지점에 도착했습니다. 계속하려면 계속이라고 말씀해주세요.")
+                            announcement:L("%@ 지점에 도착했습니다. 계속하려면 계속이라고 말씀해주세요.", route.pointLabel(at:targetIndex)))
                     }
                     arrivedIndex=targetIndex
                     targetIndex -= 1; arrivedSince=nil; sector=nil
@@ -258,7 +258,7 @@ public struct RouteGuide: Sendable {
                         let index=targetIndex
                         facingPointIndex=index;facingGate.reset();arrivedSince=nil;sector=nil
                         if index < route.points.count-1 { targetIndex += 1 }
-                        return GuideUpdate(state:state,targetIndex:targetIndex,announcement:"\(route.pointLabel(at:index)) 도착.")
+                        return GuideUpdate(state:state,targetIndex:targetIndex,announcement:L("%@ 도착.", route.pointLabel(at:index)))
                     }
                     if targetIndex == route.points.count-1 {
                         state = .completed
@@ -273,7 +273,7 @@ public struct RouteGuide: Sendable {
         } else { arrivedSince=nil }
         if isHolding, let arrivedIndex {
             lastSpeech=time
-            return GuideUpdate(state:state,targetIndex:targetIndex,announcement:"\(arrivedIndex)번째 지점 도착.")
+            return GuideUpdate(state:state,targetIndex:targetIndex,announcement:L("%@번째 지점 도착.", arrivedIndex))
         }
         let angle=StageHeading.bearing(from:position,to:goal,headingDegrees:headingDegrees)
         let normalized=(angle+360).truncatingRemainder(dividingBy:360)
@@ -283,12 +283,12 @@ public struct RouteGuide: Sendable {
             let delta=abs((normalized-center+540).truncatingRemainder(dividingBy:360)-180)
             if delta > 22.5+settings.headingHysteresisDegrees { sector=candidate }
         } else { sector=candidate }
-        let names=["앞","오른쪽 앞","오른쪽","오른쪽 뒤","뒤","왼쪽 뒤","왼쪽","왼쪽 앞"]
-        let direction=String(format:"%@, %.1f미터.",names[sector ?? candidate],distance)
+        let names=[L("앞"),L("오른쪽 앞"),L("오른쪽"),L("오른쪽 뒤"),L("뒤"),L("왼쪽 뒤"),L("왼쪽"),L("왼쪽 앞")]
+        let direction=String(format:L("%@, %.1f미터."),names[sector ?? candidate],distance)
         if let arrivedIndex {
             lastSpeech=time
             return GuideUpdate(state:state,targetIndex:targetIndex,
-                announcement:"\(arrivedIndex)번째 지점 도착. 다음 p\(targetIndex), \(direction)")
+                announcement:L("%@번째 지점 도착. 다음 p%@, %@", arrivedIndex, targetIndex, direction))
         }
         guard time-lastSpeech >= settings.repeatInterval else { return GuideUpdate(state:state,targetIndex:targetIndex,announcement:nil) }
         lastSpeech=time

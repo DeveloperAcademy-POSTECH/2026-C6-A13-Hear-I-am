@@ -87,7 +87,7 @@ struct GuidanceView: View {
                     else { HearV3.canvas; GuidanceInstruction(model:model) }
                 }
             }
-            .navigationTitle(voiceWalk ? (model.isPractice ? "연습 안내" : "실전 안내") : conversation || checkpointScreen ? "" : model.helperPreparation ? "출발 준비" : "Hear I am").navigationBarTitleDisplayMode(.inline)
+            .navigationTitle(voiceWalk ? (model.isPractice ? L("연습 안내") : L("실전 안내")) : conversation || checkpointScreen ? "" : model.helperPreparation ? L("출발 준비") : "Hear I am").navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(voiceFlow ? .hidden : .automatic,for:.navigationBar)
             .toolbar(checkpointScreen ? .hidden : .automatic,for:.navigationBar)
             .toolbar {
@@ -95,19 +95,19 @@ struct GuidanceView: View {
                     if conversation || voiceWalk {
                         VoiceBackButton {exit()}.accessibilityIdentifier("voice.back")
                     } else if model.voiceShouldListen && (model.voiceAwake || model.voiceTurnActive) {
-                        Button("대화 닫기",systemImage:"xmark.circle") {model.dismissVoiceConversation()}.labelStyle(.iconOnly)
+                        Button(L("대화 닫기"),systemImage:"xmark.circle") {model.dismissVoiceConversation()}.labelStyle(.iconOnly)
                     }
                 }
                 // The walking screen has only the back button (1028:18910); the checkpoint screen draws its own row.
                 if !voiceWalk && !checkpointScreen { ToolbarItem(placement:.topBarTrailing) {
                     Menu {
-                        Button("설정",systemImage:"gearshape") {
+                        Button(L("설정"),systemImage:"gearshape") {
                             model.beginSettings()
                             showingSettings=true
                         }
-                        Button("안내 끝내기",systemImage:"xmark") {exit()}
+                        Button(L("안내 끝내기"),systemImage:"xmark") {exit()}
                     } label: {Image(systemName:"gearshape")}
-                    .accessibilityLabel("안내 설정 및 종료")
+                    .accessibilityLabel(L("안내 설정 및 종료"))
                     .disabled(model.phase == .finishing || model.savingRecord || (model.phase == .completed && model.speaking))
                 } }
             }
@@ -126,10 +126,10 @@ struct GuidanceView: View {
             // Settings push in, as in the design; the guidance resumes when the user comes back.
             .navigationDestination(isPresented:$showingSettings) {HomeSettingsView().suspendsVoiceWake()}
             .onChange(of:showingSettings) {_,shown in if !shown {model.endSettings()}}
-            .alert("안내를 끝낼까요?",isPresented:$model.showExit) {
-                Button("안내 끝내기",role:.destructive) { close() }
-                Button("계속 사용하기",role:.cancel) { model.cancelExit() }
-            } message: { Text("중간에 종료하면 도착 완료로 처리되지 않아요. 저장한 무대와 동선은 유지돼요.") }
+            .alert(L("안내를 끝낼까요?"),isPresented:$model.showExit) {
+                Button(L("안내 끝내기"),role:.destructive) { close() }
+                Button(L("계속 사용하기"),role:.cancel) { model.cancelExit() }
+            } message: { Text(L("중간에 종료하면 도착 완료로 처리되지 않아요. 저장한 무대와 동선은 유지돼요.")) }
         }
         // The design (495:5074–5481) has no light around the edge; the lights under the conversation move instead.
         .interactiveDismissDisabled()

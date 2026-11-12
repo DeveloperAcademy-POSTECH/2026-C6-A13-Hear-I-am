@@ -50,19 +50,19 @@ public struct GuidanceRecord: Codable, Equatable, Identifiable, Sendable {
         try route.validate()
         try replay?.validate(pointCount:route.points.count)
         guard (firstGuidedPointIndex == nil) == (practiceOrigin == nil), practiceOrigin?.valid ?? true else {
-            throw LabError.invalid("안내 기록의 연습 출발 정보가 올바르지 않습니다.")
+            throw LabError.invalid(L("안내 기록의 연습 출발 정보가 올바르지 않습니다."))
         }
         if let firstGuidedPointIndex {
             guard (1..<route.points.count).contains(firstGuidedPointIndex),
                   replay?.samples.allSatisfy({$0.targetIndex >= firstGuidedPointIndex}) ?? true else {
-                throw LabError.invalid("안내 기록의 첫 지점이 올바르지 않습니다.")
+                throw LabError.invalid(L("안내 기록의 첫 지점이 올바르지 않습니다."))
             }
         }
         guard (version == 1 && replay == nil || version == 2 && replay != nil), !stageName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               activeSeconds.isFinite, activeSeconds >= 0,
               [startedAt, completedAt, finishedAt].allSatisfy({ $0.timeIntervalSince1970.isFinite }),
               startedAt <= completedAt, completedAt <= finishedAt else {
-            throw LabError.invalid("완료 기록의 정보가 올바르지 않습니다.")
+            throw LabError.invalid(L("완료 기록의 정보가 올바르지 않습니다."))
         }
     }
 }

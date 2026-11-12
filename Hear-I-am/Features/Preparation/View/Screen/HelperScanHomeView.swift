@@ -29,12 +29,12 @@ struct HelperScanHomeView:View {
         VStack(spacing:0) {
             Image(systemName:"viewfinder").font(.system(size:40)).foregroundStyle(ScanHomeStyle.text)
                 .frame(height:40).accessibilityHidden(true)
-            Text("무대 준비를 위한\n스캔을 시작해보세요").font(HearFont.pretendard(.semibold,size:22))
+            Text(L("무대 준비를 위한\n스캔을 시작해보세요")).font(HearFont.pretendard(.semibold,size:22))
                 .foregroundStyle(ScanHomeStyle.text).multilineTextAlignment(.center).padding(.top,25)
             Button {startScan()} label: {
                 HStack(spacing:8) {
                     Image(systemName:"viewfinder").font(.system(size:18,weight:.semibold))
-                    Text("스캔하러 가기").font(HearFont.pretendard(.semibold,size:18))
+                    Text(L("스캔하러 가기")).font(HearFont.pretendard(.semibold,size:18))
                 }.foregroundStyle(ScanHomeStyle.buttonText).frame(width:258,height:50)
                     .liquidGlass(Capsule(),tint:.white,interactive:true).contentShape(Capsule())
             }.buttonStyle(.plain).accessibilityIdentifier("scan.start").padding(.top,44)
@@ -46,10 +46,10 @@ struct HelperScanHomeView:View {
             // Home and settings in the shared top row, where the role page keeps its settings button (11/07).
             .hearTopBar(nil) {
                 Button {changeRole?()} label: {HearTopButtonLabel(systemImage:"house")}
-                    .buttonStyle(.plain).accessibilityLabel("역할 선택으로 돌아가기")
+                    .buttonStyle(.plain).accessibilityLabel(L("역할 선택으로 돌아가기"))
             } trailing: {
                 Button {showingSettings=true} label: {HearTopButtonLabel(systemImage:"gearshape")}
-                    .buttonStyle(.plain).accessibilityLabel("설정").accessibilityIdentifier("scan.settings")
+                    .buttonStyle(.plain).accessibilityLabel(L("설정")).accessibilityIdentifier("scan.settings")
             }
             .onAppear {startRequestedScan()}
             .onChange(of:startNow) {startRequestedScan()}

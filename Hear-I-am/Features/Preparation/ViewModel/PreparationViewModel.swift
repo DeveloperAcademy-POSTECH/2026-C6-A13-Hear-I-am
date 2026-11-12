@@ -13,7 +13,7 @@ final class PreparationViewModel: ObservableObject {
     @Published var draft=PreparationDraft()
     @Published var scanConfirmed=false
     @Published var pendingObjectWorld: [Point3] = []
-    @Published var obstacleName="기물"
+    @Published var obstacleName=L("기물")
     /// Changing the kind renames an object that still carries a default name, so the name always tells
     /// the kind (field test 10/17: an object named "장애물" was saved as stairs and never warned).
     @Published var obstacleKind: ObstacleKind = .box {
@@ -31,7 +31,7 @@ final class PreparationViewModel: ObservableObject {
     @Published var objectModel: ObjectAppearance.Model = .generic
     @Published var objectHeading=0.0
     @Published var showingPhotos=false
-    @Published var scanName="무대 스캔"
+    @Published var scanName=L("무대 스캔")
     @Published var selectedPlan: PerformancePlan?
     @Published private var showObjectReference=true
     @Published private var showRouteReference=true
@@ -135,11 +135,11 @@ final class PreparationViewModel: ObservableObject {
     }
     var showsCrosshairHint: String? {
         if session.saveRecoveryPending, let message=saveRecoveryMessage { return message }
-        if interrupted { return "추적 중단" }
+        if interrupted { return L("추적 중단") }
         if let hit=aimHit { return hit.message }
         if let issue=aimEdgeIssue { return issue }
-        if step == .scan { return supportsMesh ? "민트색 그물 = 스캔한 표면" : nil }
-        return step == .route ? "바닥 또는 등록한 의자·계단 윗면을 선택하세요" : "십자선을 실제 바닥에 맞춰주세요"
+        if step == .scan { return supportsMesh ? L("민트색 그물 = 스캔한 표면") : nil }
+        return step == .route ? L("바닥 또는 등록한 의자·계단 윗면을 선택하세요") : L("십자선을 실제 바닥에 맞춰주세요")
     }
     /// Why the point under the crosshair cannot join the route, shown before it is placed (#38).
     var aimHit: ClearanceHit? {
@@ -272,7 +272,7 @@ final class PreparationViewModel: ObservableObject {
             _ = try draft.reference(for:plan)
             selectedPlan=plan; choosingPlan=false
             showObjectReference=true; showRouteReference=true
-            if scanName == "무대 스캔" || scanName.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty { scanName=plan.name }
+            if scanName == "무대 스캔" || scanName == L("무대 스캔") || scanName.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty { scanName=plan.name }
             highest=max(highest,.objects)
             changeStep(.objects)
         } catch {

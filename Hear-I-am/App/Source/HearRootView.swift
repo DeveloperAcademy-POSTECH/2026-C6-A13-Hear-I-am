@@ -78,8 +78,8 @@ struct HearRootView: View {
             guard !Task.isCancelled else {return}
             showsLaunch=false
         }
-        .alert("확인이 필요해요",isPresented:Binding(get:{library.error != nil},set:{if !$0 {library.error=nil}})) {
-            Button("확인",role:.cancel) {library.error=nil}
+        .alert(L("확인이 필요해요"),isPresented:Binding(get:{library.error != nil},set:{if !$0 {library.error=nil}})) {
+            Button(L("확인"),role:.cancel) {library.error=nil}
         } message: {Text(library.error ?? "")}
     }
 
@@ -93,11 +93,11 @@ struct HearRootView: View {
     private var helperTabs: some View {
         TabView(selection:$tab) {
             HelperScanHomeView(library:library,startNow:$scanRequested) {id in selectedPerformanceID=id;tab=1}
-                .tabItem {HelperTab.label("스캔",systemImage:"viewfinder")}.tag(0)
+                .tabItem {HelperTab.label(L("스캔"),systemImage:"viewfinder")}.tag(0)
             PerformanceLibraryView(library:library,selectedPerformanceID:$selectedPerformanceID) {stageID in
                 open(VoiceGuidanceLaunch(stageID:stageID,mode:.performance,helperPreparation:true))
-            }.tabItem {HelperTab.label("공연 관리",systemImage:"folder")}.tag(1)
-            GuidanceRecordsView(library:library).tabItem {HelperTab.label("기록",systemImage:"clock")}.tag(2)
+            }.tabItem {HelperTab.label(L("공연 관리"),systemImage:"folder")}.tag(1)
+            GuidanceRecordsView(library:library).tabItem {HelperTab.label(L("기록"),systemImage:"clock")}.tag(2)
         }.tint(HearV3.text).preferredColorScheme(.dark)
             .environment(\.hearChangeRole,chooseRole)
     }

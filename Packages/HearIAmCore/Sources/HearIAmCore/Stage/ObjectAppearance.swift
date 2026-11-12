@@ -6,13 +6,13 @@ public struct ObjectAppearance: Codable, Equatable, Sendable {
         case generic, chair, table, musicStand, microphone, speaker, monitor
         public var title: String {
             switch self {
-            case .generic: return "기본 입체"
-            case .chair: return "의자"
-            case .table: return "테이블"
-            case .musicStand: return "보면대"
-            case .microphone: return "마이크"
-            case .speaker: return "스피커"
-            case .monitor: return "바닥 모니터"
+            case .generic: return L("기본 입체")
+            case .chair: return L("의자")
+            case .table: return L("테이블")
+            case .musicStand: return L("보면대")
+            case .microphone: return L("마이크")
+            case .speaker: return L("스피커")
+            case .monitor: return L("바닥 모니터")
             }
         }
         public var defaultHeight: Double {
@@ -38,7 +38,7 @@ public struct ObjectAppearance: Codable, Equatable, Sendable {
         self.model=model; self.headingDegrees=headingDegrees
     }
     public func validate() throws {
-        guard headingDegrees.isFinite else { throw LabError.invalid("기물 표시 방향이 올바르지 않습니다.") }
+        guard headingDegrees.isFinite else { throw LabError.invalid(L("기물 표시 방향이 올바르지 않습니다.")) }
     }
 }
 

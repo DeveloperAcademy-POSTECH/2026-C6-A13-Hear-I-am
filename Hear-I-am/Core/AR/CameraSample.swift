@@ -22,11 +22,11 @@ struct CameraSample {
         }
         mapped=frame.worldMappingStatus == .mapped
         switch frame.worldMappingStatus {
-        case .notAvailable: mapping="공간 인식 준비 중"
-        case .limited: mapping="공간을 더 비춰주세요"
-        case .extending: mapping="스캔 범위를 넓히고 있어요"
-        case .mapped: mapping="공간 지도 안정됨"
-        @unknown default: mapping="공간 확인 중"
+        case .notAvailable: mapping=L("공간 인식 준비 중")
+        case .limited: mapping=L("공간을 더 비춰주세요")
+        case .extending: mapping=L("스캔 범위를 넓히고 있어요")
+        case .mapped: mapping=L("공간 지도 안정됨")
+        @unknown default: mapping=L("공간 확인 중")
         }
         anchors=Dictionary(frame.anchors.compactMap { anchor -> (String,Point3)? in
             guard let name=anchor.name, name.hasPrefix("PoC4.reference.") else { return nil }

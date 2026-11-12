@@ -93,7 +93,7 @@ struct ScanStageMap: View {
                 context.fill(Path(rect),with:.color(.white.opacity(0.2)))
                 context.stroke(Path(rect),with:.color(.white),lineWidth:1)
                 if showsLabel {
-                    context.draw(Text("객석").font(.system(size:16,weight:.medium)).foregroundColor(.white),at:CGPoint(x:rect.midX,y:rect.maxY+14))
+                    context.draw(Text(L("객석")).font(.system(size:16,weight:.medium)).foregroundColor(.white),at:CGPoint(x:rect.midX,y:rect.maxY+14))
                 }
                 if let reference {
                     var ghost=context; ghost.opacity=0.3

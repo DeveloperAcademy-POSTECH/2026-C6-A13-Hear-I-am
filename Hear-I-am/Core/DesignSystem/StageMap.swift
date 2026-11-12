@@ -53,8 +53,8 @@ struct StageMap: View {
                     context.stroke(audience,with:.color(HearV3.secondary),lineWidth:1.5)
                 }
                 if !v3Style {context.stroke(Path(rect), with: .color(.gray.opacity(0.4)), lineWidth: 1.5)}
-                if showsLabels { context.draw(Text(v3Style ? "무대 뒤쪽" : "무대").font(.caption.bold()).foregroundColor(.secondary), at: CGPoint(x:rect.midX,y:rect.minY+13))
-                context.draw(Text(v3Style ? "관객석 · 앞쪽" : "객석 ↓").font(.system(size:10)).foregroundColor(.secondary), at: CGPoint(x:rect.midX,y:rect.maxY+14)) }
+                if showsLabels { context.draw(Text(v3Style ? L("무대 뒤쪽") : L("무대")).font(.caption.bold()).foregroundColor(.secondary), at: CGPoint(x:rect.midX,y:rect.minY+13))
+                context.draw(Text(v3Style ? L("관객석 · 앞쪽") : L("객석 ↓")).font(.system(size:10)).foregroundColor(.secondary), at: CGPoint(x:rect.midX,y:rect.maxY+14)) }
                 if let reference {
                     var ghost=context; ghost.opacity=0.30
                     for object in reference.objects {
@@ -140,7 +140,7 @@ struct StageMap: View {
                     if let point {
                         let p=project(point)
                         context.fill(Path(ellipseIn:CGRect(x:p.x-6,y:p.y-6,width:12,height:12)),with:.color(.red))
-                        context.draw(Text("확인점 \(index+1)").font(.system(size:10)).foregroundColor(.red),at:CGPoint(x:p.x,y:p.y-15))
+                        context.draw(Text(L("확인점 %@", index+1)).font(.system(size:10)).foregroundColor(.red),at:CGPoint(x:p.x,y:p.y-15))
                     }
                 }
             }

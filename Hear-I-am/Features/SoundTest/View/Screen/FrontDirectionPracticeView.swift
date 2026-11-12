@@ -8,20 +8,20 @@ struct FrontDirectionPracticeView: View {
     @AccessibilityFocusState private var issueFocused: Bool
 
     private var title: String {
-        if !model.isRunning { return "연습을 잠시 멈췄어요" }
+        if !model.isRunning { return L("연습을 잠시 멈췄어요") }
         switch model.practice.phase {
-        case .needsReference: return "앞을 향해 서주세요"
-        case .turnAway: return "몸을 조금 돌려보세요"
-        case .finding: return "소리를 따라 정면을 찾아보세요"
-        case .completed: return "방향이 맞았어요"
+        case .needsReference: return L("앞을 향해 서주세요")
+        case .turnAway: return L("몸을 조금 돌려보세요")
+        case .finding: return L("소리를 따라 정면을 찾아보세요")
+        case .completed: return L("방향이 맞았어요")
         }
     }
     private var instruction: String {
         switch model.practice.phase {
-        case .needsReference: return "휴대폰을 실제 안내 때처럼 몸에 고정하고, 조력자와 함께 기준이 될 정면을 정해주세요."
-        case .turnAway: return "발은 제자리에 두고 몸을 왼쪽이나 오른쪽으로 돌려보세요. 정면에서 충분히 벗어나면 방향 안내가 시작돼요."
-        case .finding: return "낮은 톡은 왼쪽, 높은 톡은 오른쪽이에요. 정면에 가까워질수록 빨라지고, 방향이 맞으면 확인 소리가 들려요."
-        case .completed: return "지정한 정면으로 돌아왔어요. 같은 방향으로 다시 연습하거나 새로운 정면을 지정할 수 있어요."
+        case .needsReference: return L("휴대폰을 실제 안내 때처럼 몸에 고정하고, 조력자와 함께 기준이 될 정면을 정해주세요.")
+        case .turnAway: return L("발은 제자리에 두고 몸을 왼쪽이나 오른쪽으로 돌려보세요. 정면에서 충분히 벗어나면 방향 안내가 시작돼요.")
+        case .finding: return L("낮은 톡은 왼쪽, 높은 톡은 오른쪽이에요. 정면에 가까워질수록 빨라지고, 방향이 맞으면 확인 소리가 들려요.")
+        case .completed: return L("지정한 정면으로 돌아왔어요. 같은 방향으로 다시 연습하거나 새로운 정면을 지정할 수 있어요.")
         }
     }
     var body: some View {
@@ -39,7 +39,7 @@ struct FrontDirectionPracticeView: View {
                     .lineSpacing(4).frame(maxWidth:300).fixedSize(horizontal:false,vertical:true)
                 if let issue = model.issue { TutorialPlaybackError(message: issue).accessibilityFocused($issueFocused).padding(.top,8) }
                 else if model.isRunning, !model.canSetReference {
-                    Label("몸 방향을 확인하고 있어요", systemImage: "iphone").font(.system(size:15)).foregroundStyle(SettingsStyle.secondary).padding(.top,8)
+                    Label(L("몸 방향을 확인하고 있어요"), systemImage: "iphone").font(.system(size:15)).foregroundStyle(SettingsStyle.secondary).padding(.top,8)
                 }
                 Spacer()
             }.padding(.horizontal,16).padding(.top,43)
@@ -59,14 +59,14 @@ struct FrontDirectionPracticeView: View {
             }
         }
         .settingsScreen()
-        .navigationTitle("정면 찾기").navigationBarTitleDisplayMode(.inline)
-        .readsAloud(title:"정면 찾기") {["정면 찾기",title,instruction]+[secondaryTitle,primaryTitle].compactMap {$0.map {"\($0) 버튼"}}}
+        .navigationTitle(L("정면 찾기")).navigationBarTitleDisplayMode(.inline)
+        .readsAloud(title:L("정면 찾기")) {[L("정면 찾기"),title,instruction]+[secondaryTitle,primaryTitle].compactMap {$0.map {L("%@ 버튼", $0)}}}
         .onAppear { visible = true; model.start() }
         .onDisappear { visible = false; model.close() }
         .onChange(of: scenePhase) { _, phase in
             guard visible else { return }
             if phase == .active { model.start() }
-            else { model.suspend("연습을 잠시 멈췄어요. 다시 정면을 지정해주세요.") }
+            else { model.suspend(L("연습을 잠시 멈췄어요. 다시 정면을 지정해주세요.")) }
         }
         .onChange(of: model.issue) { _, issue in
             if issue != nil { issueFocused = true }
@@ -74,16 +74,16 @@ struct FrontDirectionPracticeView: View {
     }
     /// Figma 457:13594 · 13609: white 「이 방향을 정면으로 지정」 first, then a dark button to set it again.
     private var primaryTitle: String? {
-        if !model.isRunning { return "다시 시작" }
+        if !model.isRunning { return L("다시 시작") }
         switch model.practice.phase {
-        case .needsReference: return "이 방향을 정면으로 지정"
+        case .needsReference: return L("이 방향을 정면으로 지정")
         // Once the front has been found the buttons stay while the user keeps turning and finding it again.
-        case .turnAway, .finding: return model.practice.completedOnce ? "같은 정면으로 다시 연습" : nil
-        case .completed: return "같은 정면으로 다시 연습"
+        case .turnAway, .finding: return model.practice.completedOnce ? L("같은 정면으로 다시 연습") : nil
+        case .completed: return L("같은 정면으로 다시 연습")
         }
     }
     private var secondaryTitle: String? {
-        model.isRunning && model.practice.referenceHeading != nil ? "이 방향을 정면으로 다시 지정" : nil
+        model.isRunning && model.practice.referenceHeading != nil ? L("이 방향을 정면으로 다시 지정") : nil
     }
     private func primaryAction() {
         if !model.isRunning { model.start(); return }

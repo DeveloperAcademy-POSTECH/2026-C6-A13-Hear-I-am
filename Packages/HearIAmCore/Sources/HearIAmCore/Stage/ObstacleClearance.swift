@@ -12,8 +12,8 @@ public struct ClearanceHit: Equatable, Sendable {
 
     public var message: String {
         let cm=max(1,Int((overlap*100).rounded()))
-        return pointInside ? "십자선이 \(name) 여유 영역 안이에요 · \(cm)cm 겹침"
-                           : "직전 점에서 오는 선이 \(name) 여유 영역을 지나요 · \(cm)cm 겹침"
+        return pointInside ? L("십자선이 %@ 여유 영역 안이에요 · %@cm 겹침", name, cm)
+                           : L("직전 점에서 오는 선이 %@ 여유 영역을 지나요 · %@cm 겹침", name, cm)
     }
 }
 

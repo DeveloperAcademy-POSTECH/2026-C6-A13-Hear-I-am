@@ -12,10 +12,10 @@ extension ARSessionController {
         latest=sample
         if alignment == nil && !measuredCheckpoints.isEmpty && previousStability != gate.normalSince {
             clearAlignment()
-            status="추적이 변경됐어요. 확인점 1번부터 다시 확인해주세요."
+            status=L("추적이 변경됐어요. 확인점 1번부터 다시 확인해주세요.")
         }
         if tracking != sample.tracking { event("tracking",detail:sample.tracking) }
-        if wasVerified && !gate.verified { invalidateWear("추적 제한 · 위치 재확인 중") }
+        if wasVerified && !gate.verified { invalidateWear(L("추적 제한 · 위치 재확인 중")) }
         if alignment != nil && !gate.verified && gate.canVerify(now:sample.time) {
             _=gate.verify(error:alignment?.residual ?? 0,tolerance:checkpointTolerance,now:sample.time)
             event("tracking_auto_recovered")
@@ -34,7 +34,7 @@ extension ARSessionController {
             if mode == .restoring {
                 let candidate=sample.normal && referenceAnchorsPresent(sample)
                 renderer.meshLayer.isHidden = !candidate || !showMesh; renderer.referenceLayer.isHidden = !candidate
-                if !ready { status=canVerify ? "복원 후보 확보 · 확인점 \(nextCheckpointNumber)번을 선택하세요" : "공간 복원 중 · 기준 앵커와 안정된 추적을 기다립니다" }
+                if !ready { status=canVerify ? L("복원 후보 확보 · 확인점 %@번을 선택하세요", nextCheckpointNumber) : L("공간 복원 중 · 기준 앵커와 안정된 추적을 기다립니다") }
             }
         }
         if sample.time-lastPoseLog>=0.05 {
@@ -50,7 +50,7 @@ extension ARSessionController {
         for part in parts { meshes[part.id]=part }
         renderer.updateMeshes(parts,removed:removed)
         updateCounts()
-        if vertexCount>800_000 { interrupt("메시가 너무 큽니다. 더 작은 영역으로 새 스캔을 시작하세요.",token:token) }
+        if vertexCount>800_000 { interrupt(L("메시가 너무 큽니다. 더 작은 영역으로 새 스캔을 시작하세요."),token:token) }
     }
     func updateCounts() { meshCount=meshes.count; vertexCount=meshes.values.reduce(0){$0+$1.vertices.count} }
     var routeIsValid: Bool { preparedDraft?.errors.isEmpty ?? false }

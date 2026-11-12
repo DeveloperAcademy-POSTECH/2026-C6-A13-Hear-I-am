@@ -29,7 +29,7 @@ final class HomeViewModel: ObservableObject {
         Task {
             defer {renaming=false;renameTarget=nil}
             do {try await library.renameStage(target.id,to:name)}
-            catch {notice="이름을 변경하지 못했어요. 다시 시도해주세요. " + error.localizedDescription}
+            catch {notice=L("이름을 변경하지 못했어요. 다시 시도해주세요. ") + error.localizedDescription}
         }
     }
 
@@ -44,7 +44,7 @@ final class HomeViewModel: ObservableObject {
                 do {try await library.deleteStage(id)} catch {failures.append(error.localizedDescription)}
             }
             selection.finishDeleting(remaining:Set(library.records.map(\.id)))
-            if !failures.isEmpty {notice="일부 무대를 삭제하지 못했어요. 다시 시도해주세요. " + failures.joined(separator:"\n")}
+            if !failures.isEmpty {notice=L("일부 무대를 삭제하지 못했어요. 다시 시도해주세요. ") + failures.joined(separator:"\n")}
         }
     }
 }

@@ -27,11 +27,11 @@ struct PreparationDangerZoneSheet: View {
 
     private var header: some View {
         ZStack {
-            Text("위험 구역 (Danger zone)").font(.system(size:17,weight:.semibold)).foregroundStyle(.black)
+            Text(L("위험 구역 (Danger zone)")).font(.system(size:17,weight:.semibold)).foregroundStyle(.black)
             HStack {
                 Spacer()
                 Button(action:close) {
-                    Text("완료").font(.system(size:17,weight:.semibold)).foregroundStyle(.black)
+                    Text(L("완료")).font(.system(size:17,weight:.semibold)).foregroundStyle(.black)
                         .padding(.horizontal,16).frame(height:44)
                         .background(.white,in:Capsule())
                         .shadow(color:.black.opacity(0.12),radius:8,y:2)
@@ -53,8 +53,8 @@ struct PreparationDangerZoneSheet: View {
         Form {
             Section {
                 ForEach(StageDangerZone.Edge.allCases) { edge in row(edge)}
-            } header: { Text("변 선택 · 거리") }
-            footer: { Text("객석에서 무대를 바라보는 기준입니다. 여러 변을 선택할 수 있으며, 선택한 변에서 무대 안쪽으로 표시됩니다. 작은 무대에서는 구역이 겹치거나 무대 전체를 덮을 수 있습니다.") }
+            } header: { Text(L("변 선택 · 거리")) }
+            footer: { Text(L("객석에서 무대를 바라보는 기준입니다. 여러 변을 선택할 수 있으며, 선택한 변에서 무대 안쪽으로 표시됩니다. 작은 무대에서는 구역이 겹치거나 무대 전체를 덮을 수 있습니다.")) }
         }.formStyle(.grouped).disabled(model.busy)
     }
 
@@ -65,7 +65,7 @@ struct PreparationDangerZoneSheet: View {
                 get:{ model.draft.dangerZones.contains { $0.edge == edge } },
                 set:{ model.setDangerZone(edge,distance:$0 ? .halfMetre : nil) }))
             if selected != nil {
-                Picker("\(edge.label) 거리",selection:Binding(
+                Picker(L("%@ 거리", edge.label),selection:Binding(
                     get:{ model.draft.dangerZones.first { $0.edge == edge }?.distance ?? .halfMetre },
                     set:{ model.setDangerZone(edge,distance:$0) })) {
                     ForEach(StageDangerZone.Distance.allCases) { distance in
@@ -94,7 +94,7 @@ struct DangerZonePlan: View {
                 .frame(width:geometry.size.width,height:geometry.size.height)
         }
         .background(Self.card,in:RoundedRectangle(cornerRadius:24,style:.continuous))
-        .accessibilityElement().accessibilityLabel("무대 평면도. \(StageDangerZone.summary(zones))")
+        .accessibilityElement().accessibilityLabel(L("무대 평면도. %@", StageDangerZone.summary(zones)))
     }
 
     private func draw(_ context: inout GraphicsContext, size: CGSize) {
@@ -112,7 +112,7 @@ struct DangerZonePlan: View {
         for point in corners {
             context.fill(Path(ellipseIn:CGRect(x:point.x-6,y:point.y-6,width:12,height:12)),with:.color(Self.corner))
         }
-        context.draw(Text("무대").font(.system(size:13)).foregroundColor(Self.label),at:CGPoint(x:rect.midX,y:rect.midY))
-        context.draw(Text("객석 ↓").font(.system(size:11)).foregroundColor(Self.label),at:CGPoint(x:rect.midX,y:rect.maxY+16))
+        context.draw(Text(L("무대")).font(.system(size:13)).foregroundColor(Self.label),at:CGPoint(x:rect.midX,y:rect.midY))
+        context.draw(Text(L("객석 ↓")).font(.system(size:11)).foregroundColor(Self.label),at:CGPoint(x:rect.midX,y:rect.maxY+16))
     }
 }

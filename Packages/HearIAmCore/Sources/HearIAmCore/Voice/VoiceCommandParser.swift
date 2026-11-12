@@ -16,6 +16,7 @@ public enum VoiceCommand: Equatable, Sendable {
 
 public enum VoiceCommandParser {
     public static func parse(_ text: String) -> VoiceCommand? {
+        let text = VoiceEnglish.canonical(text)
         if let command=parseExact(text) { return command }
         // 「네 시작」: a yes or filler said before an otherwise exact command (field test 10/28).
         guard let match=text.range(of:#"^\s*(?:네|예|응|어|음|자|그럼|좋아|오케이|ok|okay)[\s,.!~]+"#,options:[.regularExpression,.caseInsensitive]) else { return nil }
@@ -25,6 +26,7 @@ public enum VoiceCommandParser {
     /// Words that close the conversation: 「닫기」, 「종료」, 「나가기」. Dictation often hears 「닫기」 as
     /// 「찾기」 or 「받기」 with 「닫기」 among the alternatives (11/03), so callers try those too.
     public static func isClose(_ text: String) -> Bool {
+        let text = VoiceEnglish.canonical(text)
         let compact = text.lowercased().replacingOccurrences(of: #"[\s.!?。！？,~]"#, with: "", options: .regularExpression)
         if closeWords.contains(compact) { return true }
         return compact.count <= 8 && ["종료", "닫기", "닫아줘", "끝내줘", "나가기"].contains { compact.hasSuffix($0) }
@@ -62,6 +64,7 @@ public enum VoiceCommandParser {
     /// search and the mode's stem (연습 · 실전 · 공연), so a stage whose own name holds that word can keep it.
     /// A word that only begins with the stem, such as 연습장, is no mode.
     public static func splitMode(_ text: String) -> (mode: VoiceCommand, rest: String, stem: String)? {
+        let text = VoiceEnglish.canonical(text)
         let pattern = #"(연습|실전|공연)\s*(용|모드)?(?:으로|로)?(?:\s*(?:열어\s*줘요?|열어\s*주세요|해\s*줘요?|해\s*주세요|할게요?|할래요?|시작(?:해\s*줘요?|해\s*주세요)?|부탁해요?|가자|갈게요?))?(?=$|[\s.,!?])"#
         guard let expression = try? NSRegularExpression(pattern: pattern) else { return nil }
         let whole = NSRange(text.startIndex..., in: text)
@@ -91,6 +94,7 @@ public enum VoiceCommandParser {
     /// only when the words are near the command; otherwise it is asked back. Commands without a phrase list
     /// (a stage, a point, the whole list) are judged elsewhere.
     public static func soundsLike(_ text: String, _ command: VoiceCommand) -> Bool {
+        let text = VoiceEnglish.canonical(text)
         guard let phrases = vocabulary.first(where: { $0.0 == command })?.1 else { return true }
         let compact = text.lowercased().replacingOccurrences(of: #"[\s.!?。！？,~]"#, with: "", options: .regularExpression)
         let heard = VoiceAutocorrect.letters(compact)

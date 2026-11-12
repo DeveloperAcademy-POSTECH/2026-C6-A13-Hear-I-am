@@ -52,13 +52,13 @@ import HearIAmCore
 extension GuidanceReplayStatus {
     var title: String {
         switch self {
-        case .guiding: return "이동 안내"
-        case .paused: return "일시정지"
-        case .offRoute: return "경로 이탈"
-        case .outsideStage: return "무대 범위 밖"
-        case .obstacle: return "기물 접근"
-        case .recovering: return "위치 재확인"
-        case .untracked: return "위치 기록 없음"
+        case .guiding: return L("이동 안내")
+        case .paused: return L("일시정지")
+        case .offRoute: return L("경로 이탈")
+        case .outsideStage: return L("무대 범위 밖")
+        case .obstacle: return L("기물 접근")
+        case .recovering: return L("위치 재확인")
+        case .untracked: return L("위치 기록 없음")
         }
     }
     var symbol: String {

@@ -11,9 +11,14 @@ enum VoiceStyle {
     static let meta=Color(red:118/255,green:118/255,blue:118/255)
     static let status=Color(red:153/255,green:153/255,blue:153/255)
     static let arrow=Color(red:245/255,green:245/255,blue:245/255)
-    private static let clock: DateFormatter = {
-        let formatter=DateFormatter();formatter.locale=Locale(identifier:"ko_KR");formatter.dateFormat="a h:mm";return formatter
-    }()
+    private static var clock: DateFormatter {
+        let language=HearLanguage.current
+        if let made=clocks[language] {return made}
+        let formatter=DateFormatter();formatter.locale=language.locale;formatter.dateFormat=language.isEnglish ? "h:mm a" : "a h:mm"
+        clocks[language]=formatter
+        return formatter
+    }
+    private static var clocks: [HearLanguage: DateFormatter] = [:]
     static func time(_ date: Date) -> String {clock.string(from:date)}
 }
 
@@ -80,7 +85,7 @@ struct VoiceLogoSpinner: View {
 /// over the question, with a grey line under it, 「HearIam을 불러주세요」 before the call. The group's middle is
 /// 30pt above the screen's.
 struct VoiceWaitingPrompt: View {
-    var text="오늘은 어떤 공연을\n연습할까요?"
+    var text=L("오늘은 어떤 공연을\n연습할까요?")
     var subtitle: String?=nil
     var animating=true
     var body: some View {
@@ -109,7 +114,7 @@ struct VoiceBackButton: View {
         Button(action:action) {
             Image(systemName:"chevron.left").font(.system(size:17,weight:.semibold)).foregroundStyle(.white)
         }
-        .accessibilityLabel("뒤로")
+        .accessibilityLabel(L("뒤로"))
     }
 }
 
@@ -122,10 +127,10 @@ struct VoiceChatMeta: View {
         HStack(spacing:10) {
             Text(VoiceStyle.time(date))
             Button {UIPasteboard.general.string=text} label: {Image(systemName:"doc.on.doc").frame(width:24,height:24)}
-                .accessibilityLabel("복사")
+                .accessibilityLabel(L("복사"))
             if let onEdit {
                 Button(action:onEdit) {Image(systemName:"pencil").frame(width:24,height:24).padding(6).contentShape(Rectangle())}
-                    .padding(-6).accessibilityLabel("수정")
+                    .padding(-6).accessibilityLabel(L("수정"))
             }
         }
         .font(.system(size:14)).foregroundStyle(VoiceStyle.meta).buttonStyle(.plain)
@@ -151,11 +156,11 @@ struct VoiceUserBubble: View {
             Group {
                 if editing {
                     HStack(alignment:.bottom,spacing:8) {
-                        TextField("요청",text:$draft,axis:.vertical).focused($focused).lineLimit(1...4)
+                        TextField(L("요청"),text:$draft,axis:.vertical).focused($focused).lineLimit(1...4)
                             .font(.system(size:16,weight:.medium)).foregroundStyle(.white)
                             .submitLabel(.send).onSubmit(send)
                         Button(action:send) {Image(systemName:"arrow.up.circle.fill").font(.system(size:24))}
-                            .buttonStyle(.plain).foregroundStyle(.white).accessibilityLabel("다시 보내기")
+                            .buttonStyle(.plain).foregroundStyle(.white).accessibilityLabel(L("다시 보내기"))
                     }
                 } else if typing {
                     VoiceTypingText(text:text).font(.system(size:16,weight:.medium)).lineSpacing(3).foregroundStyle(.white)
@@ -260,7 +265,7 @@ struct VoiceStageCards: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("\(stage.number)번, \(stage.name)\(stage.tags.isEmpty ? "" : ", "+stage.tags.joined(separator:", "))")
+                .accessibilityLabel(L("%@번, %@%@", stage.number, stage.name, stage.tags.isEmpty ? "" : ", "+stage.tags.joined(separator:", ")))
                 .accessibilityIdentifier("voice.card.\(stage.id)")
             }
             VoiceChatMeta(date:date,text:text+"\n"+stages.map {"\($0.number). \($0.name)"}.joined(separator:"\n"))
@@ -281,7 +286,7 @@ struct VoiceStatusRow: View {
             if let text {Text(text).font(.system(size:16,weight:.medium)).foregroundStyle(VoiceStyle.status)}
         }
         .accessibilityElement(children:.ignore)
-        .accessibilityLabel(text ?? "답변을 기다리고 있어요")
+        .accessibilityLabel(text ?? L("답변을 기다리고 있어요"))
         .accessibilityIdentifier("voice.status")
     }
 }
@@ -315,7 +320,7 @@ struct VoiceConversationView: View {
                             // works or has yet to answer the performer's words (11/03).
                             if liveText {
                                 VoiceUserBubble(text:model.voiceLiveText,date:Date(),showsMeta:false,typing:true)
-                                    .accessibilityLabel("말하는 중: \(model.voiceLiveText)")
+                                    .accessibilityLabel(L("말하는 중: %@", model.voiceLiveText))
                             }
                             else if let status=model.voiceChatStatus {
                                 VoiceStatusRow(text:status,idle:status == GuidanceViewModel.voiceAsleepStatus)
@@ -348,7 +353,7 @@ struct VoiceConversationView: View {
                             }
                             .buttonStyle(.plain).padding(.bottom,8)
                             .transition(.opacity.combined(with:.scale(scale:0.8)))
-                            .accessibilityLabel("맨 아래로 이동")
+                            .accessibilityLabel(L("맨 아래로 이동"))
                         }
                     }
                     .task(id:model.voiceChat.last?.id) {

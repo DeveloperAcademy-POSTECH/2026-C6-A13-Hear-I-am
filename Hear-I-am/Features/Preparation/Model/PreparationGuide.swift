@@ -10,24 +10,24 @@ struct PreparationGuide {
         let names=PreparationStep.cornerNames
         switch step {
         case .scan:
-            title="공간을 천천히 둘러보세요"
-            description="휴대폰을 양손으로 잡고 공연장과 백스테이지까지 충분히 담아주세요. 벽과 커튼의 색도 담을 수 있도록 잠시 멈춰가며 천천히 비춰주세요."
+            title=L("공간을 천천히 둘러보세요")
+            description=L("휴대폰을 양손으로 잡고 공연장과 백스테이지까지 충분히 담아주세요. 벽과 커튼의 색도 담을 수 있도록 잠시 멈춰가며 천천히 비춰주세요.")
         case .boundary:
-            title=nextCorner.map {"무대 \(names[$0])을 지정해주세요"} ?? "네 모서리가 연결됐어요"
+            title=nextCorner.map {L("무대 %@을 지정해주세요", names[$0])} ?? L("네 모서리가 연결됐어요")
             if nextCorner == 2, draft.corners[0] != nil, draft.corners[1] != nil, draft.corners[3] != nil {
-                description="청록색 점선은 뒤 왼쪽에서 뒤 오른쪽으로 향하는 임시 가이드예요. 실제 바닥의 뒤 오른쪽 모서리를 직접 찍어주세요."
+                description=L("청록색 점선은 뒤 왼쪽에서 뒤 오른쪽으로 향하는 임시 가이드예요. 실제 바닥의 뒤 오른쪽 모서리를 직접 찍어주세요.")
             } else {
-                description="객석 기준 앞 오른쪽 → 앞 왼쪽 → 뒤 왼쪽 → 뒤 오른쪽 순서예요. 점선은 임시 방향 가이드이며 네 모서리는 직접 찍어주세요."
+                description=L("객석 기준 앞 오른쪽 → 앞 왼쪽 → 뒤 왼쪽 → 뒤 오른쪽 순서예요. 점선은 임시 방향 가이드이며 네 모서리는 직접 찍어주세요.")
             }
         case .objects:
-            title=objectEditing ? "기물의 바닥 둘레를 지정해주세요" : "기물을 등록하세요"
-            description=objectEditing ? "스캔 면 위에서 십자선을 물체 주변 바닥 모서리에 맞추고 ‘둘레 점 추가’를 누르세요. 한 방향으로 3~8점을 찍고 등록하면 자동으로 닫힙니다. 현재 \(pendingVertexCount)/8점 · 윗면은 찍지 않아요." : "‘기물 추가’ 후 바닥 둘레를 직접 찍어요. 사각형은 네 모서리를 순서대로 지정하세요. 기물이 없으면 건너뛰세요."
+            title=objectEditing ? L("기물의 바닥 둘레를 지정해주세요") : L("기물을 등록하세요")
+            description=objectEditing ? L("스캔 면 위에서 십자선을 물체 주변 바닥 모서리에 맞추고 ‘둘레 점 추가’를 누르세요. 한 방향으로 3~8점을 찍고 등록하면 자동으로 닫힙니다. 현재 %@/8점 · 윗면은 찍지 않아요.", pendingVertexCount) : L("‘기물 추가’ 후 바닥 둘레를 직접 찍어요. 사각형은 네 모서리를 순서대로 지정하세요. 기물이 없으면 건너뛰세요.")
         case .route:
-            title=draft.routeFinished ? "경로가 연결됐어요" : (draft.route.isEmpty ? "출발점을 지정해주세요" : "다음 위치를 지정해주세요")
-            description="출발·도착은 같은 높이의 무대 밖도 가능해요. 내부 지점은 무대 안 바닥 또는 등록한 의자·계단 윗면에 지정하세요. 빨간 영역은 통행을 막는 기물에서 \(Int((draft.effectiveObstacleClearance*100).rounded()))cm 여유라 지나갈 수 없어요. \(draft.route.count)/\(StageRoute.maxPointCount)점(시작점 포함)"
+            title=draft.routeFinished ? L("경로가 연결됐어요") : (draft.route.isEmpty ? L("출발점을 지정해주세요") : L("다음 위치를 지정해주세요"))
+            description=L("출발·도착은 같은 높이의 무대 밖도 가능해요. 내부 지점은 무대 안 바닥 또는 등록한 의자·계단 윗면에 지정하세요. 빨간 영역은 통행을 막는 기물에서 %@cm 여유라 지나갈 수 없어요. %@/%@점(시작점 포함)", Int((draft.effectiveObstacleClearance*100).rounded()), draft.route.count, StageRoute.maxPointCount)
         case .checkpoint:
-            title=draft.checkpoint == nil ? "확인점 1번을 지정해주세요" : (draft.secondCheckpoint == nil ? "확인점 2번을 지정해주세요" : "두 확인점을 지정했어요")
-            description="1번과 2번을 구분할 수 있는 고정된 바닥 표식을 선택하세요. 두 점은 1m 이상, 가능하면 더 멀리 떨어뜨려 주세요. 안내 때 같은 순서로 확인합니다. 둘레 오차는 안쪽 5cm까지 허용해요. 무대 모서리에서 0.5m 이상 떨어져야 해요."
+            title=draft.checkpoint == nil ? L("확인점 1번을 지정해주세요") : (draft.secondCheckpoint == nil ? L("확인점 2번을 지정해주세요") : L("두 확인점을 지정했어요"))
+            description=L("1번과 2번을 구분할 수 있는 고정된 바닥 표식을 선택하세요. 두 점은 1m 이상, 가능하면 더 멀리 떨어뜨려 주세요. 안내 때 같은 순서로 확인합니다. 둘레 오차는 안쪽 5cm까지 허용해요. 무대 모서리에서 0.5m 이상 떨어져야 해요.")
         }
     }
 }

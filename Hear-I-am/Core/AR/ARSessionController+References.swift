@@ -6,17 +6,17 @@ extension ARSessionController {
     /// The horizontal floor point under the screen-centre crosshair, in AR world metres.
     func centerFloorPoint() throws -> Point3 {
         guard let view, let session, let latest, latest.normal,
-              now-latest.time>=0, now-latest.time<=0.5 else { throw LabError.invalid("정상 추적 중에 바닥을 선택하세요.") }
+              now-latest.time>=0, now-latest.time<=0.5 else { throw LabError.invalid(L("정상 추적 중에 바닥을 선택하세요.")) }
         let center=CGPoint(x:view.bounds.midX,y:view.bounds.midY)
         guard let query=view.raycastQuery(from:center,allowing:.existingPlaneGeometry,alignment:.horizontal),
               let hit=session.raycast(query).first,
               let plane=hit.anchor as? ARPlaneAnchor, plane.alignment == .horizontal else {
-            throw LabError.invalid("십자선 아래 인식된 수평면이 없어요. 바닥이나 기물 윗면을 여러 각도에서 천천히 비춰주세요.")
+            throw LabError.invalid(L("십자선 아래 인식된 수평면이 없어요. 바닥이나 기물 윗면을 여러 각도에서 천천히 비춰주세요."))
         }
         let p=hit.worldTransform.columns.3
         let point=Point3(Double(p.x),Double(p.y),Double(p.z))
         guard point.valid, point.distance(to:latest.world)<=5,
-              point.y < latest.world.y-0.15 else { throw LabError.invalid("휴대폰보다 15cm 이상 아래에 있는 수평면을 5m 이내에서 선택해주세요.") }
+              point.y < latest.world.y-0.15 else { throw LabError.invalid(L("휴대폰보다 15cm 이상 아래에 있는 수평면을 5m 이내에서 선택해주세요.")) }
         return point
     }
     /// How far, along the floor, the crosshair is from the checkpoint to be measured next (#167). The checkpoint
@@ -73,20 +73,20 @@ extension ARSessionController {
             measuredCheckpoints.append(observed)
             if measuredCheckpoints.count == 1 {
                 checkpointStableSince=gate.normalSince
-                status="확인점 1 측정 완료 · 저장한 확인점 2를 선택하세요"
+                status=L("확인점 1 측정 완료 · 저장한 확인점 2를 선택하세요")
                 return
             }
             let correction=try CheckpointAlignment(saved:[checkpoint,secondCheckpoint],observed:measuredCheckpoints)
             guard gate.verify(error:correction.residual,tolerance:checkpointTolerance,now:now) else {
-                throw LabError.invalid("위치 추적이 불안정해요. 1번부터 다시 확인해주세요.")
+                throw LabError.invalid(L("위치 추적이 불안정해요. 1번부터 다시 확인해주세요."))
             }
             alignment=correction; renderer.applyAlignment(correction)
             ready=true; restoreStarted=nil
-            status="두 확인점 보정 완료 · 휴대폰 착용을 진행하세요"
+            status=L("두 확인점 보정 완료 · 휴대폰 착용을 진행하세요")
             event("checkpoint_alignment",detail:"translation=\(correction.translation)m yaw=\(correction.yawDegrees)deg lengthDifference=\(correction.lengthDifference)m residual=\(correction.residual)m",error:correction.residual)
         } catch {
             event("checkpoint_alignment",detail:"fail: \(error.localizedDescription)")
-            gate.invalidate(); invalidateWear("두 확인점 보정 실패")
+            gate.invalidate(); invalidateWear(L("두 확인점 보정 실패"))
             errorMessage=error.localizedDescription
         }
     }

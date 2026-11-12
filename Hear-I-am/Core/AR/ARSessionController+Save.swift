@@ -6,7 +6,7 @@ extension ARSessionController {
     func awaitSaveRecovery(_ detail: String) {
         busy=false; canSave=false; saveRecoveryPending=true
         errorMessage=nil
-        status="입력한 내용은 유지됩니다. 주변을 천천히 비춰주세요. 추적과 공간 지도가 안정되면 다시 저장할 수 있어요."
+        status=L("입력한 내용은 유지됩니다. 주변을 천천히 비춰주세요. 추적과 공간 지도가 안정되면 다시 저장할 수 있어요.")
         event("save_recovery",detail:detail)
     }
     func save(name rawName: String) {
@@ -34,7 +34,7 @@ extension ARSessionController {
                 }
                 let cachedParts=self.meshes.isEmpty ? Self.fallbackFloorMesh(area:area) : Array(self.meshes.values)
                 let id=self.scanID, name=rawName.trimmingCharacters(in:.whitespacesAndNewlines)
-                guard !name.isEmpty else {self.busy=false; self.errorMessage="스캔 이름을 입력하세요."; return}
+                guard !name.isEmpty else {self.busy=false; self.errorMessage=L("스캔 이름을 입력하세요."); return}
                 guard [".origin",".front",".check",".check2"].allSatisfy({suffix in map.anchors.contains {$0.name==self.referencePrefix+suffix}}) else {
                     self.awaitSaveRecovery("reference anchors missing"); return
                 }
@@ -104,11 +104,11 @@ extension ARSessionController {
                     #endif
                     self.bridge?.surfaceColors.finish()
                     self.saveRecoveryPending=false
-                    self.mode = .saved; self.savedID=result.id; self.manifest=result; self.status="저장 완료 · 앱 재실행 후 저장 공간을 불러와 확인점 1·2를 확인하세요"
+                    self.mode = .saved; self.savedID=result.id; self.manifest=result; self.status=L("저장 완료 · 앱 재실행 후 저장 공간을 불러와 확인점 1·2를 확인하세요")
                     self.event("scan_saved",detail:result.id.uuidString); self.stopLog()
                 } catch {
                     guard self.token==operation else { return }
-                    self.errorMessage="저장 실패: "+error.localizedDescription; self.status="입력은 유지됩니다. 다시 저장해주세요."
+                    self.errorMessage=L("저장 실패: ")+error.localizedDescription; self.status=L("입력은 유지됩니다. 다시 저장해주세요.")
                     if let configuration=self.session?.configuration, self.active { self.session?.run(configuration) }
                 }
                 self.archiveWriteInProgress=false; self.busy=false; UIApplication.shared.isIdleTimerDisabled = self.mode == .scanning

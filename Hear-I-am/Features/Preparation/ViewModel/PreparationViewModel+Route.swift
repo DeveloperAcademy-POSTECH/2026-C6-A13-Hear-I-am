@@ -30,7 +30,7 @@ extension PreparationViewModel {
               pending.token == session.token,
               pending.draft.corners == draft.corners, pending.draft.objects == draft.objects,
               pending.draft.route == draft.route, pending.draft.routeFinished == draft.routeFinished else {
-            session.errorMessage="추적 상태 또는 입력이 바뀌었어요. 경로점을 다시 선택해주세요."
+            session.errorMessage=L("추적 상태 또는 입력이 바뀌었어요. 경로점을 다시 선택해주세요.")
             return
         }
         do {

@@ -160,10 +160,10 @@ struct TutorialExampleRow: View {
     private var playing: Bool {model.activeID == example.id}
     var body: some View {
         Button {model.play(example)} label: {
-            SettingsRowLabel(title:example.title,detail:playing ? "재생 중 · 누르면 중지" : example.detail,accessory:playing ? .stop : .play)
+            SettingsRowLabel(title:example.title,detail:playing ? L("재생 중 · 누르면 중지") : example.detail,accessory:playing ? .stop : .play)
         }.buttonStyle(.plain).readAloudTarget("\(example.title), \(example.detail)")
-            .accessibilityLabel(example.title+(playing ? " 중지" : " 듣기"))
-            .accessibilityValue(playing ? "재생 중" : "")
+            .accessibilityLabel(example.title+(playing ? L(" 중지") : L(" 듣기")))
+            .accessibilityValue(playing ? L("재생 중") : "")
             .accessibilityHint(example.detail)
             .accessibilityIdentifier("tutorial.preview."+example.id)
     }
@@ -186,12 +186,12 @@ struct OutputDeviceRow: View {
     @State private var picker=RoutePicker()
     var body: some View {
         Button {picker.present()} label: {
-            SettingsRowLabel(title:"출력 기기",value:output.name,accessory:.chevronDown,adaptsToDynamicType:true)
+            SettingsRowLabel(title:L("출력 기기"),value:output.name,accessory:.chevronDown,adaptsToDynamicType:true)
         }.buttonStyle(.plain)
             // The system picker draws its AirPlay glyph past a 1pt frame, so it is clipped away; the row stays the only visible control.
             .background(RoutePickerHost(picker:picker).frame(width:1,height:1).clipped().opacity(0.01).accessibilityHidden(true))
             .background(SettingsStyle.group,in:RoundedRectangle(cornerRadius:SettingsStyle.cornerRadius,style:.continuous))
-            .accessibilityLabel("출력 기기, \(output.name)").accessibilityHint("눌러서 소리가 나올 기기를 바꿔요")
+            .accessibilityLabel(L("출력 기기, %@", output.name)).accessibilityHint(L("눌러서 소리가 나올 기기를 바꿔요"))
             .accessibilityIdentifier("output.device")
     }
 }
@@ -274,7 +274,7 @@ struct ReadAloudButton: View {
     var body: some View {
         Button {reader.toggle(lines())} label: {ScanCircleLabel(systemImage:reader.reading ? "stop.fill" : SettingsSymbols.readAloud)}
             .buttonStyle(.plain).animation(nil,value:reader.reading)
-            .accessibilityLabel(reader.reading ? "읽기 중지" : "화면 읽어주기").accessibilityIdentifier("settings.readAloud")
+            .accessibilityLabel(reader.reading ? L("읽기 중지") : L("화면 읽어주기")).accessibilityIdentifier("settings.readAloud")
     }
 }
 
@@ -326,12 +326,12 @@ struct OutputDeviceHero: View {
                     HStack(spacing:18) {device("DeviceAirPods",size:140);device("DeviceAirPodsCase",size:120)}
                 }
             }.frame(height:162).scaleEffect(appeared ? 1 : 0.86).opacity(appeared ? 1 : 0)
-                .readAloudTarget("연결된 기기, \(output.name)")
+                .readAloudTarget(L("연결된 기기, %@", output.name))
             Text(output.name).font(.body.weight(.semibold)).foregroundStyle(.white)
                 .multilineTextAlignment(.center).fixedSize(horizontal:false,vertical:true)
         }.padding(.top,32).padding(.bottom,24)
             .frame(maxWidth:.infinity,minHeight:275,alignment:.top)
-            .accessibilityElement(children:.ignore).accessibilityLabel("출력 기기, \(output.name)")
+            .accessibilityElement(children:.ignore).accessibilityLabel(L("출력 기기, %@", output.name))
             .accessibilityIdentifier("output.deviceHero")
             .onAppear {
                 if !reduceMotion {tilt.start()}

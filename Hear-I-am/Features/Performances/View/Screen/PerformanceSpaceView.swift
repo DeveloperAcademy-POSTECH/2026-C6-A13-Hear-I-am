@@ -22,7 +22,7 @@ struct PerformanceSpaceView: View {
     }
     private var record: ScanManifest? {records.first {$0.id==selectedScanID} ?? records.first}
     private var spaceName: String {
-        library.catalog.performances.first {$0.id==performanceID}?.venues.first {$0.id==venueID}?.name ?? "공간 미지정"
+        library.catalog.performances.first {$0.id==performanceID}?.venues.first {$0.id==venueID}?.name ?? L("공간 미지정")
     }
     var body: some View {
         Group {
@@ -34,7 +34,7 @@ struct PerformanceSpaceView: View {
                 // Figma 971:33812: back, the scene picker and refresh over 「아직 스캔된 동선이 없어요」.
                 emptyFolder
                     .hearTopBar(center:{scanSelector}) {HearBackButton()} trailing: {
-                        ScanCircleButton(systemImage:"arrow.counterclockwise",label:"새로고침",enabled:!library.loading) {
+                        ScanCircleButton(systemImage:"arrow.counterclockwise",label:L("새로고침"),enabled:!library.loading) {
                             Task {await library.refresh()}
                         }
                     }
@@ -57,22 +57,22 @@ struct PerformanceSpaceView: View {
                     }
                 }.suspendsVoiceWake()
             }
-            .alert("장면 이름 변경",isPresented:$rename) {
-                TextField("무대(장면) 명",text:$scanName)
-                Button("취소",role:.cancel) {}
-                Button("저장") {
+            .alert(L("장면 이름 변경"),isPresented:$rename) {
+                TextField(L("무대(장면) 명"),text:$scanName)
+                Button(L("취소"),role:.cancel) {}
+                Button(L("저장")) {
                     guard let id=record?.id else {return}
                     perform {try await library.renameStage(id,to:scanName)}
                 }.disabled(scanName.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty || working)
             }
             // Figma 971:36590: the same confirmation as deleting a folder.
-            .hearConfirm("‘\(record?.name ?? "")’ 스캔 파일을 삭제할까요?",isPresented:$deleting,
-                         message:"이 장면의 스캔과 사진이 삭제돼요.\n삭제한 내용은 복구할 수 없어요.") {
+            .hearConfirm(L("‘%@’ 스캔 파일을 삭제할까요?", record?.name ?? ""),isPresented:$deleting,
+                         message:L("이 장면의 스캔과 사진이 삭제돼요.\n삭제한 내용은 복구할 수 없어요.")) {
                 guard let id=record?.id,!working else {return}
                 perform {try await library.deleteStage(id);selectedScanID=nil}
             }
-            .alert("작업을 완료하지 못했어요",isPresented:Binding(get:{error != nil},set:{if !$0 {error=nil}})) {
-                Button("확인",role:.cancel) {error=nil}
+            .alert(L("작업을 완료하지 못했어요"),isPresented:Binding(get:{error != nil},set:{if !$0 {error=nil}})) {
+                Button(L("확인"),role:.cancel) {error=nil}
             } message: {Text(error ?? "")}
             .onDisappear {Task {await library.refresh()}}
     }
@@ -80,7 +80,7 @@ struct PerformanceSpaceView: View {
     private var scanSelector: some View {
         Menu {
             Section(spaceName) {
-                if records.isEmpty {Text("아직 저장된 장면이 없어요")}
+                if records.isEmpty {Text(L("아직 저장된 장면이 없어요"))}
                 ForEach(records,id:\.id) {scan in
                     Button {
                         selectedScanID=scan.id
@@ -91,26 +91,26 @@ struct PerformanceSpaceView: View {
                 }
             }
             Section {
-                Button("스캔하러 가기",systemImage:"viewfinder") {scanning=true}
+                Button(L("스캔하러 가기"),systemImage:"viewfinder") {scanning=true}
             }
             Section {
-                Button("동선 안내 시작하기",systemImage:"play.fill") {
+                Button(L("동선 안내 시작하기"),systemImage:"play.fill") {
                     guard !working,let record,record.supportsAlignment,record.route != nil else {return}
                     onStartGuidance(record.id)
                 }
                 .disabled(working || record?.supportsAlignment != true || record?.route == nil)
                 .accessibilityIdentifier("performance.space.startGuidance")
-                .accessibilityHint("선택한 장면의 공간 확인과 출발 준비를 시작해요")
+                .accessibilityHint(L("선택한 장면의 공간 확인과 출발 준비를 시작해요"))
             }
         } label: {
             // 971:33671: a 170pt glass capsule, the clapper, the scene's name and a chevron in a small disc.
             HStack(spacing:10) {
                 Image(systemName:"movieclapper")
-                Text(record?.name ?? "빈 폴더").lineLimit(1)
+                Text(record?.name ?? L("빈 폴더")).lineLimit(1)
                 Image(systemName:"chevron.down.circle.fill").font(.system(size:16)).symbolRenderingMode(.hierarchical)
             }.font(HearFont.pretendard(.medium,size:13)).foregroundStyle(.white).padding(.horizontal,16).frame(minWidth:170,minHeight:44)
                 .liquidGlass(Capsule(),tint:ScanChrome.buttonTint,interactive:true)
-        }.accessibilityLabel("\(spaceName), \(record?.name ?? "빈 폴더"), 저장된 장면 선택")
+        }.accessibilityLabel(L("%@, %@, 저장된 장면 선택", spaceName, record?.name ?? L("빈 폴더")))
             .accessibilityIdentifier("performance.space.scanPicker")
     }
     private var emptyFolder: some View {
@@ -118,18 +118,18 @@ struct PerformanceSpaceView: View {
             HearV3.canvas.ignoresSafeArea()
             VStack(spacing:24) {
                 Image(systemName:"viewfinder").font(.system(size:44,weight:.light))
-                Text("아직 스캔된\n동선이 없어요").font(HearFont.pretendard(.semibold,size:22)).multilineTextAlignment(.center)
+                Text(L("아직 스캔된\n동선이 없어요")).font(HearFont.pretendard(.semibold,size:22)).multilineTextAlignment(.center)
                 Button {scanning=true} label: {
-                    Label("스캔하러 가기",systemImage:"viewfinder")
+                    Label(L("스캔하러 가기"),systemImage:"viewfinder")
                         .frame(maxWidth:260)
                 }.buttonStyle(V3PrimaryButtonStyle()).frame(maxWidth:260)
                     .accessibilityIdentifier("performance.space.scan")
             }.foregroundStyle(HearV3.secondary).padding(.horizontal,36)
         }.overlay(alignment:.bottom) {
             HStack {
-                ScanCircleButton(systemImage:"photo.on.rectangle",label:"저장된 사진 없음",size:48,enabled:false) {}
+                ScanCircleButton(systemImage:"photo.on.rectangle",label:L("저장된 사진 없음"),size:48,enabled:false) {}
                 Spacer()
-                ScanCircleButton(systemImage:"timer",label:"설정할 경로점 없음",size:48,enabled:false) {}
+                ScanCircleButton(systemImage:"timer",label:L("설정할 경로점 없음"),size:48,enabled:false) {}
             }.padding(.horizontal,24).padding(.bottom,8)
         }
     }
