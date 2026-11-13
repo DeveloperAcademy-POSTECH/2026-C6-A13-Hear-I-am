@@ -243,11 +243,11 @@
 "공연 이름순" = "Performance Name";
 "공연 이름은 80자, 상세정보는 2000자 이내로 입력해주세요." = "Performance names can be up to 80 characters, and details up to 2,000.";
 "공연 이름이나 공연장 이름을 한국어로 말해주세요. 준비 대화에서는 다시 부르지 않고 답할 수 있어요." = "Say the performance or venue name in Korean. During setup conversation, you can answer without saying the wake word again.";
-"공연 이름이나 번호를 말씀해주세요." = "Say a performance name or number.";
+"공연 이름을 말씀해주세요." = "Say a performance name.";
 "공연 저장" = "Save Performance";
 "공연 정보" = "Performance Info";
 "공연 정보 수정" = "Edit Performance Info";
-"공연 찾기. 어떤 공연을 준비할까요? 공연 이름이나 번호를 말해주세요. 장소 이름으로 찾아 달라고 해도 돼요." = "Find a performance. Which performance do you want to get ready? Say its name or number. You can also ask me to search by venue name.";
+"공연 찾기. 어떤 공연을 준비할까요? 공연 이름을 말해주세요. 장소 이름으로 찾아 달라고 해도 돼요." = "Find a performance. Which performance do you want to get ready? Say its name. You can also ask me to search by venue name.";
 "공연 폴더 삭제" = "Delete Performance Folder";
 "공연/연습 기록" = "Performance & Practice Records";
 "공연·연습 공간" = "space";
@@ -921,7 +921,7 @@
 "어느 쪽으로 돌아야 할까요?" = "Which way should you turn?";
 "어디에 도착했을까요?" = "Where did you arrive?";
 "어떤 공연을 준비할까요?" = "Which performance should we prepare?";
-"어떤 공연을 준비할까요?\n공연 이름이나 번호를 말씀해주세요." = "Which performance are we preparing?\nSay its name or number.";
+"어떤 공연을 준비할까요?\n공연 이름을 말씀해주세요." = "Which performance are we preparing?\nSay its name.";
 "어떤 문제가 있나요?" = "What's the problem?";
 "어어" = "uhh";
 "언어 설정" = "Language";
@@ -1153,7 +1153,7 @@
 "저장된 LiDAR 스캔에서 접근 범위를 확인할 수 없어요. 출발점 주변 바닥까지 스캔했는지 확인해주세요." = "Can't find the reachable area in the saved LiDAR scan. Check that the floor around the start point was scanned.";
 "저장된 경로가 없습니다." = "No saved path.";
 "저장된 경로와 실제로 걸은 길을 다시 보는 3D 화면. 한 손가락으로 돌리고 두 손가락으로 옮기거나 확대해요." = "3D view replaying the saved path and the path actually walked. Rotate with one finger; move or zoom with two.";
-"저장된 공연 %@개를 찾았어요.\n공연 이름이나 번호를 말씀해주세요." = "Found %@ saved performances.\nSay a performance name or number.";
+"저장된 공연 %@개를 찾았어요.\n공연 이름을 말씀해주세요." = "Found %@ saved performances.\nSay a performance name.";
 "저장된 공연에서 직접 선택" = "Choose from saved performances";
 "저장된 동선에 P%@ 지점이 없어요. 지점 이름을 다시 확인해주세요." = "The saved route has no P%@. Check the point name again.";
 "저장된 동선의 안내 범위를 벗어났어요. 현재 위치와 동선을 확인해주세요." = "You've left the guidance area of the saved route. Check your position and route.";
