@@ -121,8 +121,26 @@ import HearIAmCore
         }
     }
 
+    /// In English the app's own voice comes back through the microphone as words: its 「Yes, …」 was heard as
+    /// 「Yes」, or as 「I talked about it」, and cut the question every time (11/13 POS). Korean recognition
+    /// leaves it out or the echo checks catch it; English does not. So in English nothing heard while the app
+    /// speaks stops it except the call 「Hear I am」, and what was heard over it is not taken as a request.
+    private var callOnlyOverSpeech: Bool {HearLanguage.current.isEnglish}
+
     private func heardPartial(_ text:String) {
         guard active else {return}
+        if awake, speaking, callOnlyOverSpeech, !recognition.listensInEnglish {
+            heardOverSpeech=true
+            if VoiceWakeWord.matches(text), !spokenLines.contains(where:VoiceWakeWord.matches) {
+                VoiceLog.write("home_barge_in","call \(text)",screen:"home.awake")
+                narrationHeld=false
+                speech.stop()
+            } else if !loggedOverSpeech {
+                loggedOverSpeech=true
+                VoiceLog.write("home_over_speech",text,screen:"home.awake")
+            }
+            stayAwake(8);return
+        }
         // Someone is still talking to the agent; it must not fall asleep in the middle of the request.
         if awake, !recognition.listensInEnglish {
             let words=heardOverSpeech || speaking ? VoiceEcho.strippingLeadingEcho(text,of:spokenLines) : text
@@ -167,6 +185,11 @@ import HearIAmCore
             return
         }
         guard awake, !recognition.listensInEnglish else {return}
+        // Heard over the app's English speech without the call: the app's own voice (see callOnlyOverSpeech).
+        if callOnlyOverSpeech, heardOverSpeech {
+            heardOverSpeech=false
+            caption.clearRequest();VoiceLog.write("home_ignored","over speech \(text)",screen:"home.awake");return
+        }
         // 「닫기」 closes the conversation; dictation often writes it 「찾기」 or 「받기」 (11/03).
         if VoiceCommandParser.isClose(text) || (text.count <= 4 && VoiceCommandParser.parse(text) == nil && recognition.lastAlternatives.contains(where:VoiceCommandParser.isClose)) {
             VoiceLog.write("home_close",text,screen:"home.awake");sleep(reason:"voice close");return
@@ -216,7 +239,8 @@ import HearIAmCore
         onRequest?(request)
     }
     private func holdNarration() {
-        guard awake, speaking, !narrationHeld, !recognition.listensInEnglish else {return}
+        // In English the app's own voice sets this off as well; holding for it stuttered every question.
+        guard awake, speaking, !narrationHeld, !recognition.listensInEnglish, !callOnlyOverSpeech else {return}
         narrationHeld=true
         recognition.holdNarration(true)
         Task { @MainActor [weak self] in

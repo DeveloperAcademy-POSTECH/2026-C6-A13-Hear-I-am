@@ -73,6 +73,9 @@ import HearIAmCore
     var previousSpokenText=""
     /// The request being heard began while the app was speaking, so its start may be the app's own voice.
     var voiceTurnOverNarration=false
+    /// When words were last heard over the app's English speech without the call; the final text they end in is
+    /// the app's own voice (see voiceCallOnlyOverSpeech).
+    var voiceEnglishOverSpeechAt: Date?
     /// A command waiting for 「응」 or 「아니」: a guess of the Apple Intelligence model (#87), or leaving a started run.
     var pendingVoiceIntent: VoiceCommand?
     /// The request the user already made to the voice agent on Home (#90).
