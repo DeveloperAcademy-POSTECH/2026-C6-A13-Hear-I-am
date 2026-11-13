@@ -38,14 +38,17 @@ final class VoiceCompoundRequestTests: XCTestCase {
         for (text, command) in acted {
             XCTAssertEqual(VoiceIntentDecision.command(command).checked(heard: text), .command(command), text)
         }
-        let asked: [(String, VoiceCommand)] = [
+        // These were asked back until #192. On the phone the question came for more than half of all room
+        // talk (11/13), so words that say nothing of the command are now dropped without a question.
+        let dropped: [(String, VoiceCommand)] = [
             ("Siri야", .practice), ("NC병", .practice), ("헬로", .next), ("세벌 시티", .next), ("해피벌스데이", .next), ("사랑", .cancel),
         ]
-        for (text, command) in asked {
-            XCTAssertEqual(VoiceIntentDecision.command(command).checked(heard: text), .confirm(command), text)
+        for (text, command) in dropped {
+            XCTAssertEqual(VoiceIntentDecision.command(command).checked(heard: text), VoiceIntentDecision.none, text)
         }
-        // Already a question, and commands judged elsewhere, stay as they were.
-        XCTAssertEqual(VoiceIntentDecision.confirm(.next).checked(heard: "헬로"), .confirm(.next))
+        XCTAssertEqual(VoiceIntentDecision.confirm(.next).checked(heard: "헬로"), VoiceIntentDecision.none)
+        // A request in other words is still asked back, and one with a word about the list is read out.
+        XCTAssertEqual(VoiceIntentDecision.command(.next).checked(heard: "이제 넘어가자"), .confirm(.next))
         XCTAssertEqual(VoiceIntentDecision.command(.showAllStages).checked(heard: "무대 뭐 있어"), .command(.showAllStages))
     }
 
