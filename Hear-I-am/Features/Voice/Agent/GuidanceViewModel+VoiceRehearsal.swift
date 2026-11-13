@@ -73,6 +73,7 @@ extension GuidanceViewModel {
     func configureVoiceExperiment() {
         guard voiceExperiment else {return}
         voiceRecognition.onSpeechDetected={ [weak self] in self?.voiceSpeechDetected() }
+        voiceRecognition.onTalkOver={ [weak self] in self?.voiceTalkOver() }
         voiceRecognition.onTranscript={ [weak self] text in self?.voicePartial(text) }
         voiceRecognition.onFinal={ [weak self] text in self?.voiceHeardFinal(text) }
         voiceRecognition.onRecoverableError={ [weak self] message in self?.voiceInputRecovering(message) }
@@ -439,34 +440,53 @@ extension GuidanceViewModel {
         voiceInputError=nil;voiceListeningEnabled=true;voiceReadyChimePending=true
         syncVoiceListening()
     }
-    /// In English the app's own voice comes back through the microphone as words (「Yes」 from 「Yes, …」), and
-    /// any of them cut the app off (11/13 POS); Korean recognition leaves it out or the echo checks catch it.
-    /// So in English only the call 「Hear I am」 stops the app while it speaks.
-    var voiceCallOnlyOverSpeech: Bool {HearLanguage.current.isEnglish}
-    /// Recognition's final text. One that began over the app's English speech without the call is its own voice;
-    /// typed requests go straight to handleVoiceCommand and are never dropped here.
+    /// The app's own voice comes back through the microphone as words (「Yes」 from 「Yes, …」, 「네」 from
+    /// 「네, …」) and cut the app off (11/13 POS). Words heard while it speaks count only once a person was heard
+    /// over it by level (VoiceTalkOver), or when they hold the call 「Hear I am」.
+    var voicePersonOverSpeech: Bool {voiceRecognition.talkOverHeard(since:voiceSpeakingSince)}
+    /// Recognition's final text. One that began over the app's speech with no person heard over it is its own
+    /// voice; typed requests go straight to handleVoiceCommand and are never dropped here.
     func voiceHeardFinal(_ text:String) {
-        if let heard=voiceEnglishOverSpeechAt {
-            voiceEnglishOverSpeechAt=nil
-            if Date().timeIntervalSince(heard) < 10, VoiceWakeWord.request(in:text) == nil {
+        if let heard=voiceEchoOverSpeechAt {
+            voiceEchoOverSpeechAt=nil
+            if Date().timeIntervalSince(heard) < 10, !voicePersonOverSpeech, VoiceWakeWord.request(in:text) == nil {
                 voiceTurnActive=false;voiceLiveText=""
-                logSignal("voice_ignored","english_over_speech \(text)");return
+                logSignal("voice_ignored","echo_over_speech \(text)");return
             }
         }
-        // A final with no partial before it, still over the app's English speech.
-        if speaking, voiceAwake, !voiceTurnActive, voiceCallOnlyOverSpeech, VoiceWakeWord.request(in:text) == nil {
-            logSignal("voice_ignored","english_over_speech \(text)");return
+        // A final with no partial before it, still over the app's speech.
+        if speaking, voiceAwake, !voiceTurnActive, !voicePersonOverSpeech, VoiceWakeWord.request(in:text) == nil {
+            logSignal("voice_ignored","echo_over_speech \(text)");return
         }
         handleVoiceCommand(text)
+        voiceEchoBefore="";voicePartialsOverSpeech=[]
+    }
+    /// The heard text without what the app itself was saying.
+    func voiceWithoutOwnVoice(_ text:String) -> String {
+        VoiceEcho.withoutOwnVoice(text,before:voiceEchoBefore,lines:narrationLines)
+    }
+    /// A person was heard over the app's voice: it holds at once, as a person stops when interrupted; the
+    /// first words then decide (voicePartial). If none come, the line goes on.
+    func voiceTalkOver() {
+        guard voiceShouldListen, speaking, voiceAwake, !voiceTurnActive else {return}
+        if voiceEchoBefore.isEmpty {
+            let cut=ProcessInfo.processInfo.systemUptime-0.3
+            voiceEchoBefore=voicePartialsOverSpeech.last(where:{$0.time <= cut})?.text ?? ""
+        }
+        holdVoiceNarration()
     }
     /// Speech heard while the conversation is closed belongs to someone else until it contains the call.
     func voicePartial(_ text:String) {
         guard voiceShouldListen else {return}
-        if speaking, voiceAwake, !voiceTurnActive, voiceCallOnlyOverSpeech {
+        if speaking || voiceTurnOverNarration {
+            voicePartialsOverSpeech.append((ProcessInfo.processInfo.systemUptime,text))
+            if voicePartialsOverSpeech.count > 40 {voicePartialsOverSpeech.removeFirst(20)}
+        }
+        if speaking, voiceAwake, !voiceTurnActive, !voicePersonOverSpeech {
             guard VoiceWakeWord.matches(text), !narrationLines.contains(where:VoiceWakeWord.matches) else {
-                voiceEnglishOverSpeechAt=Date();return
+                voiceEchoOverSpeechAt=Date();return
             }
-            voiceEnglishOverSpeechAt=nil
+            voiceEchoOverSpeechAt=nil
             voiceSpeechDetected(overNarration:true)
             showVoiceLiveText(text)
             return
@@ -493,7 +513,7 @@ extension GuidanceViewModel {
     /// Like dictation or Siri, the words appear in the bubble while they are said; the final text replaces
     /// them. The app's own voice, the call and noise are left out.
     func showVoiceLiveText(_ text:String) {
-        var words=voiceTurnOverNarration ? VoiceEcho.strippingLeadingEcho(text,of:narrationLines) : text
+        var words=voiceTurnOverNarration ? voiceWithoutOwnVoice(text) : text
         if let request=VoiceWakeWord.request(in:words) {words=request}
         voiceLiveText=VoiceNoise.request(words) ?? ""
         let live=voiceLiveText
@@ -519,8 +539,9 @@ extension GuidanceViewModel {
     /// on did, and everything else was dropped while the app talked. Noise and echo return nil.
     func voiceBargeInRequest(_ text:String) -> String? {
         // An item of the list being read is the answer it asks for, though the list holds the same words (#156).
+        let text=voiceEchoBefore.isEmpty ? text : VoiceEcho.strippingLeadingEcho(text,of:[voiceEchoBefore])
         if voiceHeardChoice(text) {return VoiceNoise.request(text)}
-        let request=VoiceEcho.strippingLeadingEcho(text,of:narrationLines)
+        let request=voiceWithoutOwnVoice(text)
         guard !request.isEmpty, !VoiceEcho.isEcho(request,of:narrationLines) else {return nil}
         return VoiceNoise.request(request)
     }
@@ -529,16 +550,9 @@ extension GuidanceViewModel {
     /// `overNarration`: the words heard over a list were checked and are not the app's own voice.
     func voiceSpeechDetected(overNarration: Bool = false) {
         guard voiceShouldListen, !voiceTurnActive, voiceAwake else {return}
-        // Sound alone over the app's speech may be its own voice or someone nearby; the words decide
-        // (voicePartial). The words are kept, not discarded: dropping them was why a request over the
-        // app's speech was never heard (11/01).
-        // Sound over the app's speech holds its voice at once, as a person stops when interrupted; the
-        // first words then decide (voicePartial). If none come, the line goes on.
-        if speaking && !overNarration {
-            // In English the app's own voice sets this off too; holding for it stuttered every line.
-            if !voiceCallOnlyOverSpeech {holdVoiceNarration()}
-            return
-        }
+        // Sound alone over the app's speech is often its own voice (11/13); a person heard over it by level
+        // holds it instead (voiceTalkOver), and the words decide (voicePartial).
+        if speaking && !overNarration {return}
         voiceNarrationHeld=false
         voiceTurnOverNarration=overNarration
         voiceLiveText=""
@@ -630,6 +644,7 @@ extension GuidanceViewModel {
         if voiceTurnOverNarration {
             voiceTurnOverNarration=false
             let own=text
+            if !voiceEchoBefore.isEmpty {text=VoiceEcho.strippingLeadingEcho(text,of:[voiceEchoBefore])}
             if !voiceHeardChoice(text) {text=VoiceEcho.strippingLeadingEcho(text,of:narrationLines)}
             if text.isEmpty {logSignal("voice_ignored","echo \(own)");return}
         }

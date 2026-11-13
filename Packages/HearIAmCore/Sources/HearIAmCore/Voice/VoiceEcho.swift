@@ -31,6 +31,15 @@ public enum VoiceEcho {
         return parts.dropFirst(echoed).joined(separator: " ")
     }
 
+    /// The heard text without the app's own voice at its start. `before` is what had been written down just
+    /// before a person was heard over the app (VoiceTalkOver): the app's voice, however wrongly written. 「Yes but
+    /// would you like」 before 「Practice」 on 11/13 matched no line word for word, and the greeting itself holds
+    /// 「practice」, so it is taken off first, then what is left of the lines.
+    public static func withoutOwnVoice(_ heard: String, before: String, lines: [String]) -> String {
+        let rest = before.isEmpty ? heard : strippingLeadingEcho(heard, of: [before])
+        return strippingLeadingEcho(rest, of: lines)
+    }
+
     /// The heard words pick one of the items the app is reading out, so they are the user's answer even
     /// though the same words are in the app's list. 「찐 테스트 일」 and 「누리 랩」 said over the list were
     /// dropped as echo three times on 11/06 and had to be said again. The app hearing its own list runs on
