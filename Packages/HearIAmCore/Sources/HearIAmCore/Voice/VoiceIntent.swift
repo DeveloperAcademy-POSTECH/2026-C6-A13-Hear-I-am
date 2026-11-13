@@ -24,6 +24,23 @@ public enum VoiceScreen: Equatable, Sendable {
         }
     }
 
+    /// A command of this screen that the words are a sound or two away from (`VoiceCommandParser.near`).
+    /// Commands that move the run on (다음, 계속, 무대 다시 선택) are left to the exact list and the model.
+    public func nearCommand(_ text: String) -> VoiceCommand? {
+        let commands: [VoiceCommand] = actions.compactMap { action in
+            switch action {
+            case .practice: return .practice
+            case .performance: return .performance
+            case .pause: return .pause
+            case .repeatInstruction: return .repeatInstruction
+            case .back: return .back
+            case .cancel: return .cancel
+            default: return nil
+            }
+        }
+        return VoiceCommandParser.near(text, among: commands)
+    }
+
     var title: String {
         switch self {
         case .stageList(let count): return L("저장된 무대 목록 화면(지금 목록 %@개)", count)
@@ -96,10 +113,23 @@ public enum VoiceIntentDecision: Equatable, Sendable {
 
     /// A command the model is sure of is still asked back when the words do not sound like it
     /// (`VoiceCommandParser.soundsLike`): noise and other speech must not move the run on (11/09–10).
+    /// Reading out the whole list has no phrases to sound like, and the model chose it for 「어떤」, 「열람」
+    /// and 「바른 인식을 해야 되는데」 (11/01–11/12): it needs a word about the list, or it is nothing.
     public func checked(heard: String) -> VoiceIntentDecision {
-        guard case .command(let command) = self, !VoiceCommandParser.soundsLike(heard, command) else { return self }
+        let command: VoiceCommand
+        switch self {
+        case .command(let guessed), .confirm(let guessed): command = guessed
+        case .none: return self
+        }
+        if command == .showAllStages {
+            let words = VoiceStageSearch.normalized(VoiceEnglish.canonical(heard))
+            return Self.listWords.contains(where: words.contains) ? self : .none
+        }
+        guard case .command = self, !VoiceCommandParser.soundsLike(heard, command) else { return self }
         return .confirm(command)
     }
+    private static let listWords = ["저장", "무대", "공연", "목록", "리스트", "전체", "전부", "모든", "모두", "보여", "불러", "읽어", "알려", "뭐있", "뭐가있",
+                                    "stage", "performance", "show", "list", "saved", "everything"]
 
     /// Model instructions listing only the current screen's actions.
     public static func instructions(for screen: VoiceScreen) -> String {

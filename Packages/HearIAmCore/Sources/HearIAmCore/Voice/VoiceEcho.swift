@@ -45,6 +45,16 @@ public enum VoiceEcho {
         return request.count <= longest + 2
     }
 
+    /// One word of the app's own line heard back alone: 「어떤」 from 「어떤 공연을 준비할까요?」 went to the
+    /// model, which read out the whole list five seconds later (11/12, twice). `isEcho` leaves single words
+    /// alone because the answers the app asks for are single words; the caller checks first that the word
+    /// is no command, answer or name, and then this says whether the app was saying it.
+    public static func isOwnWord(_ heard: String, of lines: [String]) -> Bool {
+        let heard = words(heard)
+        guard heard.count == 1, let word = heard.first, word.count >= 2 else { return false }
+        return lines.contains { words($0).contains(word) }
+    }
+
     private static func words(_ text: String) -> [String] {
         text.split(whereSeparator: \.isWhitespace).map { VoiceStageSearch.normalized(String($0)) }.filter { !$0.isEmpty }
     }
