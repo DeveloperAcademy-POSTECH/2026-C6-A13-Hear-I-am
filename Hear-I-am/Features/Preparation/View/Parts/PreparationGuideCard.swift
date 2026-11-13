@@ -208,6 +208,8 @@ struct PreparationGuideCard: View {
         VStack(alignment:.leading,spacing:8) {
             TextField(L("기물 이름"),text:$model.obstacleName).textFieldStyle(.roundedBorder).font(.caption)
             Picker(L("종류"),selection:$model.obstacleKind) {Text(L("기물")).tag(ObstacleKind.other); Text(L("의자")).tag(ObstacleKind.platform); Text(L("계단")).tag(ObstacleKind.stairs)}.pickerStyle(.segmented)
+                // The kind is fixed once a vertex is placed; undo every vertex to change it.
+                .disabled(!model.pendingObjectWorld.isEmpty)
             if (model.obstacleKind == .platform || model.obstacleKind == .stairs), model.pendingObjectWorld.count >= 3 {
                 let count=model.pendingObjectWorld.count
                 Menu {
