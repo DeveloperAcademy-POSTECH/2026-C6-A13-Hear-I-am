@@ -17,14 +17,49 @@ public enum VoiceStageSearch {
     }
     private static let countWords = [("다섯", 5), ("여섯", 6), ("일곱", 7), ("여덟", 8), ("아홉", 9), ("한", 1), ("두", 2), ("세", 3), ("네", 4), ("열", 10)]
 
+    /// A name as it is said aloud: 「장면1」 is 「장면일」, 「제12장」 is 「제십이장」. Dictation writes the number
+    /// as a word (「장면 일 연습용」 found nothing on 11/11), so a name is also known by this form.
+    static func spoken(_ name: String) -> String {
+        let digits = ["영", "일", "이", "삼", "사", "오", "육", "칠", "팔", "구"]
+        var result = "", run = ""
+        func flush() {
+            guard !run.isEmpty else { return }
+            if let number = Int(run), run.count <= 2, !(run.count == 2 && run.hasPrefix("0")) {
+                let tens = number / 10, ones = number % 10
+                if tens > 0 { result += (tens > 1 ? digits[tens] : "") + "십" }
+                if ones > 0 || tens == 0 { result += digits[ones] }
+            } else {
+                result += run.compactMap { $0.wholeNumberValue }.map { digits[$0] }.joined()
+            }
+            run = ""
+        }
+        for character in name {
+            if character.isASCII, character.isNumber { run.append(character) } else { flush(); result.append(character) }
+        }
+        flush()
+        return result
+    }
+
     /// The name heard with one sound wrong, as 「확인 좀 2개」 or 「확인점 조개」 for 「확인점 2개」 (11/03).
-    /// Only names of four or more letters, and only when exactly one name comes that close.
+    /// Only when exactly one name comes that close. Names of four or more letters may be off by one letter,
+    /// eight or more by two, ten or more by three (「오늘은 사랑하지 않습니다」 for 「오늘도 출항하지 않습니다」,
+    /// 11/11). A three-letter name is too short for that: it counts only when the whole request is that name
+    /// with one consonant or vowel changed (「마루 앱」 for 「마루랩」, 11/12).
     static func nearlyNamed(_ request: String, names: [String]) -> Int? {
+        var whole = request
+        for ending in endings where whole.hasSuffix(ending) && whole.count > ending.count {
+            whole = String(whole.dropLast(ending.count)); break
+        }
         let close = names.indices.filter { index in
             let name = Array(names[index])
+            if name.count == 3 {
+                let hangul: (String) -> Bool = { $0.unicodeScalars.allSatisfy { (0xAC00...0xD7A3).contains($0.value) } }
+                return whole.count == 3 && hangul(whole) && hangul(names[index])
+                    && VoiceAutocorrect.distance(VoiceAutocorrect.letters(whole), VoiceAutocorrect.letters(names[index])) <= 1
+            }
             guard name.count >= 4 else { return false }
             let heard = Array(request)
-            let allowed = name.count >= 8 ? 2 : 1
+            let allowed = name.count >= 10 ? 3 : name.count >= 8 ? 2 : 1
             for length in max(1, name.count - allowed)...(name.count + allowed) where length <= heard.count {
                 for start in 0...(heard.count - length) where distance(Array(heard[start..<start + length]), name) <= allowed {
                     return true
@@ -35,6 +70,7 @@ public enum VoiceStageSearch {
         let distinct = Set(close.map { names[$0] })
         return distinct.count == 1 && close.count == 1 ? close[0] : nil
     }
+    private static let endings=["을선택해주세요", "를선택해주세요", "을선택해줘", "를선택해줘", "선택해주세요", "선택해줘", "선택", "사용할게요", "사용할게", "사용하기", "사용", "열어주세요", "열어줘", "로안내해줘"]
     private static func distance(_ a: [Character], _ b: [Character]) -> Int {
         var row = Array(0...b.count)
         for i in 1...max(a.count, 1) where !a.isEmpty {
@@ -56,11 +92,11 @@ public enum VoiceStageSearch {
         let paths=names.indices.map { index in
             contexts.indices.contains(index) ? contexts[index].map(normalized).filter { !$0.isEmpty } : []
         }
+        let said=names.map(spoken)
         let aliases=names.indices.map { index in
-            [names[index]] + paths[index].map {$0+names[index]} + [paths[index].joined()+names[index]]
+            [names[index], said[index]] + paths[index].map {$0+names[index]} + [paths[index].joined()+names[index]]
         }
         let explicitSearch=["관련", "검색", "찾아", "목록", "리스트", "모든무대", "전체무대"].contains { request.contains($0) }
-        let endings=["을선택해주세요", "를선택해주세요", "을선택해줘", "를선택해줘", "선택해주세요", "선택해줘", "선택", "사용할게요", "사용할게", "사용하기", "사용", "열어주세요", "열어줘", "로안내해줘"]
         if !explicitSearch {
             let exact=names.indices.filter { index in
                 aliases[index].contains { name in
@@ -71,7 +107,7 @@ public enum VoiceStageSearch {
             if exact.count > 1 { return .results(query: text, indices: exact) }
             // A name inside a longer request, as in 「머지테스트 열람」 (11/01). The longest name wins when it
             // holds the shorter ones (「머지테스트」 over 「테스트」); several distinct names make a list.
-            let inside=names.indices.filter { names[$0].count >= 2 && request.contains(names[$0]) }
+            let inside=names.indices.filter { names[$0].count >= 2 && (request.contains(names[$0]) || request.contains(said[$0])) }
             if let longest=inside.max(by: { names[$0].count < names[$1].count }) {
                 let others=inside.filter { names[$0] != names[longest] }
                 if others.allSatisfy({ names[longest].contains(names[$0]) }) {

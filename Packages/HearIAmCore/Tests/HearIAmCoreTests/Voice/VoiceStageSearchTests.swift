@@ -99,4 +99,36 @@ final class VoiceStageSearchTests: XCTestCase {
         // 「실행」 alone names nothing.
         XCTAssertEqual(VoiceStageSearch.resolve("실행", names: names, contexts: contexts), .none)
     }
+    /// #192: a number in a name is said as a word, and dictation writes it that way (「장면 일」, 11/11).
+    func testNameWithNumberIsFoundBySpokenNumber() {
+        XCTAssertEqual(VoiceStageSearch.spoken("장면1"), "장면일")
+        XCTAssertEqual(VoiceStageSearch.spoken("제12장"), "제십이장")
+        XCTAssertEqual(VoiceStageSearch.spoken("무대20"), "무대이십")
+        XCTAssertEqual(VoiceStageSearch.spoken("2026"), "이영이육")
+        XCTAssertEqual(VoiceStageSearch.spoken("효자아트홀"), "효자아트홀")
+        let scenes=["장면1", "장면2", "무한성 제1장"]
+        XCTAssertEqual(VoiceStageSearch.resolve("장면 일", names: scenes), .selected(0))
+        XCTAssertEqual(VoiceStageSearch.resolve("장면 이 선택해줘", names: scenes), .selected(1))
+        XCTAssertEqual(VoiceStageSearch.resolve("무한성 제일장", names: scenes), .selected(2))
+        XCTAssertEqual(VoiceStageSearch.resolve("장면1", names: scenes), .selected(0))
+    }
+    /// #192: 「마루 앱」 for 「마루랩」 (11/12). Three letters are too few for a letter to be wrong anywhere in
+    /// a longer request, so only the whole request one sound away counts, and only for one name.
+    func testThreeLetterNameOneSoundAway() {
+        let list=["마루랩", "머지테스트", "응가"]
+        XCTAssertEqual(VoiceStageSearch.resolve("마루 앱", names: list), .selected(0))
+        XCTAssertEqual(VoiceStageSearch.resolve("마루냅 선택해줘", names: list), .selected(0))
+        XCTAssertEqual(VoiceStageSearch.resolve("바르앱", names: list), .results(query: "바르앱", indices: []))
+        XCTAssertEqual(VoiceStageSearch.resolve("오늘 마루 앱 어때", names: list), .results(query: "오늘마루앱어때", indices: []))
+        XCTAssertEqual(VoiceStageSearch.resolve("마루냅", names: ["마루랩", "마루맵"]), .results(query: "마루냅", indices: []))
+        XCTAssertEqual(VoiceStageSearch.resolve("은가", names: list), .results(query: "은가", indices: []))
+    }
+    /// #192: 「오늘은 사랑하지 않습니다」 for 「오늘도 출항하지 않습니다」 (11/11): three letters of eleven.
+    func testLongNameMayBeOffByThreeLetters() {
+        let list=["오늘도 출항하지 않습니다", "마루랩", "장애물 음성 테스트"]
+        XCTAssertEqual(VoiceStageSearch.resolve("오늘은 사랑하지 않습니다", names: list), .selected(0))
+        XCTAssertEqual(VoiceStageSearch.resolve("오늘은 출항 하지 않습니다", names: list), .selected(0))
+        XCTAssertEqual(VoiceStageSearch.resolve("내일은 사랑하지 않겠습니다", names: list), .results(query: "내일은사랑하지않겠습니다", indices: []))
+        XCTAssertEqual(VoiceStageSearch.resolve("장애인 음성 데스크", names: list), .results(query: "장애인음성데스크", indices: []))
+    }
 }
