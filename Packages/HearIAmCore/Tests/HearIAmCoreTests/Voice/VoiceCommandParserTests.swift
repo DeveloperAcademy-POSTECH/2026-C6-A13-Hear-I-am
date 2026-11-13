@@ -85,4 +85,9 @@ final class VoiceCommandParserTests: XCTestCase {
             XCTAssertFalse(VoiceCommandParser.isClose(text), text)
         }
     }
+    /// #192: 「홈 화면으로」 (11/01) leaves the conversation like 「닫기」.
+    func testGoingHomeClosesTheConversation() {
+        for text in ["홈 화면으로", "홈으로 가줘", "홈으로", "메인 화면으로", "음성 보이스 종료", "Go home"] { XCTAssertTrue(VoiceCommandParser.isClose(text), text) }
+        for text in ["홈", "효자아트홀으로", "홈런", "처음으로"] { XCTAssertFalse(VoiceCommandParser.isClose(text), text) }
+    }
 }

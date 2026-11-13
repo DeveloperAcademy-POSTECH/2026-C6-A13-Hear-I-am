@@ -84,6 +84,18 @@ public enum VoiceAutocorrect {
         }
         return result
     }
+    /// The same letters with a consonant counted alike at the head and the foot of a syllable: the ㅂ that
+    /// ends 습 and the ㅂ that begins 병 are one sound moved, as in 「연수병」 for 「연습용」.
+    static func sounds(_ word: String) -> [Int] {
+        let heads = Array("ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ"), feet = Array(" ㄱㄲㄱㄴㄴㄴㄷㄹㄹㄹㄹㄹㄹㄹㄹㅁㅂㅂㅅㅆㅇㅈㅊㅋㅌㅍㅎ")
+        return letters(word).map { letter in
+            switch letter {
+            case 1000..<1019: return Int(heads[letter - 1000].unicodeScalars.first!.value)
+            case 3001..<3028: return Int(feet[letter - 3000].unicodeScalars.first!.value)
+            default: return letter
+            }
+        }
+    }
     /// How far `phrase` is from the closest stretch of `text`, letter by letter: 「연수병」 holds 「연습」
     /// one vowel away. Text around the phrase costs nothing.
     static func distance(of phrase: [Int], within text: [Int]) -> Int {
@@ -100,7 +112,8 @@ public enum VoiceAutocorrect {
         }
         return row.min() ?? phrase.count
     }
-    private static func distance(_ a: [Int], _ b: [Int]) -> Int {
+    /// How far two words are from each other, letter by letter.
+    static func distance(_ a: [Int], _ b: [Int]) -> Int {
         if a.isEmpty { return b.count }
         if b.isEmpty { return a.count }
         var row = Array(0...b.count)

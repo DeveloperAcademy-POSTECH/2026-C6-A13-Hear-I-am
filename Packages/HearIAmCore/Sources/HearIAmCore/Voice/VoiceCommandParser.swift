@@ -23,7 +23,7 @@ public enum VoiceCommandParser {
         return parseExact(String(text[match.upperBound...]))
     }
 
-    /// Words that close the conversation: 「닫기」, 「종료」, 「나가기」. Dictation often hears 「닫기」 as
+    /// Words that close the conversation: 「닫기」, 「종료」, 「나가기」, 「홈으로」. Dictation often hears 「닫기」 as
     /// 「찾기」 or 「받기」 with 「닫기」 among the alternatives (11/03), so callers try those too.
     public static func isClose(_ text: String) -> Bool {
         let text = VoiceEnglish.canonical(text)
@@ -33,7 +33,10 @@ public enum VoiceCommandParser {
     }
     private static let closeWords: Set<String> = ["닫기", "닫아", "닫아줘", "닫아주세요", "창닫기", "대화닫기", "나가기", "나가", "나갈래",
                                                   "나가줘", "종료", "종료해", "종료해줘", "대화종료", "음성종료", "끝내기", "끝내줘", "그만할래",
-                                                  "close", "exit"]
+                                                  // 「홈 화면으로」 was not understood (11/01): leaving for Home closes the conversation.
+                                                  "홈으로", "홈화면", "홈화면으로", "홈으로가", "홈으로가줘", "홈으로가자", "홈화면으로가줘",
+                                                  "홈으로돌아가", "홈으로돌아가줘", "홈화면으로돌아가줘", "메인으로", "메인화면", "메인화면으로",
+                                                  "close", "exit", "home", "gohome"]
 
     private static func parseExact(_ text: String) -> VoiceCommand? {
         let normalized=text.folding(options:[.caseInsensitive,.diacriticInsensitive],locale:Locale(identifier:"ko_KR"))
@@ -93,7 +96,13 @@ public enum VoiceCommandParser {
     /// 「Siri야」 started 연습용 and 「헬로」 · 「해피벌스데이」 went to the next step (11/09–10), so a guess is acted on
     /// only when the words are near the command; otherwise it is asked back. Commands without a phrase list
     /// (a stage, a point, the whole list) are judged elsewhere.
-    public static func soundsLike(_ text: String, _ command: VoiceCommand) -> Bool {
+    /// Whether the command has phrases of its own for `soundsLike` to compare with.
+    static func hasPhrases(_ command: VoiceCommand) -> Bool { vocabulary.contains { $0.0 == command } }
+    /// `strict` lets a phrase under eight consonants and vowels be off by one sound only, a consonant
+    /// counting the same wherever it sits in its syllable: 「연수병」 holds 「연습」 that way, while 「바이요」 is
+    /// two from 「아니요」 — near enough for choosing between acting and asking, but not for deciding that a
+    /// guess was a request at all (#192).
+    public static func soundsLike(_ text: String, _ command: VoiceCommand, strict: Bool = false) -> Bool {
         let text = VoiceEnglish.canonical(text)
         guard let phrases = vocabulary.first(where: { $0.0 == command })?.1 else { return true }
         let compact = text.lowercased().replacingOccurrences(of: #"[\s.!?。！？,~]"#, with: "", options: .regularExpression)
@@ -104,8 +113,33 @@ public enum VoiceCommandParser {
             // Two-syllable words such as 아니 match too much of anything; they need to be heard as they are.
             guard words.count >= 5 else { return compact.contains(phrase) }
             let near = VoiceAutocorrect.distance(of: words, within: heard)
+            if strict, words.count < 8 {
+                return VoiceAutocorrect.distance(of: VoiceAutocorrect.sounds(phrase), within: VoiceAutocorrect.sounds(compact)) <= 1
+            }
             return Double(near) <= Double(words.count) * 0.34
         }
+    }
+
+    /// A whole request a sound or two away from one of a command's phrases: 「연수용」 and 「연습병」 for
+    /// 「연습용」 (11/09). Only phrases of three syllables or more, said in as many syllables, and only when
+    /// one command alone is that near: two consonants or vowels apart for a phrase of eight or more, one for
+    /// a shorter phrase (「바이요」 is two from 「아니요」 and is nothing). `soundsLike` looks for a phrase
+    /// anywhere in the words and only checks a model guess; this stands in for the exact list.
+    public static func near(_ text: String, among commands: [VoiceCommand]) -> VoiceCommand? {
+        let compact = VoiceEnglish.canonical(text).replacingOccurrences(of: #"[\s.!?。！？,~]"#, with: "", options: .regularExpression)
+        let hangul: (String) -> Bool = { !$0.isEmpty && $0.unicodeScalars.allSatisfy { (0xAC00...0xD7A3).contains($0.value) } }
+        guard hangul(compact), compact.count >= 3 else { return nil }
+        let heard = VoiceAutocorrect.letters(compact)
+        var best = 3, found: [VoiceCommand] = []
+        for (command, phrases) in vocabulary where commands.contains(command) {
+            let distance = phrases.filter { $0.count == compact.count && hangul($0) }.compactMap { phrase -> Int? in
+                let letters = VoiceAutocorrect.letters(phrase), distance = VoiceAutocorrect.distance(heard, letters)
+                return distance <= (letters.count >= 8 ? 2 : 1) ? distance : nil
+            }.min() ?? 3
+            guard distance <= 2, distance <= best else { continue }
+            if distance < best { best = distance; found = [command] } else { found.append(command) }
+        }
+        return found.count == 1 ? found[0] : nil
     }
 
     private struct PointToken { let range: NSRange; let index: Int }
