@@ -100,7 +100,8 @@ public enum VoiceAutocorrect {
         }
         return row.min() ?? phrase.count
     }
-    private static func distance(_ a: [Int], _ b: [Int]) -> Int {
+    /// How far two words are from each other, letter by letter.
+    static func distance(_ a: [Int], _ b: [Int]) -> Int {
         if a.isEmpty { return b.count }
         if b.isEmpty { return a.count }
         var row = Array(0...b.count)
