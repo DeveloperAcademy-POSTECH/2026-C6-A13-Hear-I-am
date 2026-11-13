@@ -58,6 +58,10 @@ import HearIAmCore
     private var autocorrectLexicon: Set<String> = []
     /// Every candidate the recognizer gave for the last final result after the best one (#92).
     private(set) var lastAlternatives: [String] = []
+    /// A typed request has no candidates of its own; the ones left from the last thing the microphone heard
+    /// are not its candidates. 「닫기」 typed after room talk heard as 「아니야 | 아니,」 was taken as 「아니」
+    /// and cancelled the selection (11/13 device test).
+    func forgetAlternatives() { lastAlternatives = [] }
     /// The app's own sentences taught to the recognizer once prepared; nil until then (#92).
     private var languageModel: VoiceLanguageModelBuilder.Prepared?
     private var languageModelKey: String?
