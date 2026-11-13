@@ -17,7 +17,9 @@ import HearIAmCore
     var onRequest: ((String) -> Void)?
     var visualization: VoiceInputVisualization {recognition.inputVisualization}
 
-    static let greeting=VoiceAppRequest.homeQuestion[0]
+    /// Read each time: a stored line kept the language of the first call after launch, so after switching the
+    /// app back to Korean the Korean voice read the English question aloud (11/13 POS).
+    static var greeting: String {VoiceAppRequest.homeQuestion[0]}
     private let recognition=VoiceRecognitionService()
     private let speech=GuidanceSpeech()
     private let chime=VoiceListeningChime()
