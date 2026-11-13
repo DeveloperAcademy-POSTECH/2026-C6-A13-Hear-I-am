@@ -252,6 +252,7 @@ extension GuidanceViewModel {
         guard voiceShouldListen else {read([L("지금은 요청을 받을 수 없어요. 마이크가 켜지면 다시 말씀해주세요.")]);return}
         voiceChatSeededRequest=request
         voiceTurnActive=true;voiceTurnOverNarration=false
+        voiceRecognition.forgetAlternatives()
         handleVoiceCommand(request)
     }
     /// Where the next point lies against the body's heading, for the front-finding light on the walking screen.
