@@ -15,6 +15,13 @@ import HearIAmCore
     @Published private(set) var statusMessage = L("음성 입력이 꺼져 있어요")
 
     var onSpeechDetected: (() -> Void)?
+    /// A person was heard over the app's own voice (VoiceTalkOver), as against the app's echo.
+    var onTalkOver: (() -> Void)?
+    private(set) var lastTalkOver: TimeInterval = -.infinity
+    private let talkOverMeter = VoiceTalkOverMeter()
+    private var volumeObservation: NSKeyValueObservation?
+    /// Whether a person has been heard over the app's voice since `time` (systemUptime).
+    func talkOverHeard(since time: TimeInterval) -> Bool { lastTalkOver >= time }
     var onTranscript: ((String) -> Void)?
     /// Only a final recognizer result reaches this callback, once per recognition turn.
     var onFinal: ((String) -> Void)?
@@ -241,6 +248,14 @@ import HearIAmCore
             engineID = identifier
             trace("voice_engine_created id=\(identifier.uuidString)")
             try engine.inputNode.setVoiceProcessingEnabled(true)
+            // Automatic gain raised what echo cancellation left of the app's voice by about 10 dB, to where
+            // the recognizer wrote it down and it could not be told from a person by level (11/13 POS).
+            engine.inputNode.isVoiceProcessingAGCEnabled = false
+            let meter = talkOverMeter
+            meter.onTalkOver = { Task { @MainActor [weak self] in self?.talkOverDetected() } }
+            volumeObservation = AVAudioSession.sharedInstance().observe(\.outputVolume, options: [.initial, .new]) { session, _ in
+                meter.setVolume(session.outputVolume)
+            }
             // Voice processing turns the app's other sound down (signals, the system voice) and, with
             // advanced ducking, by more while someone speaks: the voice was heard louder and softer (11/08).
             engine.inputNode.voiceProcessingOtherAudioDuckingConfiguration = .init(enableAdvancedDucking: false, duckingLevel: .min)
@@ -262,7 +277,11 @@ import HearIAmCore
               format.sampleRate.isFinite, format.sampleRate > 0, format.channelCount > 0 else {
             throw VoiceRecognitionFailure.noInput
         }
+        engine.mainMixerNode.removeTap(onBus: 0)
         engine.connect(engine.mainMixerNode, to: engine.outputNode, format: format)
+        let meter = talkOverMeter
+        // What the app sends to the speaker, to compare the microphone with (VoiceTalkOver).
+        engine.mainMixerNode.installTap(onBus: 0, bufferSize: 1024, format: nil) { buffer, _ in meter.output(buffer) }
         let output = engine.outputNode.inputFormat(forBus: 0)
         trace("voice_engine_start id=\(self.engineID?.uuidString ?? "none") hardwareInput=\(hardwareInput.description) input=\(format.description) output=\(output.description) route=\(HearAudioSession.route)")
         guard output.sampleRate == format.sampleRate, output.channelCount == format.channelCount else {
@@ -270,6 +289,7 @@ import HearIAmCore
         }
         let bridge = inputBridge
         engine.inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in
+            meter.input(buffer)
             bridge.append(buffer)
         }
         hasInputTap = true
@@ -277,6 +297,13 @@ import HearIAmCore
         try engine.start()
         engineStartedAt = ProcessInfo.processInfo.systemUptime
         restartAudioNeeded = false
+    }
+
+    private func talkOverDetected() {
+        guard wantsListening else { return }
+        lastTalkOver = ProcessInfo.processInfo.systemUptime
+        VoiceLog.write("voice_talk_over", "", screen: "")
+        onTalkOver?()
     }
 
     private func engineConfigurationChanged(_ changed: AVAudioEngine) {
@@ -738,8 +765,10 @@ import HearIAmCore
         if let engine {
             engine.stop()
             if hasInputTap { engine.inputNode.removeTap(onBus: 0) }
+            engine.mainMixerNode.removeTap(onBus: 0)
             engine.reset()
         }
+        volumeObservation = nil
         engine = nil
         engineID = nil
         restartAudioNeeded = false

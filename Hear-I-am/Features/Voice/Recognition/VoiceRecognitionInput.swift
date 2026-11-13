@@ -3,6 +3,27 @@ import Accelerate
 import Speech
 import HearIAmCore
 
+/// Feeds VoiceTalkOver from the two audio taps (microphone after echo cancellation, and the app's own output
+/// at the mixer). Both run off the main actor; a person heard over the app is reported on the main actor.
+final class VoiceTalkOverMeter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var gate = VoiceTalkOver()
+    var onTalkOver: (@Sendable () -> Void)?
+
+    func setVolume(_ volume: Float) { lock.lock(); gate.volume = Double(volume); lock.unlock() }
+    func output(_ buffer: AVAudioPCMBuffer) {
+        let rms = VoiceRecognitionInputBridge.rootMeanSquare(buffer)
+        let now = ProcessInfo.processInfo.systemUptime
+        lock.lock(); gate.output(rms: rms, at: now); lock.unlock()
+    }
+    func input(_ buffer: AVAudioPCMBuffer) {
+        let rms = VoiceRecognitionInputBridge.rootMeanSquare(buffer)
+        let now = ProcessInfo.processInfo.systemUptime
+        lock.lock(); let heard = gate.input(rms: rms, at: now); let callback = onTalkOver; lock.unlock()
+        if heard { callback?() }
+    }
+}
+
 /// AVAudioEngine's tap runs off the main actor. Append directly while the tap's buffer is valid;
 /// this small lock also keeps endAudio/cancel from racing an in-flight append.
 final class VoiceRecognitionInputBridge: @unchecked Sendable {
@@ -48,7 +69,7 @@ final class VoiceRecognitionInputBridge: @unchecked Sendable {
         callback?()
         if let visualLevel { levelCallback?(visualLevel) }
     }
-    private static func rootMeanSquare(_ buffer: AVAudioPCMBuffer) -> Double {
+    static func rootMeanSquare(_ buffer: AVAudioPCMBuffer) -> Double {
         guard buffer.format.commonFormat == .pcmFormatFloat32, let channels = buffer.floatChannelData else { return 0 }
         let channelCount = Int(buffer.format.channelCount)
         let interleaved = buffer.format.isInterleaved

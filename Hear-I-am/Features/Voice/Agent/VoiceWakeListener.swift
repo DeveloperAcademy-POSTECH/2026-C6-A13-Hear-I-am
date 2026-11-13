@@ -50,10 +50,14 @@ import HearIAmCore
         }
         speech.stopBufferedOutput={ [weak self] in self?.recognition.stopNarration() }
         speech.onText={ [weak self] text in self?.caption.updateNarration(text) }
-        speech.onSpeaking={ [weak self] value in self?.speaking=value }
+        speech.onSpeaking={ [weak self] value in
+            self?.speaking=value
+            if value {self?.speakingSince=ProcessInfo.processInfo.systemUptime}
+        }
         recognition.onTranscript={ [weak self] text in self?.heardPartial(text) }
-        // Sound over the question holds it at once; it goes on if no words follow (11/03).
-        recognition.onSpeechDetected={ [weak self] in self?.holdNarration() }
+        // A person heard over the question holds it at once; it goes on if no words follow (11/03). Sound alone
+        // is not enough: the app's own voice set it off and the question stuttered (11/13).
+        recognition.onTalkOver={ [weak self] in self?.talkOver() }
         recognition.onFinal={ [weak self] text in self?.heardFinal(text) }
         recognition.onRecoverableError={ [weak self] _ in self?.caption.clearRequest() }
         recognition.$finalizing.assign(to:&$confirmingInput)
@@ -121,15 +125,36 @@ import HearIAmCore
         }
     }
 
-    /// In English the app's own voice comes back through the microphone as words: its 「Yes, …」 was heard as
-    /// 「Yes」, or as 「I talked about it」, and cut the question every time (11/13 POS). Korean recognition
-    /// leaves it out or the echo checks catch it; English does not. So in English nothing heard while the app
-    /// speaks stops it except the call 「Hear I am」, and what was heard over it is not taken as a request.
-    private var callOnlyOverSpeech: Bool {HearLanguage.current.isEnglish}
+    /// When the app last started speaking; the echo check runs from here.
+    private var speakingSince: TimeInterval = 0
+    /// The app's own voice comes back through the microphone as words, in English 「Yes」 or 「I talked about
+    /// it」 and in Korean 「네」 or 「네, 무엇을 드릴까요」, and cut the question (11/13 POS). Words heard while it
+    /// speaks are taken as the performer's only once a person was heard over it by level (VoiceTalkOver).
+    private var personOverSpeech: Bool {recognition.talkOverHeard(since:speakingSince)}
+    /// What was written down over the app's speech, and what of it was there just before a person was heard over
+    /// it: the app's own voice (VoiceEcho.withoutOwnVoice). The text from 0.3 s before is taken, as the
+    /// recognizer can already hold the person's first word when the level tells (11/13).
+    private var partialsOverSpeech: [(time:TimeInterval,text:String)]=[]
+    private var echoBefore=""
+
+    private func talkOver() {
+        if awake, speaking, echoBefore.isEmpty {
+            let cut=ProcessInfo.processInfo.systemUptime-0.3
+            echoBefore=partialsOverSpeech.last(where:{$0.time <= cut})?.text ?? ""
+        }
+        holdNarration()
+    }
+    private func withoutOwnVoice(_ text:String) -> String {
+        VoiceEcho.withoutOwnVoice(text,before:echoBefore,lines:spokenLines)
+    }
 
     private func heardPartial(_ text:String) {
         guard active else {return}
-        if awake, speaking, callOnlyOverSpeech, !recognition.listensInEnglish {
+        if awake, speaking || heardOverSpeech {
+            partialsOverSpeech.append((ProcessInfo.processInfo.systemUptime,text))
+            if partialsOverSpeech.count > 40 {partialsOverSpeech.removeFirst(20)}
+        }
+        if awake, speaking, !personOverSpeech, !recognition.listensInEnglish {
             heardOverSpeech=true
             if VoiceWakeWord.matches(text), !spokenLines.contains(where:VoiceWakeWord.matches) {
                 VoiceLog.write("home_barge_in","call \(text)",screen:"home.awake")
@@ -143,7 +168,7 @@ import HearIAmCore
         }
         // Someone is still talking to the agent; it must not fall asleep in the middle of the request.
         if awake, !recognition.listensInEnglish {
-            let words=heardOverSpeech || speaking ? VoiceEcho.strippingLeadingEcho(text,of:spokenLines) : text
+            let words=heardOverSpeech || speaking ? withoutOwnVoice(text) : text
             let request=words.isEmpty || VoiceEcho.isEcho(words,of:spokenLines) ? nil : VoiceNoise.request(words)
             // Marked before the agent is stopped: stopping ends its speech at once, and a turn not yet marked
             // as the performer's was thrown away with 「저장된」 in it, leaving only 「보여줘」 (11/03).
@@ -185,8 +210,8 @@ import HearIAmCore
             return
         }
         guard awake, !recognition.listensInEnglish else {return}
-        // Heard over the app's English speech without the call: the app's own voice (see callOnlyOverSpeech).
-        if callOnlyOverSpeech, heardOverSpeech {
+        // Heard over the app's speech with no person heard over it: the app's own voice (see personOverSpeech).
+        if heardOverSpeech, !personOverSpeech {
             heardOverSpeech=false
             caption.clearRequest();VoiceLog.write("home_ignored","over speech \(text)",screen:"home.awake");return
         }
@@ -197,9 +222,11 @@ import HearIAmCore
         // The question itself can come back through the microphone ahead of the answer.
         var request=text
         // A whole request in the question's own words (「저장된 공연으로 연습할래」) is the performer's, not echo.
-        if heardOverSpeech, VoiceAppRequest.resolve(text) == nil, !VoiceAppRequest.isRehearsal(text) {
+        let echo=echoBefore;echoBefore="";partialsOverSpeech=[]
+        if heardOverSpeech, !echo.isEmpty {request=VoiceEcho.strippingLeadingEcho(text,of:[echo])}
+        if heardOverSpeech, VoiceAppRequest.resolve(request) == nil, !VoiceAppRequest.isRehearsal(request) {
             heardOverSpeech=false
-            request=VoiceEcho.strippingLeadingEcho(text,of:spokenLines)
+            request=VoiceEcho.strippingLeadingEcho(request,of:spokenLines)
             if request.isEmpty {caption.clearRequest();VoiceLog.write("home_ignored","echo \(text)",screen:"home.awake");return}
         }
         hand(request)
@@ -223,6 +250,7 @@ import HearIAmCore
         caption.clearRequest()
         stayAwake(60)
         spokenLines=[Self.greeting];heardOverSpeech=false;userSpoke=false;loggedOverSpeech=false
+        echoBefore="";partialsOverSpeech=[]
         speech.play([Self.greeting]) { [weak self] _ in self?.afterSpeaking() }
     }
 
@@ -239,8 +267,7 @@ import HearIAmCore
         onRequest?(request)
     }
     private func holdNarration() {
-        // In English the app's own voice sets this off as well; holding for it stuttered every question.
-        guard awake, speaking, !narrationHeld, !recognition.listensInEnglish, !callOnlyOverSpeech else {return}
+        guard awake, speaking, !narrationHeld, !recognition.listensInEnglish else {return}
         narrationHeld=true
         recognition.holdNarration(true)
         Task { @MainActor [weak self] in
