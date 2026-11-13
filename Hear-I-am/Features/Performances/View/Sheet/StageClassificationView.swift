@@ -247,7 +247,9 @@ private struct ScanSavedSummary: View {
             HStack(spacing: 8) {
                 count(L("지점"), scan.route?.points.count ?? 0)
                 count(L("기물"), scan.route?.obstacles.count ?? 0)
-                count(L("확인점"), scan.secondCheckpoint == nil ? 1 : 2)
+                // Photos taken while scanning, where the checkpoint count was (#190): a saved scan always has
+                // two checkpoints, so that number told nothing.
+                count(L("사진"), scan.photos.count, unit: L("장"))
             }
             status(L("안전구역"), value: scan.route == nil ? L("미지정") : L("지정완료"), green: scan.route != nil)
             status(L("스캔 구역 별 이미지"), value: scan.photos.isEmpty ? L("사진 없음") : L("저장완료"), green: false)
@@ -264,13 +266,13 @@ private struct ScanSavedSummary: View {
         }.padding(.leading, 16).padding(.trailing, 12).frame(height: 44)
             .background(green ? StageInfoStyle.green.opacity(0.1) : StageInfoStyle.field, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
-    private func count(_ name: String, _ value: Int) -> some View {
+    private func count(_ name: String, _ value: Int, unit: String = L("개")) -> some View {
         // Centred label over the number, with no tile behind it (971:29927).
         VStack(spacing: 4) {
             Text(name).font(HearFont.pretendard(.regular, size: 13)).foregroundStyle(StageInfoStyle.secondary)
             HStack(alignment: .firstTextBaseline, spacing: 3) {
                 Text("\(value)").font(HearFont.pretendard(.semibold, size: 25)).foregroundStyle(.white)
-                Text(L("개")).font(HearFont.pretendard(.regular, size: 12)).foregroundStyle(StageInfoStyle.secondary)
+                Text(unit).font(HearFont.pretendard(.regular, size: 12)).foregroundStyle(StageInfoStyle.secondary)
             }
         }.frame(maxWidth: .infinity).frame(height: 72)
             .accessibilityElement(children: .combine)
