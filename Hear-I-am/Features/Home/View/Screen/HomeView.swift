@@ -1,4 +1,6 @@
 import SwiftUI
+import AVFoundation
+import Speech
 import HearIAmCore
 
 /// Performer-only home (Figma 971:36998): the stroke logo over 「오늘은 어떤 공연을 연습할까요?」 and
@@ -11,12 +13,13 @@ struct HomeView: View {
     let start:()->Void
     var isPresented=true
     @State private var showingSettings=false
+    @State private var showingPermissions=false
     @State private var isVisible=false
     @State private var heardAt=Date()
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.hearChangeRole) private var changeRole
 
-    private var animating:Bool {isPresented && isVisible && !showingSettings && scenePhase == .active}
+    private var animating:Bool {isPresented && isVisible && !showingSettings && !showingPermissions && scenePhase == .active}
     private var hasRequest:Bool {!wake.caption.transcript.isEmpty}
 
     var body: some View {
@@ -42,6 +45,9 @@ struct HomeView: View {
             .navigationDestination(isPresented:$showingSettings) {
                 HomeSettingsView().suspendsVoiceWake()
             }
+            .navigationDestination(isPresented:$showingPermissions) {
+                V3PermissionView().suspendsVoiceWake()
+            }
             .onAppear {isVisible=true}
             .onDisappear {isVisible=false}
             .onChange(of:hasRequest) {_,heard in if heard {heardAt=Date()}}
@@ -64,11 +70,35 @@ struct HomeView: View {
             .accessibilityAction(named:L("저장된 공연에서 직접 선택"),start)
             .overlay(alignment:.bottom) {
                 if let failure=wake.failure {
-                    Text(failure).font(.system(size:15)).foregroundStyle(VoiceStyle.status).multilineTextAlignment(.center)
-                        .padding(.horizontal,32).padding(.bottom,120)
+                    failureNote(failure).padding(.horizontal,32).padding(.bottom,120)
                         .accessibilityIdentifier("home.voice.failure")
                 }
             }
+    }
+
+    /// Why Home cannot listen. When the cause is something 「권한 상태」 shows (the microphone or speech
+    /// permission, or the iPhone's dictation), the note is a button to that page (#189): before, it only named
+    /// a place in the Settings app and the performer had to find the app's own page through the gear.
+    @ViewBuilder private func failureNote(_ failure:String) -> some View {
+        let message=Text(failure).font(.system(size:15)).foregroundStyle(VoiceStyle.status).multilineTextAlignment(.center)
+        if Self.permissionsExplain(failure) {
+            Button {showingPermissions=true} label: {
+                VStack(spacing:10) {
+                    message
+                    HStack(spacing:4) {
+                        Text(L("권한 상태 보기"))
+                        Image(systemName:"chevron.right").font(.system(size:12,weight:.semibold)).accessibilityHidden(true)
+                    }.font(.system(size:15,weight:.semibold)).foregroundStyle(.white)
+                }.contentShape(Rectangle())
+            }.buttonStyle(.plain).accessibilityHint(L("권한 상태 화면을 열어요"))
+        } else {
+            message
+        }
+    }
+    private static func permissionsExplain(_ failure:String) -> Bool {
+        failure == VoiceRecognitionService.dictationOffMessage
+            || AVCaptureDevice.authorizationStatus(for:.audio) != .authorized
+            || SFSpeechRecognizer.authorizationStatus() != .authorized
     }
 
     /// 495:5074 until the performer speaks, then 495:5096: the words as a bubble over the spinner line.

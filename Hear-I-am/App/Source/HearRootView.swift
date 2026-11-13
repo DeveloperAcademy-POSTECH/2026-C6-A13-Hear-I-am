@@ -57,6 +57,10 @@ struct HearRootView: View {
             #if DEBUG
             VoiceTestInbox.shared.home={text in wake.simulateHeard(text)}
             VoiceTestInbox.shared.start()
+            // Device check of the dictation probe (#189) without opening Settings > 권한 상태 by hand.
+            if ProcessInfo.processInfo.arguments.contains("--dictation-check") {
+                Task {_ = await DictationProbe().run(localeCode:HearLanguage.current.speechCode)}
+            }
             #endif
         }
         .onChange(of:launch.pending) {openSiriRequest()}
