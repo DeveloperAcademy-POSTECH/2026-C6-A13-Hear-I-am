@@ -74,7 +74,7 @@ extension GuidanceViewModel {
         guard voiceExperiment else {return}
         voiceRecognition.onSpeechDetected={ [weak self] in self?.voiceSpeechDetected() }
         voiceRecognition.onTranscript={ [weak self] text in self?.voicePartial(text) }
-        voiceRecognition.onFinal={ [weak self] text in self?.handleVoiceCommand(text) }
+        voiceRecognition.onFinal={ [weak self] text in self?.voiceHeardFinal(text) }
         voiceRecognition.onRecoverableError={ [weak self] message in self?.voiceInputRecovering(message) }
         voiceRecognition.onRecoveryReady={ [weak self] in
             // Stop any system-synthesizer fallback spoken while the engine was being restarted.
@@ -439,9 +439,38 @@ extension GuidanceViewModel {
         voiceInputError=nil;voiceListeningEnabled=true;voiceReadyChimePending=true
         syncVoiceListening()
     }
+    /// In English the app's own voice comes back through the microphone as words (「Yes」 from 「Yes, …」), and
+    /// any of them cut the app off (11/13 POS); Korean recognition leaves it out or the echo checks catch it.
+    /// So in English only the call 「Hear I am」 stops the app while it speaks.
+    var voiceCallOnlyOverSpeech: Bool {HearLanguage.current.isEnglish}
+    /// Recognition's final text. One that began over the app's English speech without the call is its own voice;
+    /// typed requests go straight to handleVoiceCommand and are never dropped here.
+    func voiceHeardFinal(_ text:String) {
+        if let heard=voiceEnglishOverSpeechAt {
+            voiceEnglishOverSpeechAt=nil
+            if Date().timeIntervalSince(heard) < 10, VoiceWakeWord.request(in:text) == nil {
+                voiceTurnActive=false;voiceLiveText=""
+                logSignal("voice_ignored","english_over_speech \(text)");return
+            }
+        }
+        // A final with no partial before it, still over the app's English speech.
+        if speaking, voiceAwake, !voiceTurnActive, voiceCallOnlyOverSpeech, VoiceWakeWord.request(in:text) == nil {
+            logSignal("voice_ignored","english_over_speech \(text)");return
+        }
+        handleVoiceCommand(text)
+    }
     /// Speech heard while the conversation is closed belongs to someone else until it contains the call.
     func voicePartial(_ text:String) {
         guard voiceShouldListen else {return}
+        if speaking, voiceAwake, !voiceTurnActive, voiceCallOnlyOverSpeech {
+            guard VoiceWakeWord.matches(text), !narrationLines.contains(where:VoiceWakeWord.matches) else {
+                voiceEnglishOverSpeechAt=Date();return
+            }
+            voiceEnglishOverSpeechAt=nil
+            voiceSpeechDetected(overNarration:true)
+            showVoiceLiveText(text)
+            return
+        }
         // While the app speaks, anything the performer says cuts it and is answered at once, as in a talk
         // with a person (11/03). Noise and the app's own voice coming back do not stop it. A single word that
         // is in the line being read may be the start of that line's echo, so it waits for the next word.
@@ -505,7 +534,11 @@ extension GuidanceViewModel {
         // app's speech was never heard (11/01).
         // Sound over the app's speech holds its voice at once, as a person stops when interrupted; the
         // first words then decide (voicePartial). If none come, the line goes on.
-        if speaking && !overNarration {holdVoiceNarration();return}
+        if speaking && !overNarration {
+            // In English the app's own voice sets this off too; holding for it stuttered every line.
+            if !voiceCallOnlyOverSpeech {holdVoiceNarration()}
+            return
+        }
         voiceNarrationHeld=false
         voiceTurnOverNarration=overNarration
         voiceLiveText=""
