@@ -111,6 +111,28 @@ public enum VoiceCommandParser {
         }
     }
 
+    /// A whole request a sound or two away from one of a command's phrases: 「연수용」 and 「연습병」 for
+    /// 「연습용」 (11/09). Only phrases of three syllables or more, said in as many syllables, and only when
+    /// one command alone is that near: two consonants or vowels apart for a phrase of eight or more, one for
+    /// a shorter phrase (「바이요」 is two from 「아니요」 and is nothing). `soundsLike` looks for a phrase
+    /// anywhere in the words and only checks a model guess; this stands in for the exact list.
+    public static func near(_ text: String, among commands: [VoiceCommand]) -> VoiceCommand? {
+        let compact = VoiceEnglish.canonical(text).replacingOccurrences(of: #"[\s.!?。！？,~]"#, with: "", options: .regularExpression)
+        let hangul: (String) -> Bool = { !$0.isEmpty && $0.unicodeScalars.allSatisfy { (0xAC00...0xD7A3).contains($0.value) } }
+        guard hangul(compact), compact.count >= 3 else { return nil }
+        let heard = VoiceAutocorrect.letters(compact)
+        var best = 3, found: [VoiceCommand] = []
+        for (command, phrases) in vocabulary where commands.contains(command) {
+            let distance = phrases.filter { $0.count == compact.count && hangul($0) }.compactMap { phrase -> Int? in
+                let letters = VoiceAutocorrect.letters(phrase), distance = VoiceAutocorrect.distance(heard, letters)
+                return distance <= (letters.count >= 8 ? 2 : 1) ? distance : nil
+            }.min() ?? 3
+            guard distance <= 2, distance <= best else { continue }
+            if distance < best { best = distance; found = [command] } else { found.append(command) }
+        }
+        return found.count == 1 ? found[0] : nil
+    }
+
     private struct PointToken { let range: NSRange; let index: Int }
     static let sinoKorean=["일":1,"이":2,"삼":3,"사":4,"오":5,"육":6,"칠":7,"팔":8,"구":9,"십":10]
     private static func pointCommand(_ text: String) -> VoiceCommand? {

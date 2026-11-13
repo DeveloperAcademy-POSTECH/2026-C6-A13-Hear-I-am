@@ -622,6 +622,13 @@ extension GuidanceViewModel {
            let better=alternatives.first(where:voiceHeardChoice) {
             logSignal("voice_alternative","\(text) -> \(better)");text=better
         }
+        // One word out of the app's own line and nothing the app could act on: 「어떤」 from 「어떤 공연을
+        // 준비할까요?」 had the model read the whole list out five seconds later (11/12). Nothing is said back.
+        if VoiceEcho.isOwnWord(text,of:narrationLines), VoiceCommandParser.parse(text) == nil, voiceScreen.nearCommand(text) == nil,
+           !voiceHeardChoice(text), VoiceIntentCopy.answer(text) == nil, VoiceAppRequest.resolve(text) == nil,
+           !VoiceCommandParser.isClose(text), !alternatives.contains(where:VoiceCommandParser.isClose) {
+            logSignal("voice_ignored","own_word \(text)");return
+        }
         keepVoiceConversation()
         logSignal("voice_command",text)
         // 「닫기」, often heard as 「찾기」·「받기」 with 「닫기」 among the alternatives (11/03).
@@ -653,7 +660,10 @@ extension GuidanceViewModel {
             read(appRequest == .plans ? VoiceAppRequest.plansHandoff : VoiceAppRequest.scanAnswer) {open()}
             return
         }
-        let parsed=VoiceCommandParser.parse(text)
+        let exact=VoiceCommandParser.parse(text)
+        // 「연수용」 for 「연습용」: a sound or two from a command of this screen counts as that command, unless
+        // the words pick something on the list (#192).
+        let parsed=exact ?? (voiceHeardChoice(text) ? nil : voiceScreen.nearCommand(text))
         if parsed == .cancel, !started {voiceSelectionControlsVisible=false;cancelVoiceSelection();return}
         // 「뱀파이어 연습용」: the mode is kept and the rest finds the stage, which then starts in that mode (#174).
         if phase == .selection, !voiceChoosingMode, parsed == nil, let split=voiceModeWithStage(text) {
@@ -669,7 +679,7 @@ extension GuidanceViewModel {
             return
         }
         if let command=parsed {
-            logSignal("voice_intent","exact \(command)")
+            logSignal("voice_intent","\(exact == nil ? "near" : "exact") \(command)")
             performVoiceCommand(command)
         } else if !resolveVoiceIntent(text) {
             readVoiceCommandNotUnderstood()

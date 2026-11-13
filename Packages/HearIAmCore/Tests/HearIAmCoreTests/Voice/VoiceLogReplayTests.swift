@@ -47,13 +47,17 @@ final class VoiceLogReplayTests: XCTestCase {
 
         /// The performance list, where a name, a number, a place or an app request is expected.
         func list(_ text: String) -> Outcome {
+            let screen = VoiceScreen.stageList(stageCount: performances.count)
+            if VoiceEcho.isOwnWord(text, of: narration), VoiceCommandParser.parse(text) == nil, screen.nearCommand(text) == nil,
+               !VoiceEcho.isChoice(text, names: performances), VoiceIntentCopy.answer(text) == nil, VoiceAppRequest.resolve(text) == nil,
+               !VoiceCommandParser.isClose(text) { return .ignored }
             if VoiceCommandParser.isClose(text) { return .close }
             let heardName = VoiceStageSearch.normalized(text)
             let namesChoice = performances.contains { name in
                 let name = VoiceStageSearch.normalized(name); return name.count >= 2 && heardName.contains(name)
             }
             if !namesChoice, let request = VoiceAppRequest.resolve(text) { return request == .scan ? .scan : .plans }
-            let parsed = VoiceCommandParser.parse(text)
+            let parsed = VoiceCommandParser.parse(text) ?? (VoiceEcho.isChoice(text, names: performances) ? nil : screen.nearCommand(text))
             if parsed == .cancel { return .command(.cancel) }
             if parsed == nil, let split = VoiceCommandParser.splitMode(text),
                !(performances + stages.map(\.name)).contains(where: { $0.contains(split.stem) }),
@@ -84,7 +88,7 @@ final class VoiceLogReplayTests: XCTestCase {
         /// The 연습용 · 실전용 question.
         func mode(_ text: String) -> Outcome {
             if VoiceCommandParser.isClose(text) { return .close }
-            if let parsed = VoiceCommandParser.parse(text) { return .command(parsed) }
+            if let parsed = VoiceCommandParser.parse(text) ?? VoiceScreen.modeChoice.nearCommand(text) { return .command(parsed) }
             return .model
         }
     }
@@ -140,6 +144,46 @@ final class VoiceLogReplayTests: XCTestCase {
         }
         print("replay understood: \(right)/\(understood.count + modes.count)")
         report.forEach { print("replay miss: \($0)") }
+    }
+
+    /// What the model answered on the phone for words that asked for nothing (11/01–11/12, and again on
+    /// 11/13), and what is done with the answer now.
+    func testModelGuessForNoiseIsDropped() {
+        let list = VoiceScreen.stageList(stageCount: 8)
+        for heard in ["어떤", "어떤 거", "열람", "개 찾기 어떤", "바른 인식을 해야 되는데", "슬픈 거 말해는 들어", "확인점 조개 테스트 할래"] {
+            let guess = VoiceIntentDecision.from(action: "showAllStages", number: 0, sure: true, screen: list)
+            XCTAssertEqual(guess.checked(heard: heard), VoiceIntentDecision.none, heard)
+            XCTAssertEqual(VoiceIntentDecision.confirm(.showAllStages).checked(heard: heard), VoiceIntentDecision.none, heard)
+        }
+        for heard in ["저녁내 모드 보여줘", "무대 뭐 있어", "다 불러와 줘", "전부 알려 줄래", "Show me the saved stages"] {
+            let guess = VoiceIntentDecision.from(action: "showAllStages", number: 0, sure: true, screen: list)
+            XCTAssertEqual(guess.checked(heard: heard), .command(.showAllStages), heard)
+        }
+        XCTAssertEqual(VoiceIntentDecision.command(.next).checked(heard: "헬로"), .confirm(.next))
+        XCTAssertEqual(VoiceIntentDecision.command(.next).checked(heard: "작용 완료"), .command(.next))
+    }
+    func testNearCommand() {
+        let mode = VoiceScreen.modeChoice
+        XCTAssertEqual(mode.nearCommand("연수용"), .practice)
+        XCTAssertEqual(mode.nearCommand("연습병"), .practice)
+        XCTAssertEqual(mode.nearCommand("실점용"), .performance)
+        XCTAssertEqual(mode.nearCommand("치소해 줘"), .cancel)
+        for text in ["연수병", "헬로", "Siri야", "새끼", "야", "연습", "공연", "연수원", "해피벌스데이", "그러니까"] { XCTAssertNil(mode.nearCommand(text), text) }
+        // What moves the run on is never taken from a near word.
+        XCTAssertNil(VoiceScreen.preparation.nearCommand("다음으르"))
+        XCTAssertNil(VoiceScreen.guidance(pointCount: 3).nearCommand("게속해줘"))
+        XCTAssertEqual(VoiceScreen.guidance(pointCount: 3).nearCommand("멈쳐줘"), .pause)
+        // A command the screen does not offer is not offered here either.
+        XCTAssertNil(VoiceScreen.guidance(pointCount: 3).nearCommand("연수용"))
+    }
+    func testOwnWordHeardBackAlone() {
+        let lines = ["공연 찾기. 어떤 공연을 준비할까요? 공연 이름을 말해주세요.", ""]
+        XCTAssertTrue(VoiceEcho.isOwnWord("어떤", of: lines))
+        XCTAssertTrue(VoiceEcho.isOwnWord("어떤.", of: lines))
+        XCTAssertFalse(VoiceEcho.isOwnWord("어떤 거", of: lines))
+        XCTAssertFalse(VoiceEcho.isOwnWord("마루랩", of: lines))
+        XCTAssertFalse(VoiceEcho.isOwnWord("어", of: lines))
+        XCTAssertFalse(VoiceEcho.isOwnWord("공연을 준비", of: lines))
     }
 
     func testLoggedNoiseDoesNotAct() {
