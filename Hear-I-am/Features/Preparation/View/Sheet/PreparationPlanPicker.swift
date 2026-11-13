@@ -32,7 +32,9 @@ struct PreparationPlanPicker: View {
                     VStack(alignment:.leading,spacing:6) {
                         Text(L("사전 저장한 공연 동선 불러오기")).font(HearFont.pretendard(.bold,size:24)).tracking(-0.72).foregroundStyle(.white)
                         Text(L("실제 무대의 가로·세로에 맞춰 옅은 잔상으로 보여줘요. 기물과 경로는 직접 찍어 등록하세요."))
-                            .font(HearFont.pretendard(.medium,size:14)).foregroundStyle(.white.opacity(0.6)).lineLimit(1)
+                            .font(HearFont.pretendard(.medium,size:14)).foregroundStyle(.white.opacity(0.6))
+                            // Two lines: the English is longer than one line beside the buttons and was cut off.
+                            .lineLimit(2).fixedSize(horizontal:false,vertical:true)
                     }
                     Spacer(minLength:12)
                     Button(L("취소"),action:onCancel).font(HearFont.pretendard(.semibold,size:17)).foregroundStyle(.white)

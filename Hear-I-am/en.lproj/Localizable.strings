@@ -966,7 +966,7 @@
 "영" = "zero";
 "예: 효자 아트홀" = "e.g. Hyoja Art Hall";
 "오" = "five";
-"오늘은 어떤 공연을\n연습할까요?" = "Which performance shall we\npractice today?";
+"오늘은 어떤 공연을\n연습할까요?" = "Which performance\nshall we practice today?";
 "오디오 연결을 다시 준비하고 있어요" = "Getting the audio connection ready again";
 "오디오 중단 · 두 확인점 재확인 필요" = "Audio interrupted · Recheck both checkpoints";
 "오래된순" = "Oldest First";
