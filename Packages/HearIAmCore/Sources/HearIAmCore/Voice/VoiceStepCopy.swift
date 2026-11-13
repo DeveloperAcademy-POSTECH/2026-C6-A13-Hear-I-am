@@ -26,9 +26,10 @@ public enum VoiceStepCopy {
     public static var performanceCheckpointsDone: [String] { [L("확인점 2번을 확인했어요."), L("두 확인점을 모두 확인했어요. ‘완료’를 눌러주세요.")] }
 
 
-    public static let wear = [L("두 확인점 보정을 마쳤어요."), L("허리띠 착용."), GuidanceCopy.doNotDisturb,
+    /// Computed like the rest of this copy, so it follows a language switch made while the app is open.
+    public static var wear: [String] { [L("두 확인점 보정을 마쳤어요."), L("허리띠 착용."), GuidanceCopy.doNotDisturb,
                               L("휴대폰을 허리 앞쪽에 세로로 고정해주세요. 후면 카메라는 몸 바깥쪽을 향하고 렌즈는 가리지 말아주세요."),
-                              L("다 차면 ‘착용 완료’라고 말해주세요.")]
+                              L("다 차면 ‘착용 완료’라고 말해주세요.")] }
 
     public static func departure(started: Bool) -> [String] {
         [L("출발 준비."), started ? L("안내를 멈춘 동선 위에서 잠시 멈춰주세요.") : L("지정한 출발점에서 잠시 멈춰주세요. 몸이 향한 방향을 기준으로 안내해요.")]
