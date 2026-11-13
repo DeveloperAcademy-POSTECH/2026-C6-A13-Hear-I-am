@@ -17,14 +17,49 @@ public enum VoiceStageSearch {
     }
     private static let countWords = [("다섯", 5), ("여섯", 6), ("일곱", 7), ("여덟", 8), ("아홉", 9), ("한", 1), ("두", 2), ("세", 3), ("네", 4), ("열", 10)]
 
+    /// A name as it is said aloud: 「장면1」 is 「장면일」, 「제12장」 is 「제십이장」. Dictation writes the number
+    /// as a word (「장면 일 연습용」 found nothing on 11/11), so a name is also known by this form.
+    static func spoken(_ name: String) -> String {
+        let digits = ["영", "일", "이", "삼", "사", "오", "육", "칠", "팔", "구"]
+        var result = "", run = ""
+        func flush() {
+            guard !run.isEmpty else { return }
+            if let number = Int(run), run.count <= 2, !(run.count == 2 && run.hasPrefix("0")) {
+                let tens = number / 10, ones = number % 10
+                if tens > 0 { result += (tens > 1 ? digits[tens] : "") + "십" }
+                if ones > 0 || tens == 0 { result += digits[ones] }
+            } else {
+                result += run.compactMap { $0.wholeNumberValue }.map { digits[$0] }.joined()
+            }
+            run = ""
+        }
+        for character in name {
+            if character.isASCII, character.isNumber { run.append(character) } else { flush(); result.append(character) }
+        }
+        flush()
+        return result
+    }
+
     /// The name heard with one sound wrong, as 「확인 좀 2개」 or 「확인점 조개」 for 「확인점 2개」 (11/03).
-    /// Only names of four or more letters, and only when exactly one name comes that close.
+    /// Only when exactly one name comes that close. Names of four or more letters may be off by one letter,
+    /// eight or more by two, ten or more by three (「오늘은 사랑하지 않습니다」 for 「오늘도 출항하지 않습니다」,
+    /// 11/11). A three-letter name is too short for that: it counts only when the whole request is that name
+    /// with one consonant or vowel changed (「마루 앱」 for 「마루랩」, 11/12).
     static func nearlyNamed(_ request: String, names: [String]) -> Int? {
+        var whole = request
+        for ending in endings where whole.hasSuffix(ending) && whole.count > ending.count {
+            whole = String(whole.dropLast(ending.count)); break
+        }
         let close = names.indices.filter { index in
             let name = Array(names[index])
+            if name.count == 3 {
+                let hangul: (String) -> Bool = { $0.unicodeScalars.allSatisfy { (0xAC00...0xD7A3).contains($0.value) } }
+                return whole.count == 3 && hangul(whole) && hangul(names[index])
+                    && VoiceAutocorrect.distance(VoiceAutocorrect.letters(whole), VoiceAutocorrect.letters(names[index])) <= 1
+            }
             guard name.count >= 4 else { return false }
             let heard = Array(request)
-            let allowed = name.count >= 8 ? 2 : 1
+            let allowed = name.count >= 10 ? 3 : name.count >= 8 ? 2 : 1
             for length in max(1, name.count - allowed)...(name.count + allowed) where length <= heard.count {
                 for start in 0...(heard.count - length) where distance(Array(heard[start..<start + length]), name) <= allowed {
                     return true
@@ -35,6 +70,7 @@ public enum VoiceStageSearch {
         let distinct = Set(close.map { names[$0] })
         return distinct.count == 1 && close.count == 1 ? close[0] : nil
     }
+    private static let endings=["을선택해주세요", "를선택해주세요", "을선택해줘", "를선택해줘", "선택해주세요", "선택해줘", "선택", "사용할게요", "사용할게", "사용하기", "사용", "열어주세요", "열어줘", "로안내해줘"]
     private static func distance(_ a: [Character], _ b: [Character]) -> Int {
         var row = Array(0...b.count)
         for i in 1...max(a.count, 1) where !a.isEmpty {
@@ -56,11 +92,11 @@ public enum VoiceStageSearch {
         let paths=names.indices.map { index in
             contexts.indices.contains(index) ? contexts[index].map(normalized).filter { !$0.isEmpty } : []
         }
+        let said=names.map(spoken)
         let aliases=names.indices.map { index in
-            [names[index]] + paths[index].map {$0+names[index]} + [paths[index].joined()+names[index]]
+            [names[index], said[index]] + paths[index].map {$0+names[index]} + [paths[index].joined()+names[index]]
         }
         let explicitSearch=["관련", "검색", "찾아", "목록", "리스트", "모든무대", "전체무대"].contains { request.contains($0) }
-        let endings=["을선택해주세요", "를선택해주세요", "을선택해줘", "를선택해줘", "선택해주세요", "선택해줘", "선택", "사용할게요", "사용할게", "사용하기", "사용", "열어주세요", "열어줘", "로안내해줘"]
         if !explicitSearch {
             let exact=names.indices.filter { index in
                 aliases[index].contains { name in
@@ -71,7 +107,7 @@ public enum VoiceStageSearch {
             if exact.count > 1 { return .results(query: text, indices: exact) }
             // A name inside a longer request, as in 「머지테스트 열람」 (11/01). The longest name wins when it
             // holds the shorter ones (「머지테스트」 over 「테스트」); several distinct names make a list.
-            let inside=names.indices.filter { names[$0].count >= 2 && request.contains(names[$0]) }
+            let inside=names.indices.filter { names[$0].count >= 2 && (request.contains(names[$0]) || request.contains(said[$0])) }
             if let longest=inside.max(by: { names[$0].count < names[$1].count }) {
                 let others=inside.filter { names[$0] != names[longest] }
                 if others.allSatisfy({ names[longest].contains(names[$0]) }) {
@@ -89,7 +125,12 @@ public enum VoiceStageSearch {
         // Remove a related-stage request as a unit before removing general imperative endings.
         let related=#"(?:과|와|에)?(?:관련된|관련있는|관련|관한|대한).*$"#
         keyword=keyword.replacingOccurrences(of: related, with: "", options: .regularExpression)
-        let action=#"(?:을|를)?(?:검색해줘|검색해주세요|검색|찾아줘|찾아주세요|보여줘|보여주세요|열어줘|열어주세요|불러줘|불러주세요)$"#
+        // 「저장된 무대 보여」 stopped short of 「보여줘」 and went to the model (11/03); asking to see, hear or be
+        // told is the same request.
+        let show=#"(?:을|를|이|가)?(?:보여줘|보여주세요|보여줄래|보여|읽어줘|읽어주세요|알려줘|알려주세요|불러줘|불러주세요|불러와줘|불러와|뭐있어|뭐가있어|뭐있지)$"#
+        let shown=keyword.range(of: show, options: .regularExpression) != nil
+        keyword=keyword.replacingOccurrences(of: show, with: "", options: .regularExpression)
+        let action=#"(?:을|를)?(?:검색해줘|검색해주세요|검색|찾아줘|찾아주세요|열어줘|열어주세요)$"#
         keyword=keyword.replacingOccurrences(of: action, with: "", options: .regularExpression)
         // 「누리 랩 실행」 names the place and asks to go (11/06 device log): the ask is not part of the name.
         let run=#"(?:으로|로|에서)?(?:실행해줘|실행해주세요|실행할게요|실행할게|실행|진행해줘|진행해주세요|진행)$"#
@@ -101,6 +142,15 @@ public enum VoiceStageSearch {
             keyword=keyword.replacingOccurrences(of: saved, with: "", options: .regularExpression)
             if keyword.isEmpty { return .results(query: "전체", indices: Array(names.indices)) }
         }
+        // 「저장된 모델 보여줘」 · 「저장된 모대 보여줘」 (11/03, 11/08): the word after 저장된 was 무대, misheard.
+        // A short word there that is no name or place still asks for everything saved.
+        if shown, let lead=keyword.range(of: #"^(?:저장된|저장한|저장해둔|저장되어있는)"#, options: .regularExpression) {
+            let rest=String(keyword[lead.upperBound...])
+            let known=names.indices.contains { index in (aliases[index]+paths[index]).contains { $0.contains(rest) } }
+            if known { keyword=rest } else if rest.count <= 3 { return .results(query: "전체", indices: Array(names.indices)) }
+        }
+        // Nothing but the asking is left: 「무대 보여줘」, 「공연 목록 알려줘」.
+        if keyword.isEmpty, shown { return .results(query: "전체", indices: Array(names.indices)) }
         guard !keyword.isEmpty else { return .none }
         let indices=names.indices.filter { index in (aliases[index]+paths[index]).contains {$0.contains(keyword)} }
         // A place said on its own that only one stage belongs to is that stage: 「누리 랩」 under 응가 came
@@ -120,16 +170,48 @@ public enum VoiceStageSearch {
 
     /// Whether a request points at the `number`-th stage by its number or by part of its name. The model
     /// once offered 9번 for 「연남」, which named no stage at all (11/01); such a guess is dropped.
+    /// A number counts only in a short request: a long stretch of someone's talk with 「1번」 somewhere in
+    /// it came back as the first item (11/08, and again on 11/13).
     public static func mentions(_ text: String, number: Int, name: String) -> Bool {
         let text = VoiceEnglish.canonical(text)
         let request=normalized(text), name=normalized(name)
-        if request.contains("\(number)") { return true }
-        if let sino=VoiceCommandParser.sinoKorean.first(where: { $0.value == number })?.key, request.contains(sino+"번") { return true }
+        let short=request.count <= 16
+        if short, request.contains("\(number)") { return true }
+        if short, let sino=VoiceCommandParser.sinoKorean.first(where: { $0.value == number })?.key, request.contains(sino+"번") { return true }
         let ordinals=["첫번째", "두번째", "세번째", "네번째", "다섯번째", "여섯번째", "일곱번째", "여덟번째", "아홉번째", "열번째"]
-        if ordinals.indices.contains(number-1), request.contains(ordinals[number-1]) { return true }
+        if short, ordinals.indices.contains(number-1), request.contains(ordinals[number-1]) { return true }
         let letters=Array(name)
         guard letters.count >= 2 else { return !name.isEmpty && request.contains(name) }
         return (0..<(letters.count-1)).contains { request.contains(String(letters[$0...$0+1])) }
+    }
+
+    /// The one name on the list the request sounds most like, when no rule above found it: 「마로 앱」 for
+    /// 「마루랩」, 「화긴점 두 개」 for 「확인점 2개」. The caller asks before choosing it. The model was given
+    /// the names and tried this on the phone (11/13): of eleven such requests it named the right item for
+    /// four, so the sounds are compared here instead. A name of three letters or more, three tenths of its
+    /// consonants and vowels off at most, clearly nearer than any other name, in a request not much longer
+    /// than the name.
+    public static func closest(_ text: String, names: [String]) -> Int? {
+        let request=normalized(VoiceEnglish.canonical(text))
+        guard !request.isEmpty else { return nil }
+        let heard=VoiceAutocorrect.sounds(request)
+        let off: [(index: Int, share: Double)]=names.indices.compactMap { index in
+            let name=normalized(names[index])
+            guard name.count >= 3, request.count <= name.count + 6 else { return nil }
+            let share=[name, spoken(name)].map { form -> Double in
+                let sounds=VoiceAutocorrect.sounds(form)
+                return Double(VoiceAutocorrect.distance(of: sounds, within: heard)) / Double(sounds.count)
+            }.min() ?? 1
+            return (index, share)
+        }.sorted { $0.share < $1.share }
+        // A name held inside a longer one that is also near (「음성테스트」 in 「장애물 음성 테스트」) gives way to it.
+        let near=off.filter { $0.share <= 0.3 }
+        let key: (Int) -> String={ normalized(names[$0]) }
+        guard let first=near.first, let longest=near.max(by: { key($0.index).count < key($1.index).count }) else { return nil }
+        let best=near.allSatisfy({ key(longest.index).contains(key($0.index)) }) ? longest : first
+        // Any other name as near, or the same name twice, and it is not guessed.
+        let rivals=off.filter { $0.index != best.index && (key($0.index) == key(best.index) || !key(best.index).contains(key($0.index))) }
+        return rivals.contains(where: { key($0.index) == key(best.index) || $0.share < best.share + 0.15 }) ? nil : best.index
     }
 
     /// One-based ordinals always refer to the currently visible result list.
@@ -139,20 +221,31 @@ public enum VoiceStageSearch {
         let text = VoiceEnglish.canonical(text)
         let request = normalized(text)
         let ordinals = ["첫", "두", "세", "네", "다섯", "여섯", "일곱", "여덟", "아홉", "열"]
-        var number: Int?, rest = ""
+        var number: Int?, rest = "", counted = false
+        // 「마지막 공연」, 「맨 위에 거」: the ends of the list, unless a name on it says so itself.
+        let edge = #"(?:공연|무대|거|것|걸|꺼|에거|에것|에꺼|에있는거)?(?:으로|로)?(?:선택|선택해줘|할게|할래|해줘)?$"#
+        if !names.contains(where: { ["마지막", "처음"].contains(where: normalized($0).contains) }) {
+            if request.range(of: "^(?:맨|제일)?(?:마지막|맨끝|맨뒤|맨아래)" + edge, options: .regularExpression) != nil { return names.isEmpty ? nil : names.count }
+            if request.range(of: "^(?:맨처음|맨위|맨앞|제일처음|제일위|처음)" + edge, options: .regularExpression) != nil,
+               request != "처음" { return names.isEmpty ? nil : 1 }
+        }
         if let match = request.range(of: #"^[0-9]+번(?:째)?"#, options: .regularExpression) {
             number = Int(request[match].prefix(while: { $0.isNumber })); rest = String(request[match.upperBound...])
+            counted = request[match].hasSuffix("째")
         } else if let match = request.range(of: #"^(?:일|이|삼|사|오|육|칠|팔|구|십)번"#, options: .regularExpression) {
             number = VoiceCommandParser.sinoKorean[String(request.prefix(1))]; rest = String(request[match.upperBound...])
         } else if let index = ordinals.firstIndex(where: { request.hasPrefix($0 + "번째") }) {
-            number = index + 1; rest = String(request.dropFirst(ordinals[index].count + 2))
+            number = index + 1; rest = String(request.dropFirst(ordinals[index].count + 2)); counted = true
         }
         guard let number, names.indices.contains(number - 1) else { return nil }
         for ending in ["을선택해줘", "를선택해줘", "선택해줘", "선택", "으로", "로", "이요", "요"] where rest.hasSuffix(ending) {
             rest = String(rest.dropLast(ending.count)); break
         }
         let name = normalized(names[number - 1])
-        return rest.isEmpty || rest == "무대" || rest == "공연" || rest == name || (rest.count >= 2 && name.contains(rest)) ? number : nil
+        if rest.isEmpty || rest == "무대" || rest == "공연" || rest == name || (rest.count >= 2 && name.contains(rest)) { return number }
+        // 「세 번째 모습」 was 「세 번째 무대」 (11/02): after 번째 one short word is what the item was called,
+        // however it was heard, unless a name on the list begins that way itself.
+        return counted && rest.count <= 2 && !names.contains(where: { normalized($0).contains(request) }) ? number : nil
     }
 
     public static func ordinal(_ text: String) -> Int? {
