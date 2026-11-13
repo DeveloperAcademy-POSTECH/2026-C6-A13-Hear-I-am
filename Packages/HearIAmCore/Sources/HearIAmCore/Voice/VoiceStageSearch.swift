@@ -170,16 +170,48 @@ public enum VoiceStageSearch {
 
     /// Whether a request points at the `number`-th stage by its number or by part of its name. The model
     /// once offered 9번 for 「연남」, which named no stage at all (11/01); such a guess is dropped.
+    /// A number counts only in a short request: a long stretch of someone's talk with 「1번」 somewhere in
+    /// it came back as the first item (11/08, and again on 11/13).
     public static func mentions(_ text: String, number: Int, name: String) -> Bool {
         let text = VoiceEnglish.canonical(text)
         let request=normalized(text), name=normalized(name)
-        if request.contains("\(number)") { return true }
-        if let sino=VoiceCommandParser.sinoKorean.first(where: { $0.value == number })?.key, request.contains(sino+"번") { return true }
+        let short=request.count <= 16
+        if short, request.contains("\(number)") { return true }
+        if short, let sino=VoiceCommandParser.sinoKorean.first(where: { $0.value == number })?.key, request.contains(sino+"번") { return true }
         let ordinals=["첫번째", "두번째", "세번째", "네번째", "다섯번째", "여섯번째", "일곱번째", "여덟번째", "아홉번째", "열번째"]
-        if ordinals.indices.contains(number-1), request.contains(ordinals[number-1]) { return true }
+        if short, ordinals.indices.contains(number-1), request.contains(ordinals[number-1]) { return true }
         let letters=Array(name)
         guard letters.count >= 2 else { return !name.isEmpty && request.contains(name) }
         return (0..<(letters.count-1)).contains { request.contains(String(letters[$0...$0+1])) }
+    }
+
+    /// The one name on the list the request sounds most like, when no rule above found it: 「마로 앱」 for
+    /// 「마루랩」, 「화긴점 두 개」 for 「확인점 2개」. The caller asks before choosing it. The model was given
+    /// the names and tried this on the phone (11/13): of eleven such requests it named the right item for
+    /// four, so the sounds are compared here instead. A name of three letters or more, three tenths of its
+    /// consonants and vowels off at most, clearly nearer than any other name, in a request not much longer
+    /// than the name.
+    public static func closest(_ text: String, names: [String]) -> Int? {
+        let request=normalized(VoiceEnglish.canonical(text))
+        guard !request.isEmpty else { return nil }
+        let heard=VoiceAutocorrect.sounds(request)
+        let off: [(index: Int, share: Double)]=names.indices.compactMap { index in
+            let name=normalized(names[index])
+            guard name.count >= 3, request.count <= name.count + 6 else { return nil }
+            let share=[name, spoken(name)].map { form -> Double in
+                let sounds=VoiceAutocorrect.sounds(form)
+                return Double(VoiceAutocorrect.distance(of: sounds, within: heard)) / Double(sounds.count)
+            }.min() ?? 1
+            return (index, share)
+        }.sorted { $0.share < $1.share }
+        // A name held inside a longer one that is also near (「음성테스트」 in 「장애물 음성 테스트」) gives way to it.
+        let near=off.filter { $0.share <= 0.3 }
+        let key: (Int) -> String={ normalized(names[$0]) }
+        guard let first=near.first, let longest=near.max(by: { key($0.index).count < key($1.index).count }) else { return nil }
+        let best=near.allSatisfy({ key(longest.index).contains(key($0.index)) }) ? longest : first
+        // Any other name as near, or the same name twice, and it is not guessed.
+        let rivals=off.filter { $0.index != best.index && (key($0.index) == key(best.index) || !key(best.index).contains(key($0.index))) }
+        return rivals.contains(where: { key($0.index) == key(best.index) || $0.share < best.share + 0.15 }) ? nil : best.index
     }
 
     /// One-based ordinals always refer to the currently visible result list.

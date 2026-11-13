@@ -111,25 +111,58 @@ public enum VoiceIntentDecision: Equatable, Sendable {
         return sure ? .command(command) : .confirm(command)
     }
 
-    /// A command the model is sure of is still asked back when the words do not sound like it
-    /// (`VoiceCommandParser.soundsLike`): noise and other speech must not move the run on (11/09–10).
-    /// Reading out the whole list has no phrases to sound like, and the model chose it for 「어떤」, 「열람」
-    /// and 「바른 인식을 해야 되는데」 (11/01–11/12): it needs a word about the list, or it is nothing.
+    /// What is done with a model guess, given the words it was made from. On the phone the model named a
+    /// command for almost anything on a screen with few commands: of 98 runs over logged room talk (「그러니까」,
+    /// 「헬로」, 「왜 이렇게 들어」) 54 came back as a command (11/13), and changing its instructions moved
+    /// that only to 45. So the words themselves must speak for the command: they hold one of its cue words
+    /// or sound like one of its phrases (`VoiceCommandParser.soundsLike`, strictly), or the guess is nothing.
+    /// With that, a command the model is sure of is acted on when the words sound like its phrases and asked
+    /// back otherwise (11/09–10). A stage picked by number is judged by the caller, which knows the names.
     public func checked(heard: String) -> VoiceIntentDecision {
         let command: VoiceCommand
         switch self {
         case .command(let guessed), .confirm(let guessed): command = guessed
         case .none: return self
         }
-        if command == .showAllStages {
-            let words = VoiceStageSearch.normalized(VoiceEnglish.canonical(heard))
-            return Self.listWords.contains(where: words.contains) ? self : .none
-        }
+        if case .chooseStage = command { return self }
+        let phrased = VoiceCommandParser.hasPhrases(command)
+        guard Self.hasCue(heard, for: command) || (phrased && VoiceCommandParser.soundsLike(heard, command, strict: true)) else { return .none }
         guard case .command = self, !VoiceCommandParser.soundsLike(heard, command) else { return self }
         return .confirm(command)
     }
-    private static let listWords = ["저장", "무대", "공연", "목록", "리스트", "전체", "전부", "모든", "모두", "보여", "불러", "읽어", "알려", "뭐있", "뭐가있",
-                                    "stage", "performance", "show", "list", "saved", "everything"]
+
+    /// Whether the words hold a word that belongs to the command: 「넘어」 in 「이제 넘어가자」 for 다음.
+    static func hasCue(_ heard: String, for command: VoiceCommand) -> Bool {
+        let text = VoiceEnglish.canonical(heard)
+        let korean = VoiceStageSearch.normalized(text)
+        let english = Set(text.lowercased().split(whereSeparator: { !$0.isLetter }).map(String.init))
+        let cues: (korean: [String], english: [String])
+        switch command {
+        case .next, .start:
+            cues = (["다음", "넘어", "완료", "했어", "했습니다", "됐어", "됐습니다", "다했", "다됐", "준비", "시작", "확인", "착용", "찼", "출발", "진행", "끝났"],
+                    ["next", "done", "ready", "go", "continue", "start", "finished", "proceed"])
+        case .continueGuidance:
+            cues = (["계속", "이어", "다시", "가자", "갈게", "가줘", "진행", "재개", "출발", "시작"], ["continue", "resume", "go", "keep", "start", "again", "proceed"])
+        case .pause:
+            cues = (["멈", "잠깐", "잠시", "기다", "정지", "스톱", "쉬", "세워"], ["stop", "wait", "pause", "hold", "moment", "second"])
+        case .repeatInstruction:
+            cues = (["다시", "한번더", "한번만", "뭐라", "못들", "반복", "말해", "들려"], ["again", "repeat", "say", "what", "pardon"])
+        case .practice: cues = (["연습", "리허설"], ["practice", "rehearsal", "rehearse"])
+        case .performance: cues = (["실전", "공연", "본무대"], ["performance", "perform", "live", "real", "show"])
+        case .cancel: cues = (["취소", "아니", "됐어", "말고", "하지마", "그만"], ["cancel", "no", "never", "nope", "stop"])
+        case .back: cues = (["이전", "뒤로", "돌아", "전단계", "전으로"], ["back", "previous", "before"])
+        case .chooseStageAgain:
+            cues = (["무대", "공연", "바꿔", "바꾸", "다른", "변경"], ["stage", "performance", "another", "change", "different", "switch"])
+        case .returnToPoint:
+            if korean.contains(where: \.isNumber) { return true }
+            cues = (["지점", "포인트", "번", "자리", "돌아", "다시", "피", "비"], ["point", "back", "return", "p"])
+        case .showAllStages:
+            cues = (["저장", "무대", "공연", "목록", "리스트", "전체", "전부", "모든", "모두", "보여", "불러", "읽어", "알려", "뭐있", "뭐가있"],
+                    ["stage", "stages", "performance", "performances", "show", "list", "saved", "everything", "all"])
+        case .chooseStage: return true
+        }
+        return cues.korean.contains(where: korean.contains) || !english.isDisjoint(with: cues.english)
+    }
 
     /// Model instructions listing only the current screen's actions.
     public static func instructions(for screen: VoiceScreen) -> String {

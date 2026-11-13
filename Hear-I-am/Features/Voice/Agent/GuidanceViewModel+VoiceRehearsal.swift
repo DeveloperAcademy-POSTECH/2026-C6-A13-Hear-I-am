@@ -802,10 +802,19 @@ extension GuidanceViewModel {
         case .selected(let index): select(candidates[index]);return true
         case .results(let query,let indices):
             let ids=indices.map {candidates[$0].id}
+            if ids.isEmpty,askClosestVoiceItem(text) {return true}
             if ids.isEmpty,!VoiceStageSearch.isKeywordSearch(text),resolveVoiceIntent(text) {return true}
             showVoiceStageResults(query:query,ids:ids);return true
-        case .none:return false
+        case .none:return askClosestVoiceItem(text)
         }
+    }
+    /// Nothing on the list was named, but one name sounds like what was said (「마로 앱」 for 마루랩): that one
+    /// is asked back by its number and name, as a stage the model guessed is (#192).
+    private func askClosestVoiceItem(_ text:String) -> Bool {
+        guard let index=VoiceStageSearch.closest(text,names:voiceSelectionNames) else {return false}
+        logSignal("voice_intent","ask chooseStage(\(index+1)) near_name")
+        pendingVoiceIntent = .chooseStage(index+1);read([voiceQuestion(.chooseStage(index+1))])
+        return true
     }
     private func showVoiceStageResults(query:String?,ids:[UUID]?) {
         voiceSelectionControlsVisible=false

@@ -7,13 +7,14 @@ import XCTest
 /// question, without the model: `.model` means the rules found nothing and the on-device model is asked.
 final class VoiceLogReplayTests: XCTestCase {
     enum Outcome: Equatable, CustomStringConvertible {
-        case close, scan, plans, picked(String, mode: String?), list, command(VoiceCommand), ignored, model
+        case close, scan, plans, picked(String, mode: String?), asked(String), list, command(VoiceCommand), ignored, model
         var description: String {
             switch self {
             case .close: return "close"
             case .scan: return "scan"
             case .plans: return "plans"
             case .picked(let name, let mode): return "picked \(name)" + (mode.map { " as \($0)" } ?? "")
+            case .asked(let name): return "asked \(name)"
             case .list: return "list"
             case .command(let command): return "command \(command)"
             case .ignored: return "ignored"
@@ -80,9 +81,10 @@ final class VoiceLogReplayTests: XCTestCase {
             switch VoiceStageSearch.resolve(text, names: stages.map(\.name), contexts: stages.map(contexts)) {
             case .selected(let index): return .picked(stages[index].performance, mode: nil)
             case .results(_, let indices):
+                if indices.isEmpty, let near = VoiceStageSearch.closest(text, names: performances) { return .asked(performances[near]) }
                 if indices.isEmpty, !VoiceStageSearch.isKeywordSearch(text) { return .model }
                 return .list
-            case .none: return nil
+            case .none: return VoiceStageSearch.closest(text, names: performances).map { .asked(performances[$0]) }
             }
         }
         /// The 연습용 · 실전용 question.
@@ -159,8 +161,42 @@ final class VoiceLogReplayTests: XCTestCase {
             let guess = VoiceIntentDecision.from(action: "showAllStages", number: 0, sure: true, screen: list)
             XCTAssertEqual(guess.checked(heard: heard), .command(.showAllStages), heard)
         }
-        XCTAssertEqual(VoiceIntentDecision.command(.next).checked(heard: "헬로"), .confirm(.next))
         XCTAssertEqual(VoiceIntentDecision.command(.next).checked(heard: "작용 완료"), .command(.next))
+    }
+    /// The model named a command for each of these on the phone (11/13); none of them says anything about it.
+    func testModelGuessNeedsAWordOfTheCommand() {
+        let chatter = ["그러니까", "너무", "만약에", "새끼", "자기", "왜 이렇게 들어", "고키 40원 먹자", "어디로 봐야 돼", "헬로", "해피벌스데이", "세벌 시티",
+                       "뭐", "Siri야", "야", "개지", "바이요", "도 같은", "연습실에서 오늘", "Hello there", "Happy birthday"]
+        let guesses: [VoiceCommand] = [.next, .continueGuidance, .pause, .practice, .performance, .repeatInstruction, .cancel, .back]
+        for heard in chatter {
+            for command in guesses where !(command == .practice && heard == "연습실에서 오늘") {
+                XCTAssertEqual(VoiceIntentDecision.command(command).checked(heard: heard), VoiceIntentDecision.none, "\(heard) \(command)")
+                XCTAssertEqual(VoiceIntentDecision.confirm(command).checked(heard: heard), VoiceIntentDecision.none, "\(heard) \(command)")
+            }
+        }
+        // Requests in other words keep the model's answer; one that sounds like the phrase is acted on.
+        XCTAssertEqual(VoiceIntentDecision.command(.next).checked(heard: "착용 다 했어"), .command(.next))
+        XCTAssertEqual(VoiceIntentDecision.command(.next).checked(heard: "이제 넘어가자"), .confirm(.next))
+        XCTAssertEqual(VoiceIntentDecision.command(.next).checked(heard: "작용 하래요"), .command(.next))
+        XCTAssertEqual(VoiceIntentDecision.confirm(.repeatInstruction).checked(heard: "다시 한번 말해 줄래"), .confirm(.repeatInstruction))
+        XCTAssertEqual(VoiceIntentDecision.command(.pause).checked(heard: "잠깐만 기다려 봐"), .command(.pause))
+        XCTAssertEqual(VoiceIntentDecision.command(.continueGuidance).checked(heard: "계속 가자"), .command(.continueGuidance))
+        XCTAssertEqual(VoiceIntentDecision.command(.chooseStageAgain).checked(heard: "무대 바꿔 줄래"), .command(.chooseStageAgain))
+        XCTAssertEqual(VoiceIntentDecision.command(.practice).checked(heard: "연수병"), .command(.practice))
+        XCTAssertEqual(VoiceIntentDecision.command(.practice).checked(heard: "연습 할래"), .command(.practice))
+        XCTAssertEqual(VoiceIntentDecision.command(.performance).checked(heard: "실전으로 갈게"), .command(.performance))
+        XCTAssertEqual(VoiceIntentDecision.confirm(.returnToPoint(3)).checked(heard: "세 번째 자리로 다시 가자"), .confirm(.returnToPoint(3)))
+        XCTAssertEqual(VoiceIntentDecision.confirm(.returnToPoint(1)).checked(heard: "그러니까"), VoiceIntentDecision.none)
+        XCTAssertEqual(VoiceIntentDecision.command(.next).checked(heard: "I'm all done"), .confirm(.next))
+        XCTAssertEqual(VoiceIntentDecision.command(.pause).checked(heard: "hold on a second"), .confirm(.pause))
+        XCTAssertEqual(VoiceIntentDecision.confirm(.chooseStage(2)).checked(heard: "그러니까"), .confirm(.chooseStage(2)))
+    }
+    func testNumberInLongTalkIsNoChoice() {
+        let talk = "전화 왔대 자기 노래 노래 몇 시년 했는데 좀 랩 1번 한 걸로 조서 받"
+        XCTAssertFalse(VoiceStageSearch.mentions(talk, number: 1, name: "마루랩"))
+        XCTAssertTrue(VoiceStageSearch.mentions("1번으로 해 줄래", number: 1, name: "마루랩"))
+        XCTAssertTrue(VoiceStageSearch.mentions("세 번째에 있는 걸로 해 줘", number: 3, name: "무한성 제1장"))
+        XCTAssertTrue(VoiceStageSearch.mentions("어제 말한 그 머지 어쩌고 하는 공연으로 한번 해 보자", number: 2, name: "머지테스트"))
     }
     func testNearCommand() {
         let mode = VoiceScreen.modeChoice

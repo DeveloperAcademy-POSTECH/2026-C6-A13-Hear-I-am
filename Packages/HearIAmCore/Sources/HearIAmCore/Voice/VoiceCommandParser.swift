@@ -96,7 +96,13 @@ public enum VoiceCommandParser {
     /// 「Siri야」 started 연습용 and 「헬로」 · 「해피벌스데이」 went to the next step (11/09–10), so a guess is acted on
     /// only when the words are near the command; otherwise it is asked back. Commands without a phrase list
     /// (a stage, a point, the whole list) are judged elsewhere.
-    public static func soundsLike(_ text: String, _ command: VoiceCommand) -> Bool {
+    /// Whether the command has phrases of its own for `soundsLike` to compare with.
+    static func hasPhrases(_ command: VoiceCommand) -> Bool { vocabulary.contains { $0.0 == command } }
+    /// `strict` lets a phrase under eight consonants and vowels be off by one sound only, a consonant
+    /// counting the same wherever it sits in its syllable: 「연수병」 holds 「연습」 that way, while 「바이요」 is
+    /// two from 「아니요」 — near enough for choosing between acting and asking, but not for deciding that a
+    /// guess was a request at all (#192).
+    public static func soundsLike(_ text: String, _ command: VoiceCommand, strict: Bool = false) -> Bool {
         let text = VoiceEnglish.canonical(text)
         guard let phrases = vocabulary.first(where: { $0.0 == command })?.1 else { return true }
         let compact = text.lowercased().replacingOccurrences(of: #"[\s.!?。！？,~]"#, with: "", options: .regularExpression)
@@ -107,6 +113,9 @@ public enum VoiceCommandParser {
             // Two-syllable words such as 아니 match too much of anything; they need to be heard as they are.
             guard words.count >= 5 else { return compact.contains(phrase) }
             let near = VoiceAutocorrect.distance(of: words, within: heard)
+            if strict, words.count < 8 {
+                return VoiceAutocorrect.distance(of: VoiceAutocorrect.sounds(phrase), within: VoiceAutocorrect.sounds(compact)) <= 1
+            }
             return Double(near) <= Double(words.count) * 0.34
         }
     }
