@@ -131,4 +131,35 @@ final class VoiceStageSearchTests: XCTestCase {
         XCTAssertEqual(VoiceStageSearch.resolve("내일은 사랑하지 않겠습니다", names: list), .results(query: "내일은사랑하지않겠습니다", indices: []))
         XCTAssertEqual(VoiceStageSearch.resolve("장애인 음성 데스크", names: list), .results(query: "장애인음성데스크", indices: []))
     }
+    /// #192: 「세 번째 모습」 (11/02) and 「네 번째 공연」 (11/03) pick by position whatever the item is called.
+    func testOrdinalWithAWordAfterIt() {
+        let list=["마루랩", "머지테스트", "무한성 제1장", "오늘도 출항하지 않습니다"]
+        XCTAssertEqual(VoiceStageSearch.numbered("세 번째 모습", names: list), 3)
+        XCTAssertEqual(VoiceStageSearch.numbered("네 번째 공연", names: list), 4)
+        XCTAssertEqual(VoiceStageSearch.numbered("두 번째 걸로", names: list), 2)
+        XCTAssertEqual(VoiceStageSearch.numbered("2번째 거", names: list), 2)
+        XCTAssertNil(VoiceStageSearch.numbered("다섯 번째 공연", names: list))
+        XCTAssertNil(VoiceStageSearch.numbered("세 번째 줄에 서 있어", names: list))
+        XCTAssertNil(VoiceStageSearch.numbered("3번 머지테스트", names: list))
+        let nights=["세 번째 밤", "첫 번째 밤", "두 번째 밤"]
+        XCTAssertNil(VoiceStageSearch.numbered("세 번째 밤", names: nights))
+        XCTAssertEqual(VoiceStageSearch.resolve("세 번째 밤", names: nights), .selected(0))
+        XCTAssertEqual(VoiceStageSearch.numbered("마지막 공연", names: list), 4)
+        XCTAssertEqual(VoiceStageSearch.numbered("맨 마지막 거", names: list), 4)
+        XCTAssertEqual(VoiceStageSearch.numbered("맨 위에 거", names: list), 1)
+        XCTAssertEqual(VoiceStageSearch.numbered("맨 처음 걸로 할게", names: list), 1)
+        XCTAssertNil(VoiceStageSearch.numbered("처음", names: list))
+        XCTAssertNil(VoiceStageSearch.numbered("마지막 인사", names: list))
+        XCTAssertNil(VoiceStageSearch.numbered("마지막 공연", names: ["마지막 공연", "첫 공연"]))
+    }
+    /// #192: asking to see what is saved, with the noun misheard or the verb cut short (11/03, 11/08).
+    func testAskingForEverythingSaved() {
+        let all=VoiceStageMatch.results(query: "전체", indices: [0,1,2])
+        for text in ["저장된 무대 보여", "저장된 모델 보여줘", "저장된 모대 보여줘", "무대 보여줘", "공연 목록 알려줘", "저장된 공연 읽어줘", "무대 뭐 있어"] {
+            XCTAssertEqual(VoiceStageSearch.resolve(text, names: names), all, text)
+        }
+        XCTAssertEqual(VoiceStageSearch.resolve("저장된 연습실 보여줘", names: names), .selected(2))
+        XCTAssertEqual(VoiceStageSearch.resolve("저녁내 모드 보여줘", names: names), .results(query: "저녁내모드", indices: []))
+        XCTAssertEqual(VoiceStageSearch.resolve("효자아트홀 보여줘", names: names), .results(query: "효자아트홀", indices: [0,1]))
+    }
 }

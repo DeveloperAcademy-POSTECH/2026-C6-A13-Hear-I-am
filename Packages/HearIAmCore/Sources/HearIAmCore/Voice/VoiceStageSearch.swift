@@ -125,7 +125,12 @@ public enum VoiceStageSearch {
         // Remove a related-stage request as a unit before removing general imperative endings.
         let related=#"(?:과|와|에)?(?:관련된|관련있는|관련|관한|대한).*$"#
         keyword=keyword.replacingOccurrences(of: related, with: "", options: .regularExpression)
-        let action=#"(?:을|를)?(?:검색해줘|검색해주세요|검색|찾아줘|찾아주세요|보여줘|보여주세요|열어줘|열어주세요|불러줘|불러주세요)$"#
+        // 「저장된 무대 보여」 stopped short of 「보여줘」 and went to the model (11/03); asking to see, hear or be
+        // told is the same request.
+        let show=#"(?:을|를|이|가)?(?:보여줘|보여주세요|보여줄래|보여|읽어줘|읽어주세요|알려줘|알려주세요|불러줘|불러주세요|불러와줘|불러와|뭐있어|뭐가있어|뭐있지)$"#
+        let shown=keyword.range(of: show, options: .regularExpression) != nil
+        keyword=keyword.replacingOccurrences(of: show, with: "", options: .regularExpression)
+        let action=#"(?:을|를)?(?:검색해줘|검색해주세요|검색|찾아줘|찾아주세요|열어줘|열어주세요)$"#
         keyword=keyword.replacingOccurrences(of: action, with: "", options: .regularExpression)
         // 「누리 랩 실행」 names the place and asks to go (11/06 device log): the ask is not part of the name.
         let run=#"(?:으로|로|에서)?(?:실행해줘|실행해주세요|실행할게요|실행할게|실행|진행해줘|진행해주세요|진행)$"#
@@ -137,6 +142,15 @@ public enum VoiceStageSearch {
             keyword=keyword.replacingOccurrences(of: saved, with: "", options: .regularExpression)
             if keyword.isEmpty { return .results(query: "전체", indices: Array(names.indices)) }
         }
+        // 「저장된 모델 보여줘」 · 「저장된 모대 보여줘」 (11/03, 11/08): the word after 저장된 was 무대, misheard.
+        // A short word there that is no name or place still asks for everything saved.
+        if shown, let lead=keyword.range(of: #"^(?:저장된|저장한|저장해둔|저장되어있는)"#, options: .regularExpression) {
+            let rest=String(keyword[lead.upperBound...])
+            let known=names.indices.contains { index in (aliases[index]+paths[index]).contains { $0.contains(rest) } }
+            if known { keyword=rest } else if rest.count <= 3 { return .results(query: "전체", indices: Array(names.indices)) }
+        }
+        // Nothing but the asking is left: 「무대 보여줘」, 「공연 목록 알려줘」.
+        if keyword.isEmpty, shown { return .results(query: "전체", indices: Array(names.indices)) }
         guard !keyword.isEmpty else { return .none }
         let indices=names.indices.filter { index in (aliases[index]+paths[index]).contains {$0.contains(keyword)} }
         // A place said on its own that only one stage belongs to is that stage: 「누리 랩」 under 응가 came
@@ -175,20 +189,31 @@ public enum VoiceStageSearch {
         let text = VoiceEnglish.canonical(text)
         let request = normalized(text)
         let ordinals = ["첫", "두", "세", "네", "다섯", "여섯", "일곱", "여덟", "아홉", "열"]
-        var number: Int?, rest = ""
+        var number: Int?, rest = "", counted = false
+        // 「마지막 공연」, 「맨 위에 거」: the ends of the list, unless a name on it says so itself.
+        let edge = #"(?:공연|무대|거|것|걸|꺼|에거|에것|에꺼|에있는거)?(?:으로|로)?(?:선택|선택해줘|할게|할래|해줘)?$"#
+        if !names.contains(where: { ["마지막", "처음"].contains(where: normalized($0).contains) }) {
+            if request.range(of: "^(?:맨|제일)?(?:마지막|맨끝|맨뒤|맨아래)" + edge, options: .regularExpression) != nil { return names.isEmpty ? nil : names.count }
+            if request.range(of: "^(?:맨처음|맨위|맨앞|제일처음|제일위|처음)" + edge, options: .regularExpression) != nil,
+               request != "처음" { return names.isEmpty ? nil : 1 }
+        }
         if let match = request.range(of: #"^[0-9]+번(?:째)?"#, options: .regularExpression) {
             number = Int(request[match].prefix(while: { $0.isNumber })); rest = String(request[match.upperBound...])
+            counted = request[match].hasSuffix("째")
         } else if let match = request.range(of: #"^(?:일|이|삼|사|오|육|칠|팔|구|십)번"#, options: .regularExpression) {
             number = VoiceCommandParser.sinoKorean[String(request.prefix(1))]; rest = String(request[match.upperBound...])
         } else if let index = ordinals.firstIndex(where: { request.hasPrefix($0 + "번째") }) {
-            number = index + 1; rest = String(request.dropFirst(ordinals[index].count + 2))
+            number = index + 1; rest = String(request.dropFirst(ordinals[index].count + 2)); counted = true
         }
         guard let number, names.indices.contains(number - 1) else { return nil }
         for ending in ["을선택해줘", "를선택해줘", "선택해줘", "선택", "으로", "로", "이요", "요"] where rest.hasSuffix(ending) {
             rest = String(rest.dropLast(ending.count)); break
         }
         let name = normalized(names[number - 1])
-        return rest.isEmpty || rest == "무대" || rest == "공연" || rest == name || (rest.count >= 2 && name.contains(rest)) ? number : nil
+        if rest.isEmpty || rest == "무대" || rest == "공연" || rest == name || (rest.count >= 2 && name.contains(rest)) { return number }
+        // 「세 번째 모습」 was 「세 번째 무대」 (11/02): after 번째 one short word is what the item was called,
+        // however it was heard, unless a name on the list begins that way itself.
+        return counted && rest.count <= 2 && !names.contains(where: { normalized($0).contains(request) }) ? number : nil
     }
 
     public static func ordinal(_ text: String) -> Int? {

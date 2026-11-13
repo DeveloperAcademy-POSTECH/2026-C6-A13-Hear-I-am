@@ -23,7 +23,7 @@ public enum VoiceCommandParser {
         return parseExact(String(text[match.upperBound...]))
     }
 
-    /// Words that close the conversation: 「닫기」, 「종료」, 「나가기」. Dictation often hears 「닫기」 as
+    /// Words that close the conversation: 「닫기」, 「종료」, 「나가기」, 「홈으로」. Dictation often hears 「닫기」 as
     /// 「찾기」 or 「받기」 with 「닫기」 among the alternatives (11/03), so callers try those too.
     public static func isClose(_ text: String) -> Bool {
         let text = VoiceEnglish.canonical(text)
@@ -33,7 +33,10 @@ public enum VoiceCommandParser {
     }
     private static let closeWords: Set<String> = ["닫기", "닫아", "닫아줘", "닫아주세요", "창닫기", "대화닫기", "나가기", "나가", "나갈래",
                                                   "나가줘", "종료", "종료해", "종료해줘", "대화종료", "음성종료", "끝내기", "끝내줘", "그만할래",
-                                                  "close", "exit"]
+                                                  // 「홈 화면으로」 was not understood (11/01): leaving for Home closes the conversation.
+                                                  "홈으로", "홈화면", "홈화면으로", "홈으로가", "홈으로가줘", "홈으로가자", "홈화면으로가줘",
+                                                  "홈으로돌아가", "홈으로돌아가줘", "홈화면으로돌아가줘", "메인으로", "메인화면", "메인화면으로",
+                                                  "close", "exit", "home", "gohome"]
 
     private static func parseExact(_ text: String) -> VoiceCommand? {
         let normalized=text.folding(options:[.caseInsensitive,.diacriticInsensitive],locale:Locale(identifier:"ko_KR"))
