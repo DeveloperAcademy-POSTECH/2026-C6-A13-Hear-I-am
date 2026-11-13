@@ -211,6 +211,9 @@ final class VoiceLogReplayTests: XCTestCase {
         XCTAssertEqual(VoiceScreen.guidance(pointCount: 3).nearCommand("멈쳐줘"), .pause)
         // A command the screen does not offer is not offered here either.
         XCTAssertNil(VoiceScreen.guidance(pointCount: 3).nearCommand("연수용"))
+        // The stage list keeps a mode said before the stage, exactly or nearly (11/13 device test).
+        XCTAssertEqual(VoiceScreen.stageList(stageCount: 8).nearCommand("연수용"), .practice)
+        XCTAssertNil(VoiceScreen.stageList(stageCount: 8).nearCommand("그러니까"))
     }
     func testOwnWordHeardBackAlone() {
         let lines = ["공연 찾기. 어떤 공연을 준비할까요? 공연 이름을 말해주세요.", ""]

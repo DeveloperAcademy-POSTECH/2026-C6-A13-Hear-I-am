@@ -26,8 +26,10 @@ public enum VoiceScreen: Equatable, Sendable {
 
     /// A command of this screen that the words are a sound or two away from (`VoiceCommandParser.near`).
     /// Commands that move the run on (다음, 계속, 무대 다시 선택) are left to the exact list and the model.
+    /// The list of stages takes 연습용 · 실전용 too, as it does when they are said exactly: the mode is kept
+    /// for the stage chosen next.
     public func nearCommand(_ text: String) -> VoiceCommand? {
-        let commands: [VoiceCommand] = actions.compactMap { action in
+        var commands: [VoiceCommand] = actions.compactMap { action in
             switch action {
             case .practice: return .practice
             case .performance: return .performance
@@ -38,6 +40,7 @@ public enum VoiceScreen: Equatable, Sendable {
             default: return nil
             }
         }
+        if case .stageList = self { commands += [.practice, .performance] }
         return VoiceCommandParser.near(text, among: commands)
     }
 
