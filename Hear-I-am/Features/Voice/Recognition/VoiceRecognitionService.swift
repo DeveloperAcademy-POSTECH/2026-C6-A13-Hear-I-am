@@ -148,6 +148,12 @@ import HearIAmCore
         }
     }
 
+    /// Shown when recognition fails because the iPhone's dictation is off. Home compares against it to offer
+    /// the way to 「권한 상태」 (#189).
+    static var dictationOffMessage: String {
+        L("받아쓰기가 꺼져 있어 음성을 들을 수 없어요. 설정 > 일반 > 키보드에서 받아쓰기를 켠 뒤 앱으로 돌아오면 다시 들어요.")
+    }
+
     /// This PoC never silently falls back to server recognition.
     /// Permission/availability failures leave microphone capture off and explain the reason.
     func start(contextualStrings: [String] = [], vocabulary: [VoiceVocabulary.Phrase] = [], listensForWakeWord: Bool = false) async {
@@ -613,7 +619,7 @@ import HearIAmCore
         } else if errorDomain == "kLSRErrorDomain", errorCode == 201 {
             // Siri and Dictation are off: on-device recognition fails at once on every retry (16 Pro Max, 10/27).
             trace("Recognition unavailable: Siri and Dictation disabled (kLSRErrorDomain 201)", level: .error)
-            failPermanently(L("받아쓰기가 꺼져 있어 음성을 들을 수 없어요. 설정 > 일반 > 키보드에서 받아쓰기를 켠 뒤 앱으로 돌아오면 다시 들어요."))
+            failPermanently(Self.dictationOffMessage)
         } else {
             trace("Recognition task failed: domain=\(errorDomain ?? "none") code=\(errorCode ?? 0)", level: .error)
             recognitionFailed(L("음성을 확인하지 못했어요. 다시 들을게요."), turnID: turnID)
