@@ -110,6 +110,11 @@ import HearIAmCore
     var voiceChatSeededRequest: String?
     /// The next lines read aloud already have a chat entry of their own (cards), so `read` adds no text for them.
     var voiceChatSuppressNextLine=false
+    /// The card whose line is being read out, as `VoiceStageCards.cardID`; the conversation scrolls to it when
+    /// it is below the screen. A long list was read past the cards the performer could see (11/14).
+    @Published var voiceReadingCard: String?
+    /// The spoken line of each card in the list just shown.
+    var voiceCardLines: [String:String]=[:]
     /// 실전용 by voice (#167): both checkpoints are measured and the helper's 「완료」 is awaited (Figma 1028:18968).
     @Published var performanceCheckpointsDone=false
     /// The crosshair is on the checkpoint to be measured next, so its button is enabled (#167).
@@ -205,6 +210,7 @@ import HearIAmCore
         voice.onText={ [weak self] in
             guard let self else {return}
             self.previousSpokenText=self.spokenText;self.spokenText=$0;self.logSignal("voice",$0)
+            if let card=self.voiceCardLines[$0] {self.voiceReadingCard=card}
         }
         voice.onError={ [weak self] text in
             guard let self else { return }
