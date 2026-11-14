@@ -28,13 +28,33 @@ public enum VoiceAutocorrect {
     public static func correct(_ text: String, lexicon: Set<String>) -> String {
         guard !lexicon.isEmpty else { return text }
         var changed = false
-        let words = text.split(separator: " ", omittingEmptySubsequences: false).map { piece -> String in
-            let word = String(piece)
-            guard let fixed = correctWord(word, lexicon: lexicon) else { return word }
+        var words = text.split(separator: " ", omittingEmptySubsequences: false).map(String.init)
+        for index in words.indices {
+            let previous = index > 0 ? words[index - 1].trimmingCharacters(in: .punctuationCharacters) : ""
+            guard let fixed = correctWord(words[index], lexicon: lexicon) ?? (saved.contains(previous) ? afterSaved(words[index]) : nil) else { continue }
+            words[index] = fixed
             changed = true
-            return fixed
         }
         return changed ? words.joined(separator: " ") : text
+    }
+
+    /// After 「저장된」 only 무대 or 공연 is ever said, so a word further off is still taken for the nearer one:
+    /// 「저장된 모델 보여줘」 (11/03, 11/08, 11/14) is three letters from 무대, past the one a word allows.
+    private static let saved: Set<String> = ["저장된", "저장한"]
+    private static func afterSaved(_ raw: String) -> String? {
+        let core = raw.trimmingCharacters(in: .punctuationCharacters)
+        guard !core.isEmpty, let range = raw.range(of: core), core.allSatisfy(isHangul), !["무대", "공연"].contains(core) else { return nil }
+        let stems = [(core, "")] + particles.filter { core.hasSuffix($0) }.map { (String(core.dropLast($0.count)), $0) }
+        for (stem, particle) in stems where syllables(stem) == 2 {
+            let off = ["무대", "공연"].map { ($0, distance(letters(stem), letters($0))) }.sorted { $0.1 < $1.1 }
+            guard off[0].1 <= 3, off[0].1 < off[1].1 else { continue }
+            // The particle follows the new word: 모델을 → 무대를, 공원을 → 공연을.
+            let pairs = ["을": "를", "이": "가", "은": "는", "과": "와", "으로": "로"]
+            let open = off[0].0 == "무대"
+            let fixedParticle = open ? (pairs[particle] ?? particle) : (pairs.first { $0.value == particle }?.key ?? particle)
+            return raw.replacingCharacters(in: range, with: off[0].0 + fixedParticle)
+        }
+        return nil
     }
 
     static func correctWord(_ raw: String, lexicon: Set<String>) -> String? {
