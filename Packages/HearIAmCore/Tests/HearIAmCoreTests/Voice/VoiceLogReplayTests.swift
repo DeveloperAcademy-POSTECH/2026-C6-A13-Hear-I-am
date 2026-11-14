@@ -101,6 +101,7 @@ final class VoiceLogReplayTests: XCTestCase {
     private var understood: [(String, Outcome)] {
         [("마루 앱 실전용", .picked("마루랩", mode: "performance")),
          ("마루 랩 실전용", .picked("마루랩", mode: "performance")),
+         ("마루의 실전용", .asked("마루랩")),
          ("장면 일 연습용", .picked("오늘도 출항하지 않습니다", mode: "practice")),
          ("오늘은 사랑하지 않습니다 실전용", .picked("오늘도 출항하지 않습니다", mode: "performance")),
          ("오늘은 출항 하지 않습니다 연습용", .picked("오늘도 출항하지 않습니다", mode: "practice")),

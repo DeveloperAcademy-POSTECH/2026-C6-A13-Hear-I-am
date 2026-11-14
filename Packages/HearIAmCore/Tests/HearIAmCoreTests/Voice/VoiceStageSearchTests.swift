@@ -178,6 +178,10 @@ final class VoiceStageSearchTests: XCTestCase {
         }
         // Two names as near as each other, or the same name twice, are not guessed between.
         XCTAssertNil(VoiceStageSearch.closest("마루냅", names: ["마루랩", "마루맵"]))
+        // All but the last letter of one name (11/14): asked back. Talk that only starts like a long name is not.
+        XCTAssertEqual(VoiceStageSearch.closest("마루의", names: list), 0)
+        XCTAssertNil(VoiceStageSearch.closest("오늘 점심", names: list))
+        XCTAssertNil(VoiceStageSearch.closest("마루", names: list))
         XCTAssertNil(VoiceStageSearch.closest("무대 스켄", names: ["무대 스캔", "무대 스캔"]))
     }
 }
