@@ -57,10 +57,14 @@ extension ARSessionController {
                     let coherent = !finalParts.isEmpty && finalParts.count==meshAnchors.count &&
                         finalParts.reduce(0,{$0+$1.vertices.count})<=800_000
                     let parts=coherent ? finalParts : cachedParts
-                    // Geometry fallback still saves as before, but cannot safely receive camera colors.
-                    let colorCapture=coherent ? self.bridge?.surfaceColors.snapshot(anchors:finalAnchors) : nil
+                    // After the scan step the mesh stops growing (#198) and ARKit may drop its mesh anchors; the
+                    // mesh kept then is the scanned one, and its colors take the camera poses from the final map.
+                    let frozen = !coherent && self.meshFrozen && !self.meshes.isEmpty
+                    // Any other geometry fallback still saves as before, but cannot safely receive camera colors.
+                    let colorCapture=coherent ? self.bridge?.surfaceColors.snapshot(anchors:finalAnchors)
+                        : frozen ? self.bridge?.surfaceColors.snapshot(anchors:map.anchors) : nil
                     var colorAlignment=colorCapture?.alignment ?? SurfaceColorAlignmentDiagnostics()
-                    colorAlignment.meshSource=coherent ? (mapMeshes.isEmpty ? "currentFrame" : "worldMap") : "cacheWithoutColors"
+                    colorAlignment.meshSource=coherent ? (mapMeshes.isEmpty ? "currentFrame" : "worldMap") : frozen ? "frozenScan" : "cacheWithoutColors"
                     colorAlignment.recordMeshes(final:parts,cached:cachedParts)
                     let alignmentReport=colorAlignment
                     let colorFrames=colorCapture?.frames ?? []

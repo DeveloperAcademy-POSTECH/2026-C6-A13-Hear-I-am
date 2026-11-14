@@ -101,6 +101,10 @@ final class ARSessionController: ObservableObject {
     /// The scan's mesh waits for the intro card's 「시작하기」: the opening coaching and card run on tracking
     /// alone, so nothing is scanned before the helper starts (11/02 device test).
     var meshHeld=false
+    /// The scan step is over (#198): the boundary, objects, route and checkpoints are placed in the scanned
+    /// space, so the mesh, depth and person masks stop. They kept running to the end and, with the screen being
+    /// recorded, stalled the camera 0.5–1.8 s at a time in the boundary step (11/14 POS).
+    var meshFrozen=false
     /// Bumped whenever a new ARSession is put on the view, so the coaching overlay can follow it.
     @Published var sessionGeneration=0
     private var visibleGuidanceTarget: Int?
@@ -154,7 +158,7 @@ final class ARSessionController: ObservableObject {
         let config=ARWorldTrackingConfiguration()
         config.worldAlignment = .gravity; config.planeDetection=[.horizontal]
         // Mesh creation only in pre-scan when LiDAR is available. During restoration use the saved snapshot.
-        if mode == .scanning && supportsMesh && !meshHeld {
+        if mode == .scanning && supportsMesh && !meshHeld && !meshFrozen {
             config.sceneReconstruction = .mesh
             if ARWorldTrackingConfiguration.supportsFrameSemantics(.sceneDepth) {
                 config.frameSemantics.insert(.sceneDepth)
@@ -172,6 +176,13 @@ final class ARSessionController: ObservableObject {
         guard mode == .scanning, supportsMesh, let session else { return }
         meshes=[:]; renderer.clearMeshes(); updateCounts()
         session.run(configuration(map:nil))
+    }
+    /// Ends the scan step: tracking and floor planes go on, the mesh stays as it is (#198).
+    func finishMeshScan() {
+        guard purpose == .preparation, mode == .scanning, supportsMesh, !meshHeld, !meshFrozen, let session else { return }
+        meshFrozen=true
+        session.run(configuration(map:nil))
+        event("mesh_frozen",detail:"parts=\(meshCount) vertices=\(vertexCount)")
     }
     func startSession(map: ARWorldMap?) {
         let config=configuration(map:map)
@@ -191,7 +202,7 @@ final class ARSessionController: ObservableObject {
         clearPhotos()
         if purpose == .preparation { preparedDraft=PreparationDraft(); savedID=nil; onReset?() }
         position=nil; heading=nil; guidancePoseTime=nil; ready=false; canVerify=false; canSave=false
-        meshes=[:]; scannedFootprint=nil; renderer.clearMeshes()
+        meshes=[:]; scannedFootprint=nil; renderer.clearMeshes(); meshFrozen=false
         renderer.clearAnnotations()
         cornerAnchors.removeAll()
         renderer.meshLayer.isHidden = !showMesh; renderer.referenceLayer.isHidden=false

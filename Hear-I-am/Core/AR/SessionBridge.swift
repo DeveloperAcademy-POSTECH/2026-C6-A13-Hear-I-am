@@ -15,9 +15,14 @@ final class SessionBridge: NSObject, ARSessionDelegate {
             guard let self else { return }; self.controller?.receive(sample,token:self.token)
         }
     }
-    func session(_ session: ARSession, didAdd anchors: [ARAnchor]) { meshes(anchors,remove:false) }
-    func session(_ session: ARSession, didUpdate anchors: [ARAnchor]) { meshes(anchors,remove:false) }
-    func session(_ session: ARSession, didRemove anchors: [ARAnchor]) { meshes(anchors,remove:true) }
+    func session(_ session: ARSession, didAdd anchors: [ARAnchor]) { if Self.building(session) {meshes(anchors,remove:false)} }
+    func session(_ session: ARSession, didUpdate anchors: [ARAnchor]) { if Self.building(session) {meshes(anchors,remove:false)} }
+    func session(_ session: ARSession, didRemove anchors: [ARAnchor]) { if Self.building(session) {meshes(anchors,remove:true)} }
+    /// Mesh callbacks are copied only while the mesh is being built. After the scan step (#198) the copy would
+    /// hold up the camera queue for nothing, and anchors ARKit drops must not empty the scanned mesh.
+    private static func building(_ session: ARSession) -> Bool {
+        (session.configuration as? ARWorldTrackingConfiguration)?.sceneReconstruction != []
+    }
     private func meshes(_ anchors: [ARAnchor], remove: Bool) {
         // Copy Metal-backed geometry before leaving the callback.
         let meshAnchors=anchors.compactMap {$0 as? ARMeshAnchor}

@@ -45,7 +45,7 @@ extension ARSessionController {
         }
     }
     func receiveMeshes(_ parts: [MeshSnapshot], removed: [UUID], token incoming: UUID) {
-        guard incoming==token, mode == .scanning, active, !busy else { return }
+        guard incoming==token, mode == .scanning, active, !busy, !meshFrozen else { return }
         for id in removed { meshes[id]=nil }
         for part in parts { meshes[part.id]=part }
         renderer.updateMeshes(parts,removed:removed)
