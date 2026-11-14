@@ -126,11 +126,12 @@ extension GuidanceViewModel {
         // Direction (#44): silent within ±n° of the target; outside it 「왼쪽」 or 「오른쪽」 once, then ticks that
         // quicken as the body turns toward it. The moment the ticks stop because the body faces the target,
         // the aligned chime says so. Chairs and stairs use the exact same direction guidance (#76).
-        // Once inside `arrivalRadius` (waiting for the 0.8s arrival dwell, #88) or the 50 cm near-arrival window (#187, #204),
-        // stop direction ticks and aligned chimes for the point being stepped on so 「50센티」 is never overlapped or cut off.
+        // Once inside `arrivalRadius` (waiting for the 0.8s arrival dwell, #88) or the 50 cm near-arrival window (#187),
+        // do not start a new direction correction for the point being stepped on so 「50센티」 is never cut off and no
+        // half-spoken 「왼쪽」/「오른쪽」 gets chopped by the imminent arrival speech.
         let wasTicking=directionTicks.activeSide != nil
         let cue: DirectionTickGate.Cue?
-        if inNearArrivalZone && !announceNextSide {
+        if (inArrivalZone || (inNearArrivalZone && !wasTicking)) && !announceNextSide {
             directionTicks.reset()
             pendingTurnSide=false
             if wasTicking { signals.stopDirection() }
@@ -164,7 +165,7 @@ extension GuidanceViewModel {
         if let cue {
             // The word comes first: no tick until the side waiting to be said, or being said, is done.
             if cue.shouldTick, !announceNextSide, !pendingTurnSide, !ticksWaitForWord { signals.play(.directionTick(toRight:cue.toRight)) }
-        } else if wasTicking, !inNearArrivalZone {
+        } else if wasTicking, !inArrivalZone {
             if directionTicks.isAligned {
                 // Replaces any tick still sounding on the direction node.
                 signals.playAligned()
