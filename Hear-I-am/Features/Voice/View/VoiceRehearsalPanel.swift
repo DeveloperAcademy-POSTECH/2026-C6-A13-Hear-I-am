@@ -88,14 +88,17 @@ struct VoiceWaitingPrompt: View {
     var text=L("오늘은 어떤 공연을\n연습할까요?")
     var subtitle: String?=nil
     var animating=true
+    /// English runs wider than the Korean the sizes were set for: at 32pt 「shall we practice today?」 no longer fits
+    /// one line, and the question broke into three on narrower phones (11/13, iPhone 16e).
+    private var english: Bool { HearLanguage.current.isEnglish }
     var body: some View {
         VStack(spacing:36) {
             VoiceLogoSpinner(size:74,animating:animating).opacity(0.5)
             VStack(spacing:12) {
-                Text(text).font(HearFont.pretendard(.semibold,size:32)).tracking(-0.96).lineSpacing(4)
+                Text(text).font(HearFont.pretendard(.semibold,size:english ? 27 : 32)).tracking(english ? -0.54 : -0.96).lineSpacing(4)
                     .foregroundStyle(.white).multilineTextAlignment(.center).fixedSize(horizontal:false,vertical:true)
                 if let subtitle {
-                    Text(subtitle).font(HearFont.pretendard(.medium,size:24)).tracking(-0.72)
+                    Text(subtitle).font(HearFont.pretendard(.medium,size:english ? 20 : 24)).tracking(english ? -0.4 : -0.72)
                         .foregroundStyle(VoiceStyle.meta).multilineTextAlignment(.center)
                         .contentTransition(.opacity)
                 }
