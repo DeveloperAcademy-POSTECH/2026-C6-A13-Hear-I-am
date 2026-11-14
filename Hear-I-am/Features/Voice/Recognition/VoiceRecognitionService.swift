@@ -27,6 +27,8 @@ import HearIAmCore
     var onFinal: ((String) -> Void)?
     /// Transient failures pause a command, but keep the microphone session eligible for recovery.
     var onRecoverableError: ((String) -> Void)?
+    /// Speech was heard but the turn ended with no words. Nothing failed; only the heard command is dropped.
+    var onSpeechDiscarded: (() -> Void)?
     var onRecoveryReady: (() -> Void)?
     var onError: ((String) -> Void)?
     /// A call, another app's sound, a headset change or leaving the app stopped listening; nothing is
@@ -668,7 +670,9 @@ import HearIAmCore
         isListening = false
         statusMessage = L("말씀하시면 다시 들을게요")
         // Idle/no-speech rollover must not pause an otherwise healthy walking session.
-        if discardCommand { onRecoverableError?(statusMessage) }
+        if discardCommand {
+            if let onSpeechDiscarded { onSpeechDiscarded() } else { onRecoverableError?(statusMessage) }
+        }
         scheduleNextTurn(after: 0.5)
     }
 

@@ -60,6 +60,7 @@ import HearIAmCore
         recognition.onTalkOver={ [weak self] in self?.talkOver() }
         recognition.onFinal={ [weak self] text in self?.heardFinal(text) }
         recognition.onRecoverableError={ [weak self] _ in self?.caption.clearRequest() }
+        recognition.onSpeechDiscarded={ [weak self] in self?.caption.clearRequest() }
         recognition.$finalizing.assign(to:&$confirmingInput)
         // A permission or dictation failure shows a fallback button; the next visit to Home tries again.
         // Opened by a tap, the conversation stays on screen with the reason instead of dropping back.

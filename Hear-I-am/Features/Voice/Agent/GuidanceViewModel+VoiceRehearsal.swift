@@ -77,6 +77,7 @@ extension GuidanceViewModel {
         voiceRecognition.onTranscript={ [weak self] text in self?.voicePartial(text) }
         voiceRecognition.onFinal={ [weak self] text in self?.voiceHeardFinal(text) }
         voiceRecognition.onRecoverableError={ [weak self] message in self?.voiceInputRecovering(message) }
+        voiceRecognition.onSpeechDiscarded={ [weak self] in self?.voiceSpeechDiscarded() }
         voiceRecognition.onRecoveryReady={ [weak self] in
             // Stop any system-synthesizer fallback spoken while the engine was being restarted.
             // After the last point nothing is listened to, so a restart must not cut the closing line.
@@ -580,6 +581,13 @@ extension GuidanceViewModel {
             self.voiceRecognition.holdNarration(false)
             self.logSignal("voice_hold","resume")
         }
+    }
+    /// A turn heard over the app's speech that ended with no words is a scrap of its own voice: the line goes
+    /// on. Treated as a recovery it stopped the app mid-list, and the last card was never read (11/14,
+    /// 「고」 from the app's own words 30 s into a list of nine). Otherwise it is handled as before.
+    func voiceSpeechDiscarded() {
+        if speaking, voiceShouldListen, !voiceTurnActive {logSignal("voice_ignored","empty_over_speech");return}
+        voiceInputRecovering(L("말씀하시면 다시 들을게요"))
     }
     func voiceInputRecovering(_ message:String) {
         guard voiceShouldListen else {return}
