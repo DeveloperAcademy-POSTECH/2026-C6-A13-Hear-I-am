@@ -207,11 +207,25 @@ public enum VoiceStageSearch {
         // A name held inside a longer one that is also near (「음성테스트」 in 「장애물 음성 테스트」) gives way to it.
         let near=off.filter { $0.share <= 0.3 }
         let key: (Int) -> String={ normalized(names[$0]) }
-        guard let first=near.first, let longest=near.max(by: { key($0.index).count < key($1.index).count }) else { return nil }
+        guard let first=near.first, let longest=near.max(by: { key($0.index).count < key($1.index).count }) else {
+            return sameStart(request, names: names.map(normalized))
+        }
         let best=near.allSatisfy({ key(longest.index).contains(key($0.index)) }) ? longest : first
         // Any other name as near, or the same name twice, and it is not guessed.
         let rivals=off.filter { $0.index != best.index && (key($0.index) == key(best.index) || !key(best.index).contains(key($0.index))) }
         return rivals.contains(where: { key($0.index) == key(best.index) || $0.share < best.share + 0.15 }) ? nil : best.index
+    }
+
+    /// A name heard right but for its last letter: 「마루의」 for 「마루랩」 (11/14 device test) is too far off in
+    /// sound for the rule above. Every letter but the last, two at least, must open exactly one name, and the
+    /// request may not be longer than that name, so talk that merely starts like a long name (「오늘 점심」 and
+    /// 「오늘도 출항하지 않습니다」) is not taken for it.
+    private static func sameStart(_ request: String, names: [String]) -> Int? {
+        guard request.count >= 3 else { return nil }
+        let start=String(request.dropLast())
+        let matches=names.indices.filter { request.count <= names[$0].count && names[$0].hasPrefix(start) }
+        guard let index=matches.first, matches.allSatisfy({ names[$0] == names[index] }), matches.count == 1 else { return nil }
+        return index
     }
 
     /// One-based ordinals always refer to the currently visible result list.

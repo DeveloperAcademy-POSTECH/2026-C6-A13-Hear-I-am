@@ -59,6 +59,8 @@ import HearIAmCore
     var voiceInitialPromptPending=false
     @Published var voiceListeningEnabled=true
     @Published var voiceTurnActive=false
+    /// When 「Hear I am」 was last said; what comes right after it is meant for the app (#203).
+    var voiceCalledAt = -Double.infinity
     /// Whether speaking over the line now playing cuts it (#92, 10/29). Only a list to choose from, the stage
     /// list, may be cut; replies and step lines that follow a request play to the end and the speech over
     /// them is dropped, so the app is not stopped half way through doing what was asked.
