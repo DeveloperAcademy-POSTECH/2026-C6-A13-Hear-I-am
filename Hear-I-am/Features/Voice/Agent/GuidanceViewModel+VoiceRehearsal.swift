@@ -523,6 +523,7 @@ extension GuidanceViewModel {
     }
     /// 「Hear I am」 heard in English: chime, pause any movement and take the next words in Korean.
     func voiceWoken() {
+        voiceCalledAt=ProcessInfo.processInfo.systemUptime
         keepVoiceConversation()
         generation=UUID();voice.stop();instructionDone=true
         if phase == .guiding || phase == .starting {
@@ -655,6 +656,7 @@ extension GuidanceViewModel {
             logSignal("voice_alternative","\(text) -> \(called)");text=called
         }
         if let request=VoiceWakeWord.request(in:text) {
+            voiceCalledAt=ProcessInfo.processInfo.systemUptime
             keepVoiceConversation()
             if request.isEmpty {logSignal("voice_wake",text);read([L("네, 말씀하세요.")]);return}
             text=request
@@ -677,6 +679,13 @@ extension GuidanceViewModel {
            !voiceHeardChoice(text), VoiceIntentCopy.answer(text) == nil, VoiceAppRequest.resolve(text) == nil,
            !VoiceCommandParser.isClose(text), !alternatives.contains(where:VoiceCommandParser.isClose) {
             logSignal("voice_ignored","own_word \(text)");return
+        }
+        // Talk nearby while the conversation is open asks for nothing: it is passed over without a word and does
+        // not keep the conversation open, which had 「이해하지 못했어요」 read out to each scrap of it (#203).
+        // A typed request and the words right after 「Hear I am」 are meant for the app and are answered.
+        let deliberate=voiceChatSeededRequest == heard || ProcessInfo.processInfo.systemUptime-voiceCalledAt < 8
+        if !deliberate, !alternatives.contains(where:VoiceCommandParser.isClose), isVoiceChatter(text) {
+            logSignal("voice_ignored","chatter \(text)");return
         }
         keepVoiceConversation()
         logSignal("voice_command",text)
@@ -733,6 +742,14 @@ extension GuidanceViewModel {
         } else if !resolveVoiceIntent(text) {
             readVoiceCommandNotUnderstood()
         }
+    }
+    private func isVoiceChatter(_ text:String) -> Bool {
+        let names=voiceSelectionNames+voiceStages.map(\.name)
+        let contexts=voiceSelectionNames.map {_ in [String]()}+voiceStages.map {(voiceStagePaths[$0.id] ?? [])+[voiceStageTitle($0)]}
+        // A yes on the stage list answers nothing unless the list is empty and a scan is offered. Elsewhere the
+        // app has just asked or stopped (「네」 while paused went on with the run on 11/11), so it counts.
+        let expectsAnswer=pendingVoiceIntent != nil || phase != .selection || voiceStages.isEmpty
+        return VoiceChatter.isChatter(text,names:names,contexts:contexts,screen:voiceScreen,expectsAnswer:expectsAnswer)
     }
     /// Phrases that differ from the list are given to the on-device Apple Intelligence model (#87).
     /// It may only pick what the current screen offers; a guess is asked back before acting.
