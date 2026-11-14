@@ -23,4 +23,14 @@ final class VoiceAutocorrectTests: XCTestCase {
         let lexicon: Set<String> = ["무대", "모래"]
         XCTAssertEqual(VoiceAutocorrect.correct("모대", lexicon: lexicon), "모대")
     }
+    /// After 「저장된」 the word is taken for 무대 or 공연 even when it is further off (11/14).
+    func testWordAfterSavedIsStageOrPerformance() {
+        let lexicon = VoiceAutocorrect.lexicon([])
+        XCTAssertEqual(VoiceAutocorrect.correct("저장된 모델 보여줘", lexicon: lexicon), "저장된 무대 보여줘")
+        XCTAssertEqual(VoiceAutocorrect.correct("저장된 모델을 보여줘.", lexicon: lexicon), "저장된 무대를 보여줘.")
+        XCTAssertEqual(VoiceAutocorrect.correct("저장된 공원 보여줘", lexicon: lexicon), "저장된 공연 보여줘")
+        XCTAssertEqual(VoiceAutocorrect.correct("저장된 무대 보여줘", lexicon: lexicon), "저장된 무대 보여줘")
+        XCTAssertEqual(VoiceAutocorrect.correct("저장된 사진 보여줘", lexicon: lexicon), "저장된 사진 보여줘")
+        XCTAssertEqual(VoiceAutocorrect.correct("모델 보여줘", lexicon: lexicon), "모델 보여줘")
+    }
 }
