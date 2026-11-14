@@ -58,7 +58,10 @@ import HearIAmCore
         } catch { onError?(L("음성을 재생할 수 없어요. 설명 다시 듣기로 다시 시도해주세요."));return false }
     }
     private func speak(_ line: NarrationQueue.Line, volume: Float = SignalVolume.speech) {
-        let next=AVSpeechUtterance(string:line.text)
+        // iOS 26 Korean neural TTS releases final open 「센티」 with a trailing 「-아/-야」 vowel (「오십센티아」);
+        // unreleased coda 「센팃」 closes the syllable cleanly as 「오십센티」 while keeping `line.text` for UI/logs.
+        let spoken=line.text.replacingOccurrences(of:"50센티",with:"50센팃")
+        let next=AVSpeechUtterance(string:spoken)
         // A Korean name inside an English sentence (a stage or venue the helper typed) still needs the Korean voice;
         // the English voice would skip it.
         let korean=line.text.unicodeScalars.contains {(0xAC00...0xD7A3).contains($0.value)}

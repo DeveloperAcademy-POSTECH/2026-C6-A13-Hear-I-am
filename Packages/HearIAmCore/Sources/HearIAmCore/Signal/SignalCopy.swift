@@ -3,6 +3,8 @@ import Foundation
 /// Spoken lines for the signal design decided on 10/17: short, four directions, no distances.
 public enum SignalCopy {
     public static var start: String { L("출발") }
+    public static var holdStart: String { HearLanguage.current.isEnglish ? "Wait" : "대기" }
+    public static var holdEnd: String { L("대기 끝") }
     public static var left: String { L("왼쪽") }
     public static var right: String { L("오른쪽") }
     public static var turnLeft: String { L("왼쪽으로") }
