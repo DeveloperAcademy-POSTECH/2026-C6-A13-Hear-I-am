@@ -404,6 +404,7 @@
 "답변을 기다리고 있어요" = "Waiting for a reply";
 "대구" = "Daegu";
 "대기" = "Idle";
+"대기 끝" = "Wait ended";
 "대기 시간은 중간 지점에만 설정할 수 있어요." = "Wait times can only be set for middle points.";
 "대기 시간이 설정된 중간 지점에서는 다음 안내가 잠시 쉬어요. 시간이 끝나면 이어지고, 일시정지 중에는 남은 시간이 유지돼요." = "At a middle point with a wait time, the next guidance pauses for a moment. It continues when the time is up, and the remaining time is kept while paused.";
 "대전" = "Daejeon";

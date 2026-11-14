@@ -44,6 +44,11 @@ extension GuidanceViewModel {
             announceStepHint=guide.route.step(at:guide.targetIndex) != nil
             quietUntil=pose.time+Self.arrivalQuietSeconds
             logSignal("point_facing_aligned","point=\(previousFacing)")
+            if !wasHolding, guide.isHolding {
+                ticksWaitForWord=voice.play([SignalCopy.holdStart])
+                quietUntil=ticksWaitForWord ? nil : pose.time+Self.arrivalQuietSeconds
+                logSignal("performance_hold_start","point=\(previousFacing) seconds=\(guide.holdRemaining)")
+            }
         }
         if update.state == .completed { playCompletion();return }
         if update.state == .paused {
@@ -63,7 +68,10 @@ extension GuidanceViewModel {
         if wasHolding && aligningStep == nil {
             directionTicks.reset();distances.reset();announceNextSide=true;pendingTurnSide=false
         }
-        if wasHolding { logSignal("performance_hold_end","next=\(guide.targetIndex)") }
+        if wasHolding {
+            ticksWaitForWord=voice.play([SignalCopy.holdEnd])
+            logSignal("performance_hold_end","next=\(guide.targetIndex)")
+        }
         signal(pose:pose,guide:guide)
     }
 
@@ -86,7 +94,8 @@ extension GuidanceViewModel {
         }
         signals.stopDirection()
         let facingLine=guide.route.facing(at:previous).map { L("그 자리에서 %@ 방향을 바라봐주세요.", $0.label) }
-        ticksWaitForWord=voice.play([previous == guide.route.points.count-1 ? L("도착점에 도착했습니다.") : name] + (facingLine.map {[$0]} ?? []))
+        let holdLine=(guide.isHolding && aligningStep == nil) ? [SignalCopy.holdStart] : []
+        ticksWaitForWord=voice.play([previous == guide.route.points.count-1 ? L("도착점에 도착했습니다.") : name] + (facingLine.map {[$0]} ?? []) + holdLine)
         quietUntil=ticksWaitForWord ? nil : time+Self.arrivalQuietSeconds
         logSignal("signal_arrival","\(label)(\(name)) next=\(guide.targetIndex)\(aligningStep.map { " align=\($0.name)#\(($0.facingEdge ?? 0)+1)" } ?? "")")
         if guide.isHolding { logSignal("performance_hold_start","point=\(previous) seconds=\(guide.holdRemaining)") }
@@ -117,12 +126,11 @@ extension GuidanceViewModel {
         // Direction (#44): silent within ±n° of the target; outside it 「왼쪽」 or 「오른쪽」 once, then ticks that
         // quicken as the body turns toward it. The moment the ticks stop because the body faces the target,
         // the aligned chime says so. Chairs and stairs use the exact same direction guidance (#76).
-        // Once inside `arrivalRadius` (waiting for the 0.8s arrival dwell, #88) or the 50 cm near-arrival window (#187),
-        // do not start a new direction correction for the point being stepped on so 「50센티」 is never cut off and no
-        // half-spoken 「왼쪽」/「오른쪽」 gets chopped by the imminent arrival speech.
+        // Once inside `arrivalRadius` (waiting for the 0.8s arrival dwell, #88) or the 50 cm near-arrival window (#187, #204),
+        // stop direction ticks and aligned chimes for the point being stepped on so 「50센티」 is never overlapped or cut off.
         let wasTicking=directionTicks.activeSide != nil
         let cue: DirectionTickGate.Cue?
-        if (inArrivalZone || (inNearArrivalZone && !wasTicking)) && !announceNextSide {
+        if inNearArrivalZone && !announceNextSide {
             directionTicks.reset()
             pendingTurnSide=false
             if wasTicking { signals.stopDirection() }
@@ -156,7 +164,7 @@ extension GuidanceViewModel {
         if let cue {
             // The word comes first: no tick until the side waiting to be said, or being said, is done.
             if cue.shouldTick, !announceNextSide, !pendingTurnSide, !ticksWaitForWord { signals.play(.directionTick(toRight:cue.toRight)) }
-        } else if wasTicking, !inArrivalZone {
+        } else if wasTicking, !inNearArrivalZone {
             if directionTicks.isAligned {
                 // Replaces any tick still sounding on the direction node.
                 signals.playAligned()
@@ -181,7 +189,10 @@ extension GuidanceViewModel {
             let line=SignalCopy.distance(mark)
             if quiet || speaking {
                 logSignal("signal_distance_skipped","\(line) reason=\(quiet ? "arrival" : "speaking")")
-            } else { voice.direction(line);logSignal("signal_distance",line) }
+            } else {
+                ticksWaitForWord=voice.direction(line)
+                logSignal("signal_distance",line)
+            }
         }
     }
     /// 1st orientation after arriving on a chair or stairs (#76): guides the performer's heading toward
@@ -218,6 +229,10 @@ extension GuidanceViewModel {
             announceNextSide=true;announceStepHint=guide.route.step(at:guide.targetIndex) != nil
             pendingTurnSide=false;ticksWaitForWord=false
             quietUntil=pose.time+Self.arrivalQuietSeconds
+            if guide.isHolding {
+                ticksWaitForWord=voice.play([SignalCopy.holdStart])
+                quietUntil=ticksWaitForWord ? nil : pose.time+Self.arrivalQuietSeconds
+            }
         }
     }
     /// Speaks a side and holds the ticks until it is done; logs whether it was actually said.
