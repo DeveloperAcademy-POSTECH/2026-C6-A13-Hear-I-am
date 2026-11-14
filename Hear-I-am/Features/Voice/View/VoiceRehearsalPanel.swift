@@ -236,6 +236,9 @@ struct VoiceAppLine: View {
 /// The performances found: a line of text, then one card per performance with a small plan of its route,
 /// the name and its place tags (495:5160). A tap chooses the card like saying its number.
 struct VoiceStageCards: View {
+    /// A card's place in the conversation; the same performance can be on several lists.
+    static func cardID(entry: UUID, card: UUID) -> String {"\(entry)|\(card)"}
+    let entry: UUID
     let text: String
     let stages: [VoiceChatStage]
     let date: Date
@@ -270,6 +273,7 @@ struct VoiceStageCards: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel(L("%@번, %@%@", stage.number, stage.name, stage.tags.isEmpty ? "" : ", "+stage.tags.joined(separator:", ")))
                 .accessibilityIdentifier("voice.card.\(stage.id)")
+                .id(Self.cardID(entry:entry,card:stage.id))
             }
             VoiceChatMeta(date:date,text:text+"\n"+stages.map {"\($0.number). \($0.name)"}.joined(separator:"\n"))
         }
@@ -306,6 +310,8 @@ struct VoiceConversationView: View {
     /// The newest line is out of view because the performer scrolled up to read back (#158).
     @State private var scrolledUp=false
     @State private var showsJump=false
+    /// The last line the conversation has scrolled for, so new cards are shown from their top only once.
+    @State private var scrolledFor: VoiceChatEntry.ID?
     var body: some View {
         ZStack(alignment:.top) {
             VoiceStyle.canvas.ignoresSafeArea()
@@ -371,7 +377,12 @@ struct VoiceConversationView: View {
                     .onChange(of:scrollKey) {
                         DispatchQueue.main.async {withAnimation(.easeOut(duration:0.25)) {scroll(proxy)}}
                     }
-                    .onAppear {DispatchQueue.main.async {proxy.scrollTo("end",anchor:.bottom)}}
+                    // The card being read comes into view; one already on screen does not move it (anchor nil).
+                    .onChange(of:model.voiceReadingCard) {
+                        guard let card=model.voiceReadingCard else {return}
+                        withAnimation(.easeOut(duration:0.3)) {proxy.scrollTo(card)}
+                    }
+                    .onAppear {DispatchQueue.main.async {scrolledFor=model.voiceChat.last?.id;proxy.scrollTo("end",anchor:.bottom)}}
                 }
             }
             // The lines slide under a fade from the canvas colour at the top (495:5478).
@@ -381,10 +392,13 @@ struct VoiceConversationView: View {
         }
     }
     /// New cards are shown from their top, under the words that asked for them; a long list scrolled to its
-    /// end hid the first performances (11/03). Anything else keeps the newest line in view.
+    /// end hid the first performances (11/03). Anything else keeps the newest line in view. Only cards just
+    /// added go to their top: speaking again under them sent the screen back up to the list (11/14).
     private func scroll(_ proxy: ScrollViewProxy) {
         let chat=model.voiceChat
-        if let last=chat.last, case .stages=last.kind {
+        let added=chat.last?.id != scrolledFor
+        scrolledFor=chat.last?.id
+        if added, let last=chat.last, case .stages=last.kind {
             proxy.scrollTo(chat.count > 1 ? chat[chat.count-2].id : last.id,anchor:.top)
         } else {
             proxy.scrollTo("end",anchor:.bottom)
@@ -404,7 +418,7 @@ struct VoiceConversationView: View {
         case .user(let text):
             VoiceUserBubble(text:text,date:entry.date,resend:{model.submitTypedRequest($0,replacing:entry.id)},beginEdit:{model.beginVoiceEdit()})
         case .app(let text): VoiceAppLine(text:text,date:entry.date)
-        case .stages(let text,let stages): VoiceStageCards(text:text,stages:stages,date:entry.date) {select($0)}
+        case .stages(let text,let stages): VoiceStageCards(entry:entry.id,text:text,stages:stages,date:entry.date) {select($0)}
         }
     }
     /// A card is a performance or one of its stages; the model's own guards decide whether it can still be chosen.

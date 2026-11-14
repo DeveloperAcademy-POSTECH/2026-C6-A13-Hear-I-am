@@ -185,6 +185,7 @@ extension GuidanceViewModel {
 
     func appendVoiceChat(_ kind: VoiceChatEntry.Kind) {
         voiceChat.append(VoiceChatEntry(kind:kind))
+        voiceCardLines=[:];voiceReadingCard=nil
         // The screen can be read back from the log after a test (11/02).
         switch kind {
         case .user(let text): VoiceLog.write("chat_user",text,screen:"guidance.\(phase)")
@@ -377,7 +378,9 @@ extension GuidanceViewModel {
             let choices=voicePerformanceChoices
             guard !choices.isEmpty else {read([L("저장된 무대를 찾지 못했어요. 다른 공연이나 공연장 이름을 말씀해주세요.")]);return}
             showVoiceChatCards(performances:choices,text:L("저장된 공연 %@개를 찾았어요.\n공연 이름을 말씀해주세요.", choices.count))
-            read([L("어떤 공연을 준비할까요?")]+choices.enumerated().map {L("%@번, %@. 저장된 무대 %@개.", $0.offset+1, $0.element.name, $0.element.stageIDs.count)}+[L("공연 이름을 말씀해주세요.")],interruptible:true)
+            let lines=choices.enumerated().map {L("%@번, %@. 저장된 무대 %@개.", $0.offset+1, $0.element.name, $0.element.stageIDs.count)}
+            followCards(lines,ids:choices.map(\.id))
+            read([L("어떤 공연을 준비할까요?")]+lines+[L("공연 이름을 말씀해주세요.")],interruptible:true)
             return
         }
         let items=visibleVoiceStages
@@ -390,7 +393,13 @@ extension GuidanceViewModel {
         // Separate utterances keep a long result list interruptible at every item.
         let names=items.enumerated().map {L("%@번, %@.", $0.offset+1, voiceStageTitle($0.element))}
         showVoiceChatCards(stages:items,text:L("%@\n공연장 이름이나 무대 번호를 말씀해주세요.", title))
+        followCards(names,ids:items.map(\.id))
         read([title]+names+[L("공연장 이름이나 무대 번호를 말해주세요.")],interruptible:true)
+    }
+    /// Ties each spoken line of the list to its card, so the screen follows the reading (11/14).
+    private func followCards(_ lines:[String], ids:[UUID]) {
+        guard let entry=voiceChat.last?.id else {return}
+        voiceCardLines=Dictionary(zip(lines,ids.map {VoiceStageCards.cardID(entry:entry,card:$0)}),uniquingKeysWith:{first,_ in first})
     }
     /// After the last point the microphone stays on, unheard, until the screen closes. Releasing it there
     /// switched the audio session from the voice-processing output (call volume) to playback (media
