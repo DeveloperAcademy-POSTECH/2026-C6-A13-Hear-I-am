@@ -126,7 +126,6 @@ scripts/                 # 코어 테스트 실행 · 다시보기 모델 변환
 
 - 의존 방향은 View → ViewModel → Core → HearIAmCore 한쪽입니다.
 - 판정 규칙과 저장 형식은 HearIAmCore에 두고 테스트를 붙입니다.
-- 기능별 실험 기록과 자세한 동작은 [Experiments/](Experiments/)에 있습니다.
 
 </details>
 
