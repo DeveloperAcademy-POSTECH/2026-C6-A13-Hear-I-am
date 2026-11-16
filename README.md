@@ -1,6 +1,6 @@
-<img src=".github/assets/readme/card-hero.png" width="100%" alt="Hear I am — 시각장애 공연자를 위한 무대 동선 안내 앱. 음성과 비프음으로 방향 · 거리 · 장애물을 알려 준다. iOS 17 이상 · LiDAR iPhone · 한국어와 영어">
+<img src=".github/assets/readme/card-hero.png" width="100%" alt="Hear I am — 시각장애인 예술가를 위한 무대 동선 안내 앱. 음성과 비프음으로 방향 · 거리 · 장애물을 알려 준다. iOS 17 이상 · LiDAR iPhone · 한국어와 영어">
 
-<img src=".github/assets/readme/card-roles.png" width="100%" alt="두 사람이 함께 쓴다. 조력자는 화면으로 무대를 준비하고(공간 스캔 · 동선 저장 · 공연별 정리), 공연자는 화면 없이 「Hear I am」 하고 불러 말로 고르고 소리를 따라 움직인다">
+<img src=".github/assets/readme/card-roles.png" width="100%" alt="두 사람이 함께 쓴다. 조력자는 화면으로 무대를 준비하고(공간 스캔 · 동선 저장 · 공연별 정리), 시각장애인 예술가는 화면 없이 「Hear I am」 하고 불러 말로 고르고 소리를 따라 움직인다">
 
 <img src=".github/assets/readme/card-scan.png" width="100%" alt="조력자 · 무대 준비 — 공연할 공간을 미리 담아두세요. 무대를 스캔하고 경계 · 기물 · 확인점을 설정한다">
 
@@ -8,9 +8,9 @@
 
 <img src=".github/assets/readme/card-manage.png" width="100%" alt="조력자 · 공연 관리 — 공연마다 다른 무대, 체계적으로 관리해요. 공연 · 공연장 · 장면별로 무대와 동선을 정리한다">
 
-<img src=".github/assets/readme/card-voice.png" width="100%" alt="공연자 · 무대 사용 — 말로 고르는 오늘의 공연과 무대. 「Hear I am」 하고 불러 공연과 무대, 연습용 또는 실전용을 말로 고른다">
+<img src=".github/assets/readme/card-voice.png" width="100%" alt="시각장애인 예술가 · 무대 사용 — 말로 고르는 오늘의 공연과 무대. 「Hear I am」 하고 불러 공연과 무대, 연습용 또는 실전용을 말로 고른다">
 
-<img src=".github/assets/readme/card-guide.png" width="100%" alt="공연자 · 무대 사용 — 방향부터 도착까지, 소리로 안내받아요. 허리에 찬 iPhone이 음성과 비프음으로 다음 지점을 안내한다">
+<img src=".github/assets/readme/card-guide.png" width="100%" alt="시각장애인 예술가 · 무대 사용 — 방향부터 도착까지, 소리로 안내받아요. 허리에 찬 iPhone이 음성과 비프음으로 다음 지점을 안내한다">
 
 <details>
 <summary><b>안내 중에 들리는 소리</b></summary>
@@ -90,7 +90,7 @@ Hear-I-am/
 ├── Core/             # 여러 기능이 함께 쓰는 것: AR 세션 · 오디오 · 로그 · 저장 · 디자인 시스템
 ├── Features/         # 기능별 Model / View / ViewModel
 │   ├── Onboarding                         # 시작 로고와 역할 선택
-│   ├── Home · Voice                       # 공연자 홈과 음성 대화
+│   ├── Home · Voice                       # 시각장애인 예술가 홈과 음성 대화
 │   ├── Preparation · Guidance             # 무대 준비(스캔)와 안내
 │   ├── Performances · Places · Planning   # 공연 관리 · 공간 폴더 · 사전 동선
 │   ├── Records · StagePreview             # 완료 기록 · 공간 다시보기

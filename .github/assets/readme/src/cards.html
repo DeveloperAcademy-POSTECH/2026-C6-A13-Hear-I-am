@@ -17,12 +17,15 @@
   @font-face { font-family: P; font-weight: 600; src: url("../../../../Hear-I-am/Resources/Fonts/Pretendard-SemiBold.otf"); }
   @font-face { font-family: P; font-weight: 700; src: url("../../../../Hear-I-am/Resources/Fonts/Pretendard-Bold.otf"); }
   @font-face { font-family: S; font-weight: 200; src: url("../../../../Hear-I-am/Resources/Fonts/SUIT-ExtraLight.otf"); }
-  :root { --bg: #111111; --surface: #1b1c1d; --line: #262829; --text: #ffffff; --sub: #9b9fa3; --accent: #5b60ba; }
+  :root { --bg: #111111; --surface: #1b1c1d; --line: #262829; --text: #ffffff; --sub: #9b9fa3; --accent: #5b60ba; --glow: #20224a; }
   * { box-sizing: border-box; margin: 0; }
   html, body { background: transparent; }
   body { font-family: P, -apple-system, sans-serif; color: var(--text); letter-spacing: -0.02em; }
   section { display: none; width: 1000px; border-radius: 36px; background: var(--bg); overflow: hidden; position: relative; }
   section.on { display: flex; }
+  section { background: radial-gradient(120% 90% at 50% 125%, var(--glow) 0%, var(--bg) 55%); }
+  .feature { background: radial-gradient(120% 90% at 15% 110%, var(--glow) 0%, var(--bg) 55%); }
+  .feature.flip, #hero { background: radial-gradient(120% 90% at 85% 110%, var(--glow) 0%, var(--bg) 55%); }
   .label { font-size: 17px; font-weight: 600; color: var(--accent); letter-spacing: 0; }
   h2 { font-size: 40px; line-height: 1.3; font-weight: 700; letter-spacing: -0.03em; }
   h2 em { font-style: normal; color: var(--accent); }
@@ -31,8 +34,7 @@
   .phone.wide { height: auto; width: 460px; }
 
   /* hero */
-  #hero { height: 620px; padding: 0 34px 0 72px; align-items: center; gap: 30px;
-          background: radial-gradient(120% 90% at 85% 110%, #20224a 0%, var(--bg) 55%); }
+  #hero { height: 620px; padding: 0 34px 0 72px; align-items: center; gap: 30px; }
   #hero .copy { width: 390px; flex: none; display: flex; flex-direction: column; gap: 22px; }
   #hero .icon { width: 96px; height: 96px; }
   #hero .name { font-family: S; font-weight: 200; font-size: 64px; letter-spacing: 0; line-height: 1; }
@@ -40,8 +42,12 @@
   #hero .tag em { font-style: normal; color: var(--accent); }
   #hero .chips { display: flex; gap: 10px; }
   #hero .chip { white-space: nowrap; font-size: 15px; font-weight: 500; color: #d6d9dc; padding: 8px 14px; border-radius: 999px; background: #222426; }
-  #hero .shots { display: flex; border-radius: 26px; overflow: hidden; box-shadow: 0 0 0 1px var(--line); }
+  #hero .shots { position: relative; display: flex; border-radius: 26px; overflow: hidden; box-shadow: 0 0 0 1px var(--line); }
   #hero .shots img { height: 552px; display: block; }
+  /* The App Store images carry their own copy at the top (plain #111 above y=378 of 1311); it is covered and rewritten here so the wording matches. */
+  #hero .over { position: absolute; top: 0; left: 0; right: 0; height: 159px; background: #111111; display: flex; }
+  #hero .over div { flex: 1; padding: 76px 0 0 30px; font-size: 16px; line-height: 27px; color: #b7b7b7; white-space: nowrap; }
+  #hero .over b { color: #fff; font-weight: 700; }
 
   /* roles */
   #roles { height: 400px; padding: 64px 72px; flex-direction: column; gap: 36px; }
@@ -77,18 +83,19 @@
   <div class="copy">
     <img class="icon" src="../icon.png" alt="">
     <div class="name">Hear I am</div>
-    <div class="tag">시각장애 공연자를 위한<br><em>무대 동선 안내 앱</em></div>
+    <div class="tag">시각장애인 예술가를 위한<br><em>무대 동선 안내 앱</em></div>
     <p>음성과 비프음으로<br>방향 · 거리 · 장애물을 알려 줘요.</p>
     <div class="chips"><span class="chip">iOS 17+</span><span class="chip">LiDAR iPhone</span><span class="chip">한국어 · English</span></div>
   </div>
-  <div class="shots"><img src="../hero-1.png" alt=""><img src="../hero-2.png" alt=""></div>
+  <div class="shots"><img src="../hero-1.png" alt=""><img src="../hero-2.png" alt="">
+    <div class="over"><div>시각장애인 예술가가<br>원하는 동선을<br><b>스스로 시도할 수 있도록,</b></div><div>시각장애인 예술가와 조력자<br><b>누구나</b> 사용할 수 있는<br>무대 동선 안내 앱</div></div></div>
 </section>
 
 <section id="roles" data-h="400">
   <h2>두 사람이 <em>함께</em> 써요</h2>
   <div class="pair">
     <div class="role"><span class="label">조력자</span><h3>화면으로 무대를 준비해요</h3><p>공간을 스캔하고, 동선을 저장하고,<br>공연별로 정리해요.</p></div>
-    <div class="role"><span class="label">공연자</span><h3>화면 없이 연습해요</h3><p>「Hear I am」 하고 불러 말로 고르고,<br>소리를 따라 움직여요.</p></div>
+    <div class="role"><span class="label">시각장애인 예술가</span><h3>화면 없이 연습해요</h3><p>「Hear I am」 하고 불러 말로 고르고,<br>소리를 따라 움직여요.</p></div>
   </div>
 </section>
 
@@ -109,17 +116,17 @@
 
 <section id="voice" class="feature tall flip" data-h="580">
   <div class="shot"><img class="phone" src="../home.png" alt=""></div>
-  <div class="copy"><span class="label">공연자 · 무대 사용</span><h2>말로 고르는<br><em>오늘의 공연과 무대</em></h2><p>「Hear I am」 하고 부르면 대화가 열려요.<br>사용할 공연과 무대를 말로 찾고,<br>연습용 또는 실전용을 선택해요.</p></div>
+  <div class="copy"><span class="label">시각장애인 예술가 · 무대 사용</span><h2>말로 고르는<br><em>오늘의 공연과 무대</em></h2><p>「Hear I am」 하고 부르면 대화가 열려요.<br>사용할 공연과 무대를 말로 찾고,<br>연습용 또는 실전용을 선택해요.</p></div>
 </section>
 
 <section id="guide" class="feature tall" data-h="580">
   <div class="shot"><img class="phone" src="../guide.png" alt=""></div>
-  <div class="copy"><span class="label">공연자 · 무대 사용</span><h2>방향부터 도착까지,<br><em>소리로 안내받아요</em></h2><p>허리에 찬 iPhone이 현재 위치와 방향에 맞춰<br>음성과 비프음으로 다음 지점을 안내해요.</p></div>
+  <div class="copy"><span class="label">시각장애인 예술가 · 무대 사용</span><h2>방향부터 도착까지,<br><em>소리로 안내받아요</em></h2><p>허리에 찬 iPhone이 현재 위치와 방향에 맞춰<br>음성과 비프음으로 다음 지점을 안내해요.</p></div>
 </section>
 
 <section id="records" class="feature tall flip" data-h="580">
   <div class="shot"><img class="phone" src="../records.png" alt=""><img class="phone" src="../replay.png" alt=""></div>
-  <div class="copy"><span class="label">공연 후 · 기록 다시 보기</span><h2>공연이 끝난 뒤,<br><em>움직임을 함께 돌아봐요</em></h2><p>계획한 동선과 실제 이동을 다시 보며<br>공연자와 피드백을 나눠요.</p></div>
+  <div class="copy"><span class="label">공연 후 · 기록 다시 보기</span><h2>공연이 끝난 뒤,<br><em>움직임을 함께 돌아봐요</em></h2><p>계획한 동선과 실제 이동을 다시 보며<br>시각장애인 예술가와 피드백을 나눠요.</p></div>
 </section>
 
 <section id="team" data-h="470">
