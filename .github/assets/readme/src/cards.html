@@ -1,0 +1,153 @@
+<!doctype html>
+<!--
+  README 카드 이미지 원본. 카드 하나를 PNG 하나로 찍는다(GitHub README는 CSS를 못 쓰고 표에 테두리가 생겨서).
+  다시 만들 때(저장소 루트에서, 카드마다):
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless=new --hide-scrollbars \
+      --force-device-scale-factor=2 --default-background-color=00000000 --allow-file-access-from-files \
+      --window-size=1000,<높이> --screenshot=.github/assets/readme/card-<이름>.png \
+      "file://$PWD/.github/assets/readme/src/cards.html?card=<이름>"
+  카드 이름과 높이는 아래 각 section의 id · data-h.
+-->
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<style>
+  @font-face { font-family: P; font-weight: 400; src: url("../../../../Hear-I-am/Resources/Fonts/Pretendard-Regular.otf"); }
+  @font-face { font-family: P; font-weight: 500; src: url("../../../../Hear-I-am/Resources/Fonts/Pretendard-Medium.otf"); }
+  @font-face { font-family: P; font-weight: 600; src: url("../../../../Hear-I-am/Resources/Fonts/Pretendard-SemiBold.otf"); }
+  @font-face { font-family: P; font-weight: 700; src: url("../../../../Hear-I-am/Resources/Fonts/Pretendard-Bold.otf"); }
+  @font-face { font-family: S; font-weight: 200; src: url("../../../../Hear-I-am/Resources/Fonts/SUIT-ExtraLight.otf"); }
+  :root { --bg: #111111; --surface: #1b1c1d; --line: #262829; --text: #ffffff; --sub: #9b9fa3; --accent: #7fd6a4; }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { background: transparent; }
+  body { font-family: P, -apple-system, sans-serif; color: var(--text); letter-spacing: -0.02em; }
+  section { display: none; width: 1000px; border-radius: 36px; background: var(--bg); overflow: hidden; position: relative; }
+  section.on { display: flex; }
+  .label { font-size: 17px; font-weight: 600; color: var(--accent); letter-spacing: 0; }
+  h2 { font-size: 40px; line-height: 1.3; font-weight: 700; letter-spacing: -0.03em; }
+  h2 em { font-style: normal; color: var(--accent); }
+  p { font-size: 19px; line-height: 1.65; color: var(--sub); }
+  .phone { display: block; height: 460px; }
+  .phone.wide { height: auto; width: 460px; }
+
+  /* hero */
+  #hero { height: 620px; padding: 0 34px 0 72px; align-items: center; gap: 30px;
+          background: radial-gradient(120% 90% at 85% 110%, #16352a 0%, var(--bg) 55%); }
+  #hero .copy { width: 390px; flex: none; display: flex; flex-direction: column; gap: 22px; }
+  #hero .icon { width: 96px; height: 96px; }
+  #hero .name { font-family: S; font-weight: 200; font-size: 64px; letter-spacing: 0; line-height: 1; }
+  #hero .tag { font-size: 30px; font-weight: 700; line-height: 1.35; letter-spacing: -0.03em; }
+  #hero .tag em { font-style: normal; color: var(--accent); }
+  #hero .chips { display: flex; gap: 10px; }
+  #hero .chip { white-space: nowrap; font-size: 15px; font-weight: 500; color: #d6d9dc; padding: 8px 14px; border-radius: 999px; background: #222426; }
+  #hero .shots { display: flex; border-radius: 26px; overflow: hidden; box-shadow: 0 0 0 1px var(--line); }
+  #hero .shots img { height: 552px; display: block; }
+
+  /* roles */
+  #roles { height: 400px; padding: 64px 72px; flex-direction: column; gap: 36px; }
+  #roles .pair { display: flex; gap: 20px; flex: 1; }
+  #roles .role { flex: 1; background: var(--surface); border-radius: 24px; padding: 32px 34px; display: flex; flex-direction: column; gap: 12px; }
+  #roles .role h3 { font-size: 26px; font-weight: 700; line-height: 1.35; }
+  #roles .role p { font-size: 17px; line-height: 1.6; }
+
+  /* feature */
+  .feature { padding: 0 64px; align-items: center; gap: 56px; }
+  .feature h2 { font-size: 36px; }
+  .feature.flip { flex-direction: row-reverse; }
+  .feature .copy { flex: 1; display: flex; flex-direction: column; gap: 18px; }
+  .feature .shot { display: flex; gap: 18px; justify-content: center; }
+  .tall { height: 580px; }
+  .short { height: 380px; }
+
+  /* team */
+  #team { height: 470px; padding: 56px 64px; flex-direction: column; gap: 34px; }
+  #team .groups { display: flex; justify-content: space-between; }
+  #team .group { display: flex; flex-direction: column; gap: 18px; align-items: center; }
+  #team .members { display: flex; gap: 14px; }
+  #team .member { width: 132px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  #team .member img { width: 132px; height: 132px; object-fit: contain; border-radius: 20px; background: var(--surface); }
+  #team .member b { font-size: 19px; font-weight: 700; letter-spacing: 0.02em; margin-top: 8px; }
+  #team .member span { font-size: 15px; color: var(--sub); }
+  #team .foot { text-align: center; font-size: 14px; color: #6d7175; letter-spacing: 0; }
+</style>
+</head>
+<body>
+
+<section id="hero" data-h="620">
+  <div class="copy">
+    <img class="icon" src="../icon.png" alt="">
+    <div class="name">Hear I am</div>
+    <div class="tag">시각장애 공연자를 위한<br><em>무대 동선 안내 앱</em></div>
+    <p>음성과 비프음으로<br>방향 · 거리 · 장애물을 알려 줘요.</p>
+    <div class="chips"><span class="chip">iOS 17+</span><span class="chip">LiDAR iPhone</span><span class="chip">한국어 · English</span></div>
+  </div>
+  <div class="shots"><img src="../hero-1.png" alt=""><img src="../hero-2.png" alt=""></div>
+</section>
+
+<section id="roles" data-h="400">
+  <h2>두 사람이 <em>함께</em> 써요</h2>
+  <div class="pair">
+    <div class="role"><span class="label">조력자</span><h3>화면으로 무대를 준비해요</h3><p>공간을 스캔하고, 동선을 저장하고,<br>공연별로 정리해요.</p></div>
+    <div class="role"><span class="label">공연자</span><h3>화면 없이 연습해요</h3><p>「Hear I am」 하고 불러 말로 고르고,<br>소리를 따라 움직여요.</p></div>
+  </div>
+</section>
+
+<section id="scan" class="feature short" data-h="380">
+  <div class="shot"><img class="phone wide" src="../scan.png" alt=""></div>
+  <div class="copy"><span class="label">조력자 · 무대 준비</span><h2>공연할 공간을<br><em>미리 담아두세요</em></h2><p>무대를 스캔하고<br>경계 · 기물 · 확인점을 설정해요.</p></div>
+</section>
+
+<section id="route" class="feature short flip" data-h="380">
+  <div class="shot"><img class="phone wide" src="../route.png" alt=""></div>
+  <div class="copy"><span class="label">조력자 · 무대 준비</span><h2>장면에 맞는 동선을<br><em>지점마다 저장해요</em></h2><p>이동할 지점과 대기 시간,<br>바라볼 방향을 정해<br>공연에 쓸 동선을 준비해요.</p></div>
+</section>
+
+<section id="manage" class="feature tall" data-h="580">
+  <div class="shot"><img class="phone" src="../detail.png" alt=""></div>
+  <div class="copy"><span class="label">조력자 · 공연 관리</span><h2>공연마다 다른 무대,<br><em>체계적으로 관리해요</em></h2><p>공연 · 공연장 · 장면별로 무대를 정리하고,<br>각 장면에 필요한 동선을 미리 저장해요.</p></div>
+</section>
+
+<section id="voice" class="feature tall flip" data-h="580">
+  <div class="shot"><img class="phone" src="../home.png" alt=""></div>
+  <div class="copy"><span class="label">공연자 · 무대 사용</span><h2>말로 고르는<br><em>오늘의 공연과 무대</em></h2><p>「Hear I am」 하고 부르면 대화가 열려요.<br>사용할 공연과 무대를 말로 찾고,<br>연습용 또는 실전용을 선택해요.</p></div>
+</section>
+
+<section id="guide" class="feature tall" data-h="580">
+  <div class="shot"><img class="phone" src="../guide.png" alt=""></div>
+  <div class="copy"><span class="label">공연자 · 무대 사용</span><h2>방향부터 도착까지,<br><em>소리로 안내받아요</em></h2><p>허리에 찬 iPhone이 현재 위치와 방향에 맞춰<br>음성과 비프음으로 다음 지점을 안내해요.</p></div>
+</section>
+
+<section id="records" class="feature tall flip" data-h="580">
+  <div class="shot"><img class="phone" src="../records.png" alt=""><img class="phone" src="../replay.png" alt=""></div>
+  <div class="copy"><span class="label">공연 후 · 기록 다시 보기</span><h2>공연이 끝난 뒤,<br><em>움직임을 함께 돌아봐요</em></h2><p>계획한 동선과 실제 이동을 다시 보며<br>공연자와 피드백을 나눠요.</p></div>
+</section>
+
+<section id="team" data-h="470">
+  <h2>만든 사람들</h2>
+  <div class="groups">
+    <div class="group"><span class="label">PM</span><div class="members">
+      <div class="member"><img src="../../team/tom.png" alt=""><b>TOM</b><span>우상영</span></div>
+      <div class="member"><img src="../../team/claire.png" alt=""><b>CLAIRE</b><span>김경민</span></div>
+    </div></div>
+    <div class="group"><span class="label">Designer</span><div class="members">
+      <div class="member"><img src="../../team/kyeozo.png" alt=""><b>KYEOZO</b><span>조원경</span></div>
+    </div></div>
+    <div class="group"><span class="label">Developer</span><div class="members">
+      <div class="member"><img src="../../team/nana.png" alt=""><b>NANA</b><span>김나영</span></div>
+      <div class="member"><img src="../../team/jace.png" alt=""><b>JACE</b><span>김재원</span></div>
+      <div class="member"><img src="../../team/ian.png" alt=""><b>IAN</b><span>김지원</span></div>
+    </div></div>
+  </div>
+  <div class="foot">Apple Developer Academy @ POSTECH · 2026 Challenge 6 · A13</div>
+</section>
+
+<script>
+  const id = new URLSearchParams(location.search).get("card");
+  document.querySelectorAll("section").forEach(s => {
+    if (!id || s.id === id) s.classList.add("on");
+    if (s.dataset.h) s.style.height = s.dataset.h + "px";
+  });
+  if (!id) document.body.style.cssText = "display:flex;flex-direction:column;gap:16px;padding:16px;background:#fff";
+</script>
+</body>
+</html>

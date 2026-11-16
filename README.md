@@ -1,83 +1,16 @@
-<div align="center">
+<img src=".github/assets/readme/card-hero.png" width="100%" alt="Hear I am — 시각장애 공연자를 위한 무대 동선 안내 앱. 음성과 비프음으로 방향 · 거리 · 장애물을 알려 준다. iOS 17 이상 · LiDAR iPhone · 한국어와 영어">
 
-<img src=".github/assets/readme/icon.png" width="112" alt="Hear I am 앱 아이콘">
+<img src=".github/assets/readme/card-roles.png" width="100%" alt="두 사람이 함께 쓴다. 조력자는 화면으로 무대를 준비하고(공간 스캔 · 동선 저장 · 공연별 정리), 공연자는 화면 없이 「Hear I am」 하고 불러 말로 고르고 소리를 따라 움직인다">
 
-# Hear I am
+<img src=".github/assets/readme/card-scan.png" width="100%" alt="조력자 · 무대 준비 — 공연할 공간을 미리 담아두세요. 무대를 스캔하고 경계 · 기물 · 확인점을 설정한다">
 
-**시각장애 공연자를 위한 무대 동선 안내 앱**<br>
-음성과 비프음으로 방향 · 거리 · 장애물을 알려 줍니다
+<img src=".github/assets/readme/card-route.png" width="100%" alt="조력자 · 무대 준비 — 장면에 맞는 동선을 지점마다 저장해요. 이동할 지점과 대기 시간, 바라볼 방향을 정한다">
 
-`iOS 17+` &nbsp; `LiDAR iPhone` &nbsp; `한국어 · English`
+<img src=".github/assets/readme/card-manage.png" width="100%" alt="조력자 · 공연 관리 — 공연마다 다른 무대, 체계적으로 관리해요. 공연 · 공연장 · 장면별로 무대와 동선을 정리한다">
 
-<br>
+<img src=".github/assets/readme/card-voice.png" width="100%" alt="공연자 · 무대 사용 — 말로 고르는 오늘의 공연과 무대. 「Hear I am」 하고 불러 공연과 무대, 연습용 또는 실전용을 말로 고른다">
 
-<img src=".github/assets/readme/hero-1.png" width="300" alt="스캔한 무대 위에 저장한 동선"><img src=".github/assets/readme/hero-2.png" width="300" alt="공연자와 조력자 누구나 사용할 수 있는 무대 동선 안내 앱">
-
-</div>
-
-<br>
-
-## 두 사람이 함께 씁니다
-
-<table>
-  <tr>
-    <th width="50%">🎬&nbsp; 조력자</th>
-    <th width="50%">🎧&nbsp; 공연자</th>
-  </tr>
-  <tr>
-    <td valign="top">화면으로 무대를 준비합니다.<br>공간을 스캔하고, 동선을 저장하고, 공연별로 정리합니다.</td>
-    <td valign="top">화면을 보지 않고 연습합니다.<br>「Hear I am」 하고 불러 말로 고르고, 소리를 따라 움직입니다.</td>
-  </tr>
-</table>
-
-<br>
-
-## 🎬 조력자 · 무대 준비
-
-<table>
-  <tr>
-    <td width="520" align="center"><img src=".github/assets/readme/scan.png" width="500" alt="무대 스캔 화면"></td>
-    <td>
-      <h3>공연할 공간을<br>미리 담아두세요</h3>
-      무대를 스캔하고 경계 · 기물 · 확인점을 설정합니다.
-    </td>
-  </tr>
-  <tr>
-    <td width="520" align="center"><img src=".github/assets/readme/route.png" width="500" alt="동선 편집 화면"></td>
-    <td>
-      <h3>장면에 맞는 동선을<br>지점마다 저장해요</h3>
-      이동할 지점과 지점마다 머무를 시간, 바라볼 방향을 정해 공연에 쓸 동선을 준비합니다.
-    </td>
-  </tr>
-  <tr>
-    <td width="520" align="center"><img src=".github/assets/readme/detail.png" width="230" alt="공연 상세 화면"></td>
-    <td>
-      <h3>공연마다 다른 무대,<br>체계적으로 관리해요</h3>
-      공연 · 공연장 · 장면별로 무대를 정리하고, 각 장면에 필요한 동선을 미리 저장합니다.
-    </td>
-  </tr>
-</table>
-
-<br>
-
-## 🎧 공연자 · 무대 사용
-
-<table>
-  <tr>
-    <td width="520" align="center"><img src=".github/assets/readme/home.png" width="230" alt="공연자 홈 화면"></td>
-    <td>
-      <h3>말로 고르는<br>오늘의 공연과 무대</h3>
-      「Hear I am」 하고 부르면 대화가 열립니다. 사용할 공연과 무대를 말로 찾고, 연습용 또는 실전용을 고릅니다.
-    </td>
-  </tr>
-  <tr>
-    <td width="520" align="center"><img src=".github/assets/readme/guide.png" width="230" alt="연습 안내 화면"></td>
-    <td>
-      <h3>방향부터 도착까지,<br>소리로 안내받아요</h3>
-      허리에 찬 iPhone이 지금 위치와 방향을 읽고, 음성과 비프음으로 다음 지점까지 안내합니다. 진동은 쓰지 않습니다.
-    </td>
-  </tr>
-</table>
+<img src=".github/assets/readme/card-guide.png" width="100%" alt="공연자 · 무대 사용 — 방향부터 도착까지, 소리로 안내받아요. 허리에 찬 iPhone이 음성과 비프음으로 다음 지점을 안내한다">
 
 <details>
 <summary><b>안내 중에 들리는 소리</b></summary>
@@ -122,49 +55,9 @@
 
 </details>
 
-<br>
+<img src=".github/assets/readme/card-records.png" width="100%" alt="공연 후 · 기록 다시 보기 — 공연이 끝난 뒤, 움직임을 함께 돌아봐요. 계획한 동선과 실제 이동을 다시 본다">
 
-## 📼 기록 다시 보기
-
-<table>
-  <tr>
-    <td width="520" align="center"><img src=".github/assets/readme/records.png" width="230" alt="공연 · 연습 기록 목록"> <img src=".github/assets/readme/replay.png" width="230" alt="기록 다시 보기"></td>
-    <td>
-      <h3>공연이 끝난 뒤,<br>움직임을 함께 돌아봐요</h3>
-      계획한 동선과 실제로 이동한 길을 다시 보며 피드백을 나눕니다.
-    </td>
-  </tr>
-</table>
-
-<br>
-
-## 👥 팀
-
-<table>
-  <tr>
-    <th colspan="2" align="center"><br>🧭&nbsp; PM<br><br></th>
-    <th colspan="1" align="center"><br>🎨&nbsp; Designer<br><br></th>
-    <th colspan="3" align="center"><br>💻&nbsp; Developer<br><br></th>
-  </tr>
-  <tr>
-    <td align="center" width="16%"><br><img src=".github/assets/team/tom.png" width="120" align="absbottom" alt="TOM"></td>
-    <td align="center" width="16%"><br><img src=".github/assets/team/claire.png" width="120" align="absbottom" alt="CLAIRE"></td>
-    <td align="center" width="16%"><br><img src=".github/assets/team/kyeozo.png" width="120" align="absbottom" alt="KYEOZO"></td>
-    <td align="center" width="16%"><br><img src=".github/assets/team/nana.png" width="120" align="absbottom" alt="NANA"></td>
-    <td align="center" width="16%"><br><img src=".github/assets/team/jace.png" width="120" align="absbottom" alt="JACE"></td>
-    <td align="center" width="16%"><br><img src=".github/assets/team/ian.png" width="120" align="absbottom" alt="IAN"></td>
-  </tr>
-  <tr>
-    <td align="center"><h3>TOM</h3>(우상영)<br><br></td>
-    <td align="center"><h3>CLAIRE</h3>(김경민)<br><br></td>
-    <td align="center"><h3>KYEOZO</h3>(조원경)<br><br></td>
-    <td align="center"><h3>NANA</h3>(김나영)<br><br></td>
-    <td align="center"><h3>JACE</h3>(김재원)<br><br></td>
-    <td align="center"><h3>IAN</h3>(김지원)<br><br></td>
-  </tr>
-</table>
-
-<p align="center"><sub>Apple Developer Academy @ POSTECH · 2026 Challenge 6 · A13</sub></p>
+<img src=".github/assets/readme/card-team.png" width="100%" alt="만든 사람들 — PM TOM(우상영) · CLAIRE(김경민), Designer KYEOZO(조원경), Developer NANA(김나영) · JACE(김재원) · IAN(김지원). Apple Developer Academy @ POSTECH · 2026 Challenge 6 · A13">
 
 <br>
 
