@@ -1,0 +1,202 @@
+import ARKit
+import AVFoundation
+import Combine
+import HearIAmCore
+
+/// Owns one ARKit world-tracking session for stage preparation or portrait guidance.
+/// Each new session gets a fresh token; callbacks carrying an older token are ignored.
+/// State is split across extension files by concern, so stored properties are module-internal.
+@MainActor
+final class ARSessionController: ObservableObject {
+    enum Purpose { case preparation, guidance }
+    enum Mode: String { case idle, scanning, restoring, saved }
+
+    @Published var mode: Mode = .idle
+    @Published var status=L("새 스캔 또는 저장 공간을 선택하세요")
+    @Published var tracking=L("대기")
+    @Published var mapping=L("대기")
+    @Published var meshCount=0
+    @Published var vertexCount=0
+    @Published var position: Point3?
+    @Published var heading: Double?
+    @Published var ready=false
+    @Published var canVerify=false
+    @Published var canSave=false
+    @Published var saveRecoveryPending=false
+    @Published var busy=false
+    @Published var savedID: UUID?
+    @Published var preparationInterrupted=false
+    @Published var errorMessage: String?
+    @Published var showMesh=true { didSet { renderer.meshLayer.isHidden = !showMesh } }
+    /// Floor point under the crosshair during preparation, refreshed every tick; nil when none is found.
+    @Published var aimPoint: Point3?
+
+    let purpose: Purpose
+    let checkpointTolerance=0.15 // Experiment threshold, NOT an accuracy guarantee.
+    let supportsMesh=ARWorldTrackingConfiguration.supportsSceneReconstruction(.mesh)
+    let supported=ARWorldTrackingConfiguration.isSupported
+    let store: ScanStore
+    let renderer=ARSceneRenderer()
+    let logger: TrialLogger
+    weak var view: ARSCNView?
+    var settings=GuideSettings()
+
+    // Session
+    var session: ARSession?
+    var bridge: SessionBridge?
+    var token=UUID()
+    var scanID=UUID()
+    var active=true
+    var gate=TrackingGate()
+    var restorationValidation: RestorationValidation = .checkpoints
+    var latest: CameraSample?
+    var lastUI = -Double.infinity
+    var lastPoseLog = -Double.infinity
+    var restoreStarted: Double?
+    var guidancePoseTime: Double?
+    private var watchdog: Timer?
+    private let cameraQueue=DispatchQueue(label:"HearIAm.AR",qos:.userInitiated)
+
+    @Published var photoSources: [ScanPhotoSource] = []
+    @Published var photoCapturing=false
+    @Published var photoStatus=""
+    var photoCapture=ScanPhotoCapture()
+    var photoRequest=UUID()
+    var photoAnchors: [UUID:ARAnchor] = [:]
+
+    // Saving
+    var saveAttempt=UUID()
+    var archiveWriteInProgress=false
+    var manifest: ScanManifest?
+    var meshes: [UUID:MeshSnapshot]=[:]
+    var scannedFootprint: ScannedFootprint?
+
+    // Stage geometry in AR world (corners, checkpoint) and stage floor metres (route, obstacles).
+    var cornerAnchors: [Int: ARAnchor] = [:]
+    var corners: [Point3?] = Array(repeating:nil,count:4)
+    var origin: Point3?
+    var front: Point3?
+    var checkpoint: Point3?
+    var secondCheckpoint: Point3?
+    @Published var measuredCheckpoints: [Point3] = []
+    var checkpointStableSince: Double?
+    var alignment: CheckpointAlignment?
+    var nextCheckpointNumber: Int { min(measuredCheckpoints.count+1,2) }
+    var stage: StageFrame?
+    var area: StageArea?
+    var routePoints: [FloorPoint] = []
+    var obstacles: [StageObstacle] = []
+    var pendingObject: [FloorPoint] = []
+    var pendingFacingEdge: Int? = nil
+    /// The preparation draft last applied; saving builds the route from it.
+    var preparedDraft: PreparationDraft?
+    var planReference: StagePlanReference?
+    /// Called whenever a new session replaces the previous one, so owners can clear their own input.
+    var onReset: (() -> Void)?
+    /// Scan coaching (「Move iPhone to start」): on while the system overlay shows; allowed only during the scan step.
+    @Published var coachingActive=false
+    @Published var coachingAllowed=true
+    /// True while the scan's opening coaching is held on screen regardless of tracking (452:12789).
+    @Published var coachingForced=false
+    /// The scan's mesh waits for the intro card's 「시작하기」: the opening coaching and card run on tracking
+    /// alone, so nothing is scanned before the helper starts (11/02 device test).
+    var meshHeld=false
+    /// Bumped whenever a new ARSession is put on the view, so the coaching overlay can follow it.
+    @Published var sessionGeneration=0
+    private var visibleGuidanceTarget: Int?
+    private var guidanceCompleted=false
+
+    var now: Double { ProcessInfo.processInfo.systemUptime }
+    var referencePrefix: String { "PoC4.reference."+scanID.uuidString }
+    var canConfirmScan: Bool { mode == .scanning && !busy && (!supportsMesh || !meshes.isEmpty) && latest?.mapped == true && latest?.normal == true && now-(latest?.time ?? 0) < 0.5 }
+    var canPlacePoint: Bool { mode == .scanning && !busy && !preparationInterrupted && latest?.normal == true && now-(latest?.time ?? 0) < 0.5 }
+
+    init(purpose: Purpose) {
+        self.purpose=purpose
+        let docs=FileManager.default.urls(for:.documentDirectory,in:.userDomainMask)[0]
+        store=ScanStore(root:docs.appendingPathComponent("Scans",isDirectory:true))
+        logger=TrialLogger(directory:docs.appendingPathComponent("Trials",isDirectory:true))
+        if purpose == .preparation {
+            settings.boundaryMargin=PreparationDraft.boundaryMargin
+            settings.obstacleClearance=PreparationDraft.obstacleClearance
+            NotificationCenter.default.addObserver(forName: AVAudioSession.interruptionNotification, object:nil, queue:.main) { [weak self] notification in
+                guard let raw=notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
+                      AVAudioSession.InterruptionType(rawValue:raw) == .began else { return }
+                Task { @MainActor in self?.audioInterrupted() }
+            }
+        }
+        watchdog=Timer.scheduledTimer(withTimeInterval:0.2,repeats:true) { [weak self] _ in
+            Task { @MainActor in self?.tick() }
+        }
+    }
+    deinit { watchdog?.invalidate() }
+
+    func attach(_ arView: ARSCNView) {
+        view=arView; arView.scene=SCNScene()
+        renderer.attach(to:arView.scene)
+        if let session { arView.session=session }
+    }
+    func setGuidanceTarget(_ index: Int, completed: Bool = false) {
+        guard visibleGuidanceTarget != index || guidanceCompleted != completed else { return }
+        visibleGuidanceTarget=index;guidanceCompleted=completed;redrawReferences()
+    }
+    func redrawReferences() {
+        renderer.draw(.init(
+            style:purpose == .preparation ? .preparation(routeFinished:preparedDraft?.routeFinished == true)
+                                          : .guidance(target:visibleGuidanceTarget,completed:guidanceCompleted),
+            checkpoint:checkpoint,secondCheckpoint:secondCheckpoint,corners:corners,area:area,routePoints:routePoints,routeHeights:preparedDraft.flatMap { draft in draft.area.map { area in draft.route.map {$0.y-area.floorHeight} } } ?? manifest?.route?.pointHeights,obstacles:obstacles,pendingObject:pendingObject,pendingFacingEdge:pendingFacingEdge,
+            clearance:settings.obstacleClearance,
+            dangerZones:preparedDraft?.dangerZones ?? manifest?.route?.dangerZones ?? [],
+            planReference:purpose == .preparation ? planReference : nil))
+    }
+
+    private func configuration(map: ARWorldMap?) -> ARWorldTrackingConfiguration {
+        let config=ARWorldTrackingConfiguration()
+        config.worldAlignment = .gravity; config.planeDetection=[.horizontal]
+        // Mesh creation only in pre-scan when LiDAR is available. During restoration use the saved snapshot.
+        if mode == .scanning && supportsMesh && !meshHeld {
+            config.sceneReconstruction = .mesh
+            if ARWorldTrackingConfiguration.supportsFrameSemantics(.sceneDepth) {
+                config.frameSemantics.insert(.sceneDepth)
+                let withPeople=config.frameSemantics.union(.personSegmentation)
+                if ARWorldTrackingConfiguration.supportsFrameSemantics(withPeople) {config.frameSemantics=withPeople}
+            }
+        }
+        config.initialWorldMap=map
+        return config
+    }
+    /// Starts the held mesh on the running session; tracking carries on, so the coaching is not shown again.
+    func beginMeshScan() {
+        guard meshHeld else { return }
+        meshHeld=false
+        guard mode == .scanning, supportsMesh, let session else { return }
+        meshes=[:]; renderer.clearMeshes(); updateCounts()
+        session.run(configuration(map:nil))
+    }
+    func startSession(map: ARWorldMap?) {
+        let config=configuration(map:map)
+        let newSession=ARSession()
+        bridge=SessionBridge(controller:self,token:token)
+        newSession.delegate=bridge; newSession.delegateQueue=cameraQueue
+        session=newSession; view?.session=newSession; sessionGeneration += 1
+        newSession.run(config,options:[.resetTracking,.removeExistingAnchors])
+        UIApplication.shared.isIdleTimerDisabled=true
+    }
+    func reset() {
+        stopLog()
+        saveRecoveryPending=false
+        session?.delegate=nil; session?.pause()
+        bridge?.surfaceColors.finish();bridge=nil
+        token=UUID(); gate=TrackingGate(); restorationValidation = .checkpoints; latest=nil
+        clearPhotos()
+        if purpose == .preparation { preparedDraft=PreparationDraft(); savedID=nil; onReset?() }
+        position=nil; heading=nil; guidancePoseTime=nil; ready=false; canVerify=false; canSave=false
+        meshes=[:]; scannedFootprint=nil; renderer.clearMeshes()
+        renderer.clearAnnotations()
+        cornerAnchors.removeAll()
+        renderer.meshLayer.isHidden = !showMesh; renderer.referenceLayer.isHidden=false
+        clearAlignment(); planReference=nil; manifest=nil; origin=nil; front=nil; checkpoint=nil; secondCheckpoint=nil; stage=nil; area=nil
+        corners=Array(repeating:nil,count:4); routePoints=[]; obstacles=[]; pendingObject=[]; pendingFacingEdge=nil
+        restoreStarted=nil; updateCounts(); lastUI = -.infinity; lastPoseLog = -.infinity
+    }
+}

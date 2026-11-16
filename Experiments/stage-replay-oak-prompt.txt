@@ -1,0 +1,5 @@
+Use case: photorealistic-natural
+Asset type: seamless tiling albedo texture for a real-time SceneKit interior floor, square 1024 x 1024.
+Primary request: original medium warm brown matte oak floor planks for a clean accessible Korean 3D replay app. Straight overhead orthographic flat material scan. Uniform medium brown base around #9A704E, restrained low-contrast natural oak grain, subtle fine pores, very few small knots. Long horizontal floorboards with narrow subtle seams, 8 equal horizontal rows across the square representing a 2.4 x 2.4 metre repeat, staggered end joints. Physically plausible wood grain running left to right along every plank. Quiet sophisticated matte finish; readable green route overlays will be drawn on top in code.
+Lighting: perfectly even diffuse unlit albedo, no shadows, no directional highlights, no vignette or gradient.
+Constraints: seamless tile all four edges, consistent scale, full bleed texture only; no perspective, room, furniture, labels, text, watermark, border, logos, objects, dramatic black gaps, orange saturation, weathered damage, glossy reflections. Create original texture; no stock image copying.

@@ -1,0 +1,958 @@
+import AVFoundation
+import Combine
+import Speech
+import UIKit
+import OSLog
+import HearIAmCore
+
+/// An on-device, Korean command listener for the voice rehearsal experiment.
+/// The caller owns when listening is allowed; stop() releases microphone capture completely.
+@MainActor final class VoiceRecognitionService: NSObject, ObservableObject {
+    @Published private(set) var isListening = false
+    @Published private(set) var isAvailable = false
+    @Published private(set) var isRecovering = false
+    @Published private(set) var transcript = ""
+    @Published private(set) var statusMessage = L("음성 입력이 꺼져 있어요")
+
+    var onSpeechDetected: (() -> Void)?
+    /// A person was heard over the app's own voice (VoiceTalkOver), as against the app's echo.
+    var onTalkOver: (() -> Void)?
+    private(set) var lastTalkOver: TimeInterval = -.infinity
+    private let talkOverMeter = VoiceTalkOverMeter()
+    private var volumeObservation: NSKeyValueObservation?
+    /// Whether a person has been heard over the app's voice since `time` (systemUptime).
+    func talkOverHeard(since time: TimeInterval) -> Bool { lastTalkOver >= time }
+    var onTranscript: ((String) -> Void)?
+    /// Only a final recognizer result reaches this callback, once per recognition turn.
+    var onFinal: ((String) -> Void)?
+    /// Transient failures pause a command, but keep the microphone session eligible for recovery.
+    var onRecoverableError: ((String) -> Void)?
+    /// Speech was heard but the turn ended with no words. Nothing failed; only the heard command is dropped.
+    var onSpeechDiscarded: (() -> Void)?
+    var onRecoveryReady: (() -> Void)?
+    var onError: ((String) -> Void)?
+    /// A call, another app's sound, a headset change or leaving the app stopped listening; nothing is
+    /// wrong with the microphone. Without it these go to `onError`.
+    var onExternalStop: ((String) -> Void)?
+    /// While asleep the app listens in English for 「Hear I am」 only; awake it listens in Korean (#92).
+    /// Two on-device recognitions at once cut the Korean one off at once (Ian iPhone 17, 10/28).
+    private(set) var listensInEnglish = false
+
+    // Meter updates go directly to the waveform, not through the AR view model's objectWillChange.
+    let inputVisualization = VoiceInputVisualization()
+
+    private var engine: AVAudioEngine?
+    private var hasInputTap = false
+    private var engineID: UUID?
+    private var restartAudioNeeded = false
+    private var retryScheduled = false
+    private var recoveryReadyPending = false
+    private var turnInputConfirmed = false
+    private var turnStartedAt: Double = 0
+    private var configurationTimer: Task<Void, Never>?
+    private var microphoneTimer: Task<Void, Never>?
+    private var recognizer: SFSpeechRecognizer?
+    private var recognitionTask: SFSpeechRecognitionTask?
+    private var taskDelegate: VoiceRecognitionTaskDelegate?
+    private let inputBridge = VoiceRecognitionInputBridge()
+    private let narration = VoiceNarrationPlayer()
+    private var inputLease: UUID?
+    private var sessionID: UUID?
+    private var turnID: UUID?
+    private var wantsListening = false
+    private var speechDetected = false
+    @Published private(set) var finalizing = false
+    private var contextualStrings: [String] = []
+    /// The app's own words; a Korean result one sound away from one of them is corrected to it (11/03).
+    private var autocorrectLexicon: Set<String> = []
+    /// Every candidate the recognizer gave for the last final result after the best one (#92).
+    private(set) var lastAlternatives: [String] = []
+    /// A typed request has no candidates of its own; the ones left from the last thing the microphone heard
+    /// are not its candidates. 「닫기」 typed after room talk heard as 「아니야 | 아니,」 was taken as 「아니」
+    /// and cancelled the selection (11/13 device test).
+    func forgetAlternatives() { lastAlternatives = [] }
+    /// The app's own sentences taught to the recognizer once prepared; nil until then (#92).
+    private var languageModel: VoiceLanguageModelBuilder.Prepared?
+    private var languageModelKey: String?
+    private var languageModelPreparation: Task<Void, Never>?
+    private var languageModelRequestID: UUID?
+    /// Settings switch for trying the iOS 26 SpeechAnalyzer engine instead of SFSpeechRecognizer (#92).
+    static let analyzerKey = "voice.engine.speechAnalyzer"
+    static var usesAnalyzer: Bool { (UserDefaults.standard.object(forKey: analyzerKey) as? Bool) ?? true }
+    private var analyzerFormat: AVAudioFormat?
+    private var analyzerTurn: VoiceAnalyzerCancelling?
+    private var englishRecognizer: SFSpeechRecognizer?
+    private var recovery = VoiceInputRecoveryPolicy()
+    private let logger = Logger(subsystem: "org.heariam.poc4.scanlab", category: "VoiceInput")
+    private var observers: [NSObjectProtocol] = []
+    private var restartTimer: Task<Void, Never>?
+    private var taskLimitTimer: Task<Void, Never>?
+    private var speechLimitTimer: Task<Void, Never>?
+    private var endpointTimer: Task<Void, Never>?
+    private var finalResultTimer: Task<Void, Never>?
+
+    override init() {
+        super.init()
+        narration.onEngineUnavailable = { [weak self] in
+            self?.recover(L("오디오 연결을 다시 준비하고 있어요"), restartAudio: true, source: "narration_engine_stopped")
+        }
+        let center = NotificationCenter.default
+        observers.append(center.addObserver(forName: VoiceLanguageModelBuilder.vocabularyInvalidated, object: nil, queue: .main) { [weak self] _ in
+            // The builder posts synchronously on MainActor. Handle the same generation now, before
+            // a subsequent start can prepare a new vocabulary and be cleared by a delayed callback.
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.clearLanguageModel()
+                // Old personal names must not remain in the next request's hints or correction list.
+                self.contextualStrings = []
+                self.autocorrectLexicon = VoiceAutocorrect.lexicon(VoiceVocabulary.phrases().map(\.text))
+                if self.wantsListening {
+                    self.retireTurn()
+                    self.scheduleNextTurn(after: 0.05)
+                }
+            }
+        })
+        observers.append(center.addObserver(forName: .AVAudioEngineConfigurationChange, object: nil, queue: nil) { [weak self] notification in
+            guard let changed = notification.object as? AVAudioEngine else { return }
+            let identity = ObjectIdentifier(changed)
+            // Never tear down an engine on its own notification/render thread.
+            Task { @MainActor [weak self] in
+                guard let self, let engine = self.engine, ObjectIdentifier(engine) == identity else { return }
+                self.engineConfigurationChanged(engine)
+            }
+        })
+        observers.append(center.addObserver(forName: AVAudioSession.interruptionNotification, object: nil, queue: .main) { [weak self] notification in
+            let raw = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt
+            guard raw == AVAudioSession.InterruptionType.began.rawValue else { return }
+            Task { @MainActor [weak self] in
+                self?.stopForExternalChange(L("다른 소리가 시작되어 음성 입력을 멈췄어요. 잠시 뒤 다시 들을게요."), restorePlayback: false)
+            }
+        })
+        observers.append(center.addObserver(forName: AVAudioSession.routeChangeNotification, object: nil, queue: .main) { [weak self] notification in
+            let raw = notification.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt
+            guard let raw, let reason = AVAudioSession.RouteChangeReason(rawValue: raw),
+                  [.newDeviceAvailable, .oldDeviceUnavailable, .noSuitableRouteForCategory, .override].contains(reason) else { return }
+            Task { @MainActor [weak self] in
+                self?.stopForExternalChange(L("마이크 연결이 바뀌었어요. 잠시 뒤 다시 들을게요."))
+            }
+        })
+        observers.append(center.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.stopForExternalChange(L("화면을 벗어나 음성 입력을 멈췄어요. 앱으로 돌아오면 다시 들어요."), restorePlayback: false)
+            }
+        })
+    }
+
+    deinit {
+        observers.forEach(NotificationCenter.default.removeObserver)
+        restartTimer?.cancel()
+        configurationTimer?.cancel()
+        microphoneTimer?.cancel()
+        taskLimitTimer?.cancel()
+        speechLimitTimer?.cancel()
+        endpointTimer?.cancel()
+        finalResultTimer?.cancel()
+        languageModelPreparation?.cancel()
+        inputBridge.clear()
+        recognitionTask?.cancel()
+        engine?.stop()
+        if let inputLease {
+            Task { @MainActor in HearAudioSession.releaseVoiceInput(inputLease) }
+        }
+    }
+
+    /// Shown when recognition fails because the iPhone's dictation is off. Home compares against it to offer
+    /// the way to 「권한 상태」 (#189).
+    static var dictationOffMessage: String {
+        L("받아쓰기가 꺼져 있어 음성을 들을 수 없어요. 설정 > 일반 > 키보드에서 받아쓰기를 켠 뒤 앱으로 돌아오면 다시 들어요.")
+    }
+
+    /// This PoC never silently falls back to server recognition.
+    /// Permission/availability failures leave microphone capture off and explain the reason.
+    func start(contextualStrings: [String] = [], vocabulary: [VoiceVocabulary.Phrase] = [], listensForWakeWord: Bool = false) async {
+        stop()
+        let identifier = UUID()
+        sessionID = identifier
+        statusMessage = L("마이크와 음성 인식을 준비하고 있어요")
+        let microphoneAllowed = await withCheckedContinuation { continuation in
+            AVAudioApplication.requestRecordPermission { continuation.resume(returning: $0) }
+        }
+        guard sessionID == identifier else { return }
+        guard microphoneAllowed else {
+            failPermanently(L("마이크 권한이 필요해요. 설정에서 마이크 접근을 허용해주세요."))
+            return
+        }
+        let authorization = await withCheckedContinuation { continuation in
+            SFSpeechRecognizer.requestAuthorization { continuation.resume(returning: $0) }
+        }
+        guard sessionID == identifier else { return }
+        guard authorization == .authorized else {
+            failPermanently(L("음성 인식 권한이 필요해요. 설정에서 음성 인식을 허용해주세요."))
+            return
+        }
+        guard let recognizer = SFSpeechRecognizer(locale: Locale(identifier: HearLanguage.current.speechCode)), recognizer.isAvailable else {
+            failPermanently(L("이 기기에서 한국어 음성 인식을 사용할 수 없어요. 버튼으로 진행해주세요."))
+            return
+        }
+        guard recognizer.supportsOnDeviceRecognition else {
+            failPermanently(L("이 기기는 기기 내 한국어 인식을 사용할 수 없어요. 이번 실험은 음성을 서버로 전송하지 않아요."))
+            return
+        }
+        self.recognizer = recognizer
+        self.contextualStrings = Array(contextualStrings.filter { !$0.isEmpty }.prefix(100))
+        autocorrectLexicon = VoiceAutocorrect.lexicon(vocabulary.map(\.text) + contextualStrings + VoiceVocabulary.phrases().map(\.text))
+        #if DEBUG
+        // Device diagnosis without rebuilding: turn off one #92 addition at a time.
+        let diagnostics = ProcessInfo.processInfo.environment
+        let skipsLanguageModel = diagnostics["HEAR_VOICE_NO_LM"] == "1"
+        let listensForWakeWord = listensForWakeWord && diagnostics["HEAR_VOICE_NO_WAKE"] != "1"
+        #else
+        let skipsLanguageModel = false
+        #endif
+        if !skipsLanguageModel { prepareLanguageModel(vocabulary) }
+        analyzerFormat = nil
+        // The iOS 26 engine is the default from 11/03: it lists Korean and gives words sooner. Settings can turn it off.
+        if Self.usesAnalyzer, #available(iOS 26.0, *) {
+            // Falls back to SFSpeechRecognizer when the Korean model cannot be installed.
+            analyzerFormat = await VoiceAnalyzerTurn.prepare(locale: recognizer.locale)
+            guard sessionID == identifier else { return }
+            trace("voice_engine_analyzer ready=\(self.analyzerFormat != nil)")
+        }
+        VoiceLog.write("voice_engine", analyzerFormat != nil ? "speech_analyzer" : "sf_speech", screen: "")
+        englishRecognizer = nil
+        if listensForWakeWord, let english = SFSpeechRecognizer(locale: Locale(identifier: "en-US")),
+           english.isAvailable, english.supportsOnDeviceRecognition {
+            englishRecognizer = english
+        }
+        listensInEnglish = listensInEnglish && englishRecognizer != nil
+        do {
+            inputLease = try HearAudioSession.acquireVoiceInput()
+            wantsListening = true
+            isAvailable = true
+            recovery.reset()
+            beginTurn()
+        } catch {
+            trace("Voice input session failed: \(String(describing: error))", level: .error)
+            failPermanently(L("마이크를 준비할 수 없어요. 화면 버튼으로 진행해주세요. 앱을 다시 열면 다시 들어요."))
+        }
+    }
+
+    /// Voice processing is enabled once per listening session. Configuration changes restart this
+    /// same engine; destroying VPIO during recovery would itself trigger another route change.
+    private func prepareEngine() throws {
+        let engine: AVAudioEngine
+        if let existing = self.engine {
+            engine = existing
+        } else {
+            engine = AVAudioEngine()
+            self.engine = engine
+            let identifier = UUID()
+            engineID = identifier
+            trace("voice_engine_created id=\(identifier.uuidString)")
+            try engine.inputNode.setVoiceProcessingEnabled(true)
+            // Automatic gain raised what echo cancellation left of the app's voice by about 10 dB, to where
+            // the recognizer wrote it down and it could not be told from a person by level (11/13 POS).
+            engine.inputNode.isVoiceProcessingAGCEnabled = false
+            let meter = talkOverMeter
+            meter.onTalkOver = { Task { @MainActor [weak self] in self?.talkOverDetected() } }
+            volumeObservation = AVAudioSession.sharedInstance().observe(\.outputVolume, options: [.initial, .new]) { session, _ in
+                meter.setVolume(session.outputVolume)
+            }
+            // Voice processing turns the app's other sound down (signals, the system voice) and, with
+            // advanced ducking, by more while someone speaks: the voice was heard louder and softer (11/08).
+            engine.inputNode.voiceProcessingOtherAudioDuckingConfiguration = .init(enableAdvancedDucking: false, duckingLevel: .min)
+            narration.attach(to: engine)
+        }
+        guard engine.inputNode.isVoiceProcessingEnabled else { throw VoiceRecognitionFailure.noInput }
+        guard restartAudioNeeded || !engine.isRunning else { return }
+        engine.stop()
+        if hasInputTap { engine.inputNode.removeTap(onBus: 0); hasInputTap = false }
+        // VPIO requires matching capture/output client formats. A lazily created mixer may
+        // still expose its default 44.1 kHz stereo output even when capture is 48 kHz mono.
+        // Reconnect only while stopped, using this route's current capture format (not fixed 48k).
+        // The TTS player stays connected at 48k; the mixer performs any output conversion.
+        let hardwareInput = engine.inputNode.inputFormat(forBus: 0)
+        let hardwareOutput = engine.outputNode.outputFormat(forBus: 0)
+        let format = engine.inputNode.outputFormat(forBus: 0)
+        guard hardwareInput.sampleRate.isFinite, hardwareInput.sampleRate > 0, hardwareInput.channelCount > 0,
+              hardwareOutput.sampleRate.isFinite, hardwareOutput.sampleRate > 0, hardwareOutput.channelCount > 0,
+              format.sampleRate.isFinite, format.sampleRate > 0, format.channelCount > 0 else {
+            throw VoiceRecognitionFailure.noInput
+        }
+        engine.mainMixerNode.removeTap(onBus: 0)
+        engine.connect(engine.mainMixerNode, to: engine.outputNode, format: format)
+        let meter = talkOverMeter
+        // What the app sends to the speaker, to compare the microphone with (VoiceTalkOver).
+        engine.mainMixerNode.installTap(onBus: 0, bufferSize: 1024, format: nil) { buffer, _ in meter.output(buffer) }
+        let output = engine.outputNode.inputFormat(forBus: 0)
+        trace("voice_engine_start id=\(self.engineID?.uuidString ?? "none") hardwareInput=\(hardwareInput.description) input=\(format.description) output=\(output.description) route=\(HearAudioSession.route)")
+        guard output.sampleRate == format.sampleRate, output.channelCount == format.channelCount else {
+            throw VoiceRecognitionFailure.noInput
+        }
+        let bridge = inputBridge
+        engine.inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in
+            meter.input(buffer)
+            bridge.append(buffer)
+        }
+        hasInputTap = true
+        engine.prepare()
+        try engine.start()
+        engineStartedAt = ProcessInfo.processInfo.systemUptime
+        restartAudioNeeded = false
+    }
+
+    private func talkOverDetected() {
+        guard wantsListening else { return }
+        lastTalkOver = ProcessInfo.processInfo.systemUptime
+        VoiceLog.write("voice_talk_over", "", screen: "")
+        onTalkOver?()
+    }
+
+    private func engineConfigurationChanged(_ changed: AVAudioEngine) {
+        guard wantsListening else { return }
+        trace("voice_engine_configuration id=\(self.engineID?.uuidString ?? "none") running=\(changed.isRunning) route=\(HearAudioSession.route)")
+        // A notification queued while enabling VPIO can arrive after start() has succeeded.
+        // Running engines are checked by the input watchdog instead of rebuilt on notification.
+        guard !changed.isRunning else { return }
+        inputVisualization.reset()
+        isListening = false
+        guard !retryScheduled, configurationTimer == nil else { return }
+        // Reject a final result queued before the device stopped, even during debounce.
+        retireTurn()
+        let session = sessionID
+        configurationTimer = Task { @MainActor [weak self, weak changed] in
+            do { try await Task.sleep(nanoseconds: 250_000_000) } catch { return }
+            guard let self else { return }
+            self.configurationTimer = nil
+            guard self.wantsListening, self.sessionID == session,
+                  let changed, self.engine === changed else { return }
+            if changed.isRunning { self.beginTurn(); return }
+            if !self.inputSettled, !self.startupRestarted {
+                // Expected once for a new engine: restarted without a message and without cutting the line.
+                self.startupRestarted = true
+                VoiceLog.write("voice_startup_restart", String(format: "%.2fs", ProcessInfo.processInfo.systemUptime - self.engineStartedAt), screen: "")
+                self.restartAudioNeeded = true
+                self.scheduleNextTurn(after: 0)
+                return
+            }
+            self.recover(L("오디오 연결을 다시 준비하고 있어요"), restartAudio: true, source: "engine_configuration")
+        }
+    }
+
+    private func microphoneReady(turnID: UUID) {
+        guard wantsListening, self.turnID == turnID, !finalizing, !retryScheduled,
+              engine?.isRunning == true, inputBridge.isReady,
+              !inputBridge.isStalled(at: ProcessInfo.processInfo.systemUptime) else { return }
+        turnInputConfirmed = true
+        defer { settleInput() }
+        VoiceLog.write("voice_turn_ready", "\(analyzerTurn != nil ? "analyzer" : (listensInEnglish ? "english" : "sf")) \(String(format: "%.2fs", ProcessInfo.processInfo.systemUptime - turnStartedAt))", screen: "")
+        trace("voice_input_ready engine=\(self.engineID?.uuidString ?? "none") turn=\(turnID.uuidString) route=\(HearAudioSession.route)")
+        isRecovering = false
+        if recoveryReadyPending {
+            recoveryReadyPending = false
+            onRecoveryReady?()
+        }
+        guard wantsListening, self.turnID == turnID else { return }
+        statusMessage = L("말씀하시면 들을게요")
+        // The UI and ready chime subscribe to this value. Task creation is not microphone readiness.
+        isListening = true
+    }
+
+    private func watchMicrophone(turnID: UUID) {
+        microphoneTimer?.cancel()
+        microphoneTimer = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                do { try await Task.sleep(nanoseconds: 500_000_000) } catch { return }
+                guard let self, self.wantsListening, self.turnID == turnID, !self.finalizing else { return }
+                let now = ProcessInfo.processInfo.systemUptime
+                let timedOut = !self.turnInputConfirmed && now - self.turnStartedAt >= 4
+                if timedOut || self.inputBridge.isStalled(at: now) {
+                    self.recover(L("마이크 입력을 다시 확인하고 있어요"), restartAudio: true, source: timedOut ? "first_buffer_timeout" : "input_stalled")
+                    return
+                }
+            }
+        }
+    }
+
+    /// Cancels all delayed rearming as well as the current recognition task and microphone tap.
+    func stop() {
+        stopCapture(restorePlayback: true)
+        transcript = ""
+        statusMessage = L("음성 입력이 꺼져 있어요")
+    }
+
+    /// Render narration through the same voice-processing engine as microphone capture.
+    /// With `waitsForStart`, a line asked for while listening is still starting waits (up to 3 s) for the
+    /// engine to settle instead of going to the system voice. A new voice-processing engine is stopped by the
+    /// system about 0.75 s after it starts; the first line on every handoff from Home was cut there and said
+    /// again from the start, in another voice and level (11/06 5 of 5, POS 11/08).
+    func speakNarration(_ utterance: AVSpeechUtterance, waitsForStart: Bool = false, completion: @escaping (Bool) -> Void) -> Bool {
+        if wantsListening, let engine, engine.isRunning, inputSettled || !waitsForStart {
+            narration.speak(utterance, completion: completion)
+            return true
+        }
+        guard waitsForStart else { return false }
+        pendingNarration?.completion(false)
+        let id = UUID()
+        pendingNarration = (id, utterance, completion)
+        pendingNarrationTimer?.cancel()
+        pendingNarrationTimer = Task { @MainActor [weak self] in
+            do { try await Task.sleep(nanoseconds: 3_000_000_000) } catch { return }
+            guard let self, let pending = self.pendingNarration, pending.id == id else { return }
+            self.pendingNarration = nil
+            VoiceLog.write("voice_narration_waited", "timeout", screen: "")
+            if self.wantsListening, self.engine?.isRunning == true { self.narration.speak(pending.utterance, completion: pending.completion) }
+            else { pending.completion(false) }
+        }
+        return true
+    }
+    /// Listening has been ready once, past the restart a new engine goes through (see `startupRestarted`).
+    private var inputSettled = false
+    /// The one quiet restart allowed while a session starts; a second change is a real recovery.
+    private var startupRestarted = false
+    private var engineStartedAt: TimeInterval = 0
+    private var pendingNarration: (id: UUID, utterance: AVSpeechUtterance, completion: (Bool) -> Void)?
+    private var pendingNarrationTimer: Task<Void, Never>?
+    private func settleInput() {
+        guard !inputSettled else { return }
+        // The system's change notice for a new engine comes about 0.75 s after it starts.
+        // After that one restart nothing more is expected.
+        let wait = startupRestarted ? 0 : engineStartedAt + 1.1 - ProcessInfo.processInfo.systemUptime
+        guard wait <= 0 else {
+            let session = sessionID
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(nanoseconds: UInt64(wait * 1_000_000_000))
+                guard let self, self.sessionID == session, self.wantsListening, self.turnInputConfirmed,
+                      self.engine?.isRunning == true, !self.retryScheduled else { return }
+                self.settleInput()
+            }
+            return
+        }
+        inputSettled = true
+        guard let pending = pendingNarration else { return }
+        pendingNarration = nil; pendingNarrationTimer?.cancel(); pendingNarrationTimer = nil
+        VoiceLog.write("voice_narration_waited", String(format: "%.2fs", ProcessInfo.processInfo.systemUptime - engineStartedAt), screen: "")
+        narration.speak(pending.utterance, completion: pending.completion)
+    }
+    func stopNarration() {
+        pendingNarration = nil; pendingNarrationTimer?.cancel(); pendingNarrationTimer = nil
+        narration.stop()
+    }
+    /// Silences the app's voice at once without dropping the line, so it can go on if no words follow.
+    func holdNarration(_ hold: Bool) { if hold { narration.pause() } else { narration.resume() } }
+
+    /// The words so far already make a whole command (「스캔」, 「3번」): the turn ends after a short beat
+    /// instead of the usual pause. More words re-arm the usual pause.
+    func finishSoon() {
+        guard let turnID, wantsListening, !finalizing, endpointTimer != nil else { return }
+        endpointTimer?.cancel()
+        endpointTimer = Task { @MainActor [weak self] in
+            do { try await Task.sleep(nanoseconds: 350_000_000) } catch { return }
+            self?.finishInput(turnID: turnID, reason: "complete")
+        }
+    }
+
+    /// Starts listening afresh when the turn so far holds only the app's own voice (Home's greeting), so
+    /// the performer's sentence is judged on its own and ends as soon as they stop.
+    func restartIdleTurn() {
+        // Nothing written yet may still be words on their way (11/03: 「스캔」 said over the greeting was
+        // thrown away with the turn). Only a turn that holds text, all of it the app's own, starts again.
+        guard wantsListening, turnID != nil, !finalizing, !retryScheduled, !isRecovering, !transcript.isEmpty else { return }
+        VoiceLog.write("voice_turn_fresh", transcript.prefix(60).description, screen: "")
+        retireTurn(); isListening = false
+        scheduleNextTurn(after: 0.05)
+    }
+
+    /// Touch/back actions invalidate speech recorded for the previous choice screen.
+    func discardPendingSpeech() {
+        guard wantsListening else { return }
+        guard !isRecovering else { return }
+        retireTurn(); isListening=false
+        scheduleNextTurn(after: 0.05)
+    }
+
+    private func beginTurn() {
+        guard wantsListening else { return }
+        retryScheduled = false
+        guard let recognizer = (listensInEnglish ? englishRecognizer : nil) ?? self.recognizer, recognizer.isAvailable else {
+            recover(L("음성 인식을 다시 연결하고 있어요"), restartAudio: false, source: "recognizer_unavailable")
+            return
+        }
+        do {
+            try prepareEngine()
+            guard engine?.isRunning == true else {
+                recover(L("오디오 연결을 다시 준비하고 있어요"), restartAudio: true, source: "engine_start_stopped")
+                return
+            }
+        } catch {
+            trace("Voice engine start failed: \(String(describing: error))", level: .error)
+            recover(L("마이크를 다시 연결하고 있어요"), restartAudio: true, source: "engine_start_failed")
+            return
+        }
+        guard wantsListening else { return }
+        retireTurn()
+        let identifier = UUID()
+        turnID = identifier
+        turnStartedAt = ProcessInfo.processInfo.systemUptime
+        turnInputConfirmed = false
+        isListening = false
+        speechDetected = false
+        finalizing = false
+        transcript = ""
+        statusMessage = L("마이크 입력을 확인하고 있어요")
+        let sink: VoiceAudioSink
+        if #available(iOS 26.0, *), !listensInEnglish, let format = analyzerFormat {
+            let turn = VoiceAnalyzerTurn(locale: recognizer.locale, format: format, contextualStrings: contextualStrings,
+                                         service: self, turnID: identifier)
+            analyzerTurn = turn
+            sink = turn
+        } else {
+            let request = SFSpeechAudioBufferRecognitionRequest()
+            request.requiresOnDeviceRecognition = true
+            request.shouldReportPartialResults = true
+            request.contextualStrings = listensInEnglish ? VoiceWakeWord.hints : contextualStrings
+            request.addsPunctuation = false
+            let model = !listensInEnglish && languageModel?.lease.isCurrent == true ? languageModel : nil
+            if let model { request.customizedLanguageModel = model.configuration }
+            let delegate = VoiceRecognitionTaskDelegate(service: self, turnID: identifier)
+            taskDelegate = delegate
+            recognitionTask = recognizer.recognitionTask(with: request, delegate: delegate)
+            if let model, let recognitionTask { VoiceLanguageModelBuilder.retain(model, untilFinished: recognitionTask) }
+            sink = request
+        }
+        inputBridge.replace(with: sink, onReady: { [weak self] in
+            Task { @MainActor [weak self] in self?.microphoneReady(turnID: identifier) }
+        }, onLevel: { [weak self] level in
+            Task { @MainActor [weak self] in
+                guard let self, self.wantsListening, self.turnID == identifier,
+                      self.isListening, !self.finalizing, self.engine?.isRunning == true else { return }
+                self.inputVisualization.update(level)
+            }
+        })
+        watchMicrophone(turnID: identifier)
+        // The older Speech API is not a forever-listening task. Rotate idle tasks below its one-minute
+        // documented limit. Once speech starts, its own short utterance deadline takes over.
+        taskLimitTimer = Task { @MainActor [weak self] in
+            do { try await Task.sleep(nanoseconds: 48_000_000_000) } catch { return }
+            guard let self, self.turnID == identifier else { return }
+            if self.speechDetected { self.finishInput(turnID: identifier, reason: "task_limit") }
+            else {
+                self.retireTurn()
+                self.scheduleNextTurn(after: 0.3)
+            }
+        }
+    }
+
+    func detectedSpeech(turnID: UUID) {
+        guard self.turnID == turnID, wantsListening, turnInputConfirmed, engine?.isRunning == true, !speechDetected, !finalizing else { return }
+        speechDetected = true
+        statusMessage = L("듣고 있어요")
+        speechLimitTimer = Task { @MainActor [weak self] in
+            do { try await Task.sleep(nanoseconds: 12_000_000_000) } catch { return }
+            self?.finishInput(turnID: turnID, reason: "speech_limit")
+        }
+        onSpeechDetected?()
+    }
+
+    func receivedPartial(_ text: String, turnID: UUID) {
+        guard self.turnID == turnID, wantsListening, turnInputConfirmed, engine?.isRunning == true, !finalizing else { return }
+        var text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        if !listensInEnglish, !HearLanguage.current.isEnglish { text = VoiceAutocorrect.correct(text, lexicon: autocorrectLexicon) }
+        // Some recognizer routes provide text before the optional detection delegate callback.
+        detectedSpeech(turnID: turnID)
+        guard self.turnID == turnID else { return }
+        // The same words again are no new speech: on Home a repeated hypothesis kept the turn open until
+        // the 12 s limit, so every request took 13 s (11/03 device log).
+        if transcript.isEmpty {
+            VoiceLog.write("voice_first_words", "\(String(format: "%.2fs", ProcessInfo.processInfo.systemUptime - turnStartedAt)) \(text.prefix(40))", screen: "")
+        }
+        let changed = text != transcript || endpointTimer == nil
+        transcript = text
+        statusMessage = L("듣고 있어요")
+        onTranscript?(text)
+        guard changed else { return }
+        endpointTimer?.cancel()
+        endpointTimer = Task { @MainActor [weak self] in
+            // 1.1 s of quiet ends the sentence. 0.8 s cut 「저장된 무대 보여줘」 before 「줘」 (11/03); a whole
+            // command such as 「스캔」 ends sooner through finishSoon().
+            do { try await Task.sleep(nanoseconds: 1_100_000_000) } catch { return }
+            self?.finishInput(turnID: turnID, reason: "endpoint")
+        }
+    }
+
+    private func finishInput(turnID: UUID, reason: String) {
+        guard self.turnID == turnID, wantsListening, !finalizing else { return }
+        finalizing = true
+        let seconds = String(format: "%.1fs", ProcessInfo.processInfo.systemUptime - turnStartedAt)
+        VoiceLog.write("voice_finish", "\(reason) \(seconds) \(transcript.prefix(60))", screen: "")
+        inputVisualization.reset()
+        microphoneTimer?.cancel(); microphoneTimer = nil
+        isListening = false
+        statusMessage = L("말씀을 확인하고 있어요")
+        endpointTimer?.cancel()
+        speechLimitTimer?.cancel()
+        taskLimitTimer?.cancel()
+        inputBridge.finish()
+        recognitionTask?.finish()
+        finalResultTimer = Task { @MainActor [weak self] in
+            do { try await Task.sleep(nanoseconds: 3_000_000_000) } catch { return }
+            guard let self, self.turnID == turnID else { return }
+            self.recognitionFailed(L("말씀을 끝까지 확인하지 못했어요. 다시 말씀해주세요."), turnID: turnID)
+        }
+    }
+
+    func receivedFinal(_ text: String, alternatives: [String] = [], turnID: UUID) {
+        guard self.turnID == turnID, wantsListening else { return }
+        let heard = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let text = listensInEnglish || HearLanguage.current.isEnglish ? heard : VoiceAutocorrect.correct(heard, lexicon: autocorrectLexicon)
+        if text != heard { VoiceLog.write("voice_autocorrect", "\(heard) -> \(text)", screen: "") }
+        if !text.isEmpty { detectedSpeech(turnID: turnID) }
+        guard self.turnID == turnID, wantsListening else { return }
+        if text.isEmpty {
+            rearmAfterSilence(discardCommand: speechDetected)
+            return
+        }
+        guard turnInputConfirmed else {
+            recover(L("마이크 입력을 다시 확인하고 있어요"), restartAudio: false, source: "result_before_input")
+            return
+        }
+        retireTurn()
+        recovery.recordFinalRecognition(text)
+        var seen: Set<String> = [text]
+        lastAlternatives = alternatives.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty && seen.insert($0).inserted }
+        transcript = text
+        isListening = false
+        statusMessage = L("말씀을 확인했어요")
+        // turnID is invalidated before calling application code so duplicate final callbacks and
+        // a cancellation delivered afterward can never execute the command a second time.
+        onFinal?(text)
+        if wantsListening { scheduleNextTurn(after: 0.05) }
+    }
+
+    func taskFinished(successfully: Bool, errorCode: Int?, errorDomain: String?, turnID: UUID) {
+        guard self.turnID == turnID else { return }
+        if successfully {
+            // Delegate callbacks cross onto MainActor separately. Give an already-dispatched final
+            // result a chance to arrive instead of invalidating it from this completion callback.
+            // The finish event itself carries no final transcript; never promote a partial result.
+            finalResultTimer?.cancel()
+            finalResultTimer = Task { @MainActor [weak self] in
+                do { try await Task.sleep(nanoseconds: 300_000_000) } catch { return }
+                guard let self, self.turnID == turnID else { return }
+                if self.speechDetected {
+                    self.recognitionFailed(L("말씀을 끝까지 확인하지 못했어요. 다시 말씀해주세요."), turnID: turnID)
+                } else {
+                    self.rearmAfterSilence()
+                }
+            }
+        } else if errorDomain == "kAFAssistantErrorDomain", errorCode == 1110, !speechDetected {
+            // No-speech is an ordinary end of an idle ASR task, not a disconnected microphone.
+            rearmAfterSilence()
+        } else if errorDomain == "kLSRErrorDomain", errorCode == 201 {
+            // Siri and Dictation are off: on-device recognition fails at once on every retry (16 Pro Max, 10/27).
+            trace("Recognition unavailable: Siri and Dictation disabled (kLSRErrorDomain 201)", level: .error)
+            failPermanently(Self.dictationOffMessage)
+        } else {
+            trace("Recognition task failed: domain=\(errorDomain ?? "none") code=\(errorCode ?? 0)", level: .error)
+            recognitionFailed(L("음성을 확인하지 못했어요. 다시 들을게요."), turnID: turnID)
+        }
+    }
+
+    private func rearmAfterSilence(discardCommand: Bool = false) {
+        // An immediate empty/no-speech result is not proof of a healthy microphone. Bound those
+        // retries too, while allowing ordinary long idle recognition turns to rotate silently.
+        guard turnInputConfirmed, ProcessInfo.processInfo.systemUptime - turnStartedAt >= 2 else {
+            recover(L("음성 입력을 다시 확인하고 있어요"), restartAudio: engine?.isRunning != true, source: "premature_empty_result")
+            return
+        }
+        retireTurn()
+        isListening = false
+        statusMessage = L("말씀하시면 다시 들을게요")
+        // Idle/no-speech rollover must not pause an otherwise healthy walking session.
+        if discardCommand {
+            if let onSpeechDiscarded { onSpeechDiscarded() } else { onRecoverableError?(statusMessage) }
+        }
+        scheduleNextTurn(after: 0.5)
+    }
+
+    private func recognitionFailed(_ message: String, turnID: UUID) {
+        guard self.turnID == turnID, wantsListening else { return }
+        recover(message, restartAudio: engine?.isRunning != true, source: "recognition_failed")
+    }
+
+    private func recover(_ message: String, restartAudio: Bool, source: String) {
+        guard wantsListening, !retryScheduled else { return }
+        guard let delay = recovery.nextDelay() else {
+            trace("Voice input recovery exhausted", level: .error)
+            failPermanently(L("음성 입력을 연결하지 못했어요. 화면 버튼으로 진행해주세요. 앱을 다시 열면 다시 들어요."))
+            return
+        }
+        VoiceLog.write("voice_recover", source, screen: "")
+        retryScheduled = true
+        recoveryReadyPending = true
+        isRecovering = true
+        isListening = false
+        configurationTimer?.cancel(); configurationTimer = nil
+        retireTurn()
+        statusMessage = message
+        trace("voice_input_recovery source=\(source) engine=\(self.engineID?.uuidString ?? "none") restartAudio=\(restartAudio) delay=\(delay) route=\(HearAudioSession.route)")
+        // The owner first cancels narration and pauses movement. An input failure must never
+        // silently continue walking, or turn a partial transcript into a command.
+        onRecoverableError?(message)
+        guard wantsListening else { return }
+        if restartAudio {
+            restartAudioNeeded = true
+            engine?.stop()
+        }
+        scheduleNextTurn(after: delay)
+    }
+
+    private func scheduleNextTurn(after delay: Double) {
+        restartTimer?.cancel()
+        guard wantsListening, let sessionID else { return }
+        restartTimer = Task { @MainActor [weak self] in
+            do { try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000)) } catch { return }
+            guard let self, self.sessionID == sessionID, self.wantsListening else { return }
+            self.beginTurn()
+        }
+    }
+
+    private func retireTurn() {
+        inputVisualization.reset()
+        isListening = false
+        turnID = nil
+        turnInputConfirmed = false
+        microphoneTimer?.cancel(); microphoneTimer = nil
+        taskLimitTimer?.cancel(); taskLimitTimer = nil
+        speechLimitTimer?.cancel(); speechLimitTimer = nil
+        endpointTimer?.cancel(); endpointTimer = nil
+        finalResultTimer?.cancel(); finalResultTimer = nil
+        inputBridge.clear()
+        recognitionTask?.cancel(); recognitionTask = nil
+        analyzerTurn?.cancel(); analyzerTurn = nil
+        taskDelegate = nil
+        speechDetected = false
+        finalizing = false
+    }
+
+    private func stopCapture(restorePlayback: Bool) {
+        wantsListening = false
+        inputSettled = false; startupRestarted = false
+        pendingNarrationTimer?.cancel(); pendingNarrationTimer = nil
+        if let pending = pendingNarration { pendingNarration = nil; pending.completion(false) }
+        englishRecognizer = nil
+        sessionID = nil
+        retryScheduled = false
+        recoveryReadyPending = false
+        configurationTimer?.cancel(); configurationTimer = nil
+        restartTimer?.cancel(); restartTimer = nil
+        retireTurn()
+        cancelLanguageModelPreparation()
+        tearDownEngine()
+        recognizer = nil
+        recovery.reset()
+        isRecovering = false
+        if let inputLease {
+            HearAudioSession.releaseVoiceInput(inputLease, restorePlayback: restorePlayback)
+        }
+        inputLease = nil
+        isListening = false
+        isAvailable = false
+    }
+
+    private func tearDownEngine() {
+        // Called only when capture is explicitly stopped, never by automatic recovery.
+        if let engineID { trace("voice_engine_destroyed id=\(engineID.uuidString)") }
+        engine?.stop()
+        narration.detach()
+        if let engine {
+            engine.stop()
+            if hasInputTap { engine.inputNode.removeTap(onBus: 0) }
+            engine.mainMixerNode.removeTap(onBus: 0)
+            engine.reset()
+        }
+        volumeObservation = nil
+        engine = nil
+        engineID = nil
+        restartAudioNeeded = false
+        hasInputTap = false
+    }
+
+    /// Device validation without LLDB can opt into the same metadata on stderr. No transcript
+    /// or microphone samples are emitted. Release builds keep only the ordinary OSLog events.
+    private func trace(_ message: String, level: OSLogType = .default) {
+        logger.log(level: level, "\(message, privacy: .public)")
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["HEAR_VOICE_DIAGNOSTICS"] == "1" {
+            let line = "[VoiceInput \(ProcessInfo.processInfo.systemUptime)] \(message)\n"
+            FileHandle.standardError.write(Data(line.utf8))
+        }
+        #endif
+    }
+
+    private func failPermanently(_ message: String) {
+        stopCapture(restorePlayback: true)
+        statusMessage = message
+        onError?(message)
+    }
+
+    private func stopForExternalChange(_ message: String, restorePlayback: Bool = true) {
+        guard wantsListening else { return }
+        stopCapture(restorePlayback: restorePlayback)
+        statusMessage = message
+        if let onExternalStop { onExternalStop(message) } else { onError?(message) }
+    }
+}
+
+/// Separate observable state keeps microphone metering local to the decorative waveform.
+@MainActor final class VoiceInputVisualization: ObservableObject {
+    @Published private(set) var level: Double = 0
+    func update(_ value: Double) { level = min(1, max(0, value.isFinite ? value : 0)) }
+    func reset() { if level != 0 { level = 0 } }
+}
+
+enum VoiceRecognitionFailure: Error { case noInput }
+
+/// Where captured microphone PCM goes for one turn: an SFSpeech request or a SpeechAnalyzer turn.
+protocol VoiceAudioSink: AnyObject {
+    func append(_ buffer: AVAudioPCMBuffer)
+    func endAudio()
+}
+extension SFSpeechAudioBufferRecognitionRequest: VoiceAudioSink {}
+protocol VoiceAnalyzerCancelling: AnyObject { func cancel() }
+
+extension VoiceRecognitionService {
+    /// Builds the app's own sentences into a custom language model in the background and keeps it for
+    /// later turns (#92). The first turns use the plain model; a failure leaves the plain model in use.
+    func prepareLanguageModel(_ phrases: [VoiceVocabulary.Phrase]) {
+        guard !phrases.isEmpty, let recognizer else { clearLanguageModel(); return }
+        let key = VoiceLanguageModelBuilder.key(phrases)
+        guard key != languageModelKey else { return }
+        clearLanguageModel()
+        languageModelKey = key; languageModel = nil
+        let requestID = UUID()
+        languageModelRequestID = requestID
+        let locale = recognizer.locale
+        languageModelPreparation = Task.detached(priority: .utility) { [weak self] in
+            let model = await VoiceLanguageModelBuilder.prepare(phrases, locale: locale)
+            await MainActor.run { [weak self] in
+                guard let self, self.languageModelRequestID == requestID else { return }
+                self.languageModelPreparation = nil
+                self.languageModelRequestID = nil
+                self.languageModel = model?.lease.isCurrent == true ? model : nil
+                if self.languageModel == nil { self.languageModelKey = nil }
+                self.trace("voice_language_model ready=\(self.languageModel != nil) phrases=\(phrases.count)")
+            }
+        }
+    }
+    private func clearLanguageModel() {
+        cancelLanguageModelPreparation()
+        languageModelKey = nil
+        languageModel = nil
+    }
+    private func cancelLanguageModelPreparation() {
+        languageModelRequestID = nil
+        languageModelPreparation?.cancel(); languageModelPreparation = nil
+        // A current ready model can serve the next listening session. Library invalidation clears
+        // it separately; keeping it here avoids rebuilding after every app narration pause.
+        if languageModel == nil { languageModelKey = nil }
+    }
+    /// Switches between English (waiting for the call) and Korean (taking requests) from the next turn.
+    func listenInEnglish(_ english: Bool) {
+        let english = english && englishRecognizer != nil
+        guard english != listensInEnglish else { return }
+        listensInEnglish = english
+        trace("voice_language english=\(english)")
+        guard wantsListening, turnID != nil, !retryScheduled else { return }
+        retireTurn()
+        scheduleNextTurn(after: 0.05)
+    }
+    func analyzerPartial(_ text: String, turnID: UUID) { receivedPartial(text, turnID: turnID) }
+    func analyzerFinal(_ text: String, alternatives: [String], turnID: UUID) {
+        receivedFinal(text, alternatives: alternatives, turnID: turnID)
+    }
+    func analyzerFailed(_ error: Error, turnID: UUID) {
+        let error = error as NSError
+        VoiceLog.write("voice_analyzer_failed", "\(error.domain) \(error.code)", screen: "")
+        taskFinished(successfully: false, errorCode: error.code, errorDomain: error.domain, turnID: turnID)
+    }
+}
+
+/// Every request the app heard and what it made of it, kept on the phone so misheard words can be read
+/// back after a test (#92). One JSON line per entry in Documents/VoiceLogs/voice-<date>.jsonl.
+enum VoiceLog {
+    private static let queue = DispatchQueue(label: "VoiceLog")
+    private static let clock: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        formatter.timeZone = .current
+        return formatter
+    }()
+
+    static func write(_ event: String, _ detail: String, screen: String) {
+        let recordedAt=Date()
+        queue.async {
+            // The formatter and all file operations share this queue. The retention lock prevents a
+            // daily log being replaced between seek/append, which would otherwise lose new entries.
+            let time=clock.string(from:recordedAt)
+            let entry=["time":time,"event":event,"screen":screen,"detail":detail]
+            DiagnosticLogRetention.withFileAccess {
+                guard var line=try? JSONSerialization.data(withJSONObject:entry,options:[.sortedKeys]),
+                      let documents=FileManager.default.urls(for:.documentDirectory,in:.userDomainMask).first else {return}
+                line.append(0x0a)
+                let folder=documents.appendingPathComponent("VoiceLogs",isDirectory:true)
+                try? FileManager.default.createDirectory(at:folder,withIntermediateDirectories:true)
+                let file=folder.appendingPathComponent("voice-\(time.prefix(10)).jsonl")
+                if let handle=try? FileHandle(forWritingTo:file) {
+                    defer {try? handle.close()}
+                    _ = try? handle.seekToEnd()
+                    try? handle.write(contentsOf:line)
+                } else {
+                    try? line.write(to:file)
+                }
+            }
+            DiagnosticLogMaintenance.schedule()
+        }
+    }
+}
+
+#if DEBUG
+/// Silent testing (11/02): lines written to Documents/VoiceTest/inbox.txt on the phone are handled as if
+/// the microphone had heard them, so the flow can be driven from a Mac without speaking. Each line is read
+/// once; the recognizer itself is not involved. Debug builds only.
+@MainActor final class VoiceTestInbox {
+    static let shared = VoiceTestInbox()
+    /// The guidance currently open takes the lines; Home's wake listener gets them otherwise.
+    weak var guidance: GuidanceViewModel?
+    var home: ((String) -> Void)?
+    private var consumed = 0
+    private var timer: Timer?
+    private var url: URL? {
+        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?
+            .appendingPathComponent("VoiceTest/inbox.txt")
+    }
+    func start() {
+        guard timer == nil else { return }
+        consumed = (try? String(contentsOf: url!, encoding: .utf8)).map(Self.lines)?.count ?? 0
+        timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.poll() }
+        }
+    }
+    /// Only non-empty lines count, so an empty file and a trailing newline do not shift the count.
+    private static func lines(_ text: String) -> [String] {
+        text.split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+    }
+    private func poll() {
+        guard let url, let text = try? String(contentsOf: url, encoding: .utf8) else { return }
+        let lines = Self.lines(text)
+        guard lines.count > consumed else { if lines.count < consumed { consumed = lines.count }; return }
+        let fresh = Array(lines[consumed...])
+        consumed = lines.count
+        for line in fresh {
+            VoiceLog.write("test_typed", line, screen: guidance == nil ? "home" : "guidance")
+            if let guidance { guidance.submitTypedRequest(line) } else { home?(line) }
+        }
+    }
+}
+#endif

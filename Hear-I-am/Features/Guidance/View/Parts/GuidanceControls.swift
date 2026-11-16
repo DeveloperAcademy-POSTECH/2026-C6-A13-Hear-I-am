@@ -1,0 +1,95 @@
+import SwiftUI
+import HearIAmCore
+
+/// Bottom bar: errors, the line being spoken, replay, and the primary action for the phase.
+struct GuidanceControls: View {
+    @ObservedObject var library: StageLibrary
+    @ObservedObject var model: GuidanceViewModel
+    let close: () -> Void
+    let saveAndClose: () -> Void
+    var body: some View {
+        VStack(spacing:10) {
+            if let saveError=model.saveError {Text(saveError).font(.footnote).foregroundStyle(model.voiceExperiment ? Color.primary : Color.red).fixedSize(horizontal:false,vertical:true)}
+            if model.savingRecord {ProgressView(L("완료 기록을 저장하고 있어요"))}
+            if let error=model.audioIssue {Text(error).font(.footnote).foregroundStyle(model.voiceExperiment ? Color.primary : Color.red).fixedSize(horizontal:false,vertical:true)}
+            if model.speaking && !model.phase.showsRouteCamera && !(model.voiceExperiment && model.phase == .selection) {
+                HStack(alignment:.top,spacing:8) {
+                    Image(systemName:"speaker.wave.2.fill").foregroundStyle(model.voiceExperiment ? Color.primary : Color.hearGreen)
+                    Text(model.spokenText).font(.caption).lineLimit(3)
+                }.frame(maxWidth:.infinity,alignment:.leading)
+            }
+            if model.voiceExperiment && model.phase == .selection {
+                ViewThatFits(in:.horizontal) {
+                    HStack(spacing:16) {selectionSecondaryActions}
+                    VStack(spacing:0) {selectionSecondaryActions}
+                }
+            }
+            if !model.phase.showsRouteCamera && !(model.voiceExperiment && model.phase == .selection) && model.phase != .starting && !(model.phase == .finishing && model.speaking) {
+                Button {model.replay()} label: {
+                    Label(model.phase == .finishing ? L("종료 안내 다시 듣기") : L("설명 다시 듣기"),systemImage:"speaker.wave.2")
+                        .font(.subheadline.weight(.medium)).frame(minHeight:44).padding(.horizontal,12)
+                }.buttonStyle(.plain).foregroundStyle(model.voiceExperiment ? Color.primary : Color.hearGreen)
+                    .disabled(model.speaking || model.savingRecord)
+                    .opacity(model.speaking || model.savingRecord ? 0.45 : 1)
+            }
+            if model.voiceExperiment && model.phase != .selection && model.canCancelVoiceSelection {
+                Button(L("취소 · 이전 선택")) {model.cancelVoiceSelection()}.font(.subheadline).frame(minHeight:44)
+            }
+            primary
+        }.padding(.horizontal,24).padding(.top,12).padding(.bottom,12).background(paper)
+    }
+    /// The light practice screen is the button-only flow's; the voice flow's walking screen is dark (495:5555).
+    private var paper: Color {
+        model.phase.showsRouteCamera && model.isPractice && !model.voiceExperiment ? Color.white : model.voiceExperiment ? VoiceStyle.canvas : HearV3.canvas
+    }
+    @ViewBuilder private var selectionSecondaryActions: some View {
+        if model.canCancelVoiceSelection {
+            Button {model.cancelVoiceSelection()} label: {
+                Label(L("취소 · 이전 선택"),systemImage:"arrow.uturn.backward")
+                    .font(.subheadline.weight(.medium)).frame(minHeight:44)
+            }.buttonStyle(.plain)
+        }
+        Button {model.replay()} label: {
+            Label(L("설명 다시 듣기"),systemImage:"speaker.wave.2")
+                .font(.subheadline.weight(.medium)).frame(minHeight:44)
+        }.buttonStyle(.plain)
+    }
+    private func touch(_ action: () -> Void) {
+        model.prepareForVoiceTouch()
+        action()
+    }
+    @ViewBuilder private var primary: some View {
+        switch model.phase {
+        case .selection:
+            if library.records.isEmpty {GuidanceButton(title:L("홈으로 돌아가기"),action:close)}
+            else if model.voiceExperiment {
+                GuidanceButton(title:model.voiceChoosingMode ? L("다음 · 공간 확인") : L("다음 · 사용 방식"),enabled:model.canContinueVoiceSelection) {model.continueVoiceSelection()}
+            }
+            else {GuidanceButton(title:L("이 무대 사용하기"),enabled:model.selected != nil && model.canAdvanceInstruction) {touch {model.restore()}}}
+        case .restoring: GuidanceButton(title:L("공간 확인 중…"),enabled:false) {}
+        case .checkpoint: GuidanceButton(title:L("확인점 %@ 확인하기", model.tracking.nextCheckpointNumber),enabled:model.canVerify) {touch {model.verifyCheckpoint()}}
+        case .wear: GuidanceButton(title:L("착용 완료"),enabled:model.canAdvanceInstruction && model.tracking.ready) {touch {model.finishWear()}}
+        case .departure:
+            if !model.isPractice && !model.hasStarted && !model.departureReady {
+                GuidanceButton(title:L("출발점까지 안내"),enabled:model.canApproachStart && model.canAdvanceInstruction) {touch {model.startApproach()}}
+            }
+            GuidanceButton(title:model.hasStarted ? L("안내 다시 시작") : L("안내 시작"),enabled:model.departureReady && model.canAdvanceInstruction) {touch {model.startGuidance()}}
+        case .approaching,.starting,.guiding:
+            Button {touch {model.pause()}} label: {
+                Label(L("안내 일시정지"),systemImage:"pause.fill").font(.headline).frame(maxWidth:.infinity,minHeight:52)
+                    .background(Color(.secondarySystemBackground),in:RoundedRectangle(cornerRadius:18))
+            }.buttonStyle(.plain)
+        case .paused:
+            GuidanceButton(title:model.isPractice ? L("공간 다시 찾기") : L("확인점 다시 확인"),secondary:true) {touch {model.restore()}}
+            GuidanceButton(title:L("안내 다시 시작"),enabled:model.canResume && model.canAdvanceInstruction) {touch {model.startGuidance()}}
+        case .interrupted:
+            GuidanceButton(title:model.isPractice ? L("공간 다시 찾기") : L("확인점 다시 확인")) {touch {model.restore()}}
+        case .failed:
+            // Opened by the helper, the scene is chosen again in the performance it came from.
+            GuidanceButton(title:L("무대 다시 선택"),secondary:true) {touch {if model.helperStart {close()} else {model.chooseAgain()}}}
+            GuidanceButton(title:L("공간 다시 확인"),enabled:!model.tracking.busy) {touch {model.restore()}}
+        case .finishing: GuidanceButton(title:L("안내 종료 중…"),enabled:false) {}
+        case .completed: GuidanceButton(title:model.saveError == nil ? L("종료하고 기록 저장") : L("기록 저장 다시 시도"),enabled:!model.savingRecord,action:saveAndClose)
+        }
+    }
+}

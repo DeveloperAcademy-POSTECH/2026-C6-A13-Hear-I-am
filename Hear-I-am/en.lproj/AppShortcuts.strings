@@ -1,0 +1,4 @@
+/* Siri invocation phrases in the development language (#91). */
+"Start guidance in ${applicationName}" = "Start guidance in ${applicationName}";
+"Start ${applicationName}" = "Start ${applicationName}";
+"Open ${applicationName}" = "Open ${applicationName}";

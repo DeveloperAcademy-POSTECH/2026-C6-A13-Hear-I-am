@@ -1,0 +1,122 @@
+import ARKit
+import HearIAmCore
+
+/// Saving the world map, mesh and prepared route as one scan bundle.
+extension ARSessionController {
+    func awaitSaveRecovery(_ detail: String) {
+        busy=false; canSave=false; saveRecoveryPending=true
+        errorMessage=nil
+        status=L("입력한 내용은 유지됩니다. 주변을 천천히 비춰주세요. 추적과 공간 지도가 안정되면 다시 저장할 수 있어요.")
+        event("save_recovery",detail:detail)
+    }
+    func save(name rawName: String) {
+        guard canSave, !busy, !photoCapturing, let session, let stage, let checkpoint, let secondCheckpoint, let area else { return }
+        let route: StageRoute
+        do { route = try preparedDraft?.stageRoute() ?? StageRoute(area:area,points:routePoints,obstacles:obstacles) }
+        catch { errorMessage=error.localizedDescription; return }
+        busy=true; canSave=false; errorMessage=nil
+        let operation=token
+        saveAttempt=UUID(); let attempt=saveAttempt
+        Task { [weak self] in
+            try? await Task.sleep(for:.seconds(15))
+            guard let self, self.token==operation, self.saveAttempt==attempt, self.busy, !self.archiveWriteInProgress else {return}
+            self.saveAttempt=UUID()
+            self.awaitSaveRecovery("world map timeout")
+        }
+        session.getCurrentWorldMap { [weak self] map,error in
+            Task { @MainActor in
+                guard let self, self.token==operation, self.saveAttempt==attempt else { return }
+                guard self.active else {self.busy=false; return}
+                guard let map, error==nil, let sample=self.latest, sample.normal,
+                      sample.mapped, self.now-sample.time<=0.5,
+                      self.referenceAnchorsPresent(sample) else {
+                    self.awaitSaveRecovery(error?.localizedDescription ?? "tracking or map not ready"); return
+                }
+                let cachedParts=self.meshes.isEmpty ? Self.fallbackFloorMesh(area:area) : Array(self.meshes.values)
+                let id=self.scanID, name=rawName.trimmingCharacters(in:.whitespacesAndNewlines)
+                guard !name.isEmpty else {self.busy=false; self.errorMessage=L("스캔 이름을 입력하세요."); return}
+                guard [".origin",".front",".check",".check2"].allSatisfy({suffix in map.anchors.contains {$0.name==self.referencePrefix+suffix}}) else {
+                    self.awaitSaveRecovery("reference anchors missing"); return
+                }
+                guard self.photoSources.allSatisfy({source in
+                    guard let anchor=self.photoAnchors[source.photo.id] else {return false}
+                    return map.anchors.contains {$0.identifier==anchor.identifier}
+                }) else {
+                    self.awaitSaveRecovery("photo anchors missing");return
+                }
+                self.session?.pause(); self.gate.invalidate(); self.ready=false
+                self.position=nil; self.heading=nil
+                do {
+                    self.archiveWriteInProgress=true
+                    // receiveMeshes intentionally ignores callbacks while busy. Never pair that older cache
+                    // with newer corrected camera anchors. Copy geometry and poses from ONE final snapshot.
+                    let mapMeshes=map.anchors.compactMap {$0 as? ARMeshAnchor}
+                    let finalAnchors=mapMeshes.isEmpty ? (session.currentFrame?.anchors ?? []) : map.anchors
+                    let meshAnchors=finalAnchors.compactMap {$0 as? ARMeshAnchor}
+                    let finalParts=meshAnchors.compactMap(SessionBridge.copy)
+                    let coherent = !finalParts.isEmpty && finalParts.count==meshAnchors.count &&
+                        finalParts.reduce(0,{$0+$1.vertices.count})<=800_000
+                    let parts=coherent ? finalParts : cachedParts
+                    // Geometry fallback still saves as before, but cannot safely receive camera colors.
+                    let colorCapture=coherent ? self.bridge?.surfaceColors.snapshot(anchors:finalAnchors) : nil
+                    var colorAlignment=colorCapture?.alignment ?? SurfaceColorAlignmentDiagnostics()
+                    colorAlignment.meshSource=coherent ? (mapMeshes.isEmpty ? "currentFrame" : "worldMap") : "cacheWithoutColors"
+                    colorAlignment.recordMeshes(final:parts,cached:cachedParts)
+                    let alignmentReport=colorAlignment
+                    let colorFrames=colorCapture?.frames ?? []
+                    #if DEBUG
+                    let compareColors=ProcessInfo.processInfo.arguments.contains("--surface-color-compare")
+                    #else
+                    let compareColors=false
+                    #endif
+                    // Bake off the UI thread against the final mesh and corrected camera poses.
+                    let colorResult=await Task.detached(priority:.userInitiated) {
+                        let baked=SurfaceColorBaker.bakeWithDiagnostics(parts,frames:colorFrames,route:route)
+                        var report=baked.diagnostics
+                        report.capture=colorCapture?.diagnostics
+                        report.alignment=alignmentReport
+                        let current=(meshes:baked.meshes,diagnostics:report)
+                        let baseline=compareColors ? SurfaceColorBaker.bakeWithDiagnostics(parts,
+                            frames:colorCapture?.baseline ?? colorFrames,route:route,improveUpperFill:false).diagnostics : nil
+                        return (current:current,baseline:baseline)
+                    }.value
+                    guard self.token==operation else {return}
+                    guard self.saveAttempt==attempt,self.active else {
+                        self.archiveWriteInProgress=false;self.busy=false;return
+                    }
+                    // Capture-only anchors and images are not part of a saved scan or later guidance session.
+                    map.anchors.removeAll {$0.name?.hasPrefix(ScanSurfaceColorCapture.anchorPrefix)==true}
+                    let data=try NSKeyedArchiver.archivedData(withRootObject:map,requiringSecureCoding:true)
+                    let photoOwner=self.photoCapture
+                    let photos=self.photosForSaving(route:route,map:map)
+                    let result=try await self.store.save(id:id,name:name,frame:stage,checkpoint:checkpoint,
+                        worldMap:data,meshes:colorResult.current.meshes,device:UIDevice.current.model+" / "+UIDevice.current.systemVersion,
+                        appVersion:Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown",
+                        route:route,settings:self.settings,photos:photos,secondCheckpoint:secondCheckpoint,
+                        surfaceColorDiagnostics:colorResult.current.diagnostics)
+                    withExtendedLifetime(photoOwner) {}
+                    guard self.token==operation else { return }
+                    self.event("surface_color_bake",detail:colorResult.current.diagnostics.summary)
+                    if let baseline=colorResult.baseline {self.event("surface_color_baseline",detail:baseline.summary)}
+                    #if DEBUG
+                    print("SURFACE_COLOR_REPORT: \(colorResult.current.diagnostics.summary)")
+                    if let baseline=colorResult.baseline {print("SURFACE_COLOR_BASELINE: \(baseline.summary)")}
+                    #endif
+                    self.bridge?.surfaceColors.finish()
+                    self.saveRecoveryPending=false
+                    self.mode = .saved; self.savedID=result.id; self.manifest=result; self.status=L("저장 완료 · 앱 재실행 후 저장 공간을 불러와 확인점 1·2를 확인하세요")
+                    self.event("scan_saved",detail:result.id.uuidString); self.stopLog()
+                } catch {
+                    guard self.token==operation else { return }
+                    self.errorMessage=L("저장 실패: ")+error.localizedDescription; self.status=L("입력은 유지됩니다. 다시 저장해주세요.")
+                    if let configuration=self.session?.configuration, self.active { self.session?.run(configuration) }
+                }
+                self.archiveWriteInProgress=false; self.busy=false; UIApplication.shared.isIdleTimerDisabled = self.mode == .scanning
+            }
+        }
+    }
+    private static func fallbackFloorMesh(area: StageArea) -> [MeshSnapshot] {
+        let identity: [Float] = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]
+        return [MeshSnapshot(id:UUID(), transform:identity, vertices:area.corners, indices:[0,1,2, 0,2,3])]
+    }
+}

@@ -1,0 +1,173 @@
+import ARKit
+import AVFoundation
+import HearIAmCore
+
+/// Starting, restoring, interrupting and expiring sessions.
+extension ARSessionController {
+    func newScan() {
+        guard !busy else { return }
+        busy=true
+        let operation=token
+        Task {
+            defer { if token==operation {busy=false} }
+            guard supported else { errorMessage=L("LiDAR 메시 스캔을 지원하는 실제 iPhone이 필요합니다."); return }
+            guard await permission(), active, token==operation else { return }
+            busy=false
+            reset()
+            scanID=UUID(); mode = .scanning
+            beginLog(source:"new-scan")
+            guard logger.isOpen else {mode = .idle; return}
+            startSession(map:nil)
+            status=L("네 꼭짓점, 경로, 기물, 확인점 1·2를 선택하세요")
+        }
+    }
+    func restore(_ item: ScanManifest, validation: RestorationValidation = .checkpoints) {
+        guard !busy else { return }
+        busy=true
+        // Capture invalidation generation BEFORE an await; backgrounding cancels this operation.
+        let operation=token
+        Task {
+            defer { if token==operation {busy=false} }
+            guard supported else { errorMessage=L("이 기기는 저장한 공간의 AR 안내를 지원하지 않습니다."); return }
+            guard await permission(), active else { return }
+            do {
+                let loaded=try await store.load(item.id)
+                guard token==operation, active else { return }
+                guard let map=try NSKeyedUnarchiver.unarchivedObject(ofClass:ARWorldMap.self,from:loaded.worldMap) else {
+                    throw LabError.invalid(L("공간 지도를 해제할 수 없습니다."))
+                }
+                guard loaded.manifest.supportsAlignment else {
+                    throw LabError.invalid(L("확인점이 하나인 이전 무대는 열람만 가능합니다. 무대를 다시 준비해 확인점 두 개를 저장해주세요."))
+                }
+                let prefix=loaded.manifest.anchorName
+                guard [".origin",".front",".check",".check2"].allSatisfy({suffix in map.anchors.contains {$0.name==prefix+suffix}}) else {
+                    throw LabError.invalid(L("공간 지도에 기준 앵커가 없습니다."))
+                }
+                // Derive once from saved mesh coordinates; session alignment already maps live poses back to these coordinates.
+                let footprint=await Task.detached(priority:.userInitiated) {
+                    guard let route=loaded.manifest.route else { return Optional<ScannedFootprint>.none }
+                    return try? ScannedFootprint(meshes:loaded.meshes,area:route.area)
+                }.value
+                guard token==operation, active else { return }
+                busy=false
+                reset()
+                restorationValidation=validation
+                scannedFootprint=footprint
+                manifest=loaded.manifest; scanID=item.id; stage=loaded.manifest.frame
+                origin=loaded.manifest.frame.origin; front=loaded.manifest.frame.front; checkpoint=loaded.manifest.checkpoint; secondCheckpoint=loaded.manifest.secondCheckpoint
+                if let route=loaded.manifest.route {
+                    area=route.area; corners=route.area.corners.map { Optional($0) }
+                    routePoints=route.points; obstacles=route.obstacles; settings=loaded.manifest.settings
+                }
+                mode = .restoring
+                for part in loaded.meshes { meshes[part.id]=part }
+                updateCounts(); redrawReferences(); renderer.rebuildMeshes(meshes.values,saved:true)
+                renderer.meshLayer.isHidden=true; renderer.referenceLayer.isHidden=true
+                beginLog(source:"restore")
+                guard logger.isOpen else {mode = .idle; return}
+                restoreStarted=now
+                startSession(map:map)
+                status=L("복원 중 · 스캔했던 주변과 기준점을 천천히 비추세요")
+            } catch { if token==operation { errorMessage=L("불러오기 실패: ")+error.localizedDescription } }
+        }
+    }
+    func resumePreparation() {
+        guard vertexCount<=800_000 else {errorMessage=L("스캔 범위가 너무 큽니다. 준비를 종료하고 더 작은 영역으로 다시 스캔해주세요."); return}
+        guard active, mode == .scanning, let configuration=session?.configuration else { return }
+        latest=nil; preparationInterrupted=false; session?.run(configuration)
+        status=L("주변을 천천히 비추며 추적을 다시 확인해주세요.")
+    }
+    /// Preparation keeps its input and waits for an explicit resume; guidance ends the session.
+    func interrupt(_ message: String, token incoming: UUID) {
+        guard incoming==token else { return }
+        if purpose == .preparation, mode == .scanning, message != L("측정 종료") {
+            cancelPhotoCapture()
+            session?.pause(); preparationInterrupted=true; canSave=false
+            if !archiveWriteInProgress {saveAttempt=UUID(); busy=false}
+            latest=nil; status=L("추적이 중단됐습니다. 같은 공간에서 추적을 다시 시작해주세요.")
+            return
+        }
+        event("session_interrupted",detail:message)
+        session?.pause(); session?.delegate=nil; token=UUID(); busy=false; gate.invalidate()
+        canSave=false; canVerify=false; mode = .idle; restoreStarted=nil
+        invalidateWear(message); stopLog(); UIApplication.shared.isIdleTimerDisabled=false
+    }
+    func setActive(_ value: Bool) {
+        active=value
+        if purpose == .preparation {
+            if !value {
+                cancelPhotoCapture()
+                session?.pause(); latest=nil; canSave=false; preparationInterrupted=true
+                if !archiveWriteInProgress {saveAttempt=UUID(); busy=false}
+            }
+            return
+        }
+        if !value { interrupt(L("앱 비활성화 · 저장 공간을 다시 불러오거나 새 스캔을 시작하세요"),token:token) }
+    }
+    func endSession() { interrupt(L("측정 종료"),token:token); bridge?.surfaceColors.finish(); clearPhotos() }
+
+    func permission() async -> Bool {
+        switch AVCaptureDevice.authorizationStatus(for:.video) {
+        case .authorized: return true
+        case .notDetermined: return await AVCaptureDevice.requestAccess(for:.video)
+        default: errorMessage=L("설정 앱에서 카메라 접근을 허용하세요."); return false
+        }
+    }
+    func audioInterrupted() {
+        gate.invalidate(); invalidateWear(L("오디오 중단 · 두 확인점 재확인 필요"))
+        event("audio_interrupted")
+    }
+    /// Revokes current readiness on transient tracking loss, while preserving any completed checkpoint alignment
+    /// within the same session so guidance can automatically resume once tracking recovers (#115).
+    func invalidateWear(_ message: String) {
+        ready=false; position=nil; heading=nil; guidancePoseTime=nil; status=message
+        if alignment == nil {
+            clearAlignment()
+            if purpose == .guidance {renderer.referenceLayer.isHidden=true}
+        }
+    }
+    /// Restarts AR world-map relocalization in the background when tracking cannot recover within the grace window (#115).
+    /// Switches validation to `.relocalization` so guidance resumes automatically without helper intervention.
+    func relocalizeInPlace() {
+        guard let item=manifest, active, !busy else { return }
+        event("auto_relocalize_start")
+        clearAlignment()
+        restorationValidation = .relocalization
+        gate.invalidate()
+        ready=false; canVerify=false; position=nil; heading=nil; guidancePoseTime=nil
+        let operation=token
+        Task {
+            guard let loaded=try? await store.load(item.id),
+                  token == operation, active,
+                  let map=try? NSKeyedUnarchiver.unarchivedObject(ofClass:ARWorldMap.self,from:loaded.worldMap) else { return }
+            mode = .restoring
+            restoreStarted=now
+            startSession(map:map)
+            status=L("공간 자동 재복원 중 · 몸을 천천히 좌우로 돌려주세요")
+        }
+    }
+    func tick() {
+        let was=gate.verified; gate.expire(now:now)
+        if alignment == nil && !measuredCheckpoints.isEmpty && checkpointStableSince != gate.normalSince { clearAlignment() }
+        if was && !gate.verified { invalidateWear(L("센서 표본 만료 · 위치 재확인 중")); event("sample_expired") }
+        if alignment != nil && !gate.verified && gate.canVerify(now:now) {
+            _=gate.verify(error:alignment?.residual ?? 0,tolerance:checkpointTolerance,now:now)
+            event("tracking_auto_recovered")
+        }
+        canVerify=gate.canVerify(now:now); ready=gate.isReady(now:now,validation:restorationValidation)
+        if let latest, now-latest.time>0.5 { canSave=false }
+        if purpose == .preparation { updateAim() }
+        if let restoreStarted, now-restoreStarted>60, !ready, !canVerify {
+            interrupt(L("복원 60초 초과 · 주변을 확인한 후 저장 공간을 다시 불러오세요"),token:token)
+        }
+        let checkedToken=token
+        logger.checkFailure { [weak self] failure in
+            guard let failure else { return }
+            Task { @MainActor in
+                guard let self, self.token==checkedToken else { return }
+                self.errorMessage=L("로그 저장 실패: ")+failure
+                self.interrupt(L("로그 저장 실패로 측정 종료"),token:checkedToken)
+            }
+        }
+    }
+}

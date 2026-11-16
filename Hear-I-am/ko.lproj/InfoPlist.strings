@@ -1,0 +1,6 @@
+/* Permission prompts in Korean (#183). */
+"NSCameraUsageDescription" = "무대 스캔, 현장 사진 촬영과 착용 위치 추적을 위해 카메라를 사용합니다.";
+"NSLocationWhenInUseUsageDescription" = "공간을 추가할 때 주변 공연장을 찾아 보여주기 위해 위치를 사용합니다.";
+"NSMotionUsageDescription" = "정면 찾기 연습에서 휴대폰을 착용한 몸의 회전 방향을 확인합니다.";
+"NSMicrophoneUsageDescription" = "음성으로 무대를 선택하고 연습 중 안내를 제어하기 위해 마이크를 사용합니다.";
+"NSSpeechRecognitionUsageDescription" = "무대 이름과 안내 요청을 음성으로 이해합니다.";

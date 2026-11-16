@@ -1,0 +1,456 @@
+import SwiftUI
+import HearIAmCore
+
+/// A saved scene fills the space folder. Every marker, photo and path comes from its scan.
+struct ImmersiveSavedStagePreview: View {
+    @StateObject private var model: SavedStagePreviewModel
+    let scanSelector: AnyView?
+    let onRename: (() -> Void)?
+    let onDelete: (() -> Void)?
+    @State private var gallery = false
+    @State private var galleryDetent=PresentationDetent.height(200)
+    @State private var pointSettings = false
+    /// The route bar: a small capsule at first (971:33671), opened into the full-width bar (971:34370).
+    @State private var barExpanded = false
+    /// Where an open sheet's top edge is on screen, so the opened bar can ride up on it (971:33834 · 971:34288).
+    @State private var sheetTop: CGFloat?
+    /// Where a finger is on the opened bar, from its centre; the point's name follows it until it lifts.
+    @State private var dragX: CGFloat?
+    /// The point settings' own height, which the sheet takes as its size.
+    @State private var settingsHeight: CGFloat=240
+
+    init(record: ScanManifest, store: ScanStore, scanSelector: AnyView? = nil,
+         onRename: (() -> Void)? = nil, onDelete: (() -> Void)? = nil) {
+        let model=SavedStagePreviewModel(record:record,store:store)
+        model.display = .clean;model.immersive=true;model.showCleanPhotoPins=true
+        model.selection = record.route?.points.isEmpty == false ? .point(0) : nil
+        _model=StateObject(wrappedValue:model)
+        self.scanSelector=scanSelector
+        self.onRename=onRename;self.onDelete=onDelete
+    }
+
+    var body: some View {
+        GeometryReader { geometry in
+            let safeBottom=geometry.safeAreaInsets.bottom
+            ZStack {
+                HearV3.canvas
+                if let scan=model.loaded {
+                    SavedMeshView(scan:scan,model:model)
+                        .accessibilityLabel(L("저장된 무대. 한 손가락으로 회전하고 두 손가락으로 이동하거나 확대할 수 있어요."))
+                        .simultaneousGesture(TapGesture().onEnded {
+                            if barExpanded && !pointSettings && !gallery {withAnimation(Self.barSpring) {barExpanded=false}}
+                        })
+                    LinearGradient(colors:[.black.opacity(0.16),.clear,.clear,.black.opacity(0.30)],startPoint:.top,endPoint:.bottom)
+                        .allowsHitTesting(false)
+                    if let photo=shownPhoto,let anchor=model.photoAnchor {
+                        // Explicit photo selection dims the stage regardless of the route bar's state.
+                        Color.black.opacity(0.6).allowsHitTesting(false)
+                        photoPreview(photo,scan:scan)
+                            .position(x:min(max(anchor.x*geometry.size.width,86),geometry.size.width-86),
+                                      y:min(max(anchor.y*(geometry.size.height+geometry.safeAreaInsets.top+safeBottom)-geometry.safeAreaInsets.top,80),geometry.size.height-200))
+                            .transition(.opacity.combined(with:.scale(scale:0.92)))
+                    }
+                    if pointSettings || gallery {
+                        // A tap anywhere outside an open sheet puts it away, as a tap outside a menu does. The route
+                        // bar sits above this layer, so it can still be dragged while the sheet is up.
+                        Color.black.opacity(0.001).contentShape(Rectangle())
+                            .onTapGesture {
+                                guard !model.savingHold else {return}
+                                pointSettings=false;gallery=false
+                            }
+                            .accessibilityHidden(true)
+                    }
+                    if let route=scan.manifest.route,!route.points.isEmpty {
+                        controls(route:route,safeBottom:safeBottom,height:geometry.size.height+geometry.safeAreaInsets.top+safeBottom,width:geometry.size.width)
+                    } else {
+                        HStack {
+                            ScanCircleButton(systemImage:"photo.on.rectangle",label:L("저장된 현장 사진"),size:48) {gallery=true}
+                            Spacer()
+                        }.padding(.horizontal,27).padding(.bottom,safeBottom).frame(maxHeight:.infinity,alignment:.bottom)
+                    }
+                } else if let error=model.error {
+                    ContentUnavailableView {
+                        Label(L("공간을 열 수 없어요"),systemImage:"exclamationmark.triangle")
+                    } description: {Text(error)} actions: {
+                        Button(L("다시 시도")) {Task {await model.load()}}
+                    }
+                } else {ProgressView(L("공간을 불러오는 중이에요"))}
+            }.ignoresSafeArea()
+                .animation(.easeInOut(duration:0.2),value:shownPhoto?.id)
+        }
+        .background(HearV3.canvas).foregroundStyle(HearV3.text).tint(HearV3.text)
+        .preferredColorScheme(.dark)
+        .toolbar(.hidden,for:.tabBar)
+        // Figma 971:33671: back, the scene picker and ⋯ in the shared top row.
+        .hearTopBar(center:{
+            if let scanSelector {scanSelector}
+            else {Label(model.record.name,systemImage:"movieclapper").labelStyle(.titleAndIcon).font(.caption.weight(.semibold)).lineLimit(1)}
+        }) {HearBackButton()} trailing: {moreMenu}
+        .task {
+            await model.load()
+            #if DEBUG
+            let args=ProcessInfo.processInfo.arguments
+            if args.contains("--replay-photo"),let photo=model.loaded?.manifest.photos.first {model.select(.photo(photo.id))}
+            if args.contains("--replay-middle") {model.select(.point(1))}
+            if let i=args.firstIndex(of:"--replay-point"),args.indices.contains(i+1),let n=Int(args[i+1]) {model.select(.point(n))}
+            if args.contains("--replay-expanded") {barExpanded=true}
+            if args.contains("--replay-open-later") {
+                try? await Task.sleep(for:.seconds(3))
+                withAnimation(Self.barSpring) {barExpanded=true}
+            }
+            if args.contains("--replay-gallery-close") {
+                barExpanded=true;gallery=true
+                try? await Task.sleep(for:.seconds(3));gallery=false
+            }
+            if args.contains("--replay-step-later") {
+                try? await Task.sleep(for:.seconds(3))
+                withAnimation(Self.barSpring) {model.select(.point(1))}
+            }
+            if args.contains("--replay-gallery") {barExpanded=true;gallery=true}
+            if args.contains("--replay-settings") {barExpanded=true;openPointSettings()}
+            if args.contains("--replay-wait-later") {
+                try? await Task.sleep(for:.seconds(3))
+                withAnimation(Self.sheetSpring) {model.holdSecondsText="10"}
+            }
+            #endif
+        }
+        .onChange(of:gallery || pointSettings) {_,open in if !open {withAnimation(Self.barSpring) {sheetTop=nil}}}
+        .sheet(isPresented:$gallery) {photoGallery.background(SheetTopReporter {top in withAnimation(Self.barSpring) {sheetTop=top}}).suspendsVoiceWake()}
+        .sheet(isPresented:$pointSettings) {pointSettingsSheet.background(SheetTopReporter {top in withAnimation(Self.barSpring) {sheetTop=top}}).suspendsVoiceWake()}
+        .sheet(isPresented:$model.photoExpanded) {
+            if let scan=model.loaded,let photo=model.selectedPhoto {
+                SavedPhotoViewpoint(scan:scan,photo:photo,store:model.store,cleanSurfaces:model.cleanSurfaces,display:.clean)
+                    .suspendsVoiceWake()
+            }
+        }
+    }
+
+    /// Photo pins, camera views, scene rename and scan deletion.
+    private var moreMenu: some View {
+        Menu {
+            Button {model.photoPinsVisible.toggle()} label: {
+                Label(model.photoPinsVisible ? L("사진 위치 표시 ✓") : L("사진 위치 표시"),systemImage:"photo.badge.magnifyingglass")
+            }
+            .accessibilityLabel(L("사진 위치 표시"))
+            .accessibilityValue(model.photoPinsVisible ? L("표시 중") : L("숨김"))
+            Section {
+                Button(L("시점 초기화"),systemImage:"arrow.counterclockwise") {model.setCamera(.overview)}
+                Button(L("동선 위에서 보기"),systemImage:"eye") {model.setCamera(.overhead)}
+                if let onRename {Button(L("장면 이름 변경"),systemImage:"pencil",action:onRename)}
+            }
+            if let onDelete {
+                Section {Button(L("현재 스캔 파일 삭제"),systemImage:"trash",role:.destructive,action:onDelete)}
+            }
+        } label: {HearTopButtonLabel(systemImage:"ellipsis")}
+            .buttonStyle(.plain).accessibilityLabel(L("무대 메뉴"))
+    }
+
+    #if DEBUG
+    /// `--slow-bar` stretches the bar's spring so each frame of the change can be checked.
+    static let barSpring=Animation.spring(duration:ProcessInfo.processInfo.arguments.contains("--slow-bar") ? 4 : 0.42,bounce:0.18)
+    #else
+    static let barSpring=Animation.spring(duration:0.42,bounce:0.18)
+    #endif
+    static let sheetSpring=Animation.spring(duration:0.35,bounce:0.1)
+    private static let grey=Color(red:118/255,green:118/255,blue:118/255)
+    /// Only a photo pin or gallery selection opens a preview; route points and objects never open one automatically.
+    private var shownPhoto: ScanPhoto? {
+        guard case .photo = model.selection,model.photoPinsVisible,
+              let photo=model.selectedPhoto else {return nil}
+        return photo
+    }
+
+    /// The bottom of the stage: photos and point settings at the corners, the route between them. Closed, the route
+    /// is a 94pt capsule between the arrows (971:33671); opened, the same capsule grows into a full-width bar above
+    /// them (971:34370) that you drag along like a video's timeline. It is one view whose width, place and points all
+    /// move in the same spring, so the points slide out from the window as the glass widens instead of appearing
+    /// ahead of it. While a sheet is up the opened bar rides on its top edge, but never below its resting place.
+    private func controls(route: StageRoute,safeBottom: CGFloat,height: CGFloat,width: CGFloat) -> some View {
+        let count=route.points.count, index=min(model.activePointIndex,count-1)
+        let layout=RouteBarLayout(count:count,index:index,expanded:barExpanded,width:width-56)
+        let rowY=height-safeBottom-24
+        let resting=safeBottom+48+12
+        let lift=max(resting,sheetTop.map {height-$0+16} ?? resting)
+        let hidden=barExpanded && lift>height*0.6
+        let barY=barExpanded ? height-min(lift,height*0.6)-25 : rowY
+        let mid=width/2
+        let focus=barExpanded ? (dragX ?? layout.x(index)) : 0
+        let chipX=min(max(mid+focus,72),width-72)
+        let label=route.pointLabel(at:index)
+        return ZStack(alignment:.topLeading) {
+            Color.clear
+            ScanCircleButton(systemImage:"photo.on.rectangle",label:L("저장된 현장 사진"),size:48) {
+                withAnimation(Self.barSpring) {barExpanded=true};gallery=true
+            }.position(x:51,y:rowY)
+            ScanCircleButton(systemImage:"timer",label:L("선택 지점 설정"),size:48) {
+                withAnimation(Self.barSpring) {barExpanded=true};openPointSettings()
+            }.position(x:width-51,y:rowY)
+            arrow("chevron.left",label:L("이전 지점"),enabled:index>0) {step(index-1)}
+                .position(x:mid-(barExpanded ? 24 : 71),y:rowY)
+            arrow("chevron.right",label:L("다음 지점"),enabled:index<count-1) {step(index+1)}
+                .position(x:mid+(barExpanded ? 24 : 71),y:rowY)
+            routeBar(route:route,layout:layout,index:index)
+                .position(x:mid,y:barY).opacity(hidden ? 0 : 1)
+            pointChip(label)
+                .position(x:chipX,y:barY-layout.barHeight/2-24).opacity(hidden ? 0 : 1)
+        }.frame(width:width,height:height)
+            .sensoryFeedback(.selection,trigger:model.activePointIndex)
+    }
+    private func step(_ i: Int) {withAnimation(Self.barSpring) {model.select(.point(i))}}
+    private func arrow(_ symbol: String,label: String,enabled: Bool,action: @escaping () -> Void) -> some View {
+        Button(action:action) {
+            Image(systemName:symbol).font(.system(size:12,weight:.semibold)).foregroundStyle(enabled ? Color(white:0.98) : Self.grey)
+                .frame(width:36,height:36).liquidGlass(Circle(),tint:.white.opacity(0.05),interactive:true).contentShape(Circle())
+        }.buttonStyle(.plain).disabled(!enabled).accessibilityLabel(label)
+    }
+    /// The point's name on its own piece of glass. The name blurs into the next one while the glass slides and
+    /// resizes with it, so the label moves as one thing rather than an outline running ahead of its text.
+    private func pointChip(_ text: String) -> some View {
+        ZStack {
+            Text(text).font(.system(size:14,weight:.semibold)).foregroundStyle(.white).lineLimit(1).fixedSize()
+                .id(text).transition(.blurReplace)
+        }.padding(.horizontal,12).frame(height:28)
+            .liquidGlass(Capsule(),tint:.white.opacity(0.1))
+            .animation(Self.barSpring,value:text)
+            .allowsHitTesting(false).accessibilityHidden(true)
+    }
+    /// The route on glass. Closed, a tap opens it. Opened, a finger anywhere on it picks the point beneath, and the
+    /// name above follows the finger until it lifts, then settles over the point.
+    private func routeBar(route: StageRoute,layout: RouteBarLayout,index: Int) -> some View {
+        ZStack {
+            Color.clear
+            ForEach(0..<layout.count,id:\.self) {i in
+                routeItem(i,count:layout.count,selected:i==index,expanded:layout.expanded).offset(x:layout.x(i))
+            }
+        }.frame(width:layout.barWidth,height:layout.barHeight).clipShape(Capsule())
+            .liquidGlass(Capsule(),tint:.white.opacity(0.05),interactive:true)
+            .contentShape(Capsule())
+            .gesture(DragGesture(minimumDistance:0).onChanged {value in
+                guard barExpanded else {return}
+                let half=layout.barWidth/2
+                let x=min(max(value.location.x-half,-half+23),half-23)
+                if dragX == nil {withAnimation(.spring(duration:0.25,bounce:0.2)) {dragX=x}} else {dragX=x}
+                let i=layout.index(at:x)
+                if i != model.activePointIndex {withAnimation(Self.barSpring) {model.select(.point(i))}}
+            }.onEnded {value in
+                guard barExpanded else {
+                    if abs(value.translation.width)<12,abs(value.translation.height)<12 {withAnimation(Self.barSpring) {barExpanded=true}}
+                    return
+                }
+                withAnimation(Self.barSpring) {dragX=nil}
+            })
+            .accessibilityElement(children:.ignore).accessibilityLabel(L("동선"))
+            .accessibilityValue(route.pointLabel(at:index))
+            .accessibilityHint(layout.expanded ? L("위아래로 쓸어 지점을 바꿔요") : L("두 번 눌러 펼쳐요"))
+            .accessibilityAction {withAnimation(Self.barSpring) {barExpanded.toggle()}}
+            .accessibilityAdjustableAction {direction in
+                switch direction {
+                case .increment: if index<layout.count-1 {step(index+1)}
+                case .decrement: if index>0 {step(index-1)}
+                @unknown default: break
+                }
+            }
+    }
+    /// Start and arrival: a ring and a white symbol when chosen, grey otherwise. Points between: a dot that grows
+    /// white. Sizes change by scaling, so they move in the same spring as the bar.
+    @ViewBuilder private func routeItem(_ i: Int,count: Int,selected: Bool,expanded: Bool) -> some View {
+        if i==0 || i==count-1 {
+            Image(systemName:i==0 ? "mappin" : "flag.pattern.checkered").font(.system(size:16,weight:.medium))
+                .foregroundStyle(selected ? .white : Self.grey)
+                .frame(width:36,height:36).background(Circle().fill(.white.opacity(selected ? 0.2 : 0)))
+                .scaleEffect(expanded ? 1 : 28/36)
+        } else {
+            Circle().fill(selected ? .white : .white.opacity(0.45)).frame(width:16,height:16)
+                .scaleEffect((selected ? 16 : 10)/16*(expanded ? 1 : 0.55))
+        }
+    }
+
+    /// The selected photo in a 136 × 104 glass frame, a close button on its corner.
+    private func photoPreview(_ photo: ScanPhoto,scan: LoadedScan) -> some View {
+        Button {model.photoExpanded=true} label: {
+            SavedPhotoImage(store:model.store,scanID:scan.manifest.id,photo:photo,fill:true)
+                .frame(width:124,height:94).clipShape(RoundedRectangle(cornerRadius:20,style:.continuous))
+                .frame(width:136,height:104)
+                .liquidGlass(RoundedRectangle(cornerRadius:24,style:.continuous),tint:.white.opacity(0.05))
+        }.buttonStyle(.plain).accessibilityLabel(L("선택한 사진 크게 보기"))
+            .overlay(alignment:.topTrailing) {
+                ScanCircleButton(systemImage:"xmark",label:L("사진 미리보기 닫기"),size:32) {model.closePhotoPreview()}
+                    .offset(x:12,y:-12)
+            }
+    }
+
+    /// 971:34288: a low sheet, 「현장사진」 and one row of photos; pulled up, 「전체 이미지」 in three columns (971:34319).
+    private var photoGallery: some View {
+        let full=galleryDetent == .large
+        return VStack(alignment:.leading,spacing:14) {
+            HStack {
+                Text(full ? L("전체 이미지") : L("현장사진")).font(HearFont.pretendard(.semibold,size:22)).foregroundStyle(.white)
+                    .accessibilityAddTraits(.isHeader)
+                Spacer()
+                if full {ScanCircleButton(systemImage:"xmark",label:L("닫기")) {gallery=false}}
+            }.frame(height:44)
+            if let scan=model.loaded,!scan.manifest.photos.isEmpty {
+                if full {
+                    ScrollView {
+                        LazyVGrid(columns:Array(repeating:GridItem(.flexible(),spacing:8),count:3),spacing:8) {
+                            ForEach(scan.manifest.photos) {photo in galleryTile(photo,scan:scan).aspectRatio(1.36,contentMode:.fit)}
+                        }
+                    }.scrollIndicators(.hidden)
+                } else {
+                    ScrollView(.horizontal) {
+                        LazyHStack(spacing:8) {
+                            ForEach(scan.manifest.photos) {photo in galleryTile(photo,scan:scan).frame(width:110,height:84)}
+                        }
+                    }.scrollIndicators(.hidden).frame(height:84)
+                }
+            } else {
+                Text(L("저장된 사진이 없어요")).font(.subheadline).foregroundStyle(HearV3.secondary)
+            }
+            Spacer(minLength:0)
+        }.padding(.horizontal,20).padding(.top,full ? 20 : 14)
+            .presentationDetents([.height(200),.large],selection:$galleryDetent).presentationDragIndicator(.visible)
+            .presentationCornerRadius(42).presentationBackground {HearSheetBackground()}.presentationBackgroundInteraction(.enabled(upThrough:.height(200)))
+            .preferredColorScheme(.dark)
+    }
+    private func galleryTile(_ photo: ScanPhoto,scan: LoadedScan) -> some View {
+        Button {gallery=false;model.select(.photo(photo.id))} label: {
+            Color.clear.overlay {SavedPhotoImage(store:model.store,scanID:scan.manifest.id,photo:photo,fill:true)}
+                .clipShape(RoundedRectangle(cornerRadius:6,style:.continuous))
+        }.buttonStyle(.plain)
+            .accessibilityLabel(L("사진 %@ 촬영 위치 보기", (scan.manifest.photos.firstIndex(of:photo) ?? 0)+1))
+    }
+
+    /// 「3번 지점 설정」 for P3; the start and the arrival by name.
+    private var pointSettingsTitle: String {
+        let count=model.loaded?.manifest.route?.points.count ?? 0, i=model.activePointIndex
+        return i==0 ? L("출발 지점 설정") : i==count-1 ? L("도착 지점 설정") : L("%@번 지점 설정", i)
+    }
+    private func openPointSettings() {
+        guard let route=model.loaded?.manifest.route,!route.points.isEmpty else {return}
+        model.select(.point(min(model.activePointIndex,route.points.count-1)))
+        pointSettings=true
+    }
+    /// 971:33834: 「n번 지점 설정」, a switch for waiting before the next move, 5 · 10 · 20 s and − value + , then
+    /// 「지점 설정 저장」. The facing direction is not in the design but stays as one row under it.
+    private var pointSettingsSheet: some View {
+        let seconds=model.enteredHoldSeconds ?? 0
+        let waits=Binding(get:{seconds>0},set:{on in withAnimation(Self.sheetSpring) {model.holdSecondsText=on ? "10" : "0"}})
+        return VStack(alignment:.leading,spacing:0) {
+            // 971:33834: the close button has the top-right corner to itself, under the grabber; the title starts on
+            // the line below it, and the wait switch on the line under the title, so none of them share a line.
+            HStack {
+                Spacer()
+                ScanCircleButton(systemImage:"xmark",label:L("닫기"),enabled:!model.savingHold) {pointSettings=false}
+            }.padding(.trailing,-10)
+            Text(pointSettingsTitle).font(HearFont.pretendard(.semibold,size:22)).foregroundStyle(.white)
+                .padding(.top,10)
+            if model.canEditPointHold {
+                Toggle(isOn:waits) {
+                    Text(L("다음 이동 전 대기")).font(HearFont.pretendard(.regular,size:16)).foregroundStyle(.white)
+                }.toggleStyle(PointWaitSwitchStyle()).padding(.top,8)
+                if seconds>0 {
+                    HStack(spacing:8) {
+                        ForEach([5,10,20],id:\.self) {value in
+                            Button {model.holdSecondsText=String(value)} label: {
+                                Text(L("%@초", value)).font(HearFont.pretendard(.medium,size:15))
+                                    .foregroundStyle(seconds==value ? .black : .white)
+                                    .padding(.horizontal,14).frame(height:32)
+                                    .background(seconds==value ? Color.white : Color.white.opacity(0.1),in:Capsule())
+                            }.buttonStyle(.plain)
+                        }
+                    }.padding(.top,16).transition(.opacity)
+                    HStack {
+                        ScanCircleButton(systemImage:"minus",label:L("5초 줄이기"),size:48,enabled:seconds>5) {model.holdSecondsText=String(max(seconds-5,5))}
+                        Spacer()
+                        Text(L("%@초", seconds)).font(HearFont.pretendard(.semibold,size:28)).foregroundStyle(.white).monospacedDigit()
+                        Spacer()
+                        ScanCircleButton(systemImage:"plus",label:L("5초 늘리기"),size:48,enabled:seconds<3600) {model.holdSecondsText=String(min(seconds+5,3600))}
+                    }.padding(.top,20).transition(.opacity)
+                }
+            }
+            // The wait controls fold in and out with the sheet's own resize.
+            Color.clear.frame(height:0).animation(Self.sheetSpring,value:seconds>0)
+            HStack {
+                Text(L("도착 후 바라볼 방향")).font(HearFont.pretendard(.regular,size:15)).foregroundStyle(.white)
+                Spacer()
+                Picker(L("방향"),selection:$model.pointFacing) {
+                    Text(L("지정 안 함")).tag(StageFacing?.none)
+                    ForEach(StageFacing.allCases,id:\.self) {Text($0.label).tag(Optional($0))}
+                }.tint(HearV3.secondary)
+            }.padding(.top,18)
+            if let error=model.holdSaveError {Text(error).font(.footnote).foregroundStyle(.red).padding(.top,8)}
+            Button {
+                Task {await model.savePointSettings();if model.holdSaveError==nil {pointSettings=false}}
+            } label: {
+                Group {if model.savingHold {ProgressView()} else {Text(L("지점 설정 저장"))}}
+                    .font(HearFont.pretendard(.semibold,size:17)).foregroundStyle(.black)
+                    .frame(maxWidth:.infinity).frame(height:50).background(.white,in:Capsule())
+            }.buttonStyle(.plain).disabled(model.savingHold || model.enteredHoldSeconds==nil).padding(.top,28)
+        }.padding(.horizontal,24).padding(.top,12).padding(.bottom,12)
+            // The sheet is as tall as what is in it: short for the start, the arrival or a point that does not wait,
+            // taller once 「다음 이동 전 대기」 brings out the seconds.
+            .fixedSize(horizontal:false,vertical:true)
+            .background(GeometryReader {geometry in
+                Color.clear
+                    .onAppear {settingsHeight=geometry.size.height}
+                    .onChange(of:geometry.size.height) {_,height in settingsHeight=height}
+            })
+            .frame(maxHeight:.infinity,alignment:.top)
+            .disabled(model.savingHold)
+            .hearSheet([.height(max(settingsHeight,200))])
+            // The route bar above stays usable: dragging it moves the sheet to the next point.
+            .presentationBackgroundInteraction(.enabled)
+    }
+}
+
+/// Reports where a sheet's top edge is on screen, and nil when it goes.
+private struct SheetTopReporter: View {
+    let report: (CGFloat?) -> Void
+    var body: some View {
+        GeometryReader {geometry in
+            Color.clear
+                .onAppear {report(geometry.frame(in:.global).minY)}
+                .onChange(of:geometry.frame(in:.global).minY) {_,top in report(top)}
+        }.onDisappear {report(nil)}
+    }
+}
+
+/// Where each point of the route bar sits, measured from the bar's centre. Closed, the 94pt window keeps the chosen
+/// point in view, 11pt in from an edge when it is near one; opened, the points share the bar's width evenly.
+private struct RouteBarLayout {
+    let count: Int
+    let index: Int
+    let expanded: Bool
+    let width: CGFloat
+    var barWidth: CGFloat {expanded ? width : 94}
+    var barHeight: CGFloat {expanded ? 50 : 44}
+    private var slot: CGFloat {(width-14)/CGFloat(count)}
+    private var widths: [CGFloat] {(0..<count).map {$0==0 || $0==count-1 ? 28 : 20}}
+    func x(_ i: Int) -> CGFloat {
+        if expanded {return -width/2+7+slot*(CGFloat(i)+0.5)}
+        let widths=widths, total=widths.reduce(0,+)
+        let center=widths.prefix(index).reduce(0,+)+widths[index]/2
+        let offset=total<=72 ? (94-total)/2 : min(11,max(94-11-total,47-center))
+        return -47+offset+widths.prefix(i).reduce(0,+)+widths[i]/2
+    }
+    func index(at x: CGFloat) -> Int {min(max(Int((x+width/2-7)/slot),0),count-1)}
+}
+
+/// 971:33834: a white track with a black knob when on, so the knob does not vanish into a white tint.
+private struct PointWaitSwitchStyle: ToggleStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        Button {configuration.isOn.toggle()} label: {
+            HStack {
+                configuration.label
+                Spacer()
+                Capsule().fill(configuration.isOn ? Color.white : Color.white.opacity(0.18))
+                    .frame(width:50,height:30)
+                    .overlay(alignment:configuration.isOn ? .trailing : .leading) {
+                        Circle().fill(configuration.isOn ? Color.black : Color.white).frame(width:24,height:24).padding(3)
+                    }
+                    .animation(.spring(duration:0.25,bounce:0.2),value:configuration.isOn)
+            }.contentShape(Rectangle())
+        }.buttonStyle(.plain)
+            .accessibilityRepresentation {Toggle(isOn:configuration.$isOn) {configuration.label}}
+    }
+}
