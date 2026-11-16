@@ -34,22 +34,24 @@
 
 ## 🎬 조력자 · 무대 준비
 
-### 공연할 공간을 미리 담아두세요
-
-무대를 스캔하고 경계 · 기물 · 확인점을 설정합니다.
-
-<img src=".github/assets/readme/scan.png" width="100%" alt="무대 스캔 화면">
-
-### 장면에 맞는 동선을 지점마다 저장해요
-
-이동할 지점과 지점마다 머무를 시간, 바라볼 방향을 정해 공연에 쓸 동선을 준비합니다.
-
-<img src=".github/assets/readme/route.png" width="100%" alt="동선 편집 화면">
-
 <table>
   <tr>
-    <td width="45%" align="center"><img src=".github/assets/readme/detail.png" width="230" alt="공연 상세 화면"></td>
-    <td width="55%">
+    <td width="520" align="center"><img src=".github/assets/readme/scan.png" width="500" alt="무대 스캔 화면"></td>
+    <td>
+      <h3>공연할 공간을<br>미리 담아두세요</h3>
+      무대를 스캔하고 경계 · 기물 · 확인점을 설정합니다.
+    </td>
+  </tr>
+  <tr>
+    <td width="520" align="center"><img src=".github/assets/readme/route.png" width="500" alt="동선 편집 화면"></td>
+    <td>
+      <h3>장면에 맞는 동선을<br>지점마다 저장해요</h3>
+      이동할 지점과 지점마다 머무를 시간, 바라볼 방향을 정해 공연에 쓸 동선을 준비합니다.
+    </td>
+  </tr>
+  <tr>
+    <td width="520" align="center"><img src=".github/assets/readme/detail.png" width="230" alt="공연 상세 화면"></td>
+    <td>
       <h3>공연마다 다른 무대,<br>체계적으로 관리해요</h3>
       공연 · 공연장 · 장면별로 무대를 정리하고, 각 장면에 필요한 동선을 미리 저장합니다.
     </td>
@@ -62,18 +64,18 @@
 
 <table>
   <tr>
-    <td width="55%">
+    <td width="520" align="center"><img src=".github/assets/readme/home.png" width="230" alt="공연자 홈 화면"></td>
+    <td>
       <h3>말로 고르는<br>오늘의 공연과 무대</h3>
       「Hear I am」 하고 부르면 대화가 열립니다. 사용할 공연과 무대를 말로 찾고, 연습용 또는 실전용을 고릅니다.
     </td>
-    <td width="45%" align="center"><img src=".github/assets/readme/home.png" width="230" alt="공연자 홈 화면"></td>
   </tr>
   <tr>
-    <td width="55%">
+    <td width="520" align="center"><img src=".github/assets/readme/guide.png" width="230" alt="연습 안내 화면"></td>
+    <td>
       <h3>방향부터 도착까지,<br>소리로 안내받아요</h3>
       허리에 찬 iPhone이 지금 위치와 방향을 읽고, 음성과 비프음으로 다음 지점까지 안내합니다. 진동은 쓰지 않습니다.
     </td>
-    <td width="45%" align="center"><img src=".github/assets/readme/guide.png" width="230" alt="연습 안내 화면"></td>
   </tr>
 </table>
 
@@ -122,16 +124,13 @@
 
 <br>
 
-## 📼 공연이 끝난 뒤
+## 📼 기록 다시 보기
 
 <table>
   <tr>
-    <td width="50%" align="center"><img src=".github/assets/readme/records.png" width="230" alt="공연 · 연습 기록 목록"></td>
-    <td width="50%" align="center"><img src=".github/assets/readme/replay.png" width="230" alt="기록 다시 보기"></td>
-  </tr>
-  <tr>
-    <td colspan="2" align="center">
-      <h3>움직임을 함께 돌아봐요</h3>
+    <td width="520" align="center"><img src=".github/assets/readme/records.png" width="230" alt="공연 · 연습 기록 목록"> <img src=".github/assets/readme/replay.png" width="230" alt="기록 다시 보기"></td>
+    <td>
+      <h3>공연이 끝난 뒤,<br>움직임을 함께 돌아봐요</h3>
       계획한 동선과 실제로 이동한 길을 다시 보며 피드백을 나눕니다.
     </td>
   </tr>
