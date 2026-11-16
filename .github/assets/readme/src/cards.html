@@ -82,31 +82,6 @@
   #team .member span { font-size: 15px; color: var(--sub); }
   #team .foot { text-align: center; font-size: 14px; color: var(--foot); letter-spacing: 0; }
 
-  /* structure */
-  :root { --cell: #1f2123; --dot-helper: #5b60ba; --dot-artist: #a7abf0; --dot-common: #7d8187; }
-  :root.light { --cell: #f4f4f6; --dot-artist: #9a9ee6; --dot-common: #a3a7ad; }
-  #structure { padding: 64px 64px 56px; flex-direction: column; gap: 0; }
-  #structure header { display: flex; flex-direction: column; gap: 14px; margin-bottom: 34px; }
-  #structure .layer { display: grid; grid-template-columns: 220px 1fr; gap: 28px; background: var(--surface); border-radius: 22px; padding: 26px 28px; }
-  #structure .side { display: flex; flex-direction: column; gap: 8px; }
-  #structure .path { font-family: ui-monospace, Menlo, monospace; font-size: 13px; color: var(--sub); letter-spacing: 0; }
-  #structure .side h3 { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; }
-  #structure .side p { font-size: 15px; line-height: 1.55; }
-  #structure .count { align-self: flex-start; margin-top: 4px; font-size: 13px; font-weight: 600; color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); padding: 5px 10px; border-radius: 999px; letter-spacing: 0; }
-  #structure .items { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; align-content: start; }
-  #structure .item { background: var(--cell); border-radius: 14px; padding: 13px 15px; display: flex; flex-direction: column; gap: 4px; }
-  #structure .item b { font-family: ui-monospace, Menlo, monospace; font-size: 14px; font-weight: 600; letter-spacing: 0; display: flex; align-items: center; gap: 8px; }
-  #structure .item span { font-size: 14px; color: var(--sub); }
-  #structure { word-break: keep-all; }
-  #structure i { width: 8px; height: 8px; border-radius: 50%; flex: none; }
-  #structure .h { background: var(--dot-helper); } #structure .a { background: var(--dot-artist); } #structure .c { background: var(--dot-common); }
-  #structure .legend { grid-column: 1 / -1; display: flex; gap: 18px; font-size: 13px; color: var(--sub); margin-top: 4px; letter-spacing: 0; }
-  #structure .legend em { font-style: normal; display: flex; align-items: center; gap: 7px; }
-  #structure .flow { display: grid; grid-template-columns: 220px 1fr; gap: 28px; padding: 0 28px; height: 34px; align-items: center; }
-  #structure .flow div { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--sub); letter-spacing: 0; }
-  #structure .flow svg { flex: none; }
-  #structure .more { display: flex; gap: 10px; margin-top: 22px; }
-  #structure .more .item { flex: 1; background: transparent; box-shadow: inset 0 0 0 1px var(--line); }
 </style>
 </head>
 <body>
@@ -178,22 +153,6 @@
     </div></div>
   </div>
   <div class="foot">Apple Developer Academy @ POSTECH · 2026 Challenge 6 · A13</div>
-</section>
-
-<section id="structure" data-h="1478">
-  <header><span class="label">개발 · 폴더 구조</span><h2>화면에서 규칙까지,<br><em>네 층으로 나눴어요</em></h2></header>
-  <div class="layer"><div class="side"><span class="path">Hear-I-am/App</span><h3>App</h3><p>앱이 켜지고 역할에 맞는<br>화면으로 가는 곳</p><span class="count">Swift 3개</span></div>
-    <div class="items"><div class="item"><b>HearIAmApp</b><span>앱 시작점 @main</span></div><div class="item"><b>HearRootView</b><span>역할 선택 · 화면 전환</span></div><div class="item"><b>HearAppDelegate</b><span>시스템 이벤트 연결</span></div></div></div>
-  <div class="flow"><div><svg width="14" height="18" viewBox="0 0 14 18"><path d="M7 1v15M2 11l5 5 5-5" fill="none" stroke="#5b60ba" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>위층은 아래층만 불러요</div></div>
-  <div class="layer"><div class="side"><span class="path">Hear-I-am/Features</span><h3>Features</h3><p>화면 하나하나.<br>기능마다 View · ViewModel을<br>함께 둬요</p><span class="count">폴더 11개 · Swift 118개</span></div>
-    <div class="items"><div class="item"><b><i class="h"></i>Preparation</b><span>무대 스캔 · 경계 · 확인점</span></div><div class="item"><b><i class="h"></i>Planning</b><span>기본 동선 편집</span></div><div class="item"><b><i class="h"></i>Performances</b><span>공연 · 장면별 관리</span></div><div class="item"><b><i class="h"></i>Places</b><span>공간 폴더</span></div><div class="item"><b><i class="h"></i>Records</b><span>기록 · 이동 다시 재생</span></div><div class="item"><b><i class="h"></i>StagePreview</b><span>저장한 공간 3D 보기</span></div><div class="item"><b><i class="a"></i>Home</b><span>홈 · 설정 · 도움말</span></div><div class="item"><b><i class="a"></i>Voice</b><span>「Hear I am」 부르기 · 대화</span></div><div class="item"><b><i class="a"></i>Guidance</b><span>소리로 동선 안내</span></div><div class="item"><b><i class="c"></i>Onboarding</b><span>시작 로고 · 역할 선택</span></div><div class="item"><b><i class="c"></i>SoundTest</b><span>신호 · 정면 방향 연습</span></div><div class="legend"><em><i class="h"></i>조력자</em><em><i class="a"></i>시각장애인 예술가</em><em><i class="c"></i>함께 써요</em></div></div></div>
-  <div class="flow"><div><svg width="14" height="18" viewBox="0 0 14 18"><path d="M7 1v15M2 11l5 5 5-5" fill="none" stroke="#5b60ba" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div></div>
-  <div class="layer"><div class="side"><span class="path">Hear-I-am/Core</span><h3>Core</h3><p>여러 화면이 함께 쓰는 기반</p><span class="count">폴더 6개 · Swift 33개</span></div>
-    <div class="items"><div class="item"><b>AR</b><span>AR 세션 · 스캔 · 현장 사진</span></div><div class="item"><b>Audio</b><span>오디오 세션 · 신호음 · 음성</span></div><div class="item"><b>DesignSystem</b><span>색 · 글꼴 · 공통 부품</span></div><div class="item"><b>Haptics</b><span>방향 진동</span></div><div class="item"><b>Logging</b><span>시험 기록 · 진단 로그</span></div><div class="item"><b>Store</b><span>저장한 무대 목록</span></div></div></div>
-  <div class="flow"><div><svg width="14" height="18" viewBox="0 0 14 18"><path d="M7 1v15M2 11l5 5 5-5" fill="none" stroke="#5b60ba" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div></div>
-  <div class="layer"><div class="side"><span class="path">Packages/HearIAmCore</span><h3>HearIAmCore</h3><p>화면과 상관없는 규칙과<br>저장 형식. 여기에<br>테스트를 붙여요</p><span class="count">Swift 96개 · 테스트 68개</span></div>
-    <div class="items"><div class="item"><b>Guidance</b><span>출발 · 진행 · 도착 판정</span></div><div class="item"><b>Signal</b><span>방향 · 거리 · 경고 신호</span></div><div class="item"><b>Voice</b><span>부르는 말 · 명령 해석</span></div><div class="item"><b>Stage</b><span>동선 · 기물 · 위험 구역</span></div><div class="item"><b>Geometry</b><span>무대 좌표 · 바닥면</span></div><div class="item"><b>Storage</b><span>공연 · 스캔 · 기록 형식</span></div><div class="item"><b>Places</b><span>공간 폴더 저장</span></div><div class="item"><b>Localization</b><span>한국어 · 영어</span></div></div></div>
-  <div class="more"><div class="item"><b>Resources</b><span>에셋 · 글꼴 · 재생 인물 모델</span></div><div class="item"><b>Experiments</b><span>기능별 실험 기록</span></div><div class="item"><b>scripts</b><span>코어 테스트 · 모델 변환</span></div></div>
 </section>
 
 <script>
