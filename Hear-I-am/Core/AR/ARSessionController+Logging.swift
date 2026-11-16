@@ -20,6 +20,7 @@ extension ARSessionController {
             errorMessage=failure; return
         }
         event("session_start",detail:source)
+        if let screen=view?.window?.windowScene?.screen { event("screen_captured",detail:String(screen.isCaptured)) }
     }
     func event(_ name: String, detail: String="", position: Point3?=nil, heading: Double?=nil,
                error: Double?=nil, time: Double?=nil) {

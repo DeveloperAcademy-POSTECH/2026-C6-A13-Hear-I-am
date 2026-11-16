@@ -154,8 +154,8 @@ extension ARSessionController {
             _=gate.verify(error:alignment?.residual ?? 0,tolerance:checkpointTolerance,now:now)
             event("tracking_auto_recovered")
         }
-        canVerify=gate.canVerify(now:now); ready=gate.isReady(now:now,validation:restorationValidation)
-        if let latest, now-latest.time>0.5 { canSave=false }
+        update(\.canVerify,gate.canVerify(now:now)); update(\.ready,gate.isReady(now:now,validation:restorationValidation))
+        if let latest, now-latest.time>0.5 { update(\.canSave,false) }
         if purpose == .preparation { updateAim() }
         if let restoreStarted, now-restoreStarted>60, !ready, !canVerify {
             interrupt(L("복원 60초 초과 · 주변을 확인한 후 저장 공간을 다시 불러오세요"),token:token)

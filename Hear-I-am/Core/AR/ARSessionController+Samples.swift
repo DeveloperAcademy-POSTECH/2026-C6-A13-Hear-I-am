@@ -10,6 +10,8 @@ extension ARSessionController {
         let anchorsPresent=referenceAnchorsPresent(sample)
         guard gate.observe(time:sample.time,normal:sample.normal && sample.world.valid && sample.forward.valid,anchorsPresent:wasVerified || alignment != nil || anchorsPresent) else { return }
         latest=sample
+        // The main thread took this frame late (rendering or SwiftUI work), unlike an ARKit `frame_gap` (#198).
+        if now-sample.time>0.25 { event("sample_late",detail:"ms=\(Int((now-sample.time)*1000))") }
         if alignment == nil && !measuredCheckpoints.isEmpty && previousStability != gate.normalSince {
             clearAlignment()
             status=L("추적이 변경됐어요. 확인점 1번부터 다시 확인해주세요.")
@@ -21,15 +23,18 @@ extension ARSessionController {
             event("tracking_auto_recovered")
         }
         if sample.time-lastUI >= 0.05 {
-            lastUI=sample.time; tracking=sample.tracking; mapping=sample.mapping
-            ready=gate.isReady(now:now,validation:restorationValidation); canVerify=gate.canVerify(now:now)
+            // Published values are set only when they change: every set redraws the whole preparation screen,
+            // which ran 20 times a second and pushed camera frames past their 0.5 s freshness (#198).
+            lastUI=sample.time
+            update(\.tracking,sample.tracking); update(\.mapping,sample.mapping)
+            update(\.ready,gate.isReady(now:now,validation:restorationValidation)); update(\.canVerify,gate.canVerify(now:now))
             if ready, restorationValidation == .relocalization {restoreStarted=nil}
-            canSave=mode == .scanning && !busy && sample.normal && sample.mapped &&
-                referenceAnchorsPresent(sample) && (!supportsMesh || !meshes.isEmpty) && stage != nil && routeIsValid
+            update(\.canSave,mode == .scanning && !busy && sample.normal && sample.mapped &&
+                referenceAnchorsPresent(sample) && (!supportsMesh || !meshes.isEmpty) && stage != nil && routeIsValid)
             if let stage, ready {
-                position=stagePosition(sample.world)
-                heading=stage.heading(cameraForward:alignment?.inverseDirection(sample.forward) ?? sample.forward)
-            } else { position=nil; heading=nil }
+                update(\.position,stagePosition(sample.world))
+                update(\.heading,stage.heading(cameraForward:alignment?.inverseDirection(sample.forward) ?? sample.forward))
+            } else { update(\.position,nil); update(\.heading,nil) }
             guidancePoseTime=sample.time
             if mode == .restoring {
                 let candidate=sample.normal && referenceAnchorsPresent(sample)
@@ -48,11 +53,17 @@ extension ARSessionController {
         guard incoming==token, mode == .scanning, active, !busy, !meshFrozen else { return }
         for id in removed { meshes[id]=nil }
         for part in parts { meshes[part.id]=part }
+        let started=now
         renderer.updateMeshes(parts,removed:removed)
+        if (now-started)*1000>30 { event("mesh_render_slow",detail:"ms=\(Int((now-started)*1000)) parts=\(parts.count)") }
         updateCounts()
         if vertexCount>800_000 { interrupt(L("메시가 너무 큽니다. 더 작은 영역으로 새 스캔을 시작하세요."),token:token) }
     }
-    func updateCounts() { meshCount=meshes.count; vertexCount=meshes.values.reduce(0){$0+$1.vertices.count} }
+    func updateCounts() { update(\.meshCount,meshes.count); update(\.vertexCount,meshes.values.reduce(0){$0+$1.vertices.count}) }
+    /// Sets a published value only when it differs, so unchanged values do not redraw observing views.
+    func update<Value: Equatable>(_ key: ReferenceWritableKeyPath<ARSessionController,Value>, _ value: Value) {
+        if self[keyPath:key] != value { self[keyPath:key]=value }
+    }
     var routeIsValid: Bool { preparedDraft?.errors.isEmpty ?? false }
     func stagePosition(_ world: Point3) -> Point3? {
         let world=alignment?.inverse(world) ?? world

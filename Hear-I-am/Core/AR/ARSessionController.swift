@@ -128,6 +128,11 @@ final class ARSessionController: ObservableObject {
                       AVAudioSession.InterruptionType(rawValue:raw) == .began else { return }
                 Task { @MainActor in self?.audioInterrupted() }
             }
+            // Screen recording made the scan stall (#198); the trial log says when it was on.
+            NotificationCenter.default.addObserver(forName:UIScreen.capturedDidChangeNotification,object:nil,queue:.main) { [weak self] notification in
+                let captured=(notification.object as? UIScreen)?.isCaptured ?? false
+                Task { @MainActor in guard let self, self.logger.isOpen else { return }; self.event("screen_captured",detail:String(captured)) }
+            }
         }
         watchdog=Timer.scheduledTimer(withTimeInterval:0.2,repeats:true) { [weak self] _ in
             Task { @MainActor in self?.tick() }

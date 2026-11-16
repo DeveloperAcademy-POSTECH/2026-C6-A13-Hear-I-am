@@ -7,27 +7,61 @@ final class SessionBridge: NSObject, ARSessionDelegate {
     weak var controller: ARSessionController?
     let token: UUID
     let surfaceColors=ScanSurfaceColorCapture()
+    /// The newest camera sample the main actor has not taken yet. While one is waiting, later frames replace it
+    /// instead of queueing another main-actor task, so a busy main thread catches up on the newest frame (#198).
+    private let sampleLock=NSLock()
+    private var pendingSample: CameraSample?
+    /// Delegate-queue only: when each mesh anchor was last copied. ARKit refines anchors many times a second;
+    /// copying every refinement held up the camera queue while ARKit dropped frames (11/14 POS, #198).
+    private var copiedAt: [UUID:Double]=[:]
+    private var lastFrameTime: Double?
+    static let meshCopyInterval=1.0
     init(controller: ARSessionController, token: UUID) { self.controller=controller; self.token=token }
     func session(_ session: ARSession, didUpdate frame: ARFrame) {
         let sample=CameraSample(frame)
+        // Frames ARKit itself never delivered, as opposed to frames the main thread took late (`sample_late`).
+        if let lastFrameTime, sample.time-lastFrameTime>0.2 { report("frame_gap",milliseconds:(sample.time-lastFrameTime)*1000) }
+        lastFrameTime=sample.time
         surfaceColors.capture(frame,session:session)
+        sampleLock.lock(); let idle=pendingSample == nil; pendingSample=sample; sampleLock.unlock()
+        guard idle else { return }
         Task { @MainActor [weak self] in
-            guard let self else { return }; self.controller?.receive(sample,token:self.token)
+            guard let self else { return }
+            if let next=self.takePendingSample() { self.controller?.receive(next,token:self.token) }
         }
     }
-    func session(_ session: ARSession, didAdd anchors: [ARAnchor]) { if Self.building(session) {meshes(anchors,remove:false)} }
-    func session(_ session: ARSession, didUpdate anchors: [ARAnchor]) { if Self.building(session) {meshes(anchors,remove:false)} }
-    func session(_ session: ARSession, didRemove anchors: [ARAnchor]) { if Self.building(session) {meshes(anchors,remove:true)} }
+    private func takePendingSample() -> CameraSample? {
+        sampleLock.lock(); defer { sampleLock.unlock() }
+        let next=pendingSample; pendingSample=nil; return next
+    }
+    private func report(_ name: String, milliseconds: Double, detail: String = "") {
+        Task { @MainActor [weak self] in
+            guard let self, let controller=self.controller, controller.token==self.token else { return }
+            controller.event(name,detail:"ms=\(Int(milliseconds))"+detail)
+        }
+    }
+    func session(_ session: ARSession, didAdd anchors: [ARAnchor]) { if Self.building(session) {meshes(anchors,remove:false,force:true)} }
+    func session(_ session: ARSession, didUpdate anchors: [ARAnchor]) { if Self.building(session) {meshes(anchors,remove:false,force:false)} }
+    func session(_ session: ARSession, didRemove anchors: [ARAnchor]) { if Self.building(session) {meshes(anchors,remove:true,force:true)} }
     /// Mesh callbacks are copied only while the mesh is being built. After the scan step (#198) the copy would
     /// hold up the camera queue for nothing, and anchors ARKit drops must not empty the scanned mesh.
     private static func building(_ session: ARSession) -> Bool {
         (session.configuration as? ARWorldTrackingConfiguration)?.sceneReconstruction != []
     }
-    private func meshes(_ anchors: [ARAnchor], remove: Bool) {
+    private func meshes(_ anchors: [ARAnchor], remove: Bool, force: Bool) {
         // Copy Metal-backed geometry before leaving the callback.
-        let meshAnchors=anchors.compactMap {$0 as? ARMeshAnchor}
+        let started=ProcessInfo.processInfo.systemUptime
+        var meshAnchors=anchors.compactMap {$0 as? ARMeshAnchor}
+        if remove { meshAnchors.forEach {copiedAt[$0.identifier]=nil} }
+        else if !force { meshAnchors=meshAnchors.filter {started-(copiedAt[$0.identifier] ?? -.infinity) >= Self.meshCopyInterval} }
+        guard !meshAnchors.isEmpty else { return }
         let ids=meshAnchors.map(\.identifier)
         let snapshots=remove ? [] : meshAnchors.compactMap(Self.copy)
+        if !remove { ids.forEach {copiedAt[$0]=started} }
+        let milliseconds=(ProcessInfo.processInfo.systemUptime-started)*1000
+        if milliseconds>30 {
+            report("mesh_copy_slow",milliseconds:milliseconds,detail:" parts=\(snapshots.count) vertices=\(snapshots.reduce(0){$0+$1.vertices.count})")
+        }
         Task { @MainActor [weak self] in
             guard let self else { return }
             self.controller?.receiveMeshes(snapshots,removed:remove ? ids : [],token:self.token)
