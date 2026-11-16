@@ -4,8 +4,12 @@
   다시 만들 때(저장소 루트에서, 카드마다):
     "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless=new --hide-scrollbars \
       --force-device-scale-factor=2 --default-background-color=00000000 --allow-file-access-from-files \
+      --virtual-time-budget=6000 \
       --window-size=1000,<높이> --screenshot=.github/assets/readme/card-<이름>.png \
       "file://$PWD/.github/assets/readme/src/cards.html?card=<이름>"
+  라이트 테마 카드는 주소 끝에 &theme=light 를 붙이고 card-<이름>-light.png 로 찍는다.
+  README는 <picture>로 보는 사람의 테마에 맞는 쪽을 보여 준다.
+  --disable-gpu 를 붙이면 화면 일부 타일이 안 그려져 투명 구멍이 생긴 적이 있다. 찍은 뒤 카드 안쪽이 비지 않았는지 본다.
   카드 이름과 높이는 아래 각 section의 id · data-h.
 -->
 <html lang="ko">
@@ -17,7 +21,9 @@
   @font-face { font-family: P; font-weight: 600; src: url("../../../../Hear-I-am/Resources/Fonts/Pretendard-SemiBold.otf"); }
   @font-face { font-family: P; font-weight: 700; src: url("../../../../Hear-I-am/Resources/Fonts/Pretendard-Bold.otf"); }
   @font-face { font-family: S; font-weight: 200; src: url("../../../../Hear-I-am/Resources/Fonts/SUIT-ExtraLight.otf"); }
-  :root { --bg: #111111; --surface: #1b1c1d; --line: #262829; --text: #ffffff; --sub: #9b9fa3; --accent: #5b60ba; --glow: #20224a; }
+  :root { --bg: #111111; --surface: #1b1c1d; --line: #262829; --text: #ffffff; --sub: #9b9fa3; --accent: #5b60ba; --glow: #20224a; --chip: #222426; --chip-text: #d6d9dc; --foot: #6d7175; }
+  /* Light cards keep the app screens and App Store images as they are (the app is dark only). */
+  :root.light { --bg: #f4f4f6; --surface: #ffffff; --line: #dcdde2; --text: #111111; --sub: #62666b; --glow: #dcdcf4; --chip: #e6e7eb; --chip-text: #33363a; --foot: #8a8e93; }
   * { box-sizing: border-box; margin: 0; }
   html, body { background: transparent; }
   body { font-family: P, -apple-system, sans-serif; color: var(--text); letter-spacing: -0.02em; }
@@ -41,7 +47,7 @@
   #hero .tag { font-size: 30px; font-weight: 700; line-height: 1.35; letter-spacing: -0.03em; }
   #hero .tag em { font-style: normal; color: var(--accent); }
   #hero .chips { display: flex; gap: 10px; }
-  #hero .chip { white-space: nowrap; font-size: 15px; font-weight: 500; color: #d6d9dc; padding: 8px 14px; border-radius: 999px; background: #222426; }
+  #hero .chip { white-space: nowrap; font-size: 15px; font-weight: 500; color: var(--chip-text); padding: 8px 14px; border-radius: 999px; background: var(--chip); }
   #hero .shots { position: relative; display: flex; border-radius: 26px; overflow: hidden; box-shadow: 0 0 0 1px var(--line); }
   #hero .shots img { height: 552px; display: block; }
   /* The App Store images carry their own copy at the top (plain #111 above y=378 of 1311); it is covered and rewritten here so the wording matches. */
@@ -74,7 +80,7 @@
   #team .member img { width: 132px; height: 132px; object-fit: contain; border-radius: 20px; background: #fafafa; }
   #team .member b { font-size: 19px; font-weight: 700; letter-spacing: 0.02em; margin-top: 8px; }
   #team .member span { font-size: 15px; color: var(--sub); }
-  #team .foot { text-align: center; font-size: 14px; color: #6d7175; letter-spacing: 0; }
+  #team .foot { text-align: center; font-size: 14px; color: var(--foot); letter-spacing: 0; }
 </style>
 </head>
 <body>
@@ -149,7 +155,8 @@
 </section>
 
 <script>
-  const id = new URLSearchParams(location.search).get("card");
+  const q = new URLSearchParams(location.search), id = q.get("card");
+  if (q.get("theme") === "light") document.documentElement.classList.add("light");
   document.querySelectorAll("section").forEach(s => {
     if (!id || s.id === id) s.classList.add("on");
     if (s.dataset.h) s.style.height = s.dataset.h + "px";
