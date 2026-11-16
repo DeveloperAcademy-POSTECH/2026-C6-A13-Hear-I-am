@@ -63,13 +63,6 @@
 
 ## 🛠 개발
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset=".github/assets/readme/card-structure.png">
-  <img src=".github/assets/readme/card-structure-light.png" width="100%" alt="폴더 구조 — 네 층으로 나뉘고 위층은 아래층만 부른다. App(Hear-I-am/App, Swift 3개): HearIAmApp 앱 시작점, HearRootView 역할 선택과 화면 전환, HearAppDelegate 시스템 이벤트 연결. Features(Hear-I-am/Features, 폴더 11개 · Swift 118개, 기능마다 View와 ViewModel): 조력자용 Preparation 무대 스캔 · 경계 · 확인점, Planning 기본 동선 편집, Performances 공연 · 장면별 관리, Places 공간 폴더, Records 기록 · 이동 다시 재생, StagePreview 저장한 공간 3D 보기 / 시각장애인 예술가용 Home 홈 · 설정 · 도움말, Voice 「Hear I am」 부르기 · 대화, Guidance 소리로 동선 안내 / 함께 쓰는 Onboarding 시작 로고 · 역할 선택, SoundTest 신호 · 정면 방향 연습. Core(Hear-I-am/Core, 폴더 6개 · Swift 33개): AR, Audio, DesignSystem, Haptics, Logging, Store. HearIAmCore(Packages/HearIAmCore, Swift 96개 · 테스트 68개, 화면과 상관없는 규칙과 저장 형식): Guidance, Signal, Voice, Stage, Geometry, Storage, Places, Localization. 그 밖에 Resources, Experiments, scripts">
-</picture>
-
-기능별 실험 기록과 자세한 동작은 [Experiments/](Experiments/)에 있습니다.
-
 <details>
 <summary><b>빌드하기</b></summary>
 
@@ -83,6 +76,56 @@
 - 번들 ID(`org.heariam.poc4.scanlab`)는 기존 TestFlight 앱의 저장 무대를 잇기 위해 예전 이름을 그대로 씁니다.
 - 코어 테스트: `sh scripts/test-core.sh`
 - 이슈 · 브랜치 · PR 규칙은 [CONTRIBUTING.md](CONTRIBUTING.md)를 따릅니다.
+
+</details>
+
+<details>
+<summary><b>폴더 구조</b></summary>
+
+<br>
+
+```text
+Hear-I-am/
+├── App/Source/          # @main · 역할 선택과 화면 전환(HearRootView)
+├── Core/                # 여러 기능이 함께 쓰는 것
+│   ├── AR/              # AR 세션 · 스캔 렌더링 · 현장 사진
+│   ├── Audio/           # 오디오 세션 · 신호음 · 음성 안내
+│   ├── DesignSystem/    # 색 · 글꼴 · 공통 부품
+│   ├── Haptics/         # 방향 진동
+│   ├── Logging/         # 시험 기록 · 진단 로그 정리
+│   └── Store/           # 저장한 무대 목록(StageLibrary)
+├── Features/            # 기능별 Model / View / ViewModel
+│   ├── Onboarding/      # 시작 로고와 역할 선택
+│   ├── Preparation/     # 조력자: 무대 스캔 · 경계 · 기물 · 확인점
+│   ├── Planning/        # 조력자: 기본 동선 편집
+│   ├── Performances/    # 조력자: 공연 · 장면별 관리
+│   ├── Places/          # 조력자: 공간 폴더
+│   ├── Records/         # 조력자: 완료 기록 · 이동 다시 재생
+│   ├── StagePreview/    # 조력자: 저장한 공간 3D 보기
+│   ├── Home/            # 시각장애인 예술가: 홈 · 설정 · 도움말
+│   ├── Voice/           # 시각장애인 예술가: 「Hear I am」 부르기 · 음성 대화
+│   ├── Guidance/        # 시각장애인 예술가: 소리로 동선 안내
+│   └── SoundTest/       # 설정의 신호 · 정면 방향 연습
+└── Resources/           # Assets · 글꼴 · 다시보기 인물과 기물 모델
+
+Packages/HearIAmCore/    # 화면과 무관한 규칙과 저장 형식
+├── Sources/HearIAmCore/
+│   ├── Guidance/        # 출발 · 진행 · 도착 판정
+│   ├── Signal/          # 방향 · 거리 · 경고 신호
+│   ├── Voice/           # 부르는 말 · 음성 명령 해석
+│   ├── Stage/           # 동선 · 기물 · 위험 구역
+│   ├── Geometry/        # 무대 좌표 · 바닥면
+│   ├── Storage/         # 공연 · 스캔 · 기록 저장 형식
+│   ├── Places/          # 공간 폴더 저장
+│   └── Localization/    # 한국어 · 영어
+└── Tests/               # 코어 테스트
+
+Experiments/             # 기능별 실험 기록
+scripts/                 # 코어 테스트 실행 · 다시보기 모델 변환
+```
+
+- 의존 방향은 View → ViewModel → Core → HearIAmCore 한쪽입니다.
+- 판정 규칙과 저장 형식은 HearIAmCore에 두고 테스트를 붙입니다.
 
 </details>
 
