@@ -30,7 +30,7 @@ struct FrontDirectionPracticeView: View {
             FrontGlow(phase:model.isRunning ? model.practice.phase : .needsReference,
                       hasReference:model.isRunning && model.practice.referenceHeading != nil,
                       bearing:model.practice.bearing,
-                      deadband:SignalPlayer.directionDeadbandDegrees)
+                      deadband:model.practice.toleranceDegrees)
                 .ignoresSafeArea().accessibilityHidden(true)
             VStack(spacing:16) {
                 Text(title).font(.system(size:26,weight:.bold)).foregroundStyle(.white).multilineTextAlignment(.center)

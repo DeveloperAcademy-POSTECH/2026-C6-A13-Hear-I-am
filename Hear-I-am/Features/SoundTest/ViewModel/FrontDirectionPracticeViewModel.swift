@@ -51,7 +51,7 @@ import HearIAmCore
     func start() {
         guard !isRunning else { return }
         clearSounds()
-        practice = FrontDirectionPractice(deadbandDegrees: SignalPlayer.directionDeadbandDegrees)
+        practice = FrontDirectionPractice()
         issue = nil; latestHeading = nil; lastSampleTime = nil; canSetReference = false
         isRunning = true; startedAt = now()
         sensor.start()
