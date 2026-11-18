@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 import HearIAmCore
 
 /// Performance folders contain reference scenes and independently saved scans. Figma 공연 관리 (971:31947 ·
@@ -16,6 +17,8 @@ struct PerformanceLibraryView: View {
     /// Venue names to keep; empty keeps every performance.
     @State private var venueFilter: Set<String> = []
     @State private var choosingVenues = false
+    @State private var importing = false
+    @Environment(\.hearOpenShare) private var openShare
     @State private var deleting: PerformanceFolder?
     @State private var error: String?
     @Environment(\.hearChangeRole) private var changeRole
@@ -75,6 +78,9 @@ struct PerformanceLibraryView: View {
                     Button { changeRole?() } label: { HearTopButtonLabel(systemImage: "house") }
                         .buttonStyle(.plain).accessibilityLabel(L("역할 선택으로 돌아가기"))
                 } trailing: {
+                    // AirDropped files land in Files > 다운로드 since iOS 17, so they are picked from there.
+                    Button { importing = true } label: { HearTopButtonLabel(systemImage: "tray.and.arrow.down") }
+                        .buttonStyle(.plain).accessibilityLabel(L("파일에서 가져오기")).accessibilityIdentifier("performance.import")
                     filterMenu
                     Button { creating = true } label: { HearTopButtonLabel(systemImage: "plus", prominent: true) }
                         .buttonStyle(.plain).accessibilityLabel(L("새 공연 만들기")).accessibilityIdentifier("performance.create")
@@ -84,6 +90,12 @@ struct PerformanceLibraryView: View {
                 }
                 .refreshable { await library.refresh() }
                 .sheet(isPresented: $creating) { PerformanceEditorSheet(library: library) { id in path.append(id) }.suspendsVoiceWake() }
+                .fileImporter(isPresented: $importing, allowedContentTypes: [UTType(exportedAs: StageShare.typeIdentifier)]) { result in
+                    switch result {
+                    case .success(let url): openShare?(url)
+                    case .failure(let failure): error = failure.localizedDescription
+                    }
+                }
                 .sheet(isPresented: $choosingVenues) {
                     PerformanceVenueFilterSheet(names: venueNames, selection: venueFilter) { venueFilter = $0 }
                 }
@@ -340,7 +352,7 @@ struct PerformanceEditorSheet: View {
                 }
                 .hearSheet()
     }
-    private static let field = Color(red: 28/255, green: 28/255, blue: 30/255)
+    static let field = Color(red: 28/255, green: 28/255, blue: 30/255)
     private func header(_ text: String) -> some View {
         Text(text).font(HearFont.pretendard(.semibold, size: 20)).foregroundStyle(.white).padding(.horizontal, 4)
             .accessibilityAddTraits(.isHeader)

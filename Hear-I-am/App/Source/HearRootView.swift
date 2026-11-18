@@ -15,6 +15,10 @@ struct HearRootView: View {
     /// A spoken scan request opens the scan screen itself once the helper tabs are up.
     @State private var scanRequested=false
     @State private var guidance:VoiceGuidanceLaunch?
+    /// A shared stage file opened from Files, Messages or AirDrop, waiting until the app can show it (#218).
+    @State private var pendingShare:StageShareIncoming?
+    @State private var receiving:StageShareIncoming?
+    @State private var shareToast:String?
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
@@ -42,6 +46,20 @@ struct HearRootView: View {
         }
         // Black over tabs and bars while the scan screen comes and goes (see ScanTransition).
         .overlay {ScanVeil(on:scanTransition.veiled)}
+        .overlay(alignment:.top) {
+            if let shareToast {StageShareToast(text:shareToast).transition(.move(edge:.top).combined(with:.opacity))}
+        }
+        .onOpenURL {url in
+            guard url.isFileURL,url.pathExtension.lowercased()==StageShare.fileExtension else {return}
+            openShare(url)
+        }
+        .onChange(of:showsLaunch) {showPendingShare()}
+        .onChange(of:guidance?.id) {showPendingShare()}
+        .sheet(item:$receiving) {incoming in
+            StageShareReceiveSheet(library:library,incoming:incoming) {result,_ in shareSaved(result)}.suspendsVoiceWake()
+        }
+        .environment(\.hearShareSaved,shareSaved)
+        .environment(\.hearOpenShare,openShare)
         .onAppear {
             wake.onRequest={text in
                 switch VoiceAppRequest.resolve(text) {
@@ -72,6 +90,8 @@ struct HearRootView: View {
         .onChange(of:role) {syncWake()}
         .onChange(of:library.voiceMetadata) {HearShortcuts.updateAppShortcutParameters()}
         .task {
+            // Before the first load: a stage whose replacement stopped part way is put back first (#218).
+            await library.cleanUpSharing()
             await library.refresh()
             HearShortcuts.updateAppShortcutParameters()
         }
@@ -104,6 +124,32 @@ struct HearRootView: View {
             GuidanceRecordsView(library:library).tabItem {HelperTab.label(L("기록"),systemImage:"clock")}.tag(2)
         }.tint(HearV3.text).preferredColorScheme(.dark)
             .environment(\.hearChangeRole,chooseRole)
+    }
+    /// Opens a received file once the launch logo is gone and no guidance is running. Saving goes to the helper's
+    /// performance list, so the helper side is opened under it.
+    private func showPendingShare() {
+        guard !showsLaunch,guidance == nil,receiving == nil,let incoming=pendingShare else {return}
+        pendingShare=nil
+        if role != .helper {openHelper(tab:1)}
+        receiving=incoming
+    }
+    private func openShare(_ url:URL) {
+        do {
+            if let old=pendingShare {StageLibrary.finishReceiving(old)}
+            pendingShare=try StageLibrary.receive(url)
+            // The file picker is still closing when it reports; a sheet asked for now would not appear.
+            Task {try? await Task.sleep(for:.seconds(0.6)); showPendingShare()}
+        } catch {library.error=L("받은 파일을 열지 못했어요: %@",error.localizedDescription)}
+    }
+    /// After a received file is saved: its performance opens and a line says what was saved.
+    private func shareSaved(_ result:StageShareResult) {
+        selectedPerformanceID=result.performanceID
+        openHelper(tab:1)
+        withAnimation(.spring(duration:0.35)) {shareToast=StageShareToast.message(result)}
+        Task {
+            try? await Task.sleep(for:.seconds(3.5))
+            withAnimation(.easeOut(duration:0.3)) {shareToast=nil}
+        }
     }
     private func chooseRole() {wake.stop();role=nil;selectedPerformanceID=nil}
     private func openHelper(tab:Int) {wake.stop();role = .helper;self.tab=tab}

@@ -11,7 +11,7 @@ public struct LoadedScan: Sendable {
 }
 /// Actor keeps serialization/disk access off UI; directories are published only after all files exist.
 public actor ScanStore {
-    public let root: URL
+    public nonisolated let root: URL
     public init(root: URL) { self.root=root }
     public static func hash(_ data: Data) -> String { SHA256.hash(data: data).map { String(format:"%02x",$0) }.joined() }
     public func save(id: UUID, name: String, frame: StageFrame, checkpoint: Point3,

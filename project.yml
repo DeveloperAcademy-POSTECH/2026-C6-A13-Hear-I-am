@@ -38,6 +38,30 @@ targets:
           - "**/.gitkeep"
     dependencies:
       - package: HearIAmCore
+    # Shared stages (#218): the app owns the .heariam type and opens it from Files, Messages and AirDrop.
+    info:
+      path: Hear-I-am/Info.plist
+      properties:
+        # The file overrides the generated keys, so the version numbers stay on the build settings.
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: Hear I am Stage
+            CFBundleTypeRole: Editor
+            LSHandlerRank: Owner
+            LSItemContentTypes:
+              - com.jiwonkim.heariam.share
+        UTExportedTypeDeclarations:
+          - UTTypeIdentifier: com.jiwonkim.heariam.share
+            UTTypeDescription: Hear I am Stage
+            UTTypeConformsTo:
+              - public.data
+              - public.content
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - heariam
+              public.mime-type:
+                - application/x-heariam
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: org.heariam.poc4.scanlab

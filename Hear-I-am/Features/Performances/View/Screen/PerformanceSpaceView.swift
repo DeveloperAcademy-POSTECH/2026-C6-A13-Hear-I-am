@@ -14,6 +14,7 @@ struct PerformanceSpaceView: View {
     @State private var rename = false
     @State private var scanName = ""
     @State private var deleting = false
+    @State private var sharing: StageShareSendSheet.Target?
     @State private var working = false
     @State private var error: String?
 
@@ -28,7 +29,7 @@ struct PerformanceSpaceView: View {
         Group {
             if let record {
                 ImmersiveSavedStagePreview(record:record,store:library.scans,scanSelector:AnyView(scanSelector),
-                    onRename:{scanName=record.name;rename=true},onDelete:{deleting=true})
+                    onRename:{scanName=record.name;rename=true},onDelete:{deleting=true},onShare:{sharing = .scene(record.id)})
                     .id(record.id)
             } else {
                 // Figma 971:33812: back, the scene picker and refresh over 「아직 스캔된 동선이 없어요」.
@@ -57,6 +58,7 @@ struct PerformanceSpaceView: View {
                     }
                 }.suspendsVoiceWake()
             }
+            .sheet(item:$sharing) {target in StageShareSendSheet(library:library,target:target).suspendsVoiceWake()}
             .alert(L("장면 이름 변경"),isPresented:$rename) {
                 TextField(L("무대(장면) 명"),text:$scanName)
                 Button(L("취소"),role:.cancel) {}

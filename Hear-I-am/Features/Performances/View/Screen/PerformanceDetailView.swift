@@ -21,6 +21,7 @@ struct PerformanceDetailView: View {
     @State private var focusedCard: UUID?
     @State private var openedScan: PerformanceOpenedScan?
     @State private var openedSpaceID: UUID?
+    @State private var sharing = false
     @Environment(\.dismiss) private var dismiss
     private var folder: PerformanceFolder? { library.performanceFolders.first { $0.id == performanceID } }
     private var plans: [PerformancePlan] { library.referencePlans(for: performanceID) }
@@ -81,11 +82,13 @@ struct PerformanceDetailView: View {
                 Menu {
                     Button(L("공연 정보 수정"), systemImage: "pencil") { editing = true }
                     Button(L("저장된 스캔 연결"), systemImage: "link") { linking = true }
+                    Button(L("공연 공유"), systemImage: "square.and.arrow.up") { sharing = true }
                     Button(L("공연 폴더 삭제"), systemImage: "trash", role: .destructive) { deleting = true }
                 } label: { HearTopButtonLabel(systemImage: "ellipsis") }
                     .buttonStyle(.plain).accessibilityLabel(L("공연 관리 메뉴")).disabled(busy)
             }
             .sheet(isPresented: $editing) { if let folder { PerformanceEditorSheet(library: library, folder: folder) { _ in }.suspendsVoiceWake() } }
+            .sheet(isPresented: $sharing) { StageShareSendSheet(library: library, target: .performance(performanceID)).suspendsVoiceWake() }
             .sheet(isPresented: $linking) { PerformanceLinkStagesView(library: library, performanceID: performanceID).suspendsVoiceWake() }
             .fullScreenCover(isPresented: $editingScenes) {
                 ReferenceSceneEditorView(library: library, performanceID: performanceID, initialSceneID: selectedSceneID).suspendsVoiceWake()
