@@ -60,16 +60,9 @@ struct HearRootView: View {
         .onChange(of:showsLaunch) {showPendingShare()}
         .onChange(of:guidance?.id) {showPendingShare()}
         .sheet(item:$receiving) {incoming in
-            StageShareReceiveSheet(library:library,incoming:incoming) {result,_ in
-                selectedPerformanceID=result.performanceID
-                openHelper(tab:1)
-                withAnimation(.spring(duration:0.35)) {shareToast=StageShareToast.message(result)}
-                Task {
-                    try? await Task.sleep(for:.seconds(3.5))
-                    withAnimation(.easeOut(duration:0.3)) {shareToast=nil}
-                }
-            }.suspendsVoiceWake()
+            StageShareReceiveSheet(library:library,incoming:incoming) {result,_ in shareSaved(result)}.suspendsVoiceWake()
         }
+        .environment(\.hearShareSaved,shareSaved)
         .onAppear {
             wake.onRequest={text in
                 switch VoiceAppRequest.resolve(text) {
@@ -142,6 +135,16 @@ struct HearRootView: View {
         pendingShare=nil
         if role != .helper {openHelper(tab:1)}
         receiving=incoming
+    }
+    /// After a received file is saved: its performance opens and a line says what was saved.
+    private func shareSaved(_ result:StageShareResult) {
+        selectedPerformanceID=result.performanceID
+        openHelper(tab:1)
+        withAnimation(.spring(duration:0.35)) {shareToast=StageShareToast.message(result)}
+        Task {
+            try? await Task.sleep(for:.seconds(3.5))
+            withAnimation(.easeOut(duration:0.3)) {shareToast=nil}
+        }
     }
     private func chooseRole() {wake.stop();role=nil;selectedPerformanceID=nil}
     private func openHelper(tab:Int) {wake.stop();role = .helper;self.tab=tab}

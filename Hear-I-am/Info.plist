@@ -33,6 +33,13 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_heariam-share._tcp</string>
+		<string>_heariam-share._udp</string>
+	</array>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>근처에 있는 폰과 저장한 공연·장면을 바로 주고받기 위해 로컬 네트워크를 사용합니다.</string>
 	<key>UTExportedTypeDeclarations</key>
 	<array>
 		<dict>

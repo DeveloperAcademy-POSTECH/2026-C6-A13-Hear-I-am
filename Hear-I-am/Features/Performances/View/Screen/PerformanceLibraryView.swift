@@ -16,6 +16,7 @@ struct PerformanceLibraryView: View {
     /// Venue names to keep; empty keeps every performance.
     @State private var venueFilter: Set<String> = []
     @State private var choosingVenues = false
+    @State private var receivingNearby = false
     @State private var deleting: PerformanceFolder?
     @State private var error: String?
     @Environment(\.hearChangeRole) private var changeRole
@@ -75,6 +76,8 @@ struct PerformanceLibraryView: View {
                     Button { changeRole?() } label: { HearTopButtonLabel(systemImage: "house") }
                         .buttonStyle(.plain).accessibilityLabel(L("역할 선택으로 돌아가기"))
                 } trailing: {
+                    Button { receivingNearby = true } label: { HearTopButtonLabel(systemImage: "tray.and.arrow.down") }
+                        .buttonStyle(.plain).accessibilityLabel(L("근처에서 받기")).accessibilityIdentifier("performance.receive")
                     filterMenu
                     Button { creating = true } label: { HearTopButtonLabel(systemImage: "plus", prominent: true) }
                         .buttonStyle(.plain).accessibilityLabel(L("새 공연 만들기")).accessibilityIdentifier("performance.create")
@@ -84,6 +87,7 @@ struct PerformanceLibraryView: View {
                 }
                 .refreshable { await library.refresh() }
                 .sheet(isPresented: $creating) { PerformanceEditorSheet(library: library) { id in path.append(id) }.suspendsVoiceWake() }
+                .sheet(isPresented: $receivingNearby) { NearbyReceiveSheet(library: library).suspendsVoiceWake() }
                 .sheet(isPresented: $choosingVenues) {
                     PerformanceVenueFilterSheet(names: venueNames, selection: venueFilter) { venueFilter = $0 }
                 }

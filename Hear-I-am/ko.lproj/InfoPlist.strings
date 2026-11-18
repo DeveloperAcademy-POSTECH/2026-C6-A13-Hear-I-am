@@ -4,3 +4,4 @@
 "NSMotionUsageDescription" = "정면 찾기 연습에서 휴대폰을 착용한 몸의 회전 방향을 확인합니다.";
 "NSMicrophoneUsageDescription" = "음성으로 무대를 선택하고 연습 중 안내를 제어하기 위해 마이크를 사용합니다.";
 "NSSpeechRecognitionUsageDescription" = "무대 이름과 안내 요청을 음성으로 이해합니다.";
+"NSLocalNetworkUsageDescription" = "근처에 있는 폰과 저장한 공연·장면을 바로 주고받기 위해 로컬 네트워크를 사용합니다.";

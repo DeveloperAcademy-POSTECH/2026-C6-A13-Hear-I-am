@@ -45,6 +45,11 @@ targets:
         # The file overrides the generated keys, so the version numbers stay on the build settings.
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        # Nearby sending (#218): the local network prompt and the Bonjour service MultipeerConnectivity uses.
+        NSLocalNetworkUsageDescription: 근처에 있는 폰과 저장한 공연·장면을 바로 주고받기 위해 로컬 네트워크를 사용합니다.
+        NSBonjourServices:
+          - _heariam-share._tcp
+          - _heariam-share._udp
         CFBundleDocumentTypes:
           - CFBundleTypeName: Hear I am Stage
             CFBundleTypeRole: Editor

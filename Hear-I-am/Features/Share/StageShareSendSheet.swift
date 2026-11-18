@@ -12,6 +12,7 @@ struct StageShareSendSheet: View {
     let target: Target
     @State private var building=false
     @State private var outgoing: StageShareOutgoing?
+    @State private var nearbyFile: StageShareOutgoing?
     /// The file last made, removed however its share sheet closes (a swipe down reports nothing).
     @State private var made: StageShareOutgoing?
     @State private var error: String?
@@ -49,7 +50,10 @@ struct StageShareSendSheet: View {
         } trailing: {EmptyView()}
         .hearSheet()
         .interactiveDismissDisabled(building)
-        .sheet(item:$outgoing,onDismiss:{ if let made {StageLibrary.removeShareFile(made);self.made=nil} }) { file in
+        .sheet(item:$nearbyFile,onDismiss:removeMade) { file in
+            NearbySendSheet(file:file,offer:.init(title:summary?.title ?? "",bytes:fileSize(file))) {nearbyFile=nil; dismiss()}
+        }
+        .sheet(item:$outgoing,onDismiss:removeMade) { file in
             StageShareActivityView(url:file.url) {completed in
                 outgoing=nil
                 if completed {dismiss()}
@@ -118,21 +122,36 @@ struct StageShareSendSheet: View {
                 Spacer()
                 Text("\(summary.fileName) · \(Self.size(summary.bytes))").fontWeight(.semibold).lineLimit(1).truncationMode(.middle)
             }.font(HearFont.pretendard(.regular,size:14)).padding(.horizontal,4)
-            Button(action:{share(summary)}) {
+            Button(action:{share(summary,nearby:true)}) {
                 if building { ProgressView().tint(HearV3.canvas) }
-                else { Label(L("공유하기"),systemImage:"square.and.arrow.up") }
+                else { Label(L("근처 폰으로 보내기"),systemImage:"dot.radiowaves.left.and.right") }
             }.buttonStyle(V3PrimaryButtonStyle()).disabled(building || summary.sendable.isEmpty)
+                .accessibilityIdentifier("share.nearby")
+            Button(action:{share(summary,nearby:false)}) {
+                Label(L("다른 앱으로 보내기"),systemImage:"square.and.arrow.up").font(.headline)
+                    .frame(maxWidth:.infinity,minHeight:24).padding(.vertical,14)
+                    .background(.white.opacity(0.12),in:Capsule())
+            }.buttonStyle(.plain).disabled(building || summary.sendable.isEmpty)
+                .accessibilityHint(L("AirDrop, 카카오톡, 파일 앱 등"))
                 .accessibilityIdentifier("share.send")
         }.padding(.horizontal,16).padding(.top,12).padding(.bottom,12)
     }
 
-    private func share(_ summary: StageShareSummary) {
+    private func removeMade() {
+        if let made {StageLibrary.removeShareFile(made);self.made=nil}
+    }
+    private func fileSize(_ file: StageShareOutgoing) -> Int64 {
+        (try? file.url.resourceValues(forKeys:[.fileSizeKey]).fileSize).map(Int64.init) ?? 0
+    }
+
+    private func share(_ summary: StageShareSummary, nearby: Bool) {
         building=true
         Task {
             defer {building=false}
             do {
                 let file=try await library.makeShareFile(summary,performanceID:performanceID)
-                made=file; outgoing=file
+                made=file
+                if nearby {nearbyFile=file} else {outgoing=file}
             }
             catch { self.error=error.localizedDescription }
         }

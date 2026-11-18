@@ -1567,3 +1567,36 @@
 "공유 파일이 손상되었거나 Hear I am 파일이 아니에요." = "The file is damaged or isn't a Hear I am file.";
 "공유 파일을 만들지 못했어요." = "Couldn't make the share file.";
 "공유 파일에 넣을 수 없는 항목이에요." = "This item can't go into a share file.";
+
+/* Sending to a phone nearby (#218) */
+"보내지 못했어요: %@" = "Couldn't send: %@";
+"근처 폰에 이 폰을 보이지 못했어요: %@" = "Couldn't make this phone visible nearby: %@";
+"근처 폰을 찾지 못했어요: %@" = "Couldn't look for phones nearby: %@";
+"상대 폰이 받지 않았거나 연결이 끊겼어요." = "The other phone declined or the connection dropped.";
+"받는 중에 연결이 끊겼어요." = "The connection dropped while receiving.";
+"받지 못했어요: %@" = "Couldn't receive: %@";
+"받은 파일이 비어 있어요." = "The received file is empty.";
+"‘%@’에서 받기를 기다리는 중이에요" = "Waiting for “%@” to accept";
+"받는 폰 화면에서 「받기」를 눌러 주세요." = "Tap “Receive” on the receiving phone.";
+"보내는 중이에요" = "Sending";
+"보냈어요" = "Sent";
+"받는 폰에서 저장할 곳을 고르면 끝나요." = "It's done once the other phone chooses where to save it.";
+"보내지 못했어요" = "Couldn't Send";
+"다시 고르기" = "Choose Again";
+"근처 폰으로 보내기" = "Send to a Phone Nearby";
+"받을 폰" = "Phones";
+"근처 폰을 찾는 중이에요" = "Looking for phones nearby";
+"%@에 보내기" = "Send to %@";
+"받을 폰에서 Hear I am을 열고 공연 관리 위의 받기 버튼을 누르면 여기에 나타나요. 두 폰 모두 Wi-Fi와 블루투스가 켜져 있어야 해요." = "On the other phone, open Hear I am and tap the receive button at the top of Performances. Both phones need Wi-Fi and Bluetooth on.";
+"받는 중이에요" = "Receiving";
+"받지 못했어요" = "Couldn't Receive";
+"다시 기다리기" = "Wait Again";
+"받을 준비가 됐어요" = "Ready to Receive";
+"보내는 폰에서 ‘%@’을 골라 주세요." = "Choose “%@” on the sending phone.";
+"이 화면을 열어 둔 동안에만 근처 폰에 보여요. 보내 온 파일은 「받기」를 눌러야 받아요." = "This phone is visible nearby only while this screen is open. A file is received only after you tap “Receive”.";
+"근처에서 받기" = "Receive Nearby";
+"‘%@’이 보낸 파일" = "File from “%@”";
+"‘%@’ · %@\n받은 뒤에 저장할 것을 고를 수 있어요." = "“%@” · %@\nYou can choose what to save after receiving.";
+"받기" = "Receive";
+"다른 앱으로 보내기" = "Send with Another App";
+"AirDrop, 카카오톡, 파일 앱 등" = "AirDrop, KakaoTalk, Files and more";
