@@ -51,11 +51,7 @@ struct HearRootView: View {
         }
         .onOpenURL {url in
             guard url.isFileURL,url.pathExtension.lowercased()==StageShare.fileExtension else {return}
-            do {
-                if let old=pendingShare {StageLibrary.finishReceiving(old)}
-                pendingShare=try StageLibrary.receive(url)
-                showPendingShare()
-            } catch {library.error=L("받은 파일을 열지 못했어요: %@",error.localizedDescription)}
+            openShare(url)
         }
         .onChange(of:showsLaunch) {showPendingShare()}
         .onChange(of:guidance?.id) {showPendingShare()}
@@ -63,6 +59,7 @@ struct HearRootView: View {
             StageShareReceiveSheet(library:library,incoming:incoming) {result,_ in shareSaved(result)}.suspendsVoiceWake()
         }
         .environment(\.hearShareSaved,shareSaved)
+        .environment(\.hearOpenShare,openShare)
         .onAppear {
             wake.onRequest={text in
                 switch VoiceAppRequest.resolve(text) {
@@ -135,6 +132,14 @@ struct HearRootView: View {
         pendingShare=nil
         if role != .helper {openHelper(tab:1)}
         receiving=incoming
+    }
+    private func openShare(_ url:URL) {
+        do {
+            if let old=pendingShare {StageLibrary.finishReceiving(old)}
+            pendingShare=try StageLibrary.receive(url)
+            // The file picker is still closing when it reports; a sheet asked for now would not appear.
+            Task {try? await Task.sleep(for:.seconds(0.6)); showPendingShare()}
+        } catch {library.error=L("받은 파일을 열지 못했어요: %@",error.localizedDescription)}
     }
     /// After a received file is saved: its performance opens and a line says what was saved.
     private func shareSaved(_ result:StageShareResult) {

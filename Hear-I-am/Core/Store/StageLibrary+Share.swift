@@ -39,7 +39,7 @@ struct StageShareIncoming: Identifiable {
 }
 
 extension StageLibrary {
-    nonisolated static let shareFolderPrefix="StageShare-"
+    static let shareFolderPrefix="StageShare-"
     private static var appVersion: String { Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown" }
 
     func shareSummary(performanceID: UUID) -> StageShareSummary? {
@@ -100,18 +100,6 @@ extension StageLibrary {
         do { try FileManager.default.copyItem(at:url,to:copy) }
         catch { try? FileManager.default.removeItem(at:folder); throw error }
         if isInInbox(url) { try? FileManager.default.removeItem(at:url) }
-        return StageShareIncoming(url:copy)
-    }
-    /// A file that came from a phone nearby: the system's copy goes when its callback returns, so it is moved now.
-    nonisolated static func adoptReceived(_ url: URL) throws -> StageShareIncoming {
-        let fm=FileManager.default
-        let folder=fm.temporaryDirectory.appendingPathComponent(shareFolderPrefix+UUID().uuidString,isDirectory:true)
-        try fm.createDirectory(at:folder,withIntermediateDirectories:true)
-        let copy=folder.appendingPathComponent("received."+StageShare.fileExtension)
-        do { try fm.moveItem(at:url,to:copy) }
-        catch {
-            do { try fm.copyItem(at:url,to:copy) } catch { try? fm.removeItem(at:folder); throw error }
-        }
         return StageShareIncoming(url:copy)
     }
     static func finishReceiving(_ incoming: StageShareIncoming) {

@@ -12,7 +12,6 @@ struct StageShareSendSheet: View {
     let target: Target
     @State private var building=false
     @State private var outgoing: StageShareOutgoing?
-    @State private var nearbyFile: StageShareOutgoing?
     /// The file last made, removed however its share sheet closes (a swipe down reports nothing).
     @State private var made: StageShareOutgoing?
     @State private var error: String?
@@ -50,9 +49,6 @@ struct StageShareSendSheet: View {
         } trailing: {EmptyView()}
         .hearSheet()
         .interactiveDismissDisabled(building)
-        .sheet(item:$nearbyFile,onDismiss:removeMade) { file in
-            NearbySendSheet(file:file,offer:.init(title:summary?.title ?? "",bytes:fileSize(file))) {nearbyFile=nil; dismiss()}
-        }
         .sheet(item:$outgoing,onDismiss:removeMade) { file in
             StageShareActivityView(url:file.url) {completed in
                 outgoing=nil
@@ -122,16 +118,10 @@ struct StageShareSendSheet: View {
                 Spacer()
                 Text("\(summary.fileName) · \(Self.size(summary.bytes))").fontWeight(.semibold).lineLimit(1).truncationMode(.middle)
             }.font(HearFont.pretendard(.regular,size:14)).padding(.horizontal,4)
-            Button(action:{share(summary,nearby:true)}) {
+            Button(action:{share(summary)}) {
                 if building { ProgressView().tint(HearV3.canvas) }
-                else { Label(L("근처 폰으로 보내기"),systemImage:"dot.radiowaves.left.and.right") }
+                else { Label(L("공유하기"),systemImage:"square.and.arrow.up") }
             }.buttonStyle(V3PrimaryButtonStyle()).disabled(building || summary.sendable.isEmpty)
-                .accessibilityIdentifier("share.nearby")
-            Button(action:{share(summary,nearby:false)}) {
-                Label(L("다른 앱으로 보내기"),systemImage:"square.and.arrow.up").font(.headline)
-                    .frame(maxWidth:.infinity,minHeight:24).padding(.vertical,14)
-                    .background(.white.opacity(0.12),in:Capsule())
-            }.buttonStyle(.plain).disabled(building || summary.sendable.isEmpty)
                 .accessibilityHint(L("AirDrop, 카카오톡, 파일 앱 등"))
                 .accessibilityIdentifier("share.send")
         }.padding(.horizontal,16).padding(.top,12).padding(.bottom,12)
@@ -140,18 +130,13 @@ struct StageShareSendSheet: View {
     private func removeMade() {
         if let made {StageLibrary.removeShareFile(made);self.made=nil}
     }
-    private func fileSize(_ file: StageShareOutgoing) -> Int64 {
-        (try? file.url.resourceValues(forKeys:[.fileSizeKey]).fileSize).map(Int64.init) ?? 0
-    }
-
-    private func share(_ summary: StageShareSummary, nearby: Bool) {
+    private func share(_ summary: StageShareSummary) {
         building=true
         Task {
             defer {building=false}
             do {
                 let file=try await library.makeShareFile(summary,performanceID:performanceID)
-                made=file
-                if nearby {nearbyFile=file} else {outgoing=file}
+                made=file; outgoing=file
             }
             catch { self.error=error.localizedDescription }
         }
@@ -203,9 +188,24 @@ struct StageShareActivityView: UIViewControllerRepresentable {
     let url: URL
     let onFinish: (Bool) -> Void
     func makeUIViewController(context: Context) -> UIActivityViewController {
-        let controller=UIActivityViewController(activityItems:[url],applicationActivities:nil)
+        let controller=UIActivityViewController(activityItems:[StageShareActivityItem(url:url)],applicationActivities:nil)
         controller.completionWithItemsHandler={_,completed,_,_ in onFinish(completed)}
         return controller
     }
     func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
+}
+
+/// Hands the file over with its own type, so AirDrop tells the other phone it is a Hear I am stage and the phone can
+/// open it in the app. Given as a bare URL, the type is left for the receiver to guess from the name.
+final class StageShareActivityItem: NSObject, UIActivityItemSource {
+    let url: URL
+    init(url: URL) { self.url=url }
+    func activityViewControllerPlaceholderItem(_ controller: UIActivityViewController) -> Any { url }
+    func activityViewController(_ controller: UIActivityViewController, itemForActivityType activityType: UIActivity.ActivityType?) -> Any? { url }
+    func activityViewController(_ controller: UIActivityViewController, dataTypeIdentifierForActivityType activityType: UIActivity.ActivityType?) -> String {
+        StageShare.typeIdentifier
+    }
+    func activityViewController(_ controller: UIActivityViewController, subjectForActivityType activityType: UIActivity.ActivityType?) -> String {
+        url.deletingPathExtension().lastPathComponent
+    }
 }

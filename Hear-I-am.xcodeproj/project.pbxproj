@@ -179,8 +179,6 @@
 		FC99116B951808913143E7E0 /* StageLibrary+Share.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B40E7236BABD4466B26B60F /* StageLibrary+Share.swift */; };
 		5D1D1528F12E26ADD56A5B72 /* StageShareSendSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDD1ABF63BF096FE8423C6F8 /* StageShareSendSheet.swift */; };
 		BB83B0E577847C3871ABAEFA /* StageShareReceiveSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8263453EF7F518D46144F58 /* StageShareReceiveSheet.swift */; };
-		76289ACD7B706EA40B1D9849 /* NearbyStageShare.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E2D1054998498B9DF35B7E8 /* NearbyStageShare.swift */; };
-		0ACA5DD79D7EA8082C943BAA /* NearbyShareSheets.swift in Sources */ = {isa = PBXBuildFile; fileRef = C922DBF00F7DEFF0664B90E6 /* NearbyShareSheets.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -360,8 +358,6 @@
 		5B40E7236BABD4466B26B60F /* StageLibrary+Share.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "StageLibrary+Share.swift"; sourceTree = "<group>"; };
 		FDD1ABF63BF096FE8423C6F8 /* StageShareSendSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StageShareSendSheet.swift; sourceTree = "<group>"; };
 		B8263453EF7F518D46144F58 /* StageShareReceiveSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StageShareReceiveSheet.swift; sourceTree = "<group>"; };
-		9E2D1054998498B9DF35B7E8 /* NearbyStageShare.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NearbyStageShare.swift; sourceTree = "<group>"; };
-		C922DBF00F7DEFF0664B90E6 /* NearbyShareSheets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NearbyShareSheets.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -1173,8 +1169,6 @@
 		C458ADEA38EDB1A751275602 /* Share */ = {
 			isa = PBXGroup;
 			children = (
-				C922DBF00F7DEFF0664B90E6 /* NearbyShareSheets.swift */,
-				9E2D1054998498B9DF35B7E8 /* NearbyStageShare.swift */,
 				B8263453EF7F518D46144F58 /* StageShareReceiveSheet.swift */,
 				FDD1ABF63BF096FE8423C6F8 /* StageShareSendSheet.swift */,
 			);
@@ -1418,8 +1412,6 @@
 				C4A537E8319A43F16E140807 /* FrontDirectionPracticeViewModel.swift in Sources */,
 				026DC55939F4D0F2D7C900AD /* StageDangerZoneOverlay.swift in Sources */,
 				CBEE9F01464EC8020B4ED083 /* StageLibrary.swift in Sources */,
-				0ACA5DD79D7EA8082C943BAA /* NearbyShareSheets.swift in Sources */,
-				76289ACD7B706EA40B1D9849 /* NearbyStageShare.swift in Sources */,
 				BB83B0E577847C3871ABAEFA /* StageShareReceiveSheet.swift in Sources */,
 				5D1D1528F12E26ADD56A5B72 /* StageShareSendSheet.swift in Sources */,
 				FC99116B951808913143E7E0 /* StageLibrary+Share.swift in Sources */,

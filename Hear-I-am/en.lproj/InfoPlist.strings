@@ -4,4 +4,3 @@
 "NSMotionUsageDescription" = "Motion is used to check which way your body turns while you practice finding your front with the phone on.";
 "NSMicrophoneUsageDescription" = "The microphone is used to choose a stage and control guidance by voice during practice.";
 "NSSpeechRecognitionUsageDescription" = "Speech recognition is used to understand stage names and guidance requests.";
-"NSLocalNetworkUsageDescription" = "The local network is used to send saved performances and scenes straight to a phone nearby.";

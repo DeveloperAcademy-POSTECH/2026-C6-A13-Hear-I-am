@@ -364,6 +364,24 @@ struct StageShareReceiveSheet: View {
     }
 }
 
+/// What the app does once a received file is saved: open its performance and say what was saved. Set by the root.
+private struct HearShareSavedKey: EnvironmentKey { static let defaultValue: ((StageShareResult) -> Void)? = nil }
+extension EnvironmentValues {
+    var hearShareSaved: ((StageShareResult) -> Void)? {
+        get {self[HearShareSavedKey.self]}
+        set {self[HearShareSavedKey.self]=newValue}
+    }
+}
+
+/// Opens a picked or received .heariam file in the 받은 공연 steps. Set by the root, which shows that sheet.
+private struct HearOpenShareKey: EnvironmentKey { static let defaultValue: ((URL) -> Void)? = nil }
+extension EnvironmentValues {
+    var hearOpenShare: ((URL) -> Void)? {
+        get {self[HearOpenShareKey.self]}
+        set {self[HearOpenShareKey.self]=newValue}
+    }
+}
+
 /// The line that slides down after a received file is saved.
 struct StageShareToast: View {
     let text: String
