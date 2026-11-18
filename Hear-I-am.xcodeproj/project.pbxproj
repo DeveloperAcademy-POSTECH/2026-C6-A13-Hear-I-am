@@ -176,6 +176,9 @@
 		5C114C67EDA60C249E050B52 /* V3SoundHelpView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3579700CAA010396F085D85E /* V3SoundHelpView.swift */; };
 		FEA6AEBAE5EDC1C044079764 /* V3VoiceHelpView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF987999418029610AD18760 /* V3VoiceHelpView.swift */; };
 		5BC969B06479E529E07EE9C0 /* V3PermissionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CF6ED53B19257685C1B175F /* V3PermissionView.swift */; };
+		FC99116B951808913143E7E0 /* StageLibrary+Share.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B40E7236BABD4466B26B60F /* StageLibrary+Share.swift */; };
+		5D1D1528F12E26ADD56A5B72 /* StageShareSendSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDD1ABF63BF096FE8423C6F8 /* StageShareSendSheet.swift */; };
+		BB83B0E577847C3871ABAEFA /* StageShareReceiveSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8263453EF7F518D46144F58 /* StageShareReceiveSheet.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -352,6 +355,9 @@
 		3579700CAA010396F085D85E /* V3SoundHelpView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3SoundHelpView.swift; sourceTree = "<group>"; };
 		FF987999418029610AD18760 /* V3VoiceHelpView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3VoiceHelpView.swift; sourceTree = "<group>"; };
 		5CF6ED53B19257685C1B175F /* V3PermissionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3PermissionView.swift; sourceTree = "<group>"; };
+		5B40E7236BABD4466B26B60F /* StageLibrary+Share.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "StageLibrary+Share.swift"; sourceTree = "<group>"; };
+		FDD1ABF63BF096FE8423C6F8 /* StageShareSendSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StageShareSendSheet.swift; sourceTree = "<group>"; };
+		B8263453EF7F518D46144F58 /* StageShareReceiveSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StageShareReceiveSheet.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -568,6 +574,7 @@
 		574EEF0CF5BD6DC13F1B639F /* Features */ = {
 			isa = PBXGroup;
 			children = (
+				C458ADEA38EDB1A751275602 /* Share */,
 				5AFF4C2941EAD4FC69BF489D /* Voice */,
 				65E5D193BA4992BBBB35E91B /* Guidance */,
 				E5FD3EADA5C275D14CBDEAD1 /* Home */,
@@ -688,6 +695,7 @@
 		83BDE5B00F00DB951C3777C7 /* Store */ = {
 			isa = PBXGroup;
 			children = (
+				5B40E7236BABD4466B26B60F /* StageLibrary+Share.swift */,
 				006AA0493BFEC5A4A79FB19D /* StageLibrary.swift */,
 			);
 			path = Store;
@@ -1158,6 +1166,15 @@
 			path = Preview;
 			sourceTree = "<group>";
 		};
+		C458ADEA38EDB1A751275602 /* Share */ = {
+			isa = PBXGroup;
+			children = (
+				B8263453EF7F518D46144F58 /* StageShareReceiveSheet.swift */,
+				FDD1ABF63BF096FE8423C6F8 /* StageShareSendSheet.swift */,
+			);
+			path = Share;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -1395,6 +1412,9 @@
 				C4A537E8319A43F16E140807 /* FrontDirectionPracticeViewModel.swift in Sources */,
 				026DC55939F4D0F2D7C900AD /* StageDangerZoneOverlay.swift in Sources */,
 				CBEE9F01464EC8020B4ED083 /* StageLibrary.swift in Sources */,
+				BB83B0E577847C3871ABAEFA /* StageShareReceiveSheet.swift in Sources */,
+				5D1D1528F12E26ADD56A5B72 /* StageShareSendSheet.swift in Sources */,
+				FC99116B951808913143E7E0 /* StageLibrary+Share.swift in Sources */,
 				7E1C4372DA56BCA7AE9AC943 /* StageMap.swift in Sources */,
 				DBA264DBF315C88577D5BDD7 /* StageReplayPreviewHarness.swift in Sources */,
 				A5F02179B6F3D832E825E501 /* StageRow.swift in Sources */,
@@ -1443,6 +1463,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				DEVELOPMENT_TEAM = 7C2363N8Z6;
+				INFOPLIST_FILE = "Hear-I-am/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "Hear I am";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_UIRequiredDeviceCapabilities = arkit;
@@ -1628,6 +1649,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				DEVELOPMENT_TEAM = 7C2363N8Z6;
+				INFOPLIST_FILE = "Hear-I-am/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "Hear I am";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_UIRequiredDeviceCapabilities = arkit;

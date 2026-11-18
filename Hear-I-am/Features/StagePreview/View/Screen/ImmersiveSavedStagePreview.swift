@@ -7,6 +7,7 @@ struct ImmersiveSavedStagePreview: View {
     let scanSelector: AnyView?
     let onRename: (() -> Void)?
     let onDelete: (() -> Void)?
+    let onShare: (() -> Void)?
     @State private var gallery = false
     @State private var galleryDetent=PresentationDetent.height(200)
     @State private var pointSettings = false
@@ -20,13 +21,13 @@ struct ImmersiveSavedStagePreview: View {
     @State private var settingsHeight: CGFloat=240
 
     init(record: ScanManifest, store: ScanStore, scanSelector: AnyView? = nil,
-         onRename: (() -> Void)? = nil, onDelete: (() -> Void)? = nil) {
+         onRename: (() -> Void)? = nil, onDelete: (() -> Void)? = nil, onShare: (() -> Void)? = nil) {
         let model=SavedStagePreviewModel(record:record,store:store)
         model.display = .clean;model.immersive=true;model.showCleanPhotoPins=true
         model.selection = record.route?.points.isEmpty == false ? .point(0) : nil
         _model=StateObject(wrappedValue:model)
         self.scanSelector=scanSelector
-        self.onRename=onRename;self.onDelete=onDelete
+        self.onRename=onRename;self.onDelete=onDelete;self.onShare=onShare
     }
 
     var body: some View {
@@ -125,7 +126,7 @@ struct ImmersiveSavedStagePreview: View {
         }
     }
 
-    /// Photo pins, camera views, scene rename and scan deletion.
+    /// Photo pins, camera views, scene rename and share, and scan deletion.
     private var moreMenu: some View {
         Menu {
             Button {model.photoPinsVisible.toggle()} label: {
@@ -137,6 +138,7 @@ struct ImmersiveSavedStagePreview: View {
                 Button(L("시점 초기화"),systemImage:"arrow.counterclockwise") {model.setCamera(.overview)}
                 Button(L("동선 위에서 보기"),systemImage:"eye") {model.setCamera(.overhead)}
                 if let onRename {Button(L("장면 이름 변경"),systemImage:"pencil",action:onRename)}
+                if let onShare {Button(L("장면 공유"),systemImage:"square.and.arrow.up",action:onShare)}
             }
             if let onDelete {
                 Section {Button(L("현재 스캔 파일 삭제"),systemImage:"trash",role:.destructive,action:onDelete)}

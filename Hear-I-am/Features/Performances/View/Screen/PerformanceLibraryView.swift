@@ -340,7 +340,7 @@ struct PerformanceEditorSheet: View {
                 }
                 .hearSheet()
     }
-    private static let field = Color(red: 28/255, green: 28/255, blue: 30/255)
+    static let field = Color(red: 28/255, green: 28/255, blue: 30/255)
     private func header(_ text: String) -> some View {
         Text(text).font(HearFont.pretendard(.semibold, size: 20)).foregroundStyle(.white).padding(.horizontal, 4)
             .accessibilityAddTraits(.isHeader)
