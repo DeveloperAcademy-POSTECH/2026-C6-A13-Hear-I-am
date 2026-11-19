@@ -41,6 +41,28 @@ import HearIAmCore
             event("haptic_error","\(name) \(error.localizedDescription)",level:.error)
         }
     }
+    /// One short tap with each 「톡」 of the direction ticks (#224), so the ticks are felt on the waist phone
+    /// when they cannot be heard. Only failures are logged; the tick itself is already logged as a sound.
+    func tick() {
+        guard supported else {
+            if !reportedUnsupported { reportedUnsupported=true;event("haptic_unsupported","tick") }
+            return
+        }
+        do {
+            let engine=try prepare()
+            let tap=CHHapticEvent(eventType:.hapticTransient,parameters:[
+                CHHapticEventParameter(parameterID:.hapticIntensity,value:Self.tickIntensity),
+                CHHapticEventParameter(parameterID:.hapticSharpness,value:Self.tickSharpness)
+            ],relativeTime:0)
+            try engine.makePlayer(with:CHHapticPattern(events:[tap],parameters:[])).start(atTime:CHHapticTimeImmediate)
+        } catch {
+            self.engine=nil
+            event("haptic_error","tick \(error.localizedDescription)",level:.error)
+        }
+    }
+    /// Full strength so it is felt through clothes; fairly sharp so each tap stays distinct at the tick rate.
+    static let tickIntensity: Float=1.0
+    static let tickSharpness: Float=0.7
     func stop() { try? player?.cancel();player=nil }
     /// Stops the engine, e.g. when the screen closes or the app leaves the foreground.
     func shutdown() {

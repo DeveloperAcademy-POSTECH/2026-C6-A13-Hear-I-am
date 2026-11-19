@@ -31,6 +31,9 @@ import AVFoundation
         } else {
             try audio.setCategory(.playback,mode:.spokenAudio,options:[.mixWithOthers])
         }
+        // iOS mutes haptics while the microphone records; the voice mode keeps it open, and the direction
+        // ticks tap the phone (#224).
+        try? audio.setAllowHapticsAndSystemSoundsDuringRecording(true)
         try audio.setActive(true);active=true;configuredForSpeaker=speaker;configuredForVoiceInput=voiceInput
     }
     /// A lease is held only while the rehearsal service owns an input engine.

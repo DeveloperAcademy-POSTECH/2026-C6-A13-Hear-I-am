@@ -47,8 +47,11 @@ import HearIAmCore
     private var shotIsArrival=false
     private var observers: [NSObjectProtocol]=[]
     private let log=Logger(subsystem:Bundle.main.bundleIdentifier ?? "HearIAm",category:"Signal")
+    /// Taps the phone with each direction tick (#224).
+    private let haptics=DirectionHaptics()
 
     init() {
+        haptics.onEvent={ [weak self] name,detail in self?.onEvent?(name,detail) }
         for node in [warningNode,shotNode,directionNode] {
             engine.attach(node);engine.connect(node,to:engine.mainMixerNode,format:format)
         }
@@ -79,6 +82,7 @@ import HearIAmCore
         applyVolumes()
         node.scheduleBuffer(buffer,at:nil,options:.interrupts)
         if !node.isPlaying { node.play() }
+        if case .directionTick=sound { haptics.tick() }
         event("signal_play",sound.name)
     }
     /// Plays the currently selected aligned confirmation chime (#62).
@@ -128,7 +132,7 @@ import HearIAmCore
         if wasWarning != nil { event("signal_warning",(wasWarning?.name ?? "")+"->off") }
     }
     /// Stops playback and the engine, e.g. when the screen closes or audio is interrupted.
-    func shutdown() { stop();engine.stop();event("signal_engine","stopped") }
+    func shutdown() { stop();engine.stop();haptics.shutdown();event("signal_engine","stopped") }
 
     private func prepare(_ name: String) -> Bool {
         do {
