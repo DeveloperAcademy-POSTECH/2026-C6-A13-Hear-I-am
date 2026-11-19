@@ -161,7 +161,7 @@ import HearIAmCore
     }
     private func applyVolumes() {
         let share=speechActive ? SignalVolume.duckedShare : 1
-        warningNode.volume=SignalVolume.warning*share*(warningQuiet ? SignalVolume.quietShare : 1);shotNode.volume=shotVolume*(shotIsArrival ? 1 : share)
+        warningNode.volume=SignalVolume.warning*share*(warningQuiet ? SignalVolume.quietShare : 1);shotNode.volume=shotIsArrival ? (speechActive ? SignalVolume.arrivalUnderSpeech : shotVolume) : shotVolume*share
         directionNode.volume=directionVolume*share
     }
     private func routeChanged(_ reason: AVAudioSession.RouteChangeReason?) {

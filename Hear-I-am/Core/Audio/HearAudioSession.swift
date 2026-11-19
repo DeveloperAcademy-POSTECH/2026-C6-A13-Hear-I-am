@@ -69,23 +69,24 @@ import AVFoundation
 }
 
 /// Fixed loudness per signal. Overall level is set with the phone volume at rehearsal.
-/// The arrival ding sits a little under the warning since 10/21 so the side of the next point is heard over it.
+/// Every signal plays at the most the app can give (1.0) since #224, so it carries on a stage; speech still
+/// lowers the tones (duckedShare) so words are not masked.
 enum SignalVolume {
     static let warning: Float=1.0
     /// Every spoken line plays at full level, so speech is as loud as the phone's volume says (11/08:
     /// 「음성이 커졌다 작아졌다」). 0.8 here against the narration engine's 1.0 made lines differ.
     static let speech: Float=1.0
-    static let buzz: Float=0.9
-    /// It was 1.0 like the warning (10/17) until 10/21, when it masked the side of the next point.
-    static let arrival: Float=0.7
+    static let buzz: Float=1.0
+    static let arrival: Float=1.0
+    /// The arrival ding is not lowered with the other tones while speech plays (10/19), but at 1.0 it masked
+    /// the side of the next point said right after it (10/21), so under speech it keeps the old 0.7.
+    static let arrivalUnderSpeech: Float=0.7
     /// 「오른쪽」·「왼쪽」 for the next point: full speech volume (10/21).
     static let nextSide: Float=1.0
-    /// Below the warning, like speech: the direction beep should not hide how close an obstacle is.
-    static let direction: Float=0.8
-    /// Softer than the 45 ms ticks so the 0.25 s aligned confirmation chime feels gentle on the ears (#62).
-    static let aligned: Float=0.65
+    static let direction: Float=1.0
+    static let aligned: Float=1.0
     /// Tones drop to this share of their level while speech plays, so words are not masked.
-    /// The arrival ding is the exception (10/19).
+    /// The arrival ding has its own level instead (arrivalUnderSpeech).
     static let duckedShare: Float=0.6
     /// Warning level after 10 s of failing to step away from an obstacle.
     static let quietShare: Float=0.3
